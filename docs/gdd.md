@@ -64,11 +64,23 @@ The game is designed from the start as a moddable platform. All content — tech
 
 ## 3. Core Fantasy
 
-> *"I landed on an alien world, figured out how its physics worked, and built something that shouldn't exist."*
+> *"I landed on an alien world, figured out how its physics worked, and built something that shouldn't exist — and then I left."*
+
+The player is stranded on an alien world and must escape — ultimately leaving the solar system entirely. The route out depends on how far the player has come: early runs find and activate alien gateways or devices left by a prior civilisation; later runs build increasingly capable spacecraft (first intra-system, then inter-system) by mastering the world's science deeply enough to manufacture the technology from scratch.
 
 The player is not a factory operator. They are a **scientist-explorer** who happens to build factories as the output of their scientific work. The factory is the proof of understanding, not the activity itself.
 
-A successful run feels like solving a deep puzzle — the satisfaction of having read a complex system, found the critical path through it, and executed a plan that required genuine expertise. The escape artifact isn't a grind reward. It's a thesis.
+A successful run feels like solving a deep puzzle — the satisfaction of having read a complex system, found the critical path through it, and executed a plan that required genuine expertise. The escape isn't a grind reward. It's a thesis.
+
+**The thematic arc across runs:** Each run is one leg of a journey through the galaxy — you escape system N and arrive stranded in system N+1. Early runs rely on discovered alien technology (the gateways imply someone traveled this route before you — who, and why?). Later runs transcend that dependency, building your own way out with increasing mastery. The destination is home, or something beyond it; the narrative unfolds across many runs.
+
+Alien ruins and persistent sites are remnants of a prior civilisation that traveled the same route. Their technology appears across multiple systems — seeded differently each time, but recognisably theirs. The codex accumulates knowledge across every world you've passed through: part scientific journal, part map of a civilisation's vanishing trail.
+
+**Two science tracks — complementary, not exclusive:**
+- *Universal science* — real-world-inspired physics and engineering. Applies on any world. Base materials, fundamental processes. The foundation every run shares regardless of seed.
+- *Alien science* — the prior civilisation's technology. Seeded per run; unique each time. Exotic materials and processes unlocked primarily through exploration, observation, and site interaction.
+
+The two tracks feed the same recipe graph and tech tree. Most nodes are accessible through either track (or both). Some nodes offer genuine alternative paths: a human-engineering approach (production milestone or research spend) vs. an alien-science approach (exploration discovery). Explorer-first and factory-first playstyles find different routes to the same capabilities.
 
 ---
 
@@ -157,11 +169,11 @@ Research is spent to:
 Research is **scarce enough to force tradeoffs**, especially early. The player cannot reveal everything before building anything. They must commit to investigating certain paths before others, which makes their scouting decisions consequential.
 
 ### The physical discovery loop
-The player's avatar is the research instrument. Science happens in the world, not in menus.
+The player's attention is the research instrument. Science happens in the world, not in menus.
 
-- The player physically moves through the world to find sample sites, anomalies, and resource deposits
-- Collecting samples requires reaching the location and interacting with it
-- Some sample sites are dangerous, distant, or require specific equipment to access — creating a progression gate on information as well as production
+- Exploration is conducted via player-piloted drones. The player's character stays at or near the base; the player's *attention* travels. Piloting a drone to collect samples is an active time cost, not passive automation.
+- Collecting samples requires the player to pilot a drone to the location and interact with it
+- Some sample sites are dangerous, distant, or require a specific drone tier to reach — creating a progression gate on information as well as production
 - Analysis stations are built in the world and consume samples + research currency to produce knowledge
 - The act of experimentation has a mild world-reactivity cost — running reactions disturbs local ecosystems
 
@@ -174,7 +186,7 @@ At any point in a run, the player has three tiers of knowledge about any given r
 
 The player spends research to move nodes from tier 1 → 2 → 3. The decision of *which* nodes to fully reveal before others is a core strategic choice, especially on runs where research is tight.
 
-> ⚠️ **OPEN QUESTION:** Should there be a mechanic for "building blind" — committing to a recipe before fully revealing it, at some risk cost? This would add tension but could be frustrating if it produces irreversible bad outcomes.
+> **Post-MVP:** A "building blind" mechanic — committing to a partially-revealed recipe at some risk cost — is a candidate optional challenge mode, not a core MVP mechanic. Core loop assumes players reveal before committing.
 
 ---
 
@@ -183,14 +195,23 @@ The player spends research to move nodes from tier 1 → 2 → 3. The decision o
 The tech tree is the skeleton of the run. It is the one structure that is always partially visible — players can always see its shape, even when its contents are hidden.
 
 ### Tier structure
-The tech tree is organized into **tiers** (count TBD). Each tier has:
+The tech tree is organized into **tiers**. Tier count scales with difficulty tier and is unlocked via meta-progression — early runs are shallower and faster, deeper trees unlock as mastery grows:
+
+| Difficulty | Tech tiers (tentative) | Unlocked by |
+|---|---|---|
+| Initiation | 3 | Available from start |
+| Standard | 4 | Complete an Initiation run |
+| Advanced | 5 | Complete a Standard run |
+| Pinnacle | 6 | Complete an Advanced run |
+
+Exact counts are subject to playtesting (see open question #10). The escape artifact is the terminal node of the recipe graph — deeper tech trees produce more complex artifacts naturally, no special win condition logic required.
+
+Each tier has:
 - A visible unlock condition (what production milestone, research threshold, or exploration achievement opens this tier)
 - Hidden contents (the specific nodes inside are not visible until the tier is unlocked)
-- A visible "shadow" — players can see *how many* nodes are in the tier and their rough categories, but not their specifics
+- A visible "shadow" — players can see *how many* nodes are in the tier and their **category** (e.g. "Power — Tier 2, Rare"), but not node specifics until unlocked
 
-This mirrors the GTNH quest book model: the journey's shape is legible, the specifics are discovered.
-
-> ⚠️ **OPEN QUESTION:** Exact tier count needs to be determined in conjunction with target run lengths. Preliminary thinking is 4–6 tiers for a Standard run, with Pinnacle runs having deeper trees.
+This mirrors the GTNH quest book model: the journey's shape is legible, the specifics are discovered. Showing category and rarity in the shadow gives players enough to plan without removing the discovery reward.
 
 ### Node seeding
 Nodes are drawn from a content pool at run generation. Not every node exists in every run. Nodes have:
@@ -288,21 +309,47 @@ This means power transitions are economic decisions: *when is the pain of stayin
 ### Power transitions as factory events
 Transitioning power tiers is potentially the most disruptive event in a run — it may require rebuilding significant infrastructure. Combined with the world's reactivity to factory footprint, a major power transition is a meaningful moment in the run's arc, not a background task.
 
-> ⚠️ **OPEN QUESTION:** Should there be a mechanic that makes power transitions visible or dramatic — a moment where the factory goes dark briefly, or where the world reacts specifically to the energy signature change? This could add narrative texture to what is otherwise a logistics problem.
+> **Post-MVP enhancement:** Dramatic power transition events (factory going dark, world reacting to energy signature change) are desirable for narrative texture but not required for MVP. Transitions are meaningful as economic decisions; the drama layer can be added later.
 
 ---
 
 ## 10. The Factory Layer
 
-The factory is the physical consequence of good planning. It is moderately spatial — the map matters and creates real routing decisions, but spatial optimization is not the primary challenge.
+The factory is the physical consequence of good planning. The world is fully three-dimensional and voxel-based — machines are multi-block structures built from individual blocks in a free-form 3D environment. Spatial optimization is not the primary challenge; the complexity comes from the logistics network, recipe graph, and machine configuration.
 
 ### Design intent
-Factory layout should feel satisfying and consequential without being the game's central puzzle. A player who makes good planning decisions should be able to build a functional factory without needing to be a Factorio expert. A player who is also a strong spatial thinker gets additional satisfaction from elegant layouts, but this is a bonus rather than a requirement.
+Factory layout should feel satisfying and consequential without being the game's central puzzle. A player who makes good planning decisions should be able to build a functional factory without needing spatial optimization expertise. A player who is also a strong spatial thinker gets additional satisfaction from elegant, impressive-looking layouts — and base aesthetics are a first-class feature, not an afterthought. Sharing well-built bases is an intended community behavior.
 
-### Core mechanics
-Standard factory-game primitives apply: conveyor belts (or equivalent), pipes for fluids, machines that consume inputs and produce outputs, power distribution networks, storage. The specific implementation (2D top-down, 2.5D isometric, etc.) is a separate visual/technical decision.
+### Visual model
+The game is fully 3D with free-form voxel block placement. Players build in all three dimensions; verticality is a meaningful tool for both routing and aesthetics. There are no forced grid-snap constraints — machines and infrastructure can be arranged to look impressive, not just functional. Late-game bases should visually dwarf early-game ones, making progression legible from screenshots.
 
-> ⚠️ **OPEN QUESTION:** Visual perspective and core movement model (top-down 2D vs isometric vs other) not yet decided. This significantly affects development scope and feel.
+### Logistics network
+Item and fluid transport uses a logistics network model (ME-style) rather than physical belt routing. The network is physical infrastructure — cables and conduits are visible blocks that must be placed and routed — but the challenge is network design rather than belt-path puzzles. Network cables as visible infrastructure contribute to base aesthetics.
+
+**Capacity — discrete channel limits.** Cables have a discrete channel capacity (like AE2). Exceeding capacity requires higher-tier cables, sub-network segmentation, or architectural redesign. This is the primary driver of network complexity and a revisitable design parameter. Channel limits are intentionally the pressure that encourages players to segment their network into logical sub-networks (e.g. a smelting network, a processing network) connected via defined interfaces — segmentation is a solution to be discovered, not a forced constraint.
+
+**Auto-crafting.** The network handles on-demand crafting: the player defines a crafting graph and the network assembles items from components automatically on request. The design challenge is configuring the crafting graph correctly, not clicking through individual recipes. This directly serves Pillar 2 — the work is in the planning, not the execution.
+
+**Unified storage.** The network presents a unified item inventory across all connected storage nodes. Storage exists as a necessary system but is not intended to be a primary design constraint or puzzle — inventory management is friction, not depth.
+
+### Machines and multiblock structures
+All significant machines are multi-block structures: a fixed core footprint plus flexible modular attachments.
+
+**Core structure:**
+- Each machine type has a canonical fixed-shape core (a defined 3D block arrangement)
+- The core's shape is recognizable — a player viewing a screenshot can identify the machine type
+- Tier is expressed physically: higher-tier machines have larger core structures, requiring more blocks. Size is the tier indicator — no separate UI element needed
+
+**Tier progression:**
+- Upgrading a machine to a higher tier means expanding its physical structure outward
+- The smaller (lower-tier) structure is tentatively a valid sub-structure of the larger one — place new blocks around the existing core and it remains operational during upgrade. This may be relaxed per-machine or globally if it unduly limits design space
+- Players must plan for expansion room around machines, or rebuild elsewhere
+
+**Module slots:**
+- Modules attach to the core structure at defined attachment zones
+- The number of available module slots is determined by the core's tier — upgrading the core earns more slots
+- Modules carry meaningful functional tradeoffs: speed vs. efficiency, parallel processing slots, buffer capacity, etc. — not purely cosmetic
+- Which modules exist in a given run is a valid seed variance axis
 
 ### The avatar in the factory
 The player's physical presence in the world means they move through their own factory. This creates an organic relationship between the scouting/science layer and the factory layer — the player is always in the same world, not switching between a map view and a factory view. The factory grows around them as they work.
@@ -312,8 +359,9 @@ Several design decisions exist specifically to reduce passive observation and in
 
 - **Ghost planning.** The player can lay out a factory plan in "ghost" mode before committing resources, allowing full design before execution
 - **Blueprint system.** Sub-factory templates can be saved and placed, reducing repetitive placement on known patterns
-- **Bottleneck visualization.** The game clearly surfaces throughput problems rather than requiring the player to stare at belts to find them
+- **Bottleneck visualization.** The game clearly surfaces throughput problems rather than requiring the player to monitor the network manually
 - **Automation of routine fixes.** Where possible, the game handles routine maintenance automatically; the player's attention is reserved for genuine decisions
+- **Photo mode.** A dedicated screenshot/photo mode for capturing and sharing builds. Base sharing is an intended community loop.
 
 ---
 
@@ -323,17 +371,51 @@ Several design decisions exist specifically to reduce passive observation and in
 The world map is procedurally generated from the seed. Key elements:
 - **Resource deposits** — ore patches, fluid pockets, unique material sites, placed with intention rather than pure randomness (no run should have a critical resource unreachably far from a viable starting location)
 - **Terrain features** — cliffs, water bodies, elevation changes create physical routing constraints and shape factory orientation
-- **Points of interest** — ruins, anomalies, and phenomena that are sources of exploration discoveries and unlock triggers
-- **Biome regions** — areas with distinct environmental properties that affect machine operation and scouting conditions
+- **Points of interest** — ruins, anomalies, sealed sites, and phenomena that are sources of exploration discoveries and unlock triggers (see §11 Persistent Sites)
+- **Biome regions** — areas with distinct environmental properties that affect machine operation and scouting conditions, distributed across all vertical layers
+
+### Vertical layers
+The world has distinct vertical layers, each with different environmental properties, biome types, and resource affinities:
+
+- **Underground** — caves, deep deposits, geothermal phenomena; accessible via digger drones
+- **Surface** — starting layer; most accessible biomes; land and water terrain
+- **Sky/atmosphere** — upper atmospheric biomes; accessible via flying drones
+- **Orbital/space** — extreme-tier layer; accessible via space-capable drones
+
+Resources have affinity or hard restriction to specific layers and/or biomes. A resource that only forms in underground geothermal biomes requires both a digger drone and a world with geothermal activity to access. This makes layer+biome combinations meaningful variance axes, and gives experienced players immediate strategic reads from early scan data.
 
 ### Biomes
-The world may contain multiple biome regions, each with distinct properties. Biomes affect:
+The world contains multiple biome regions distributed across layers. Biomes affect:
 - Local machine efficiency (heat, cold, pressure)
 - Sample types available for analysis
 - World reactivity rate
+- Which resources can generate there
 - Visual character
 
 Biome types are expanded through meta-progression — new biomes unlock across runs, adding variety to the world generation pool.
+
+### Exploration model — drones
+Exploration is done via deployable drones, not direct player travel. Drone types are tier-gated through the tech tree, making factory progress the key to unlocking new layers and biomes:
+
+| Drone tier | Access |
+|---|---|
+| Land drone | Surface terrain |
+| Amphibious drone | Surface water bodies and underwater biomes |
+| Digger drone | Underground layer |
+| Flying drone | Sky/atmosphere layer |
+| Space drone | Orbital layer |
+
+Drones are constructed from factory-produced components — the same progression that advances your production graph also advances your exploration reach. This creates a natural pacing gate without arbitrary locks.
+
+### Map reveal and scanning
+Fog of war is lifted by drone presence, but the reveal is intentionally imprecise at range. Scanners provide a general read on nearby areas: biome type and broad resource category presence (e.g. "mineral deposits," "fluid pockets") without exact quantities or positions. Precise data requires physical drone proximity or deployed sensor structures.
+
+This means players can plan exploration routes based on scan data ("that region has geothermal activity — worth sending a digger drone") without the world being fully solved from a distance.
+
+### Persistent sites
+Points of interest are persistent structures that remain in the world across the run. Players may discover a sealed door, a ruin, or an anomaly they cannot yet interact with — a visible future goal. Returning to a site with the right tech or resources to unlock it is a concrete mid-run milestone.
+
+Sites are sources of exploration discoveries, unlock triggers for tech tree nodes, and sometimes unique one-time resources. Their existence and placement is seeded.
 
 ### World reactivity
 The world is not hostile in the traditional sense — there are no enemies that attack the factory. Instead, the world **responds** to the player's presence and factory footprint. This reactivity is:
@@ -355,6 +437,7 @@ The world is not hostile in the traditional sense — there are no enemies that 
 - A source of pressure and interesting tradeoffs, not a run-ender
 - Legible — the player can see reactivity building and understand what's causing it
 - Responsive to player choices — a smaller, more efficient factory generates less reactivity than a sprawling one
+- **Two-sided (post-MVP):** Reactivity events should also create opportunities — a disturbed deposit reveals a deeper vein, an atmospheric change enables a new reaction, an ecosystem shift produces a harvestable byproduct. This makes reactivity a system to manage strategically rather than a meter to minimize. Considered core to the full reactivity design, not an optional enhancement.
 
 The world's reactivity profile is seeded — some worlds react quickly and dramatically, others are resilient. This is a meaningful run modifier that affects pacing and strategy.
 
@@ -364,13 +447,26 @@ The world's reactivity profile is seeded — some worlds react quickly and drama
 
 ## 12. The Escape Condition
 
-Each run has a single large escape artifact — a complex final item that requires the player to have mastered the run's full production graph to synthesize.
+Each run has a single escape objective — a complex final achievement that requires the player to have mastered the run's full production graph.
 
 ### Design intent
-The escape artifact is the run's thesis statement. Completing it means the player understood this alien world's science well enough to produce something that could not exist without that understanding. It is not a checklist — it is proof of mastery.
+The escape condition is the run's thesis statement. Completing it means the player understood this alien world's science well enough to leave it. It is not a checklist — it is proof of mastery.
+
+### Escape type by difficulty
+
+The nature of the escape scales with difficulty tier, reflecting the player's growing self-sufficiency across the meta-progression arc:
+
+| Difficulty | Escape type | Description |
+|---|---|---|
+| Initiation | Alien gateway activation | Discover and power an alien gateway left by a prior civilisation. Requires mastering early-tier science to generate sufficient power and produce the activation components. |
+| Standard | Alien gateway + intra-system ship | Gateway requires deeper mastery; alternatively, build a basic intra-system spacecraft from manufactured components. |
+| Advanced | Intra-system spacecraft | Full spacecraft construction from alien-world materials. No gateway shortcut. |
+| Pinnacle | Inter-system spacecraft | Build a vessel capable of leaving the solar system. Requires mastery of the entire run's production graph. |
+
+Escape types are content-defined — modders can create new escape scenarios.
 
 ### Structure
-The escape artifact is a terminal node in the recipe graph. Its prerequisites cascade through the entire graph, meaning a player cannot shortcut to it — every major production chain must be solved. The specific artifact varies by run scenario (see meta-progression).
+The escape condition is a terminal node in the recipe graph. Its prerequisites cascade through the entire graph, meaning a player cannot shortcut to it — every major production chain must be solved. The specific escape type is determined by the run's difficulty tier and scenario (see meta-progression).
 
 ### Throughput requirement
 The escape condition is not completed by producing the artifact once. It requires **sustained factory output** at a target throughput for a defined duration. This means:
@@ -428,7 +524,15 @@ Meta-progression persists across runs and expands the game's possibility space w
 
 **Starting conditions pool.** Small starting boons become available — a modest extra resource cache, a single pre-researched node, a slightly upgraded starting tool. One boon is chosen at run start from a small pool. These ease the very earliest moments of a run without affecting its depth.
 
-> ⚠️ **OPEN QUESTION:** Should there be any persistent knowledge that carries between runs — e.g., a "field notes" system where the player can record observations about node types or planet modifier effects? This could reward careful players without making runs trivial.
+**Codex.** A persistent encyclopedia filled in through play. Encountering something for the first time — a biome, a node type, a planet modifier, a machine — creates or extends its codex entry. Entries record what the player has learned about that *type* across runs, not what is true of the current run.
+
+Examples of what the codex surfaces:
+- Biome entry: the resource pool that *can* spawn in this biome (which ones actually spawned is still seeded variance this run)
+- Node type entry: observed tier range, category, known behavior patterns
+- Planet modifier entry: which systems it affects and the effect direction
+- Machine entry: function and module types (unlocked after first build)
+
+The codex rewards thorough play and reduces the "I've never seen this before" friction on repeat encounters. It does not reduce run difficulty — experienced players read the map faster, not more easily. Codex content is a meta-progression unlock in the sense that it fills in over time, but it is not gated — it expands automatically through play.
 
 ---
 
@@ -460,15 +564,12 @@ The first run uses a **constrained seed** — a seed selected to produce a hospi
 Permadeath is **opt-in**. Players choose their relationship with failure at run start. This respects the tension between roguelike tradition and factory game investment — a player who has spent 20 hours on a run should be able to choose whether losing it is part of the game.
 
 ### Failure conditions
-Failure (on permadeath runs) can occur when:
-- World reactivity reaches a critical threshold that makes factory operation impossible
-- The player's power situation collapses and cannot be recovered
-- (Other failure conditions TBD — see open question below)
+There are no forced failure conditions. A run can always be completed — the player can always limp to the escape condition with an inefficient factory. World reactivity, power problems, and resource pressure create difficulty and strategic cost, but none of them end the run. Given run lengths of 10–30+ hours, forced failure would be devastating rather than interesting.
 
-> ⚠️ **OPEN QUESTION:** Exact failure conditions need careful design. Failure should feel earned and legible — the player should be able to see it coming and have had real opportunities to prevent it. Sudden run-ending events with no warning are not appropriate for this game.
+The roguelike variance expresses itself as difficulty and elegance, not binary success/failure. A bad run produces a slow, ugly escape. A good run produces a clean, optimized one.
 
-### Non-permadeath
-Without permadeath, runs always complete — the only question is how elegantly. The player can always limp to the escape condition with an inefficient factory. The roguelike variance expresses itself as difficulty and elegance, not as binary success/failure.
+### Permadeath
+Permadeath modes are **post-MVP**. The exact form permadeath takes in Exergon needs careful design given the no-forced-failure model — it likely involves constraints on saves or meta-progression rewards rather than run termination by game systems. Multiple permadeath variants are expected.
 
 ---
 
@@ -502,7 +603,7 @@ The official content pack is designed to be readable and well-commented — a te
 ### Mod loading
 Mods are loaded as additional content packs that extend or override the base pool. Multiple mods can coexist. Load order and conflict resolution rules are defined and documented.
 
-> ⚠️ **OPEN QUESTION:** Should there be official mod support tooling (a content editor, a run validator, a balance checker) shipped with the game or as a separate tool? This significantly affects development scope but substantially lowers the barrier to quality mods.
+> **Resolved:** Official mod tooling (content editor, run validator, balance checker) is post-MVP unless it proves useful during development of the official content pack. The run validator in particular is likely needed early for internal use (seed reachability guarantees, recipe bounds validation) and will be released to modders when ready. Tooling scope is driven by internal need, not modder convenience.
 
 ---
 
@@ -512,17 +613,17 @@ Collected here for easy tracking. Each item links back to the section where it f
 
 | # | Question | Section | Priority |
 |---|---|---|---|
-| 1 | Should "building blind" be a supported mechanic — committing to a recipe before full reveal, at some risk? | §6 | Medium |
-| 2 | Exact tier count for tech trees across difficulty levels | §7 | High |
-| 3 | Visual perspective and movement model (2D, isometric, other) | §10 | High |
-| 4 | Should world reactivity also create opportunities (new resources, discoveries) as well as problems? | §11 | Medium |
-| 5 | Should power transitions have a dramatic in-world expression (factory goes dark, energy signature event)? | §9 | Low |
-| 6 | Exact failure conditions for permadeath runs — what specifically ends a run? | §16 | High |
-| 7 | Should a persistent "field notes" system exist for cross-run knowledge recording? | §14 | Low |
-| 8 | Should official mod tooling ship with the game? | §17 | Medium |
-| 9 | Working title — game needs a name | — | Medium |
+| 1 | ~~Should "building blind" be a supported mechanic?~~ **Resolved: post-MVP optional challenge mode** | §6 | ~~Medium~~ |
+| 2 | ~~Exact tier count for tech trees across difficulty levels~~ **Resolved: 3/4/5/6 tiers for Initiation/Standard/Advanced/Pinnacle (tentative, needs playtesting)** | §7 | ~~High~~ |
+| 3 | ~~Visual perspective and movement model (2D, isometric, other)~~ **Resolved: 3D voxel, free-form block placement** | §10 | ~~High~~ |
+| 4 | ~~Should world reactivity also create opportunities?~~ **Resolved: yes, post-MVP — considered core to the game's reactivity design, not optional** | §11 | ~~Medium~~ |
+| 5 | ~~Should power transitions have a dramatic in-world expression?~~ **Resolved: post-MVP enhancement, not core** | §9 | ~~Low~~ |
+| 6 | ~~Exact failure conditions for permadeath runs~~ **Resolved: no forced failure conditions; runs always completable; permadeath modes post-MVP** | §16 | ~~High~~ |
+| 7 | ~~Should a persistent "field notes" system exist?~~ **Resolved: Codex — persistent encyclopedia filled in through play, records type-level knowledge (biome resource pools, node tier ranges, etc.), no mechanical effect on run difficulty** | §14 | ~~Low~~ |
+| 8 | ~~Should official mod tooling ship with the game?~~ **Resolved: post-MVP unless useful during official content development; tooling scope driven by internal need** | §17 | ~~Medium~~ |
+| 9 | ~~Working title — game needs a name~~ **Resolved: Exergon** | — | ~~Medium~~ |
 | 10 | Run length targets need playtesting validation | §4 | High |
 
 ---
 
-*GDD v0.1 — Generated from initial design exploration session. Next step: revisit high-priority open questions, then move to technical design document for core systems.*
+*GDD v0.2 — All open questions resolved except Q#10 (run length targets, requires playtesting). See `design-decisions.md` for rationale behind key decisions. Next step: technical design document for core systems.*

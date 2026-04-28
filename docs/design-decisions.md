@@ -1,0 +1,163 @@
+# Design Decisions Log
+
+Rationale and context behind key decisions. The GDD contains the *what*; this document captures the *why* and records alternatives considered. Update when decisions are made or revisited.
+
+---
+
+## Visual perspective — 3D (resolves GDD Q#3)
+
+**Decision:** Fully 3D world.
+
+**Why:** Three reasons: (1) adds meaningful depth to exploration via vertical layers; (2) enables impressive aesthetic builds that 2D space constraints would prevent; (3) base-sharing is a core intended community loop — sharing screenshots of impressive builds is how the GTNH community sustains itself, and Exergon targets the same behavior.
+
+**Alternatives considered:** 2D top-down (Factorio-style, space as primary constraint), 2D isometric. Both were rejected because spatial layout optimization is not the intended primary challenge.
+
+---
+
+## Factory placement — voxel, free-form blocks
+
+**Decision:** Free-form voxel block placement, no grid-snap.
+
+**Why:** Aesthetic freedom. Players should be able to build bases worth photographing and sharing. Structured tile slots would produce uniform-looking factories.
+
+---
+
+## Multiblock machines — fixed core + flexible modules
+
+**Decision:** Each machine type has a canonical fixed-shape core (recognizable silhouette) with flexible modular attachments.
+
+**Why:** Fixed core = recognizability from screenshots (viewer can identify machine type at a glance). Flexible modules = aesthetic latitude and optimization decisions. This is the best combination of iconic identity and creative freedom.
+
+**Module slot count:** Determined by core tier — upgrading the core earns more slots. Tier is also expressed physically: higher-tier = larger structure. Size IS the tier indicator, no separate UI needed. Late-game machines visually dwarf early-game ones.
+
+**Tier-up model:** Tentatively additive/in-place — the smaller structure is a valid sub-structure of the larger, so players expand outward without tearing down. This limits some design space and may be relaxed per-machine or globally later. Some machines (e.g. a reactor) could narratively justify requiring full rebuild.
+
+**Modules carry real tradeoffs:** speed vs. efficiency, parallel processing slots, buffer capacity. Not cosmetic. Which modules exist in a given run is a valid seed variance axis.
+
+---
+
+## Logistics network — ME-style, discrete channels
+
+**Decision:** ME-style logistics network (not belt routing). Discrete channel capacity limits. Unified network storage. On-demand auto-crafting.
+
+**Why — no belts:** Belt routing in 3D is untenable as a design challenge. The intended complexity is the recipe graph and network architecture, not path-finding cables.
+
+**Why — discrete channels:** Simplest capacity model, analogous to AE2. Creates natural pressure to segment networks into logical sub-networks (smelting zone, processing zone, etc.) connected via interfaces. Segmentation is a depth mechanic to discover, not a forced constraint.
+
+**Why — auto-crafting:** Players define the crafting graph; the network executes it on demand. Design challenge is configuration, not clicking. Directly serves Pillar 2 — work is in the planning.
+
+**Why — unified storage:** Storage exists as a system but is not intended as a primary design constraint. Inventory management is friction, not depth.
+
+**Revisit:** Channel model (discrete vs. bandwidth) is explicitly tentative and can be revisited.
+
+---
+
+## Exploration — drone-based, tier-gated
+
+**Decision:** Exploration via deployable drones, not direct player travel. Drone types are tier-gated through the tech tree.
+
+| Drone | Access |
+|---|---|
+| Land | Surface |
+| Amphibious | Water / underwater |
+| Digger | Underground |
+| Flying | Sky / atmosphere |
+| Space | Orbital |
+
+**Why:** Drones naturally gate layer access by factory progression — you need the tech and factory output to build better drones. This creates organic pacing without arbitrary locks. The player always has a visible next step (build a digger drone → access underground resources).
+
+---
+
+## World layers — vertical with biome+layer resource affinity
+
+**Decision:** Distinct vertical layers (underground, surface, sky, orbital). Resources have affinity or hard restriction to layer+biome combinations.
+
+**Why:** Gives resource geography meaningful depth. Experienced players can read scan data to immediately identify which resource strategies are viable this run. Layer+biome combinations are a variance axis.
+
+---
+
+## Map reveal — imprecise scanning
+
+**Decision:** Fog of war lifted by drone presence. Range scanning provides biome type and broad resource category (not exact quantities or positions). Precise data requires physical proximity or deployed sensors.
+
+**Why:** Preserves the discovery feeling and information scarcity of scouting while giving players enough data to make exploration decisions. Fits "Legible Chaos" — you know enough to plan, not so much that the world is pre-solved.
+
+---
+
+## Persistent sites
+
+**Decision:** Points of interest (ruins, sealed doors, anomalies) are permanent structures visible before they are accessible. Seeing something you can't interact with yet is a visible future goal.
+
+**Why:** Creates concrete mid-run milestones. "I saw a sealed vault in tier 1 — now I have the tech to open it" is a satisfying progression beat. Sites are sources of exploration discoveries and tech tree unlock triggers.
+
+---
+
+## Theme and narrative — escape the solar system
+
+**Decision:** The player is stranded; the goal across all runs is to leave the solar system. Escape type scales with difficulty: Initiation = activate alien gateway, Standard = gateway or intra-system ship, Advanced = intra-system ship, Pinnacle = inter-system ship.
+
+**Why:** Gives the factory-building a concrete narrative purpose and a thematic arc across meta-progression. Early runs rely on discovered alien technology (lower barrier to entry); later runs require full mastery to build your own way out. The arc from "use their tech" to "build your own" maps cleanly onto difficulty progression and rewards long-term play.
+
+**Implications:** Each run = one leg of a galactic journey. Escape system N → arrive stranded in system N+1. The meta-progression narrative is the story of that journey. Alien ruins across multiple systems = same prior civilisation, traveled this route before you. Codex = accumulated knowledge across all systems visited, part scientific journal part trail map. Orbital layer = launch point. Meta-progression narrative unlocks explore who the prior civilisation was and why they traveled this route.
+
+**Two science tracks:** Universal science (real-world-inspired, applies any run) and alien science (seeded per run, prior civilisation's tech) are complementary, not exclusive. Both feed the same recipe graph. Some tech nodes offer alternative paths: human-engineering approach (production milestone/research) vs. alien-science approach (exploration/observation). Rewards both explorer-first and factory-first playstyles.
+
+---
+
+## Failure conditions — none forced (resolves GDD Q#6)
+
+**Decision:** No forced failure conditions. Runs always complete. World reactivity, power collapse, resource pressure = strategic costs, not run-enders. Permadeath modes post-MVP.
+
+**Why:** Run lengths are 10–30+ hours. Forced failure at that scale is devastating, not interesting. Difficulty expresses as elegance of solution — bad run = slow ugly escape, good run = clean optimized one.
+
+**Permadeath post-MVP:** Will likely involve save constraints or meta-progression penalties rather than forced run termination. Multiple variants expected.
+
+---
+
+## Meta-progression — Codex (resolves GDD Q#7)
+
+**Decision:** Persistent codex fills in through play. First encounter with a biome/node type/modifier/machine creates its entry. Entries record type-level knowledge, not run-specific values.
+
+**Why:** Rewards thorough play across runs without undermining per-run discovery. Biome entry shows possible resource pool — which resources spawned is still seeded variance. Experienced players read the map faster, not more easily. Fits "meta-progression expands possibility space without making runs easier."
+
+**Scope:** Biomes → resource pools; node types → tier range + behavior; planet modifiers → affected systems; machines → function + module types (after first build). Expands automatically through play, not gated.
+
+---
+
+## Science discovery — drone clarification and building blind
+
+**Drones are player-piloted, not autonomous.** The player's character stays at the base; the player's *attention* travels via drone control. Scouting and sample collection are active time costs. Drones are mobility tools, not automation.
+
+**Building blind** (committing to a partially-revealed recipe at risk) is a post-MVP optional challenge mode, not core. MVP assumes players reveal before committing.
+
+---
+
+## Tech tree — tier count per difficulty, unlocked via meta-progression (resolves GDD Q#2)
+
+**Decision:** Tier count is not a single number — it scales with difficulty tier, and difficulty tiers unlock through meta-progression. Tentative: Initiation=3, Standard=4, Advanced=5, Pinnacle=6. Exact counts need playtesting.
+
+**Why:** Early runs are shallower and faster (teaches the loop, produces satisfying first completions). Depth unlocks as mastery grows. Aligns with GDD difficulty ladder which already listed "graph depth" as a tunable axis.
+
+**Win condition interaction:** The escape artifact is the terminal node of the recipe graph. Deeper trees = more complex artifact naturally. No special logic needed.
+
+**Node visibility in shadow:** Locked nodes show category + rarity (e.g. "Power — Tier 2, Rare"), not blank slots. Gives enough information to plan without removing discovery reward.
+
+**Unlock vectors:** All five (research spend, prerequisite chain, production milestone, exploration discovery, observation) are MVP. A node can have multiple active vectors per run — any one suffices.
+
+**Reachability guarantee:** If a node is present in a run's tree, it must be reachable. Seed generation must validate this before finalizing the tree.
+
+---
+
+## Power system model
+
+**Decision:** Flow-based (EU-style). Separate power cables from logistics cables. Generators have fixed output; machines draw recipe-based wattage when active, zero when idle. Upgrade pressure comes from demand growth outpacing fixed supply — not from output degradation. Planet modifiers apply efficiency multipliers to generator output. Brownout = proportional throttling across all machines, not random cutoff.
+
+**Why:** Fixed-output + growing demand is simpler and more legible than explicit efficiency degradation. Players see total production vs. demand clearly; the signal to upgrade is unambiguous.
+
+---
+
+## Power transition drama — post-MVP
+
+**Decision:** Dramatic in-world power transition events (factory going dark, world reacting to energy signature change) are a post-MVP enhancement, not core.
+
+**Why:** Power transitions are already meaningful as economic decisions (when is the pain of staying on this source worse than rebuilding?). The drama layer adds narrative texture but is not required for the core gameplay loop to function.
