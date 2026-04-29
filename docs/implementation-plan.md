@@ -6,11 +6,11 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 
 ## Phase 1 — Foundation (World + Run Start)
 
-- [ ] Main menu: seed text entry → hash → init `RunSeed` + `DomainSeeds` → `GameState::Loading → Playing`
-- [ ] `bevy_voxel_world` integration: chunk generation, noise-based surface terrain
-- [ ] 2–3 biomes (height + noise thresholds)
+- [x] Main menu: seed text entry → hash → init `RunSeed` + `DomainSeeds` → `GameState::Loading → Playing`
+- [x] `bevy_voxel_world` integration: chunk generation, noise-based surface terrain
+- [x] 2–3 biomes (height + noise thresholds) — surface (mat 1) + stone (mat 0) layers
+- [x] Player controller: WASD + mouse-look (fly camera, cursor locked)
 - [ ] Resource deposit placement (surface ore nodes, seeded per chunk)
-- [ ] Player controller: WASD + mouse-look
 
 **Deliverable:** Walk around a generated alien world.
 

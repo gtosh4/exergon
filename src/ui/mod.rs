@@ -6,6 +6,9 @@ use crate::{
     GameState,
 };
 
+use bevy::app::AppExit;
+use bevy::ecs::message::MessageWriter;
+
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
@@ -14,7 +17,10 @@ impl Plugin for UiPlugin {
             .init_resource::<MainMenuState>()
             .add_systems(
                 EguiPrimaryContextPass,
-                main_menu.run_if(in_state(GameState::MainMenu)),
+                (
+                    main_menu.run_if(in_state(GameState::MainMenu)),
+                    pause_menu.run_if(in_state(GameState::Paused)),
+                ),
             );
     }
 }
@@ -22,6 +28,28 @@ impl Plugin for UiPlugin {
 #[derive(Resource, Default)]
 struct MainMenuState {
     seed_text: String,
+}
+
+fn pause_menu(
+    mut contexts: EguiContexts,
+    mut next_state: ResMut<NextState<GameState>>,
+    mut app_exit: MessageWriter<AppExit>,
+) -> Result {
+    egui::CentralPanel::default().show(contexts.ctx_mut()?, |ui| {
+        ui.vertical_centered(|ui| {
+            ui.add_space(200.0);
+            ui.heading("Paused");
+            ui.add_space(40.0);
+            if ui.button("Resume").clicked() {
+                next_state.set(GameState::Playing);
+            }
+            ui.add_space(16.0);
+            if ui.button("Quit").clicked() {
+                app_exit.write(AppExit::Success);
+            }
+        });
+    });
+    Ok(())
 }
 
 fn main_menu(

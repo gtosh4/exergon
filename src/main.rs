@@ -45,7 +45,7 @@ fn main() {
     #[cfg(debug_assertions)]
     let log_plugin = LogPlugin {
         level: bevy::log::Level::DEBUG,
-        filter: "debug,wgpu_core=warn,wgpu_hal=warn,exergon=debug".into(),
+        filter: "debug,wgpu_core=warn,wgpu_hal=warn,exergon=debug,offset_allocator=warn".into(),
         ..default()
     };
     #[cfg(not(debug_assertions))]
