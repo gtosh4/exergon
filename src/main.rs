@@ -2,6 +2,7 @@ use bevy::log::LogPlugin;
 use bevy::prelude::*;
 
 mod content;
+mod debug;
 mod drone;
 mod logistics;
 mod machine;
@@ -81,6 +82,7 @@ fn main() {
             seed::SeedPlugin,
             content::ContentPlugin,
             world::WorldPlugin,
+            debug::DebugPlugin,
             recipe_graph::RecipeGraphPlugin,
             tech_tree::TechTreePlugin,
             machine::MachinePlugin,

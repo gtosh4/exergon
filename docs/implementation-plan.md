@@ -10,7 +10,7 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 - [x] `bevy_voxel_world` integration: chunk generation, noise-based surface terrain
 - [x] 2–3 biomes (height + noise thresholds) — surface (mat 1) + stone (mat 0) layers
 - [x] Player controller: WASD + mouse-look (fly camera, cursor locked)
-- [ ] Resource deposit placement (surface ore nodes, seeded per chunk)
+- [x] Resource deposit placement (GTNH-style underground ore veins, 3×3 chunk cells, RON-driven)
 
 **Deliverable:** Walk around a generated alien world.
 
@@ -18,7 +18,7 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 
 ## Phase 2 — Content Data *(parallel with Phase 1)*
 
-- [ ] Content loader: RON files → typed resources at startup
+- [x] Content loader: RON files → typed resources at startup (`VeinRegistry`, `VeinDef`, `BiomeDef`)
 - [ ] `RecipeGraph` resource: hand-authored 2-tier graph (~6–8 recipes), materials, escape artifact
 - [ ] `TechTree` resource: hand-authored 2-tier tree (~8–10 nodes)
 

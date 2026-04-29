@@ -1,0 +1,8 @@
+(
+    id: "shallow_default",
+    layer: "shallow",
+    vein_pool: [
+        ("iron_copper", 60),
+        ("tin_nickel", 20),
+    ],
+)

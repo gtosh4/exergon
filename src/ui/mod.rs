@@ -2,7 +2,9 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiPrimaryContextPass};
 
 use crate::{
+    content::VeinRegistry,
     seed::{hash_text, DomainSeeds, RunSeed},
+    world::LookTarget,
     GameState,
 };
 
@@ -20,6 +22,7 @@ impl Plugin for UiPlugin {
                 (
                     main_menu.run_if(in_state(GameState::MainMenu)),
                     pause_menu.run_if(in_state(GameState::Paused)),
+                    look_tooltip.run_if(in_state(GameState::Playing)),
                 ),
             );
     }
@@ -28,6 +31,37 @@ impl Plugin for UiPlugin {
 #[derive(Resource, Default)]
 struct MainMenuState {
     seed_text: String,
+}
+
+fn look_tooltip(
+    mut contexts: EguiContexts,
+    look_target: Option<Res<LookTarget>>,
+    registry: Option<Res<VeinRegistry>>,
+) -> Result {
+    let Some(target) = look_target else {
+        return Ok(());
+    };
+    let label: std::borrow::Cow<str> = match *target {
+        LookTarget::Nothing => return Ok(()),
+        LookTarget::Voxel { material } => {
+            let name = registry
+                .as_ref()
+                .and_then(|r| r.material_name(material))
+                .unwrap_or("Unknown");
+            name.into()
+        }
+    };
+    let ctx = contexts.ctx_mut()?;
+    egui::Area::new(egui::Id::new("waila"))
+        .anchor(egui::Align2::CENTER_BOTTOM, [0.0, -40.0])
+        .show(ctx, |ui| {
+            egui::Frame::popup(ui.style())
+                .fill(egui::Color32::from_black_alpha(200))
+                .show(ui, |ui| {
+                    ui.colored_label(egui::Color32::WHITE, label);
+                });
+        });
+    Ok(())
 }
 
 fn pause_menu(

@@ -1,0 +1,5 @@
+(
+    id: "shallow",
+    name: "Shallow Underground",
+    y_cell_range: (-1, 0),
+)
