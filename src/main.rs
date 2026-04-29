@@ -1,3 +1,4 @@
+use bevy::log::LogPlugin;
 use bevy::prelude::*;
 
 mod content;
@@ -41,14 +42,31 @@ pub enum GameSystems {
 }
 
 fn main() {
+    #[cfg(debug_assertions)]
+    let log_plugin = LogPlugin {
+        level: bevy::log::Level::DEBUG,
+        filter: "debug,wgpu_core=warn,wgpu_hal=warn,exergon=debug".into(),
+        ..default()
+    };
+    #[cfg(not(debug_assertions))]
+    let log_plugin = LogPlugin {
+        level: bevy::log::Level::INFO,
+        filter: "info,wgpu_core=warn,wgpu_hal=warn".into(),
+        ..default()
+    };
+
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Exergon".into(),
-                ..default()
-            }),
-            ..default()
-        }))
+        .add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "Exergon".into(),
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .set(log_plugin),
+        )
         .init_state::<GameState>()
         .add_sub_state::<PlayMode>()
         .configure_sets(
