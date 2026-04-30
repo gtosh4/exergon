@@ -7,6 +7,8 @@ use rand_pcg::Pcg64;
 use serde::Deserialize;
 use xxhash_rust::xxh64::xxh64;
 
+use crate::inventory::{ItemDef, ItemRegistry};
+
 pub struct ContentPlugin;
 
 impl Plugin for ContentPlugin {
@@ -250,12 +252,14 @@ fn load_content(mut commands: Commands) {
     let veins = load_ron_dir::<VeinDef>("assets/deposits", "deposit");
     let layers = load_ron_dir::<LayerDef>("assets/layers", "layer");
     let biomes = load_ron_dir::<BiomeDef>("assets/biomes", "biome");
+    let item_defs = load_ron_dir::<ItemDef>("assets/items", "item");
 
     info!(
-        "Loaded content: {} deposits, {} layers, {} biomes",
+        "Loaded content: {} deposits, {} layers, {} biomes, {} items",
         veins.len(),
         layers.len(),
         biomes.len(),
+        item_defs.len(),
     );
 
     if veins.is_empty() {
@@ -267,7 +271,16 @@ fn load_content(mut commands: Commands) {
     if biomes.is_empty() {
         warn!("No biome definitions found in assets/biomes/");
     }
+    if item_defs.is_empty() {
+        warn!("No item definitions found in assets/items/");
+    }
 
+    let mut item_registry = ItemRegistry::default();
+    for item in item_defs {
+        item_registry.register(item);
+    }
+
+    commands.insert_resource(item_registry);
     commands.insert_resource(VeinRegistry::new(veins, layers, biomes));
 }
 

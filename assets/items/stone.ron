@@ -1,0 +1,1 @@
+(id: "stone", name: "Stone", block: Some((voxel_id: 0, hardness: 1.5)))

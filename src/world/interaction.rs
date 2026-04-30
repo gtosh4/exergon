@@ -1,10 +1,9 @@
 use bevy::ecs::message::MessageReader;
 use bevy::input::mouse::MouseWheel;
-use bevy::math::{Affine2, Mat2};
 use bevy::prelude::*;
 use bevy_voxel_world::prelude::*;
 
-use crate::textures::BlockAtlasLayers;
+use crate::inventory::{Hotbar, Inventory, InventoryOpen, ItemRegistry};
 
 use super::generation::WorldConfig;
 use super::player::MainCamera;
@@ -22,7 +21,7 @@ pub struct GhostPreview {
 #[derive(Resource)]
 pub struct GhostMaterials(Vec<Handle<StandardMaterial>>);
 
-#[derive(Resource, Clone, Copy, Default)]
+#[derive(Resource, Default)]
 pub enum LookTarget {
     #[default]
     Nothing,
@@ -33,48 +32,32 @@ pub enum LookTarget {
     },
 }
 
-#[derive(Resource, Default)]
-pub struct SelectedMaterial(pub u8);
-
-// Mirrors texture_index_mapper in generation.rs — side face atlas index per material ID
-fn side_atlas_index(mat: u8) -> usize {
-    match mat {
-        1 => 2,
-        2 => 4,
-        3 => 5,
-        4 => 6,
-        5 => 7,
-        6 => 8,
-        _ => 0,
-    }
-}
-
 pub(super) fn setup_ghost_preview(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
-    atlas_layers: Option<Res<BlockAtlasLayers>>,
 ) {
-    let n = atlas_layers.map(|r| r.0).unwrap_or(1) as f32;
-    let texture: Handle<Image> = asset_server.load("textures/blocks.png");
+    // Distinct tint per material slot so placed-block type is visually distinguishable.
+    // Do NOT use the atlas texture — bevy_voxel_world loads it as D2Array which is
+    // incompatible with the D2 binding expected by StandardMaterial.
+    let tints = [
+        Color::srgba(0.75, 0.75, 0.75, 0.5), // 1
+        Color::srgba(0.35, 0.75, 0.35, 0.5), // 2
+        Color::srgba(0.80, 0.55, 0.25, 0.5), // 3
+        Color::srgba(0.30, 0.55, 0.90, 0.5), // 4
+        Color::srgba(0.90, 0.85, 0.25, 0.5), // 5
+        Color::srgba(0.80, 0.30, 0.80, 0.5), // 6
+    ];
 
-    // One semi-transparent material per block type (mat IDs 1..=6)
-    let ghost_mats: Vec<Handle<StandardMaterial>> = (1u8..=6)
-        .map(|mat| {
-            let atlas_idx = side_atlas_index(mat) as f32;
+    let ghost_mats: Vec<Handle<StandardMaterial>> = tints
+        .iter()
+        .map(|&color| {
             materials.add(StandardMaterial {
-                base_color_texture: Some(texture.clone()),
-                base_color: Color::srgba(1.0, 1.0, 1.0, 0.7),
+                base_color: color,
                 alpha_mode: AlphaMode::Blend,
                 unlit: true,
                 double_sided: true,
                 cull_mode: None,
-                // Slice the atlas: map V in [0,1] → [atlas_idx/n, (atlas_idx+1)/n]
-                uv_transform: Affine2::from_mat2_translation(
-                    Mat2::from_diagonal(Vec2::new(1.0, 1.0 / n)),
-                    Vec2::new(0.0, atlas_idx / n),
-                ),
                 ..default()
             })
         })
@@ -98,7 +81,9 @@ pub(super) fn setup_ghost_preview(
 
 pub(super) fn update_ghost_preview(
     look_target: Res<LookTarget>,
-    selected: Res<SelectedMaterial>,
+    hotbar: Res<Hotbar>,
+    item_registry: Option<Res<ItemRegistry>>,
+    inventory_open: Option<Res<InventoryOpen>>,
     ghost: Option<Res<GhostPreview>>,
     ghost_mats: Option<Res<GhostMaterials>>,
     mut ghost_q: Query<
@@ -115,13 +100,15 @@ pub(super) fn update_ghost_preview(
         return;
     };
 
-    let show = selected.0 != 0;
+    let inv_open = inventory_open.map(|o| o.0).unwrap_or(false);
+    let active_voxel = hotbar
+        .active_item_id()
+        .and_then(|id| item_registry.as_ref().and_then(|r| r.voxel_id(id)));
+    let show = active_voxel.is_some() && !inv_open;
 
-    if selected.is_changed() && show {
-        if let Some(mats) = &ghost_mats {
-            let idx = (selected.0 as usize)
-                .saturating_sub(1)
-                .min(mats.0.len().saturating_sub(1));
+    if hotbar.is_changed() {
+        if let (Some(m), Some(mats)) = (active_voxel, &ghost_mats) {
+            let idx = (m as usize).saturating_sub(1).min(mats.0.len().saturating_sub(1));
             *mat = MeshMaterial3d(mats.0[idx].clone());
         }
     }
@@ -180,15 +167,42 @@ pub(super) fn block_interaction(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut scroll: MessageReader<MouseWheel>,
     look_target: Res<LookTarget>,
-    mut selected: ResMut<SelectedMaterial>,
+    mut hotbar: ResMut<Hotbar>,
+    mut inventory: ResMut<Inventory>,
+    item_registry: Option<Res<ItemRegistry>>,
     mut voxel_world: VoxelWorld<WorldConfig>,
 ) {
+    // Scroll wheel or number keys to select hotbar slot
     for ev in scroll.read() {
-        let delta = if ev.y > 0.0 { 1i8 } else { -1i8 };
-        selected.0 = (selected.0 as i8 - 1 + delta).rem_euclid(6) as u8 + 1;
+        let delta = if ev.y > 0.0 { 1i32 } else { -1i32 };
+        hotbar.selected = (hotbar.selected as i32 + delta).rem_euclid(9) as usize;
+    }
+    for (i, key) in [
+        KeyCode::Digit1,
+        KeyCode::Digit2,
+        KeyCode::Digit3,
+        KeyCode::Digit4,
+        KeyCode::Digit5,
+        KeyCode::Digit6,
+        KeyCode::Digit7,
+        KeyCode::Digit8,
+        KeyCode::Digit9,
+    ]
+    .iter()
+    .enumerate()
+    {
+        if keyboard.just_pressed(*key) {
+            hotbar.selected = i;
+        }
     }
 
-    let LookTarget::Voxel { pos, normal, .. } = *look_target else {
+    let LookTarget::Voxel {
+        pos,
+        normal,
+        material: hit_voxel,
+        ..
+    } = *look_target
+    else {
         return;
     };
 
@@ -197,8 +211,15 @@ pub(super) fn block_interaction(
     if mouse.just_pressed(MouseButton::Left) {
         if shift {
             voxel_world.set_voxel(pos, WorldVoxel::Air);
-        } else {
-            voxel_world.set_voxel(pos + normal, WorldVoxel::Solid(selected.0));
+            if let Some(item) = item_registry.as_ref().and_then(|r| r.item_for_voxel(hit_voxel)) {
+                inventory.add(item.id.clone(), 1);
+            }
+        } else if let Some(voxel_id) = hotbar
+            .active_item_id()
+            .and_then(|id| item_registry.as_ref().and_then(|r| r.voxel_id(id)))
+        {
+            hotbar.consume_active();
+            voxel_world.set_voxel(pos + normal, WorldVoxel::Solid(voxel_id));
         }
     }
 }

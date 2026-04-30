@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use bevy_voxel_world::prelude::*;
 
+use crate::inventory::InventoryOpen;
 use crate::GameState;
 
 use super::generation::WorldConfig;
@@ -78,9 +79,34 @@ pub(super) fn unlock_cursor(mut cursor_q: Query<&mut CursorOptions, With<Primary
 pub(super) fn toggle_pause(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut next_state: ResMut<NextState<GameState>>,
+    inv_open: Option<Res<InventoryOpen>>,
 ) {
-    if keyboard.just_pressed(KeyCode::Escape) {
+    let blocked = inv_open.map(|o| o.0).unwrap_or(false);
+    if keyboard.just_pressed(KeyCode::Escape) && !blocked {
         next_state.set(GameState::Paused);
+    }
+}
+
+pub(super) fn toggle_inventory(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    inv_open: Option<ResMut<InventoryOpen>>,
+    mut cursor_q: Query<&mut CursorOptions, With<PrimaryWindow>>,
+) {
+    let Some(mut open) = inv_open else { return };
+    let should_toggle = keyboard.just_pressed(KeyCode::Tab)
+        || (keyboard.just_pressed(KeyCode::Escape) && open.0);
+    if !should_toggle {
+        return;
+    }
+    open.0 = !open.0;
+    if let Ok(mut cursor) = cursor_q.single_mut() {
+        if open.0 {
+            cursor.grab_mode = CursorGrabMode::None;
+            cursor.visible = true;
+        } else {
+            cursor.grab_mode = CursorGrabMode::Locked;
+            cursor.visible = false;
+        }
     }
 }
 

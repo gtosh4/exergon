@@ -4,6 +4,7 @@ use bevy::prelude::*;
 mod content;
 mod debug;
 mod drone;
+mod inventory;
 mod logistics;
 mod machine;
 mod meta;
@@ -84,6 +85,7 @@ fn main() {
         .add_plugins((
             seed::SeedPlugin,
             content::ContentPlugin,
+            inventory::InventoryPlugin,
             world::WorldPlugin,
             debug::DebugPlugin,
             recipe_graph::RecipeGraphPlugin,

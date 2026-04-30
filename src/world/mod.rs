@@ -2,11 +2,12 @@ mod generation;
 mod interaction;
 mod player;
 
-pub use interaction::{LookTarget, SelectedMaterial};
+pub use interaction::LookTarget;
 
 use bevy::prelude::*;
 use bevy_voxel_world::prelude::*;
 
+use crate::inventory::InventoryOpen;
 use crate::textures::BlockAtlasLayers;
 use crate::GameState;
 
@@ -26,7 +27,6 @@ impl Plugin for WorldPlugin {
             ..Default::default()
         }))
             .init_resource::<LookTarget>()
-            .init_resource::<SelectedMaterial>()
             .add_systems(Startup, (player::spawn_camera, interaction::setup_ghost_preview))
             .add_systems(OnEnter(GameState::Loading), generation::finish_loading)
             .add_systems(
@@ -40,10 +40,14 @@ impl Plugin for WorldPlugin {
             .add_systems(
                 Update,
                 (
-                    player::camera_input,
                     player::toggle_pause,
+                    player::toggle_inventory,
+                    player::camera_input
+                        .run_if(|o: Option<Res<InventoryOpen>>| !o.map(|r| r.0).unwrap_or(false)),
                     interaction::update_look_target.after(player::camera_input),
-                    interaction::block_interaction.after(interaction::update_look_target),
+                    interaction::block_interaction
+                        .after(interaction::update_look_target)
+                        .run_if(|o: Option<Res<InventoryOpen>>| !o.map(|r| r.0).unwrap_or(false)),
                     interaction::update_ghost_preview.after(interaction::update_look_target),
                 )
                     .run_if(in_state(GameState::Playing)),

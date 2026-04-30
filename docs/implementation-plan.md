@@ -28,8 +28,8 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 
 ## Phase 3 — Machines
 
-- [ ] Voxel block placement/removal (hotbar + raycast)
-- [ ] Inventory (open with tab, move block items into hotbar) like Factorio / Minecraft
+- [x] Voxel block placement/removal (hotbar + raycast)
+- [x] Inventory (open with tab, move block items into hotbar) like Factorio / Minecraft
 - [ ] Multiblock scanner: adjacency pattern matching, 8 orientations
 - [ ] 3–4 machine types (Smelter, Processor, Analyzer, Gateway)
 - [ ] Machine validity state (scanning → valid/invalid → running)
@@ -92,3 +92,9 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 - [ ] Save on pause/quit, load on continue
 
 **Deliverable:** Persistent runs.
+
+## Phase 9 - Polish
+- [ ] Block placement shows preview of block (actual texture, 30% transparency)
+- [ ] On shift, no block placement preview & outline look at block (that would break on shift-right click)
+
+**Deliverable:** Game feels good to play
