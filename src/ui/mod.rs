@@ -58,6 +58,7 @@ fn look_tooltip(
             egui::Frame::popup(ui.style())
                 .fill(egui::Color32::from_black_alpha(200))
                 .show(ui, |ui| {
+                    ui.set_max_width(ui.ctx().content_rect().width() * 0.3);
                     ui.colored_label(egui::Color32::WHITE, label);
                 });
         });
