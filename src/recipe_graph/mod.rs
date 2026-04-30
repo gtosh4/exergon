@@ -15,6 +15,7 @@ impl Plugin for RecipeGraphPlugin {
 
 pub type MaterialId = String;
 pub type RecipeId = String;
+pub type MachineTypeId = String;
 
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum MaterialKind {
@@ -44,6 +45,7 @@ pub struct RecipeDef {
     pub inputs: Vec<ItemStack>,
     pub outputs: Vec<ItemStack>,
     pub byproducts: Vec<ItemStack>,
+    pub machine_type: MachineTypeId,
     pub machine_tier: u8,
     pub processing_time: f32,
     pub energy_cost: f32,

@@ -129,9 +129,9 @@ The escape artifact is the terminal node. Its recipe requires tier-product input
 
 ### Single critical path
 
-MVP uses a **single critical path** — one correct route to the escape artifact. The player's task is to discover, analyse, and optimise that path. Recipe parameter variance (input quantities, yields, processing time, energy cost) provides run-to-run challenge within the fixed structure.
+MVP uses a **single critical path** — one guaranteed route to the escape artifact. The player's task is to discover, analyse, and optimise that path. Recipe parameter variance (input quantities, yields, processing time, energy cost) provides run-to-run challenge within the fixed structure.
 
-Multiple viable paths (player chooses which branch to pursue) is a post-MVP consideration.
+Multiple viable paths (player chooses which branch to pursue) is a post-MVP consideration. The data model supports multiple recipes per material from the start — the generator simply guarantees at least one complete path exists in MVP; post-MVP it can generate competing alternatives.
 
 ### Byproducts
 
@@ -166,17 +166,22 @@ struct Recipe {
     inputs: Vec<(MaterialId, f32)>,   // material + quantity
     outputs: Vec<(MaterialId, f32)>,  // primary outputs
     byproducts: Vec<(MaterialId, f32)>,
-    machine_tier: u8,
+    machine_type: MachineTypeId,      // which machine category runs this recipe
+    machine_tier: u8,                 // minimum tier required
     conditions: Vec<ProcessingCondition>, // temperature, pressure, catalyst
     processing_time: f32,  // seconds, post-variance
     energy_cost: f32,      // per operation, post-variance
 }
 
+// A machine is capable of running a recipe when machine_type AND machine_tier match.
+// A machine can run any number of recipes that match; a material can have any number
+// of producing recipes (multiple alternative production routes are valid).
+
 struct RecipeGraph {
     materials: HashMap<MaterialId, Material>,
     recipes: HashMap<RecipeId, Recipe>,
-    // DAG edges: material → recipes that consume it
-    //            recipe → materials it produces
+    producers: HashMap<MaterialId, Vec<RecipeId>>, // material → recipes that produce it
+    consumers: HashMap<MaterialId, Vec<RecipeId>>, // material → recipes that consume it
     terminal: MaterialId, // escape artifact
 }
 ```
@@ -186,7 +191,7 @@ struct RecipeGraph {
 A generated graph must satisfy:
 - Terminal node (escape artifact) is reachable from starting conditions
 - No cycles (enforced by backwards generation)
-- Every alien material has exactly one producing recipe
+- Every alien material on the critical path has at least one producing recipe
 - Every recipe's required machine tier exists in the run's tech tree
 - All base materials required are available as world resources
 
@@ -512,7 +517,7 @@ Crafting requests generate **job entities** that the network dispatches to capab
 
 **AE2 approach (avoided):** Players must physically encode crafting recipes into each machine as "patterns." Tedious, fiddly, poor UX.
 
-**Exergon approach:** Machines **auto-register their capable recipes** from the tech tree on formation — no physical patterns required. When a craft is requested, the network creates a job for the required recipe, and any machine capable of running that recipe can accept it.
+**Exergon approach:** Machines **auto-register their capable recipes** from the tech tree on formation — no physical patterns required. A machine is capable of a recipe when `machine_type` and `machine_tier` both match; a single machine can be capable of many recipes. When a craft is requested, the network creates a job for the required recipe, and any capable machine can accept it.
 
 Players configure job **priorities and filters** rather than patterns:
 - Priority: prefer machine A over B for recipe X
