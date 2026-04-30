@@ -33,6 +33,8 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 - [ ] Multiblock scanner: adjacency pattern matching, 8 orientations
 - [ ] 3–4 machine types (Smelter, Processor, Analyzer, Gateway)
 - [ ] Machine validity state (scanning → valid/invalid → running)
+- [ ] "--test" flag in `#[cfg(debug_assertions)]` for test setup
+  - [ ] Give blocks for testing a machine
 
 **Deliverable:** Place and validate multiblock machines.
 
@@ -74,6 +76,7 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 ## Phase 7 — UI
 
 - [ ] Recipe graph viewer (egui panel, nodes + edges)
+- [ ] Machine UI (status, IO, etc)
 - [ ] Tech tree panel (node grid, locked/unlocked state)
 - [ ] Power/network status HUD (watts, throughput)
 - [ ] Item & recipe explorer (like NEI in GTNH)

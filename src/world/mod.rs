@@ -9,13 +9,22 @@ use noise::{HybridMulti, NoiseFn, Perlin};
 
 use crate::content::VeinRegistry;
 use crate::seed::DomainSeeds;
+use crate::textures::BlockAtlasLayers;
 use crate::GameState;
 
 pub struct WorldPlugin;
 
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(VoxelWorldPlugin::with_config(WorldConfig::default()))
+        let texture_layers = app
+            .world()
+            .get_resource::<BlockAtlasLayers>()
+            .map(|r| r.0)
+            .unwrap_or(0);
+        app.add_plugins(VoxelWorldPlugin::with_config(WorldConfig {
+            texture_layers,
+            ..Default::default()
+        }))
             .init_resource::<LookTarget>()
             .add_systems(Startup, spawn_camera)
             .add_systems(OnEnter(GameState::Loading), finish_loading)
@@ -41,6 +50,7 @@ struct WorldConfig {
     world_seed: u64,
     active: bool,
     vein_registry: Option<Arc<VeinRegistry>>,
+    texture_layers: u32,
 }
 
 impl VoxelWorldConfig for WorldConfig {
@@ -61,14 +71,25 @@ impl VoxelWorldConfig for WorldConfig {
         Box::new(move |_chunk_pos, _lod, _previous| make_voxel_fn(seed, registry.clone()))
     }
 
+    fn voxel_texture(&self) -> Option<(String, u32)> {
+        if self.texture_layers > 0 {
+            Some(("textures/blocks.png".into(), self.texture_layers))
+        } else {
+            None
+        }
+    }
+
     fn texture_index_mapper(&self) -> Arc<dyn Fn(Self::MaterialIndex) -> [u32; 3] + Send + Sync> {
         Arc::new(|mat| match mat {
-            1 => [1, 1, 1],
-            2 => [2, 2, 2],
-            3 => [3, 3, 3],
-            4 => [4, 4, 4],
-            5 => [5, 5, 5],
-            6 => [6, 6, 6],
+            // surface block: grass top / dirt-grass sides / dirt bottom
+            1 => [1, 2, 3],
+            // ores: all faces same texture
+            2 => [4, 4, 4], // iron
+            3 => [5, 5, 5], // copper
+            4 => [6, 6, 6], // tin
+            5 => [7, 7, 7], // nickel
+            6 => [8, 8, 8], // zinc
+            // stone (0) and unknown
             _ => [0, 0, 0],
         })
     }

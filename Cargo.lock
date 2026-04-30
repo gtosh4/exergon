@@ -2852,6 +2852,7 @@ dependencies = [
  "bevy-tnua-avian3d",
  "bevy_egui",
  "bevy_voxel_world",
+ "image",
  "noise",
  "rand 0.8.6",
  "rand_pcg",

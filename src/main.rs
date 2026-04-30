@@ -13,6 +13,7 @@ mod recipe_graph;
 mod research;
 mod seed;
 mod tech_tree;
+mod textures;
 mod ui;
 mod world;
 
@@ -43,6 +44,7 @@ pub enum GameSystems {
 }
 
 fn main() {
+    let atlas_layers = textures::build_block_atlas();
     #[cfg(debug_assertions)]
     let log_plugin = LogPlugin {
         level: bevy::log::Level::DEBUG,
@@ -57,6 +59,7 @@ fn main() {
     };
 
     App::new()
+        .insert_resource(textures::BlockAtlasLayers(atlas_layers))
         .add_plugins(
             DefaultPlugins
                 .set(WindowPlugin {

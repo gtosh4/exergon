@@ -1,0 +1,14 @@
+// Atlas index = position in this list.
+// Add new tiles here + drop the PNG in this directory.
+// texture_index_mapper in src/world/mod.rs maps material IDs to these indices.
+[
+    "stone",            // 0 — default subsurface
+    "grass_top",        // 1 — surface top face
+    "dirt_grass",       // 2 — surface side faces
+    "dirt",             // 3 — surface bottom face
+    "stone_iron",       // 4 — iron ore (mat 2)
+    "stone_browniron",  // 5 — copper ore (mat 3)
+    "stone_silver",     // 6 — tin ore (mat 4)
+    "stone_silver_alt", // 7 — nickel ore (mat 5)
+    "stone_gold",       // 8 — zinc ore (mat 6, placeholder)
+]

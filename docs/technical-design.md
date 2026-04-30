@@ -365,6 +365,16 @@ Terrain uses **layered noise** derived from `chunk_seed`:
 
 Noise parameters (frequency, amplitude, octaves) are seeded per-run to produce varied terrain within consistent structural rules.
 
+### Block textures
+
+`bevy_voxel_world` renders blocks via a vertically-stacked 2D array texture (one tile per layer). The `texture_index_mapper` in `WorldConfig` maps each material index to `[top, sides, bottom]` layer indices.
+
+**Current approach:** individual tile PNGs live in `assets/textures/blocks/`. The atlas (`assets/textures/blocks.png`) is assembled from those tiles before `App::run()` in `main()` — once per launch. Modders add tile PNGs and extend the manifest; the atlas is rebuilt on next launch without recompilation.
+
+**Deferred — runtime hot-reload / mod support:** `bevy_voxel_world`'s texture loading path (`voxel_texture()`) is resolved at `Plugin::build()` time and the internal material types are `pub(crate)`, making true in-flight atlas replacement impractical without upstream changes. Options when needed:
+- Move atlas assembly into a `PreStartup` system (file is written before asset server reads it).
+- Upstream a `with_image_handle()` API to `bevy_voxel_world` that accepts a `Handle<Image>` instead of a path, enabling fully in-memory atlas construction.
+
 ---
 
 ## 5. Multiblock Machine System

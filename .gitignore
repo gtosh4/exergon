@@ -25,3 +25,9 @@ target
 # Added by cargo
 
 /target
+
+# Generated at launch from assets/textures/blocks/
+assets/textures/blocks.png
+
+# Large binary assets
+assets/**/*.png
