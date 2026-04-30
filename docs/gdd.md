@@ -328,7 +328,9 @@ Item and fluid transport uses a logistics network model (ME-style) rather than p
 
 **Capacity — discrete channel limits.** Cables have a discrete channel capacity (like AE2). Exceeding capacity requires higher-tier cables, sub-network segmentation, or architectural redesign. This is the primary driver of network complexity and a revisitable design parameter. Channel limits are intentionally the pressure that encourages players to segment their network into logical sub-networks (e.g. a smelting network, a processing network) connected via defined interfaces — segmentation is a solution to be discovered, not a forced constraint.
 
-**Auto-crafting.** The network handles on-demand crafting: the player defines a crafting graph and the network assembles items from components automatically on request. The design challenge is configuring the crafting graph correctly, not clicking through individual recipes. This directly serves Pillar 2 — the work is in the planning, not the execution.
+**Auto-crafting.** The network handles on-demand crafting automatically on request. The design challenge is configuring the crafting graph correctly, not clicking through individual recipes. This directly serves Pillar 2 — the work is in the planning, not the execution.
+
+The network **resolves recipe chains automatically**: given machines capable of `{A+B → C}` and `{C+D → E}`, a request for E spawns a two-job plan and the network presents the effective combined recipe `{A+B+D → E}` to the player. No manual chaining or intermediate requests required. Players see the full effective recipe for any planned output in the graph analyzer.
 
 **Unified storage.** The network presents a unified item inventory across all connected storage nodes. Storage exists as a necessary system but is not intended to be a primary design constraint or puzzle — inventory management is friction, not depth.
 

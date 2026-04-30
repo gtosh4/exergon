@@ -524,18 +524,40 @@ Players configure job **priorities and filters** rather than patterns:
 - Filter: this machine only accepts jobs of category Y (e.g. smelting only)
 - Exclusion: this machine never accepts auto-crafting jobs (manual-only)
 
+### Crafting plan resolution (recipe chain detection)
+
+When a crafting request arrives for a material, the network **resolves the full dependency chain automatically** before dispatching any jobs. Given recipes `{A+B → C}` and `{C+D → E}`, a request for E produces a plan with two jobs — the network sees the combined effective inputs as `A+B+D → E` and presents that to the player.
+
+Resolution algorithm (recursive, depth-first):
+1. For each required input of the target recipe: check network storage
+2. If input is available in sufficient quantity → mark as sourced from storage
+3. If not → look up `producers[input]` in the recipe graph, pick best recipe (priority/filter), recurse
+4. Result: a `CraftingPlan` — a tree of `CraftingJob`s with prerequisite edges
+
+A job only becomes dispatchable once all its prerequisite jobs are `Complete`. The dispatcher enforces ordering automatically.
+
+The **effective recipe** of a plan (leaf inputs → terminal output) is computed by the network and shown to the player in the graph analyzer. This is the combined view; individual machine jobs are an implementation detail.
+
 ```rust
+struct CraftingPlan {
+    id: PlanId,
+    target: (MaterialId, u32),
+    jobs: Vec<CraftingJob>,    // topologically ordered; roots are leaf jobs
+}
+
 struct CraftingJob {
     id: JobId,
     recipe: RecipeId,
     quantity: u32,
     priority: i32,
     status: JobStatus,
+    prerequisites: Vec<JobId>, // must be Complete before this job is dispatchable
 }
 
 enum JobStatus {
+    Blocked,                   // waiting on prerequisites
     Queued,
-    Dispatched(Entity),   // assigned to machine entity
+    Dispatched(Entity),        // assigned to machine entity
     InProgress { progress: f32 },
     Complete,
 }
@@ -548,7 +570,7 @@ struct JobAcceptance {
 }
 ```
 
-The network's job dispatcher runs when machines become idle — it scans queued jobs, finds the highest-priority job the machine can run, and assigns it. No per-tick polling; event-driven on machine idle and job creation.
+The network's job dispatcher runs when machines become idle — it scans queued (not blocked) jobs, finds the highest-priority job the machine can run, and assigns it. No per-tick polling; event-driven on machine idle, job creation, and job completion (completion may unblock downstream jobs).
 
 ### Network events
 
