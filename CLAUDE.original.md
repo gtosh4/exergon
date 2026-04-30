@@ -1,23 +1,23 @@
 # CLAUDE.md
 
-Guidance for Claude Code (claude.ai/code) working in this repo.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Status
 
-**Early implementation phase.** Design complete; initial scaffold exists. `src/` = Bevy 0.18 project with module stubs for all core systems. No system fully implemented yet.
+**Early implementation phase.** Design is complete; initial code scaffold exists. The `src/` directory contains a Bevy 0.18 project with module stubs for all core systems. No system is fully implemented yet.
 
-See [`docs/README.md`](docs/README.md) for full doc index.
+See [`docs/README.md`](docs/README.md) for a full index of all documentation.
 
 ## What Is Being Built
 
-**Exergon** = 3D voxel factory-building roguelike. Each run: procedurally generated alien world with unique physical laws. Player stranded, must escape — leave solar system. Core loop: decode world science → design factory exploiting those laws → build escape vehicle. Inspiration: GregTech: New Horizons depth + Factorio mechanics + Slay the Spire meta-progression.
+**Exergon** is a 3D voxel factory-building roguelike where every run is a procedurally generated alien world with unique physical laws. The player is stranded and must escape — ultimately leaving the solar system. Core loop: decode the world's science → design a factory exploiting those laws → build the escape vehicle. Primary inspiration: GregTech: New Horizons depth + Factorio factory mechanics + Slay the Spire roguelike meta-progression.
 
 ## Design Pillars (filter all decisions through these)
 
 1. **Legible Chaos** — Procedural variance must produce solvable, in-world-explicable problems, not arbitrary noise.
-2. **Design Phase Is the Game** — Planning and graph analysis = primary gameplay; execution secondary. Minimize watch-and-fix time.
+2. **Design Phase Is the Game** — Planning and graph analysis are the primary gameplay; execution is secondary. Minimize watch-and-fix time.
 3. **Difficulty Through Depth, Not Friction** — Hard means genuinely complex graph, not obscure UI or tedious grinding.
-4. **Content Is Data, Engine Is Platform** — All game content (nodes, recipes, planet modifiers, biomes) in RON data files, not code. Official game ships as reference content pack. Modders write data, not engine code.
+4. **Content Is Data, Engine Is Platform** — All game content (nodes, recipes, planet modifiers, biomes) in RON data files, not code. The official game ships as the reference content pack. Modders write data, not engine code.
 
 ## Key Resolved Decisions
 
@@ -30,9 +30,9 @@ Full rationale in [`docs/design-decisions.md`](docs/design-decisions.md). Key fa
 - **Exploration**: player-piloted drones (not autonomous). Land + digger drones for MVP.
 - **Science**: multiple research types, specialised analysis stations, crafting-style experiments. Partial reveal earned through gameplay, not purchased.
 - **No forced failure conditions.** Runs always completable. Permadeath modes post-MVP.
-- **Escape**: leave solar system. By difficulty: alien gateway → intra-system ship → inter-system ship.
+- **Escape**: leave the solar system. By difficulty: alien gateway → intra-system ship → inter-system ship.
 - **Two science tracks**: universal (real-world-inspired) + alien (seeded per run, prior civilisation's tech).
-- **Meta-narrative**: each run = one leg of galactic journey. System N → system N+1.
+- **Meta-narrative**: each run = one leg of a galactic journey. System N → system N+1.
 
 ## Tech Stack
 
@@ -56,13 +56,13 @@ Full rationale in [`docs/design-decisions.md`](docs/design-decisions.md). Key fa
 
 ## Before Implementing Any System
 
-1. Read relevant section of [`docs/gdd.md`](docs/gdd.md) for design intent
-2. Read relevant section of [`docs/technical-design.md`](docs/technical-design.md) for architecture
-3. Check [`docs/milestones.md`](docs/milestones.md) — is this system in scope for current milestone?
+1. Read the relevant section of [`docs/gdd.md`](docs/gdd.md) for design intent
+2. Read the relevant section of [`docs/technical-design.md`](docs/technical-design.md) for architecture
+3. Check [`docs/milestones.md`](docs/milestones.md) — is this system in scope for the current milestone?
 
 ## Keeping Docs Current
 
-**Docs = source of truth. Keep in sync with decisions and code.**
+**Docs are the source of truth. Keep them in sync with decisions and code.**
 
 | When | What to update |
 |---|---|
@@ -70,6 +70,6 @@ Full rationale in [`docs/design-decisions.md`](docs/design-decisions.md). Key fa
 | Architecture decision made | `docs/technical-design.md` |
 | Open question resolved | Mark resolved in `docs/gdd.md` §18 + relevant section |
 | Scope changes | `docs/milestones.md` |
-| New open question arises | Add to `docs/gdd.md` §18 and relevant section |
+| New open question arises | Add to `docs/gdd.md` §18 and the relevant section |
 
-Docs and code diverge → reconcile explicitly. Never leave silent.
+When docs and code diverge, reconcile explicitly — never leave them silently out of sync.
