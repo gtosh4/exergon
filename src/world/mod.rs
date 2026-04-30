@@ -27,13 +27,16 @@ impl Plugin for WorldPlugin {
         }))
             .init_resource::<LookTarget>()
             .init_resource::<SelectedMaterial>()
-            .add_systems(Startup, player::spawn_camera)
+            .add_systems(Startup, (player::spawn_camera, interaction::setup_ghost_preview))
             .add_systems(OnEnter(GameState::Loading), generation::finish_loading)
             .add_systems(
                 OnEnter(GameState::Playing),
                 (player::setup_world_once, player::lock_cursor),
             )
-            .add_systems(OnEnter(GameState::Paused), player::unlock_cursor)
+            .add_systems(
+                OnEnter(GameState::Paused),
+                (player::unlock_cursor, interaction::hide_ghost_preview),
+            )
             .add_systems(
                 Update,
                 (
@@ -41,6 +44,7 @@ impl Plugin for WorldPlugin {
                     player::toggle_pause,
                     interaction::update_look_target.after(player::camera_input),
                     interaction::block_interaction.after(interaction::update_look_target),
+                    interaction::update_ghost_preview.after(interaction::update_look_target),
                 )
                     .run_if(in_state(GameState::Playing)),
             );

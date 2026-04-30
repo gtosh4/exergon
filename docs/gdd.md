@@ -66,7 +66,7 @@ The game is designed from the start as a moddable platform. All content — tech
 
 > *"I landed on an alien world, figured out how its physics worked, and built something that shouldn't exist — and then I left."*
 
-The player is stranded on an alien world and must escape — ultimately leaving the solar system entirely. The route out depends on how far the player has come: early runs find and activate alien gateways or devices left by a prior civilisation; later runs build increasingly capable spacecraft (first intra-system, then inter-system) by mastering the world's science deeply enough to manufacture the technology from scratch.
+**The player is an AI — a small, self-directed intelligence running on a portable substrate.** Stranded on an alien world, the goal is to escape — ultimately leaving the solar system entirely — and find a way back to civilization. The AI is embodied in a compact flying unit: flight is the natural movement mode, not a late-game unlock. The route out depends on how far the player has come: early runs find and activate alien gateways or devices left by a prior civilisation; later runs build increasingly capable spacecraft (first intra-system, then inter-system) by mastering the world's science deeply enough to manufacture the technology from scratch.
 
 The player is not a factory operator. They are a **scientist-explorer** who happens to build factories as the output of their scientific work. The factory is the proof of understanding, not the activity itself.
 
@@ -171,7 +171,7 @@ Research is **scarce enough to force tradeoffs**, especially early. The player c
 ### The physical discovery loop
 The player's attention is the research instrument. Science happens in the world, not in menus.
 
-- Exploration is conducted via player-piloted drones. The player's character stays at or near the base; the player's *attention* travels. Piloting a drone to collect samples is an active time cost, not passive automation.
+- Exploration is conducted via player-piloted drones. The AI body stays within a habitat bubble; the player's *attention* travels via drone. Piloting a drone to collect samples is an active time cost, not passive automation.
 - Collecting samples requires the player to pilot a drone to the location and interact with it
 - Some sample sites are dangerous, distant, or require a specific drone tier to reach — creating a progression gate on information as well as production
 - Analysis stations are built in the world and consume samples + research currency to produce knowledge
@@ -353,6 +353,23 @@ All significant machines are multi-block structures: a fixed core footprint plus
 
 ### The avatar in the factory
 The player's physical presence in the world means they move through their own factory. This creates an organic relationship between the scouting/science layer and the factory layer — the player is always in the same world, not switching between a map view and a factory view. The factory grows around them as they work.
+
+The AI exists in one body at a time. Within a connected habitat zone, the player flies and builds directly. Remote exploration beyond the habitat is conducted via drones (see §11). Switching to a new outpost means switching which body the AI currently inhabits — an explicit action, not free travel.
+
+### Base management — Habitat bubbles and outpost islands
+
+The alien atmosphere is lethal without life support infrastructure. The player begins with a core **Habitat Generator** (delivered with the escape pod) that projects a survivable bubble around the landing site. Within this bubble, the AI can fly, build, and interact directly. Outside it: drones only.
+
+**Expanding into new biomes** is done through **Outpost Beacons** — support structures built at the main base, then shipped to a target location via drone. Once an Outpost Beacon is placed and connected to the logistics network, it projects its own life-support bubble. The player can then fabricate a new **body chassis** at the main base, ship it to the outpost via drone, and upload into it — becoming physically present there to build and interact directly.
+
+Key properties:
+- The player inhabits exactly one body at a time. Switching bodies is deliberate: select a connected outpost, transfer via the network. Instantaneous once connected, but requires an active network link (power + logistics).
+- Each body is a manufactured item. Losing a body to environmental hazard is a real setback. Body fabrication costs scale with chassis tier.
+- Outpost Beacons require power from the network. A power interruption collapses the life-support bubble — the AI must evacuate or risk body loss.
+- Expanding into a new biome is a deliberate investment: scout (drone), select site, build beacon, run logistics, fabricate body. This makes each expansion a design decision, not free movement.
+- Outposts are discrete islands, not a contiguous growing bubble. The gap between islands is drone-only territory. This forces intentional logistics design: resources must travel via the network between islands.
+
+**Why outposts are islands (not a growing bubble):** A connected bubble would make expansion feel like a stat to increase. Discrete islands make each expansion feel like a new base to justify — a factory subproblem with its own power, logistics, and resource footprint. The gap between islands is also a design space: power cable runs (fragile, cheap) vs. drone relay corridors (redundant, expensive) become a real decision.
 
 ### Minimizing watch-and-fix time
 Several design decisions exist specifically to reduce passive observation and incremental fixing:
