@@ -43,7 +43,7 @@ fn look_tooltip(
     };
     let label: std::borrow::Cow<str> = match *target {
         LookTarget::Nothing => return Ok(()),
-        LookTarget::Voxel { material } => {
+        LookTarget::Voxel { material, .. } => {
             let name = registry
                 .as_ref()
                 .and_then(|r| r.material_name(material))
