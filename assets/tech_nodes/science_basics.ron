@@ -1,0 +1,10 @@
+(
+    id: "science_basics",
+    name: "Field Analysis",
+    category: Science,
+    tier: 1,
+    rarity: Uncommon,
+    prerequisites: ["basic_smelting"],
+    primary_unlock: ProductionMilestone(material: "iron_ingot", quantity: 10.0),
+    effects: [UnlockMachine("Analyzer")],
+)

@@ -247,9 +247,16 @@ fn validate_layers(layers: &[LayerDef]) {
 // ---------------------------------------------------------------------------
 
 fn load_content(mut commands: Commands) {
-    let veins = load_ron_dir::<VeinDef>("assets/deposits");
-    let layers = load_ron_dir::<LayerDef>("assets/layers");
-    let biomes = load_ron_dir::<BiomeDef>("assets/biomes");
+    let veins = load_ron_dir::<VeinDef>("assets/deposits", "deposit");
+    let layers = load_ron_dir::<LayerDef>("assets/layers", "layer");
+    let biomes = load_ron_dir::<BiomeDef>("assets/biomes", "biome");
+
+    info!(
+        "Loaded content: {} deposits, {} layers, {} biomes",
+        veins.len(),
+        layers.len(),
+        biomes.len(),
+    );
 
     if veins.is_empty() {
         warn!("No vein definitions found in assets/deposits/");
@@ -264,20 +271,27 @@ fn load_content(mut commands: Commands) {
     commands.insert_resource(VeinRegistry::new(veins, layers, biomes));
 }
 
-fn load_ron_dir<T: for<'de> Deserialize<'de>>(dir: &str) -> Vec<T> {
+pub(crate) fn load_ron_dir<T: for<'de> Deserialize<'de>>(dir: &str, label: &str) -> Vec<T> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
     };
-    entries
+    let mut results = Vec::new();
+    for entry in entries
         .filter_map(|e| e.ok())
         .filter(|e| e.path().extension().map_or(false, |ext| ext == "ron"))
-        .filter_map(|e| std::fs::read_to_string(e.path()).ok())
-        .filter_map(|s| match ron::from_str(&s) {
-            Ok(v) => Some(v),
-            Err(err) => {
-                warn!("Failed to parse RON: {err}");
-                None
-            }
-        })
-        .collect()
+    {
+        let path = entry.path();
+        let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("?");
+        match std::fs::read_to_string(&path) {
+            Ok(s) => match ron::from_str::<T>(&s) {
+                Ok(v) => {
+                    debug!("  {label} [{filename}]");
+                    results.push(v);
+                }
+                Err(err) => warn!("Failed to parse {filename}: {err}"),
+            },
+            Err(err) => warn!("Failed to read {filename}: {err}"),
+        }
+    }
+    results
 }

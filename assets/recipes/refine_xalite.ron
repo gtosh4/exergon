@@ -1,0 +1,12 @@
+(
+    id: "refine_xalite",
+    inputs: [
+        (material: "xalite_shard", quantity: 2.0),
+        (material: "coal",         quantity: 1.0),
+    ],
+    outputs:    [(material: "resonite", quantity: 1.0)],
+    byproducts: [],
+    machine_tier: 2,
+    processing_time: 20.0,
+    energy_cost: 80.0,
+)

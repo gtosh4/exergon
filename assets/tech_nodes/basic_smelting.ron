@@ -1,0 +1,10 @@
+(
+    id: "basic_smelting",
+    name: "Basic Smelting",
+    category: Processing,
+    tier: 1,
+    rarity: Common,
+    prerequisites: ["power_basics"],
+    primary_unlock: ResearchSpend(100),
+    effects: [UnlockRecipes(["smelt_iron", "smelt_copper"])],
+)

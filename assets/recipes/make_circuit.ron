@@ -1,0 +1,12 @@
+(
+    id: "make_circuit",
+    inputs: [
+        (material: "iron_ingot",  quantity: 1.0),
+        (material: "copper_wire", quantity: 2.0),
+    ],
+    outputs:    [(material: "circuit_board", quantity: 1.0)],
+    byproducts: [],
+    machine_tier: 1,
+    processing_time: 15.0,
+    energy_cost: 40.0,
+)

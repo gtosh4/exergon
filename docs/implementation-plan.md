@@ -19,8 +19,8 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 ## Phase 2 — Content Data *(parallel with Phase 1)*
 
 - [x] Content loader: RON files → typed resources at startup (`VeinRegistry`, `VeinDef`, `BiomeDef`)
-- [ ] `RecipeGraph` resource: hand-authored 2-tier graph (~6–8 recipes), materials, escape artifact
-- [ ] `TechTree` resource: hand-authored 2-tier tree (~8–10 nodes)
+- [x] `RecipeGraph` resource: hand-authored 2-tier graph (~6–8 recipes), materials, escape artifact
+- [x] `TechTree` resource: hand-authored 2-tier tree (~8–10 nodes)
 
 **Deliverable:** Game data loaded and queryable.
 
@@ -29,6 +29,7 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 ## Phase 3 — Machines
 
 - [ ] Voxel block placement/removal (hotbar + raycast)
+- [ ] Inventory (open with tab, move block items into hotbar) like Factorio / Minecraft
 - [ ] Multiblock scanner: adjacency pattern matching, 8 orientations
 - [ ] 3–4 machine types (Smelter, Processor, Analyzer, Gateway)
 - [ ] Machine validity state (scanning → valid/invalid → running)
@@ -75,6 +76,7 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 - [ ] Recipe graph viewer (egui panel, nodes + edges)
 - [ ] Tech tree panel (node grid, locked/unlocked state)
 - [ ] Power/network status HUD (watts, throughput)
+- [ ] Item & recipe explorer (like NEI in GTNH)
 - [ ] Gateway escape condition display + win screen
 
 **Deliverable:** Full readable game state.

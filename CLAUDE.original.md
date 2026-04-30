@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Status
 
 **Early implementation phase.** Design is complete; initial code scaffold exists. The `src/` directory contains a Bevy 0.18 project with module stubs for all core systems. No system is fully implemented yet.

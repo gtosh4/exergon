@@ -1,0 +1,10 @@
+(
+    id: "resonite_engineering",
+    name: "Resonite Engineering",
+    category: Processing,
+    tier: 2,
+    rarity: Rare,
+    prerequisites: ["alien_materials", "advanced_processing"],
+    primary_unlock: ResearchSpend(500),
+    effects: [UnlockRecipes(["make_resonite_circuit"])],
+)

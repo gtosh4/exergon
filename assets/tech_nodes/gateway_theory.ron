@@ -1,0 +1,10 @@
+(
+    id: "gateway_theory",
+    name: "Gateway Theory",
+    category: Science,
+    tier: 2,
+    rarity: Rare,
+    prerequisites: ["alien_materials"],
+    primary_unlock: ExplorationDiscovery("gateway_ruins"),
+    effects: [UnlockMachine("Gateway")],
+)

@@ -1,0 +1,10 @@
+(
+    id: "escape_synthesis",
+    name: "Escape Synthesis",
+    category: Escape,
+    tier: 2,
+    rarity: Unique,
+    prerequisites: ["resonite_engineering", "gateway_theory"],
+    primary_unlock: ResearchSpend(1000),
+    effects: [UnlockRecipes(["forge_gateway_key"])],
+)

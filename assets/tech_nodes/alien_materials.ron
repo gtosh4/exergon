@@ -1,0 +1,10 @@
+(
+    id: "alien_materials",
+    name: "Xalite Studies",
+    category: Science,
+    tier: 2,
+    rarity: Rare,
+    prerequisites: ["science_basics"],
+    primary_unlock: ExplorationDiscovery("xalite_deposit"),
+    effects: [UnlockRecipes(["refine_xalite"])],
+)

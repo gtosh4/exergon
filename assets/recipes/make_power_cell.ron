@@ -1,0 +1,12 @@
+(
+    id: "make_power_cell",
+    inputs: [
+        (material: "iron_ingot",   quantity: 2.0),
+        (material: "copper_ingot", quantity: 1.0),
+    ],
+    outputs:    [(material: "power_cell", quantity: 1.0)],
+    byproducts: [],
+    machine_tier: 2,
+    processing_time: 30.0,
+    energy_cost: 60.0,
+)

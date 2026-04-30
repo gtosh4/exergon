@@ -1,0 +1,10 @@
+(
+    id: "power_basics",
+    name: "Power Fundamentals",
+    category: Power,
+    tier: 1,
+    rarity: Common,
+    prerequisites: [],
+    primary_unlock: ResearchSpend(50),
+    effects: [UnlockMachine("Generator")],
+)

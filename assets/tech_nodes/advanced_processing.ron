@@ -1,0 +1,10 @@
+(
+    id: "advanced_processing",
+    name: "Advanced Processing",
+    category: Processing,
+    tier: 2,
+    rarity: Uncommon,
+    prerequisites: ["basic_processing", "science_basics"],
+    primary_unlock: ResearchSpend(300),
+    effects: [UnlockRecipes(["make_power_cell"])],
+)

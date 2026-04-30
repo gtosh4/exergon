@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-Guidance for Claude Code (claude.ai/code) working in this repo.
-
 ## Project Status
 
 **Early implementation phase.** Design complete; initial scaffold exists. `src/` = Bevy 0.18 project with module stubs for all core systems. No system fully implemented yet.

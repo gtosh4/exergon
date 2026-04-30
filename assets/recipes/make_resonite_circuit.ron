@@ -1,0 +1,12 @@
+(
+    id: "make_resonite_circuit",
+    inputs: [
+        (material: "resonite",      quantity: 1.0),
+        (material: "circuit_board", quantity: 1.0),
+    ],
+    outputs:    [(material: "resonite_circuit", quantity: 1.0)],
+    byproducts: [],
+    machine_tier: 2,
+    processing_time: 25.0,
+    energy_cost: 100.0,
+)

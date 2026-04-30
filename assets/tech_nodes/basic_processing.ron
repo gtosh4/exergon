@@ -1,0 +1,10 @@
+(
+    id: "basic_processing",
+    name: "Basic Processing",
+    category: Processing,
+    tier: 1,
+    rarity: Common,
+    prerequisites: ["basic_smelting"],
+    primary_unlock: ResearchSpend(150),
+    effects: [UnlockRecipes(["draw_copper", "make_circuit"])],
+)
