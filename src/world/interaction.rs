@@ -1,4 +1,4 @@
-use bevy::ecs::message::MessageReader;
+use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 use bevy_voxel_world::prelude::*;
@@ -7,6 +7,7 @@ use crate::inventory::{Hotbar, Inventory, InventoryOpen, ItemRegistry};
 
 use super::generation::WorldConfig;
 use super::player::MainCamera;
+use super::BlockChangedEvent;
 
 const MAX_REACH: f32 = 8.0;
 
@@ -171,6 +172,7 @@ pub(super) fn block_interaction(
     mut inventory: ResMut<Inventory>,
     item_registry: Option<Res<ItemRegistry>>,
     mut voxel_world: VoxelWorld<WorldConfig>,
+    mut block_changed: MessageWriter<BlockChangedEvent>,
 ) {
     // Scroll wheel or number keys to select hotbar slot
     for ev in scroll.read() {
@@ -211,6 +213,7 @@ pub(super) fn block_interaction(
     if mouse.just_pressed(MouseButton::Left) {
         if shift {
             voxel_world.set_voxel(pos, WorldVoxel::Air);
+            block_changed.write(BlockChangedEvent { pos });
             if let Some(item) = item_registry.as_ref().and_then(|r| r.item_for_voxel(hit_voxel)) {
                 inventory.add(item.id.clone(), 1);
             }
@@ -219,7 +222,9 @@ pub(super) fn block_interaction(
             .and_then(|id| item_registry.as_ref().and_then(|r| r.voxel_id(id)))
         {
             hotbar.consume_active();
-            voxel_world.set_voxel(pos + normal, WorldVoxel::Solid(voxel_id));
+            let place_pos = pos + normal;
+            voxel_world.set_voxel(place_pos, WorldVoxel::Solid(voxel_id));
+            block_changed.write(BlockChangedEvent { pos: place_pos });
         }
     }
 }

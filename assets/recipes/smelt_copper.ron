@@ -3,6 +3,7 @@
     inputs:     [(material: "raw_copper",   quantity: 1.0)],
     outputs:    [(material: "copper_ingot", quantity: 1.0)],
     byproducts: [],
+    machine_type: "electric_furnace",
     machine_tier: 1,
     processing_time: 5.0,
     energy_cost: 20.0,

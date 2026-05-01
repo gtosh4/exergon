@@ -6,6 +6,7 @@
     ],
     outputs:    [(material: "circuit_board", quantity: 1.0)],
     byproducts: [],
+    machine_type: "assembler",
     machine_tier: 1,
     processing_time: 15.0,
     energy_cost: 40.0,

@@ -2,7 +2,12 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
 use xxhash_rust::xxh64::xxh64;
 
-use crate::{content::VeinRegistry, seed::DomainSeeds, GameState};
+use crate::{
+    content::VeinRegistry,
+    inventory::{Hotbar, HotbarSlot, Inventory},
+    seed::DomainSeeds,
+    GameState,
+};
 
 const CHUNK_SIZE: f32 = 32.0;
 const CELL_SIZE: f32 = 96.0; // 3 × 32
@@ -40,8 +45,15 @@ pub struct DebugPlugin;
 
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
+        #[cfg(debug_assertions)]
+        let test_mode = std::env::args().any(|a| a == "--test");
+        #[cfg(not(debug_assertions))]
+        let test_mode = false;
+
         app.init_resource::<DebugOverlay>()
+            .insert_resource(TestMode(test_mode))
             .add_systems(Update, toggle_overlay)
+            .add_systems(OnEnter(GameState::Playing), give_test_blocks)
             .add_systems(
                 Update,
                 draw_gizmos.run_if(in_state(GameState::Playing)),
@@ -51,6 +63,24 @@ impl Plugin for DebugPlugin {
                 draw_ui.run_if(in_state(GameState::Playing)),
             );
     }
+}
+
+#[derive(Resource)]
+struct TestMode(bool);
+
+fn give_test_blocks(
+    test_mode: Res<TestMode>,
+    mut inventory: ResMut<Inventory>,
+    mut hotbar: ResMut<Hotbar>,
+) {
+    if !test_mode.0 {
+        return;
+    }
+    inventory.add("machine_casing", 64);
+    inventory.add("smelter_core", 8);
+    hotbar.slots[0] = Some(HotbarSlot { item_id: "machine_casing".into(), count: 64 });
+    hotbar.slots[1] = Some(HotbarSlot { item_id: "smelter_core".into(), count: 8 });
+    info!("Test mode: gave machine_casing ×64 and smelter_core ×8");
 }
 
 fn toggle_overlay(keyboard: Res<ButtonInput<KeyCode>>, mut overlay: ResMut<DebugOverlay>) {

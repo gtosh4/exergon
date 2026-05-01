@@ -6,6 +6,7 @@
     ],
     outputs:    [(material: "gateway_key", quantity: 1.0)],
     byproducts: [],
+    machine_type: "assembler",
     machine_tier: 2,
     processing_time: 60.0,
     energy_cost: 200.0,

@@ -3,6 +3,7 @@
     inputs:     [(material: "copper_ingot", quantity: 1.0)],
     outputs:    [(material: "copper_wire",  quantity: 2.0)],
     byproducts: [],
+    machine_type: "wire_drawing_machine",
     machine_tier: 1,
     processing_time: 8.0,
     energy_cost: 15.0,

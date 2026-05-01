@@ -91,29 +91,28 @@ fn hotbar_ui(
                         .inner_margin(egui::Margin::same(4))
                         .show(ui, |ui| {
                             ui.set_min_size(egui::Vec2::new(64.0, 64.0));
-                            ui.vertical_centered(|ui| {
-                                match hotbar.slots[i].as_ref() {
-                                    Some(s) => {
-                                        let name = item_registry
-                                            .as_ref()
-                                            .and_then(|r| r.get(&s.item_id))
-                                            .map(|d| d.name.as_str())
-                                            .unwrap_or(s.item_id.as_str());
-                                        ui.colored_label(egui::Color32::WHITE, name);
-                                        ui.colored_label(
-                                            egui::Color32::LIGHT_GRAY,
-                                            format!("×{}", s.count),
-                                        );
-                                    }
-                                    None => {
-                                        ui.colored_label(egui::Color32::DARK_GRAY, "·");
-                                    }
+                            ui.set_max_size(egui::Vec2::new(64.0, 64.0));
+                            match hotbar.slots[i].as_ref() {
+                                Some(s) => {
+                                    let name = item_registry
+                                        .as_ref()
+                                        .and_then(|r| r.get(&s.item_id))
+                                        .map(|d| d.name.as_str())
+                                        .unwrap_or(s.item_id.as_str());
+                                    ui.colored_label(egui::Color32::WHITE, name);
+                                    ui.colored_label(
+                                        egui::Color32::LIGHT_GRAY,
+                                        format!("×{}", s.count),
+                                    );
                                 }
-                                ui.colored_label(
-                                    egui::Color32::from_gray(160),
-                                    format!("{}", i + 1),
-                                );
-                            });
+                                None => {
+                                    ui.colored_label(egui::Color32::DARK_GRAY, "·");
+                                }
+                            }
+                            ui.colored_label(
+                                egui::Color32::from_gray(160),
+                                format!("{}", i + 1),
+                            );
                         });
                 }
             });

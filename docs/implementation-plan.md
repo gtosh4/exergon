@@ -30,11 +30,11 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 
 - [x] Voxel block placement/removal (hotbar + raycast)
 - [x] Inventory (open with tab, move block items into hotbar) like Factorio / Minecraft
-- [ ] Multiblock scanner: adjacency pattern matching, 8 orientations
+- [x] Multiblock scanner: adjacency pattern matching, 8 orientations
 - [ ] 3–4 machine types (Smelter, Processor, Analyzer, Gateway)
 - [ ] Machine validity state (scanning → valid/invalid → running)
-- [ ] "--test" flag in `#[cfg(debug_assertions)]` for test setup
-  - [ ] Give blocks for testing a machine
+- [x] "--test" flag when `#[cfg(debug_assertions)]` for test setup
+  - [x] Give blocks for testing machines
 
 **Deliverable:** Place and validate multiblock machines.
 
@@ -64,7 +64,9 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 
 ## Phase 6 — Drones
 
+- [ ] Starting habitat, player can't leave except via drones
 - [ ] Land drone entity + physics movement
+  - [ ] Game starts with a land drone
 - [ ] Camera handoff (`DronePilot` play mode)
 - [ ] Fog-of-war reveal (bitmask per chunk)
 - [ ] Sample collection interaction → add items to inventory
@@ -96,5 +98,8 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 ## Phase 9 - Polish
 - [ ] Block placement shows preview of block (actual texture, 30% transparency)
 - [ ] On shift, no block placement preview & outline look at block (that would break on shift-right click)
+- [ ] Admin/debug console
+  - [ ] `/give` to give items
+  - [ ] `/tp` to teleport
 
 **Deliverable:** Game feels good to play

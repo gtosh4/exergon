@@ -1,8 +1,13 @@
-mod generation;
+pub(crate) mod generation;
 mod interaction;
 mod player;
 
 pub use interaction::LookTarget;
+
+#[derive(bevy::ecs::message::Message, Debug, Clone, Copy)]
+pub struct BlockChangedEvent {
+    pub pos: IVec3,
+}
 
 use bevy::prelude::*;
 use bevy_voxel_world::prelude::*;
@@ -26,6 +31,7 @@ impl Plugin for WorldPlugin {
             texture_layers,
             ..Default::default()
         }))
+            .add_message::<BlockChangedEvent>()
             .init_resource::<LookTarget>()
             .add_systems(Startup, (player::spawn_camera, interaction::setup_ghost_preview))
             .add_systems(OnEnter(GameState::Loading), generation::finish_loading)
@@ -47,6 +53,7 @@ impl Plugin for WorldPlugin {
                     interaction::update_look_target.after(player::camera_input),
                     interaction::block_interaction
                         .after(interaction::update_look_target)
+                        .in_set(crate::GameSystems::Input)
                         .run_if(|o: Option<Res<InventoryOpen>>| !o.map(|r| r.0).unwrap_or(false)),
                     interaction::update_ghost_preview.after(interaction::update_look_target),
                 )

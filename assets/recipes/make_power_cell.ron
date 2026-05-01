@@ -6,6 +6,7 @@
     ],
     outputs:    [(material: "power_cell", quantity: 1.0)],
     byproducts: [],
+    machine_type: "assembler",
     machine_tier: 2,
     processing_time: 30.0,
     energy_cost: 60.0,

@@ -6,6 +6,7 @@
     ],
     outputs:    [(material: "resonite", quantity: 1.0)],
     byproducts: [],
+    machine_type: "refinery",
     machine_tier: 2,
     processing_time: 20.0,
     energy_cost: 80.0,
