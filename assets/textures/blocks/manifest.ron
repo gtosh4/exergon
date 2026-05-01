@@ -11,4 +11,13 @@
     "stone_silver",     // 6 — tin ore (mat 4)
     "stone_silver_alt", // 7 — nickel ore (mat 5)
     "stone_gold",       // 8 — zinc ore (mat 6, placeholder)
+    "smelter_core",     // 9
+    "machine_casing",   // 10
+    "assembler_core",   // 11
+    "refinery_core",    // 12
+    "gateway_core",     // 13
+    "logistics_cable",  // 14
+    "power_cable",      // 15
+    "storage_crate",    // 16
+    "generator",        // 17
 ]

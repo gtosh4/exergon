@@ -81,12 +81,20 @@ fn give_test_blocks(
     inventory.add("assembler_core", 8);
     inventory.add("refinery_core", 8);
     inventory.add("gateway_core", 8);
+    inventory.add("logistics_cable", 64);
+    inventory.add("power_cable", 64);
+    inventory.add("storage_crate", 8);
+    inventory.add("generator", 4);
     hotbar.slots[0] = Some(HotbarSlot { item_id: "machine_casing".into(), count: 128 });
     hotbar.slots[1] = Some(HotbarSlot { item_id: "smelter_core".into(), count: 8 });
     hotbar.slots[2] = Some(HotbarSlot { item_id: "assembler_core".into(), count: 8 });
     hotbar.slots[3] = Some(HotbarSlot { item_id: "refinery_core".into(), count: 8 });
     hotbar.slots[4] = Some(HotbarSlot { item_id: "gateway_core".into(), count: 8 });
-    info!("Test mode: gave machine_casing ×128 and all machine cores ×8");
+    hotbar.slots[5] = Some(HotbarSlot { item_id: "logistics_cable".into(), count: 64 });
+    hotbar.slots[6] = Some(HotbarSlot { item_id: "power_cable".into(), count: 64 });
+    hotbar.slots[7] = Some(HotbarSlot { item_id: "storage_crate".into(), count: 8 });
+    hotbar.slots[8] = Some(HotbarSlot { item_id: "generator".into(), count: 4 });
+    info!("Test mode: gave machine_casing ×128, machine cores ×8, logistics/power cables ×64, storage ×8, generators ×4");
 }
 
 fn toggle_overlay(keyboard: Res<ButtonInput<KeyCode>>, mut overlay: ResMut<DebugOverlay>) {

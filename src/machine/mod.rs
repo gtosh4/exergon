@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use bevy::ecs::message::MessageReader;
+use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 use bevy_voxel_world::prelude::*;
 use serde::Deserialize;
@@ -9,20 +9,40 @@ use crate::content::load_ron_dir;
 use crate::inventory::ItemRegistry;
 use crate::world::{generation::WorldConfig, BlockChangeKind, BlockChangedEvent};
 
+/// System set that contains machine scanning. Logistics/power run after this.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MachineScanSet;
+
+/// Emitted whenever machines form, unform, or are destroyed.
+/// Listeners (logistics, power) use this to trigger network rebuilds.
+#[derive(bevy::ecs::message::Message, Clone, Copy)]
+pub struct MachineNetworkChanged;
+
+/// Active recipe processing state on a running machine.
+#[derive(Component, Clone)]
+pub struct MachineActivity {
+    pub recipe_id: String,
+    pub progress: f32,
+    /// Set by the power brownout system each tick (1.0 = full speed).
+    pub speed_factor: f32,
+}
+
 pub struct MachinePlugin;
 
 impl Plugin for MachinePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MachineBlockMap>()
             .init_resource::<UnformedMachineBlockMap>()
-            .add_systems(Startup, load_machines)
-            .add_systems(
+            .add_message::<MachineNetworkChanged>()
+            .configure_sets(
                 Update,
-                scan_machines
+                MachineScanSet
                     .in_set(crate::GameSystems::Simulation)
                     .run_if(resource_exists::<MachineRegistry>)
                     .run_if(in_state(crate::GameState::Playing)),
-            );
+            )
+            .add_systems(Startup, load_machines)
+            .add_systems(Update, scan_machines.in_set(MachineScanSet));
     }
 }
 
@@ -221,6 +241,7 @@ fn scan_machines(
     item_registry: Option<Res<ItemRegistry>>,
     voxel_world: VoxelWorld<WorldConfig>,
     machine_q: Query<(&Machine, &MachineParts)>,
+    mut network_changed: MessageWriter<MachineNetworkChanged>,
 ) {
     let Some(item_registry) = item_registry else {
         return;
@@ -261,6 +282,7 @@ fn scan_machines(
                             if solid_count * 10 < total {
                                 despawned.push(entity);
                                 commands.entity(entity).despawn();
+                                network_changed.write(MachineNetworkChanged);
                                 info!("Machine '{}' at {:?} destroyed", machine_type, origin_pos);
                             } else {
                                 for &p in &positions {
@@ -270,6 +292,7 @@ fn scan_machines(
                                     .entity(entity)
                                     .insert(MachineUnformed)
                                     .remove::<MachineState>();
+                                network_changed.write(MachineNetworkChanged);
                                 info!("Machine '{}' at {:?} unformed", machine_type, origin_pos);
                             }
                         }
@@ -296,6 +319,7 @@ fn scan_machines(
                             }
                             despawned.push(entity);
                             commands.entity(entity).despawn();
+                            network_changed.write(MachineNetworkChanged);
                             info!("Machine '{}' at {:?} destroyed", machine_type, origin_pos);
                         }
                     }
@@ -379,6 +403,7 @@ fn scan_machines(
                         for &p in &positions {
                             block_map.0.insert(p, entity);
                         }
+                        network_changed.write(MachineNetworkChanged);
                         info!(
                             "Machine '{}' tier {} formed at origin {:?} ({:?}/{:?})",
                             machine_def.id, tier, origin, orientation.rotation, orientation.mirror
@@ -412,6 +437,7 @@ fn scan_machines(
                                         .remove::<MachineUnformed>()
                                         .insert(MachineParts { positions: new_positions })
                                         .insert(MachineState::Idle);
+                                    network_changed.write(MachineNetworkChanged);
                                     info!(
                                         "Machine '{}' tier {} re-formed at origin {:?} ({:?}/{:?})",
                                         machine_type, tier, origin_pos, orientation.rotation, orientation.mirror

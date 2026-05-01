@@ -47,6 +47,9 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 - [ ] Machine I/O: pull inputs from storage, push outputs to storage
 - [ ] Generator block + power output resource
 - [ ] Power flow: sum capacity vs. demand → brownout throttle
+- [ ] Energy IO block for multiblocks
+- [ ] Logistic IO block for multiblocks
+- [ ] Multiblock spec support `Any` type to replace casings with IO blocks
 
 **Deliverable:** Self-running factory loops.
 
@@ -65,9 +68,12 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 ## Phase 6 — Drones
 
 - [ ] Starting habitat, player can't leave except via drones
+  - [ ] No veins in habitats 
 - [ ] Land drone entity + physics movement
   - [ ] Game starts with a land drone
 - [ ] Camera handoff (`DronePilot` play mode)
+- [ ] Separate drone inventory
+- [ ] Hotbar replaced with "tools" specific to the drone type
 - [ ] Fog-of-war reveal (bitmask per chunk)
 - [ ] Sample collection interaction → add items to inventory
 
@@ -97,9 +103,9 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 
 ## Phase 9 - Polish
 - [ ] Block placement shows preview of block (actual texture, 30% transparency)
-- [ ] On shift, no block placement preview & outline look at block (that would break on shift-right click)
+- [X] On shift, no block placement preview & outline look at block (that would break on shift-right click)
 - [ ] Admin/debug console
   - [ ] `/give` to give items
   - [ ] `/tp` to teleport
 
-**Deliverable:** Game feels good to play
+**Deliverable:** Vertical slice feels good to test

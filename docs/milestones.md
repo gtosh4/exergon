@@ -9,76 +9,7 @@ Two pre-release milestones. Vertical Slice proves the core loop is fun. MVP is t
 **Goal:** One complete run playable end-to-end. Systems are simplified or stubbed where needed. The point is to validate that the seed → discover → build → escape loop is fun, not to have production-ready systems.
 
 ### In scope
-
-**World**
-- Surface layer only (no underground, no sky/orbital)
-- Infinite horizontal world, chunk-based generation
-- 2–3 biome types, hand-tuned (not fully procedural)
-- Basic resource deposits on surface
-- 1–2 persistent sites (hand-placed, not seeded)
-
-**Seed system**
-- Text → hash → master seed
-- Per-domain sub-seeds
-- Deterministic world generation from seed
-- No full validity validation yet (hand-tuned to be solvable)
-
-**Recipe graph**
-- Hand-authored graph for the slice (not procedurally generated)
-- 2 tiers, ~6–8 recipes
-- Mix of base and alien materials
-- Single escape condition: alien gateway activation
-
-**Tech tree**
-- Hand-authored tree matching the recipe graph
-- 2 tiers, ~8–10 nodes
-- Research spend + prerequisite chain unlock vectors only
-- Known-to-exist → fully-revealed (no partial reveal step)
-
-**Machines**
-- 3–4 machine types as multiblock structures
-- Passive scan validation, 8 orientations
-- Tier 1 only (no tier upgrades)
-- No modules
-
-**Logistics**
-- Cable adjacency network
-- Unified storage
-- Manual crafting (no auto-crafting job system yet)
-- Basic channel limits
-
-**Power**
-- Single generator type
-- Flow-based, recipe-based machine demand
-- Brownout throttling
-- No planet modifier efficiency yet
-
-**Drones**
-- Land drone only
-- Full camera transfer, persistent
-- Point-based interaction, sample collection
-- Basic fog of war reveal
-
-**Science & research**
-- Single research type
-- Single analysis station type
-- Crafting-style experiments
-- Research spend to unlock nodes
-
-**World reactivity**
-- Not included in vertical slice
-
-**Escape condition**
-- Alien gateway: produce required components at sufficient throughput
-
-**Save system**
-- Run save (basic, no resume from mid-session required)
-- No meta save
-
-**UI**
-- In-game recipe graph viewer
-- Basic tech tree view
-- Power/network status indicators
+See [./implementation-plan.md](./implementation-plan.md)
 
 ### Out of scope for vertical slice
 Everything not listed above, including: underground layer, digger drone, reactivity, meta-progression, codex, modules, auto-crafting, partial reveal, multiple research types, procedural recipe generation.
@@ -130,10 +61,11 @@ Everything not listed above, including: underground layer, digger drone, reactiv
 - Sub-network interfaces (pass-through)
 
 **Power**
+- Amps & Voltage tier implementation
+- Separate power cable tiers
 - Planet modifier efficiency multipliers
 - Multiple generator types (seeded availability)
 - Full tier applicability / demand growth pressure
-- Separate power cable tiers
 
 **Drones**
 - Land drone + digger drone
@@ -155,9 +87,15 @@ Everything not listed above, including: underground layer, digger drone, reactiv
 - Recovery faster than buildup
 - Reactivity seeded rate per region
 
+**Habitats**
+- Expand habitat
+- Outposts
+
 **Escape conditions**
-- All escape types by difficulty (gateway, intra-system ship, inter-system ship)
-- Sustained throughput requirement
+- All escape types by difficulty
+  - Easy = find artifact (gateway)
+  - Mid = build an intra-system ship ("mass effect relay")
+  - Hard = build an inter-system ship
 
 **Save system**
 - Run save (full resume, run history, completed runs persist)
@@ -180,12 +118,24 @@ Everything not listed above, including: underground layer, digger drone, reactiv
 - All difficulty axes tuned
 
 **UI**
+- Main menu
+  - Settings
+  - New Run
+    - Run parameters (seed, difficulty, challenges)
+  - Load Save
+- In-game save/load
+  - Quick save & quick load
+- In-game settings
 - In-game recipe graph viewer with ratio calculator
-- Critical path analyzer
-- Bottleneck visualization
-- Codex browser
+  - see [expert](./planner_expert_mock_v0.1.png) + [sanky](./planner_sanky_mock_v0.1.png)
+  - Bottleneck visualization
+- Better inventory screen
+  - see [mock](./inventory_ui_mock_v0.1.png)
+  - Codex browser
 - Tech tree with shadow view
 - Reactivity region display
+- World map
+- Minimap
 
 ---
 
@@ -212,3 +162,8 @@ Features explicitly deferred. Not prioritised within this list.
 | Cause breakdown for reactivity | Per-source contribution display |
 | Higher-level drone commands | "Mine this deposit" automation |
 | Post-MVP difficulty modifiers | Extreme scenarios, custom run builders |
+| Steam integration | Achievements, cloud saves |
+| Discord integration | Rich presence |
+| Multiplayer? | via steam? |
+| Demo build | First run maybe two? |
+| Mod workshop | Steam workshop? Or more integrated like Factorio |

@@ -50,6 +50,15 @@ impl VoxelWorldConfig for WorldConfig {
             4 => [6, 6, 6],
             5 => [7, 7, 7],
             6 => [8, 8, 8],
+            7 => [9, 9, 9],   // smelter_core
+            8 => [10, 10, 10], // machine_casing
+            9 => [11, 11, 11], // assembler_core
+            10 => [12, 12, 12], // refinery_core
+            11 => [13, 13, 13], // gateway_core
+            12 => [14, 14, 14], // logistics_cable
+            13 => [15, 15, 15], // power_cable
+            14 => [16, 16, 16], // storage_crate
+            15 => [17, 17, 17], // generator
             _ => [0, 0, 0],
         })
     }
