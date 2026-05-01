@@ -7,13 +7,14 @@ use serde::Deserialize;
 
 use crate::content::load_ron_dir;
 use crate::inventory::ItemRegistry;
-use crate::world::{generation::WorldConfig, BlockChangedEvent};
+use crate::world::{generation::WorldConfig, BlockChangeKind, BlockChangedEvent};
 
 pub struct MachinePlugin;
 
 impl Plugin for MachinePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MachineBlockMap>()
+            .init_resource::<UnformedMachineBlockMap>()
             .add_systems(Startup, load_machines)
             .add_systems(
                 Update,
@@ -66,6 +67,10 @@ impl MachineRegistry {
     fn machines_with_key(&self, item_id: &str) -> impl Iterator<Item = &MachineDef> {
         self.machines.iter().filter(move |m| m.key_block == item_id)
     }
+
+    fn machine_def(&self, id: &str) -> Option<&MachineDef> {
+        self.machines.iter().find(|m| m.id == id)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -85,9 +90,17 @@ pub struct MachineParts {
     pub positions: Vec<IVec3>,
 }
 
-/// Voxel position → machine entity. Updated on form/invalidate.
+/// Voxel position → formed machine entity.
 #[derive(Resource, Default)]
 pub struct MachineBlockMap(pub HashMap<IVec3, Entity>);
+
+/// Voxel position → unformed (structure partially intact) machine entity.
+#[derive(Resource, Default)]
+pub struct UnformedMachineBlockMap(pub HashMap<IVec3, Entity>);
+
+/// Marker: machine entity exists but structure is incomplete.
+#[derive(Component)]
+pub struct MachineUnformed;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Rotation {
@@ -158,127 +171,187 @@ fn scan_machines(
     mut commands: Commands,
     mut events: MessageReader<BlockChangedEvent>,
     mut block_map: ResMut<MachineBlockMap>,
+    mut unformed_map: ResMut<UnformedMachineBlockMap>,
     registry: Res<MachineRegistry>,
     item_registry: Option<Res<ItemRegistry>>,
     voxel_world: VoxelWorld<WorldConfig>,
-    machine_q: Query<&MachineParts>,
+    machine_q: Query<(&Machine, &MachineParts)>,
 ) {
     let Some(item_registry) = item_registry else {
         return;
     };
 
-    // Separate: key positions from invalidated machines (process first = higher priority)
-    // vs new key blocks just placed (process second).
-    let mut existing_rescans: Vec<IVec3> = Vec::new();
-    let mut new_rescans: Vec<IVec3> = Vec::new();
-    let mut to_invalidate: Vec<Entity> = Vec::new();
+    let mut despawned: Vec<Entity> = Vec::new();
 
     for ev in events.read() {
         let pos = ev.pos;
 
-        // Collect affected machines from changed pos and 6 face-neighbors
-        for candidate in [
-            pos,
-            pos + IVec3::X,
-            pos - IVec3::X,
-            pos + IVec3::Y,
-            pos - IVec3::Y,
-            pos + IVec3::Z,
-            pos - IVec3::Z,
-        ] {
-            if let Some(&entity) = block_map.0.get(&candidate) {
-                if !to_invalidate.contains(&entity) {
-                    to_invalidate.push(entity);
+        // --- UNFORM on remove or replace ---
+        if matches!(ev.kind, BlockChangeKind::Removed { .. } | BlockChangeKind::Replaced { .. }) {
+            if let Some(&entity) = block_map.0.get(&pos) {
+                if !despawned.contains(&entity) {
+                    if let Ok((machine, parts)) = machine_q.get(entity) {
+                        let still_valid = registry
+                            .machine_def(&machine.machine_type)
+                            .is_some_and(|def| {
+                                try_form_machine(machine.key_pos, def, &item_registry, &voxel_world)
+                                    .is_some()
+                            });
+
+                        if !still_valid {
+                            let solid_count = parts
+                                .positions
+                                .iter()
+                                .filter(|&&p| matches!(voxel_world.get_voxel(p), WorldVoxel::Solid(_)))
+                                .count();
+                            let total = parts.positions.len();
+                            let positions = parts.positions.clone();
+                            let machine_type = machine.machine_type.clone();
+                            let key_pos = machine.key_pos;
+
+                            for &p in &positions {
+                                block_map.0.remove(&p);
+                            }
+
+                            if solid_count * 10 < total {
+                                despawned.push(entity);
+                                commands.entity(entity).despawn();
+                                info!("Machine '{}' at {:?} destroyed", machine_type, key_pos);
+                            } else {
+                                for &p in &positions {
+                                    unformed_map.0.insert(p, entity);
+                                }
+                                commands.entity(entity).insert(MachineUnformed);
+                                info!("Machine '{}' at {:?} unformed", machine_type, key_pos);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Check if an unformed machine at pos should now be destroyed
+            if let Some(&entity) = unformed_map.0.get(&pos) {
+                if !despawned.contains(&entity) {
+                    if let Ok((machine, parts)) = machine_q.get(entity) {
+                        let solid_count = parts
+                            .positions
+                            .iter()
+                            .filter(|&&p| matches!(voxel_world.get_voxel(p), WorldVoxel::Solid(_)))
+                            .count();
+                        let total = parts.positions.len();
+                        if solid_count * 10 < total {
+                            let positions = parts.positions.clone();
+                            let machine_type = machine.machine_type.clone();
+                            let key_pos = machine.key_pos;
+                            for &p in &positions {
+                                unformed_map.0.remove(&p);
+                            }
+                            despawned.push(entity);
+                            commands.entity(entity).despawn();
+                            info!("Machine '{}' at {:?} destroyed", machine_type, key_pos);
+                        }
+                    }
                 }
             }
         }
 
-        // If placed block is a key block, queue for new-formation scan
-        if is_key_block_at(pos, &voxel_world, &item_registry, &registry)
-            && !new_rescans.contains(&pos)
-        {
-            new_rescans.push(pos);
-        }
-    }
+        // --- FORM on place or replace ---
+        if !matches!(ev.kind, BlockChangeKind::Removed { .. }) {
+            let new_voxel_id = match ev.kind {
+                BlockChangeKind::Placed { voxel_id } => voxel_id,
+                BlockChangeKind::Replaced { new_voxel_id, .. } => new_voxel_id,
+                BlockChangeKind::Removed { .. } => unreachable!(),
+            };
 
-    // Invalidate affected machines; collect their key positions for re-scan (priority queue)
-    for entity in to_invalidate {
-        if let Ok(parts) = machine_q.get(entity) {
-            for &part_pos in &parts.positions {
-                if is_key_block_at(part_pos, &voxel_world, &item_registry, &registry)
-                    && !existing_rescans.contains(&part_pos)
-                {
-                    existing_rescans.push(part_pos);
+            // If placed block is a key block, try forming machines
+            if let Some(item) = item_registry.item_for_voxel(new_voxel_id) {
+                if registry.is_key_block(&item.id) {
+                    let item_id = item.id.clone();
+                    'key_form: for machine_def in registry.machines_with_key(&item_id) {
+                        if let Some((tier, orientation, positions)) =
+                            try_form_machine(pos, machine_def, &item_registry, &voxel_world)
+                        {
+                            if positions.iter().any(|p| block_map.0.contains_key(p)) {
+                                continue;
+                            }
+                            // Remove overlapping unformed machines
+                            let mut to_remove: Vec<Entity> = Vec::new();
+                            for &p in &positions {
+                                if let Some(&uf) = unformed_map.0.get(&p) {
+                                    if !to_remove.contains(&uf) && !despawned.contains(&uf) {
+                                        to_remove.push(uf);
+                                    }
+                                }
+                            }
+                            for uf in to_remove {
+                                if let Ok((_, parts)) = machine_q.get(uf) {
+                                    for &p in &parts.positions {
+                                        unformed_map.0.remove(&p);
+                                    }
+                                }
+                                despawned.push(uf);
+                                commands.entity(uf).despawn();
+                            }
+
+                            let entity = commands
+                                .spawn((
+                                    Machine {
+                                        machine_type: machine_def.id.clone(),
+                                        tier,
+                                        orientation,
+                                        key_pos: pos,
+                                    },
+                                    MachineParts { positions: positions.clone() },
+                                ))
+                                .id();
+                            for &p in &positions {
+                                block_map.0.insert(p, entity);
+                            }
+                            info!(
+                                "Machine '{}' tier {} formed at {:?} ({:?}/{:?})",
+                                machine_def.id, tier, pos, orientation.rotation, orientation.mirror
+                            );
+                            break 'key_form;
+                        }
+                    }
                 }
-                block_map.0.remove(&part_pos);
+            }
+
+            // Check if an unformed machine at pos can now re-form
+            if let Some(&entity) = unformed_map.0.get(&pos) {
+                if !despawned.contains(&entity) {
+                    if let Ok((machine, parts)) = machine_q.get(entity) {
+                        let machine_type = machine.machine_type.clone();
+                        let key_pos = machine.key_pos;
+                        let old_positions = parts.positions.clone();
+
+                        if let Some(def) = registry.machine_def(&machine_type) {
+                            if let Some((tier, orientation, new_positions)) =
+                                try_form_machine(key_pos, def, &item_registry, &voxel_world)
+                            {
+                                if !new_positions.iter().any(|p| block_map.0.contains_key(p)) {
+                                    for &p in &old_positions {
+                                        unformed_map.0.remove(&p);
+                                    }
+                                    for &p in &new_positions {
+                                        block_map.0.insert(p, entity);
+                                    }
+                                    commands
+                                        .entity(entity)
+                                        .remove::<MachineUnformed>()
+                                        .insert(MachineParts { positions: new_positions });
+                                    info!(
+                                        "Machine '{}' tier {} re-formed at {:?} ({:?}/{:?})",
+                                        machine_type, tier, key_pos, orientation.rotation, orientation.mirror
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
-        commands.entity(entity).despawn();
     }
-
-    // Remove new-key positions that are already in existing_rescans (avoids double-scan)
-    new_rescans.retain(|p| !existing_rescans.contains(p));
-
-    // Existing machines first (reclaim their blocks), then new formations
-    let rescan_positions = existing_rescans.into_iter().chain(new_rescans);
-
-    // Scan from each key position
-    for key_pos in rescan_positions {
-        let WorldVoxel::Solid(vox_id) = voxel_world.get_voxel(key_pos) else {
-            continue;
-        };
-        let Some(item) = item_registry.item_for_voxel(vox_id) else {
-            continue;
-        };
-        let item_id = item.id.clone();
-
-        for machine_def in registry.machines_with_key(&item_id) {
-            if let Some((tier, orientation, positions)) =
-                try_form_machine(key_pos, machine_def, &item_registry, &voxel_world)
-            {
-                // Reject if any required block is already claimed by another machine
-                if positions.iter().any(|p| block_map.0.contains_key(p)) {
-                    continue;
-                }
-
-                let entity = commands
-                    .spawn((
-                        Machine {
-                            machine_type: machine_def.id.clone(),
-                            tier,
-                            orientation,
-                            key_pos,
-                        },
-                        MachineParts { positions: positions.clone() },
-                    ))
-                    .id();
-
-                for pos in &positions {
-                    block_map.0.insert(*pos, entity);
-                }
-
-                info!(
-                    "Machine '{}' tier {} formed at {:?} ({:?}/{:?})",
-                    machine_def.id, tier, key_pos, orientation.rotation, orientation.mirror
-                );
-                break;
-            }
-        }
-    }
-}
-
-fn is_key_block_at(
-    pos: IVec3,
-    voxel_world: &VoxelWorld<WorldConfig>,
-    item_registry: &ItemRegistry,
-    registry: &MachineRegistry,
-) -> bool {
-    if let WorldVoxel::Solid(vox_id) = voxel_world.get_voxel(pos) {
-        if let Some(item) = item_registry.item_for_voxel(vox_id) {
-            return registry.is_key_block(&item.id);
-        }
-    }
-    false
 }
 
 fn try_form_machine(

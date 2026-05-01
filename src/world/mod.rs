@@ -4,9 +4,17 @@ mod player;
 
 pub use interaction::LookTarget;
 
+#[derive(Debug, Clone, Copy)]
+pub enum BlockChangeKind {
+    Placed { voxel_id: u8 },
+    Removed { voxel_id: u8 },
+    Replaced { old_voxel_id: u8, new_voxel_id: u8 },
+}
+
 #[derive(bevy::ecs::message::Message, Debug, Clone, Copy)]
 pub struct BlockChangedEvent {
     pub pos: IVec3,
+    pub kind: BlockChangeKind,
 }
 
 use bevy::prelude::*;

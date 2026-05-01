@@ -22,7 +22,7 @@ impl Plugin for UiPlugin {
                 (
                     main_menu.run_if(in_state(GameState::MainMenu)),
                     pause_menu.run_if(in_state(GameState::Paused)),
-                    (look_tooltip, hotbar_ui, inventory_ui)
+                    (crosshair, look_tooltip, hotbar_ui, inventory_ui)
                         .run_if(in_state(GameState::Playing)),
                 ),
             );
@@ -32,6 +32,23 @@ impl Plugin for UiPlugin {
 #[derive(Resource, Default)]
 struct MainMenuState {
     seed_text: String,
+}
+
+fn crosshair(
+    mut contexts: EguiContexts,
+    inv_open: Option<Res<InventoryOpen>>,
+) -> Result {
+    if inv_open.map(|o| o.0).unwrap_or(false) {
+        return Ok(());
+    }
+    let ctx = contexts.ctx_mut()?;
+    let center = ctx.screen_rect().center();
+    let painter = ctx.layer_painter(egui::LayerId::new(
+        egui::Order::Foreground,
+        egui::Id::new("crosshair"),
+    ));
+    painter.circle_filled(center, 3.0, egui::Color32::from_rgba_unmultiplied(180, 180, 180, 120));
+    Ok(())
 }
 
 fn look_tooltip(

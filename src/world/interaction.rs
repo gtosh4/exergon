@@ -7,7 +7,7 @@ use crate::inventory::{Hotbar, Inventory, InventoryOpen, ItemRegistry};
 
 use super::generation::WorldConfig;
 use super::player::MainCamera;
-use super::BlockChangedEvent;
+use super::{BlockChangeKind, BlockChangedEvent};
 
 const MAX_REACH: f32 = 8.0;
 
@@ -213,7 +213,10 @@ pub(super) fn block_interaction(
     if mouse.just_pressed(MouseButton::Left) {
         if shift {
             voxel_world.set_voxel(pos, WorldVoxel::Air);
-            block_changed.write(BlockChangedEvent { pos });
+            block_changed.write(BlockChangedEvent {
+                pos,
+                kind: BlockChangeKind::Removed { voxel_id: hit_voxel },
+            });
             if let Some(item) = item_registry.as_ref().and_then(|r| r.item_for_voxel(hit_voxel)) {
                 inventory.add(item.id.clone(), 1);
             }
@@ -224,7 +227,10 @@ pub(super) fn block_interaction(
             hotbar.consume_active();
             let place_pos = pos + normal;
             voxel_world.set_voxel(place_pos, WorldVoxel::Solid(voxel_id));
-            block_changed.write(BlockChangedEvent { pos: place_pos });
+            block_changed.write(BlockChangedEvent {
+                pos: place_pos,
+                kind: BlockChangeKind::Placed { voxel_id },
+            });
         }
     }
 }
