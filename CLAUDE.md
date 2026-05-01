@@ -16,3 +16,6 @@ Built using `bevy` game engine.
 See `docs/README.md` for full doc index.
 
 Docs and code diverge → reconcile explicitly. Never leave silent.
+
+## Instructions
+- Always use `Component`s for data that should go in save files over `Resource`s

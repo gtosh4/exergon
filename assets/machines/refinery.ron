@@ -22,7 +22,7 @@
                 ],
             ],
             pattern_elements: {
-                "A": BlockMatcher("machine_casing"),
+                "A": AnyOf(["machine_casing", "energy_io", "logistics_io"]),
                 "B": BlockMatcher("refinery_core"),
             },
         ),

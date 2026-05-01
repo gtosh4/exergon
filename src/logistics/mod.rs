@@ -4,7 +4,7 @@ use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;
 
 use crate::inventory::ItemRegistry;
-use crate::machine::{Machine, MachineActivity, MachineBlockMap, MachineScanSet, MachineNetworkChanged, MachineState};
+use crate::machine::{Machine, MachineActivity, MachineScanSet, MachineNetworkChanged, MachineState, MachineUnformed};
 use crate::recipe_graph::RecipeGraph;
 use crate::world::{BlockChangeKind, BlockChangedEvent};
 
@@ -15,6 +15,7 @@ impl Plugin for LogisticsPlugin {
         app.init_resource::<LogisticsData>().add_systems(
             Update,
             (
+                ApplyDeferred,
                 update_logistics_networks
                     .run_if(resource_exists::<ItemRegistry>),
                 ApplyDeferred,
@@ -111,7 +112,7 @@ fn update_logistics_networks(
     mut block_events: MessageReader<BlockChangedEvent>,
     mut machine_events: MessageReader<MachineNetworkChanged>,
     item_registry: Res<ItemRegistry>,
-    machine_block_map: Res<MachineBlockMap>,
+    machine_q: Query<(Entity, &Machine), Without<MachineUnformed>>,
 ) {
     let cable_vox = item_registry.voxel_id(LOGISTICS_CABLE_ID);
     let storage_vox = item_registry.voxel_id(STORAGE_CRATE_ID);
@@ -160,6 +161,11 @@ fn update_logistics_networks(
     let cable_positions = net_data.cable_positions.clone();
     let storage_positions: HashSet<IVec3> = net_data.storage_blocks.keys().copied().collect();
 
+    let logistics_io_map: HashMap<IVec3, Entity> = machine_q
+        .iter()
+        .flat_map(|(e, m)| m.logistics_io_blocks.iter().map(move |&p| (p, e)))
+        .collect();
+
     let mut visited: HashSet<IVec3> = HashSet::new();
     let mut network_count = 0usize;
 
@@ -191,7 +197,7 @@ fn update_logistics_networks(
         for &cable_pos in &component {
             for &dir in &DIRS {
                 let n = cable_pos + dir;
-                if let Some(&entity) = machine_block_map.0.get(&n) {
+                if let Some(&entity) = logistics_io_map.get(&n) {
                     if seen_machines.insert(entity) {
                         machine_entities.push(entity);
                     }

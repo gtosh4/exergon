@@ -85,6 +85,8 @@ fn give_test_blocks(
     inventory.add("power_cable", 64);
     inventory.add("storage_crate", 8);
     inventory.add("generator", 4);
+    inventory.add("energy_io", 16);
+    inventory.add("logistics_io", 16);
     hotbar.slots[0] = Some(HotbarSlot { item_id: "machine_casing".into(), count: 128 });
     hotbar.slots[1] = Some(HotbarSlot { item_id: "smelter_core".into(), count: 8 });
     hotbar.slots[2] = Some(HotbarSlot { item_id: "assembler_core".into(), count: 8 });
@@ -94,7 +96,7 @@ fn give_test_blocks(
     hotbar.slots[6] = Some(HotbarSlot { item_id: "power_cable".into(), count: 64 });
     hotbar.slots[7] = Some(HotbarSlot { item_id: "storage_crate".into(), count: 8 });
     hotbar.slots[8] = Some(HotbarSlot { item_id: "generator".into(), count: 4 });
-    info!("Test mode: gave machine_casing ×128, machine cores ×8, logistics/power cables ×64, storage ×8, generators ×4");
+    info!("Test mode: gave machine_casing ×128, machine cores ×8, logistics/power cables ×64, storage ×8, generators ×4, IO hatches ×16");
 }
 
 fn toggle_overlay(keyboard: Res<ButtonInput<KeyCode>>, mut overlay: ResMut<DebugOverlay>) {

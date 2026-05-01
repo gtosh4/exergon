@@ -1,0 +1,1 @@
+(id: "logistics_io", name: "Logistics I/O Hatch", block: Some((voxel_id: 17, hardness: 3.0)))

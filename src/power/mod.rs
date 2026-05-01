@@ -4,7 +4,7 @@ use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;
 
 use crate::inventory::ItemRegistry;
-use crate::machine::{MachineActivity, MachineBlockMap, MachineScanSet, MachineNetworkChanged, MachineState};
+use crate::machine::{Machine, MachineActivity, MachineScanSet, MachineNetworkChanged, MachineState, MachineUnformed};
 use crate::recipe_graph::RecipeGraph;
 use crate::world::{BlockChangeKind, BlockChangedEvent};
 
@@ -15,6 +15,7 @@ impl Plugin for PowerPlugin {
         app.init_resource::<PowerData>().add_systems(
             Update,
             (
+                ApplyDeferred,
                 update_power_networks
                     .run_if(resource_exists::<ItemRegistry>),
                 ApplyDeferred,
@@ -70,7 +71,7 @@ fn update_power_networks(
     mut block_events: MessageReader<BlockChangedEvent>,
     mut machine_events: MessageReader<MachineNetworkChanged>,
     item_registry: Res<ItemRegistry>,
-    machine_block_map: Res<MachineBlockMap>,
+    machine_q: Query<(Entity, &Machine), Without<MachineUnformed>>,
 ) {
     let cable_vox = item_registry.voxel_id(POWER_CABLE_ID);
     let generator_vox = item_registry.voxel_id(GENERATOR_ID);
@@ -119,6 +120,11 @@ fn update_power_networks(
     let cable_positions = power_data.cable_positions.clone();
     let generator_positions: HashSet<IVec3> = power_data.generator_blocks.keys().copied().collect();
 
+    let energy_io_map: HashMap<IVec3, Entity> = machine_q
+        .iter()
+        .flat_map(|(e, m)| m.energy_io_blocks.iter().map(move |&p| (p, e)))
+        .collect();
+
     let mut visited: HashSet<IVec3> = HashSet::new();
     let mut network_count = 0usize;
 
@@ -150,7 +156,7 @@ fn update_power_networks(
         for &cable_pos in &component {
             for &dir in &DIRS {
                 let n = cable_pos + dir;
-                if let Some(&entity) = machine_block_map.0.get(&n) {
+                if let Some(&entity) = energy_io_map.get(&n) {
                     if seen_machines.insert(entity) {
                         machine_entities.push(entity);
                     }

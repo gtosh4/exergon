@@ -42,14 +42,15 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 
 ## Phase 4 — Logistics + Power
 
-- [ ] Cable adjacency graph traversal → `Network` resource
-- [ ] Unified storage: item stacks pooled per network
-- [ ] Machine I/O: pull inputs from storage, push outputs to storage
-- [ ] Generator block + power output resource
-- [ ] Power flow: sum capacity vs. demand → brownout throttle
-- [ ] Energy IO block for multiblocks
-- [ ] Logistic IO block for multiblocks
-- [ ] Multiblock spec support `Any` type to replace casings with IO blocks
+- [x] Cable adjacency graph traversal → `Network` resource
+- [x] Unified storage: item stacks pooled per network
+- [x] Machine I/O: pull inputs from storage, push outputs to storage
+- [x] Generator block + power output resource
+- [x] Power flow: sum capacity vs. demand → brownout throttle
+- [x] Energy IO block for multiblocks
+- [x] Logistic IO block for multiblocks
+- [x] Multiblock spec support `Any` type to replace casings with IO blocks
+- [x] Machines join energy/logistic networks via IO blocks
 
 **Deliverable:** Self-running factory loops.
 
@@ -107,5 +108,7 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 - [ ] Admin/debug console
   - [ ] `/give` to give items
   - [ ] `/tp` to teleport
+- [ ] F10 cycle network debug: none, logistic, power - show lines through all blocks part of the network
+- [ ] Network debug item: select in hotbar, click on block: show its network (like debug). Click air = clear
 
 **Deliverable:** Vertical slice feels good to test

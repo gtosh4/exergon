@@ -20,4 +20,6 @@
     "power_cable",      // 15
     "storage_crate",    // 16
     "generator",        // 17
+    "energy_io",        // 18
+    "logistics_io",     // 19
 ]

@@ -131,7 +131,9 @@ Everything not listed above, including: underground layer, digger drone, reactiv
   - Bottleneck visualization
 - Better inventory screen
   - see [mock](./inventory_ui_mock_v0.1.png)
+  - Drag-drop with hotbar
   - Codex browser
+- Hotbar cycling
 - Tech tree with shadow view
 - Reactivity region display
 - World map

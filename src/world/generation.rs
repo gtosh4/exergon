@@ -59,6 +59,8 @@ impl VoxelWorldConfig for WorldConfig {
             13 => [15, 15, 15], // power_cable
             14 => [16, 16, 16], // storage_crate
             15 => [17, 17, 17], // generator
+            16 => [18, 18, 18], // energy_io
+            17 => [19, 19, 19], // logistics_io
             _ => [0, 0, 0],
         })
     }
