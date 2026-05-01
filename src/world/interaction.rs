@@ -82,6 +82,7 @@ pub(super) fn setup_ghost_preview(
 
 pub(super) fn update_ghost_preview(
     look_target: Res<LookTarget>,
+    keyboard: Res<ButtonInput<KeyCode>>,
     hotbar: Res<Hotbar>,
     item_registry: Option<Res<ItemRegistry>>,
     inventory_open: Option<Res<InventoryOpen>>,
@@ -95,17 +96,19 @@ pub(super) fn update_ghost_preview(
         ),
         With<GhostBlock>,
     >,
+    mut gizmos: Gizmos,
 ) {
     let Some(ghost) = ghost else { return };
     let Ok((mut transform, mut vis, mut mat)) = ghost_q.get_mut(ghost.entity) else {
         return;
     };
 
+    let shift = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
     let inv_open = inventory_open.map(|o| o.0).unwrap_or(false);
     let active_voxel = hotbar
         .active_item_id()
         .and_then(|id| item_registry.as_ref().and_then(|r| r.voxel_id(id)));
-    let show = active_voxel.is_some() && !inv_open;
+    let show_ghost = active_voxel.is_some() && !inv_open && !shift;
 
     if hotbar.is_changed() {
         if let (Some(m), Some(mats)) = (active_voxel, &ghost_mats) {
@@ -115,9 +118,17 @@ pub(super) fn update_ghost_preview(
     }
 
     match *look_target {
-        LookTarget::Voxel { pos, normal, .. } if show => {
+        LookTarget::Voxel { pos, normal, .. } if show_ghost => {
             transform.translation = (pos + normal).as_vec3() + Vec3::splat(0.5);
             *vis = Visibility::Visible;
+        }
+        LookTarget::Voxel { pos, .. } if shift && !inv_open => {
+            *vis = Visibility::Hidden;
+            gizmos.cube(
+                Transform::from_translation(pos.as_vec3() + Vec3::splat(0.5))
+                    .with_scale(Vec3::splat(1.01)),
+                Color::srgba(1.0, 0.35, 0.2, 1.0),
+            );
         }
         _ => {
             *vis = Visibility::Hidden;
