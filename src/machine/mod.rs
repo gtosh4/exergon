@@ -31,10 +31,25 @@ impl Plugin for MachinePlugin {
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, Clone, Debug)]
+pub enum CellMatcher {
+    BlockMatcher(String),
+}
+
+impl CellMatcher {
+    fn matches_id(&self, id: &str) -> bool {
+        match self {
+            CellMatcher::BlockMatcher(bid) => bid == id,
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Debug)]
 pub struct MachineTierDef {
     pub tier: u8,
-    /// pattern[y][z][x]. Cell values: item id, "air"/empty = must be air, "?" = any solid.
-    pub pattern: Vec<Vec<Vec<String>>>,
+    /// pattern[y][z] = row string; each char is a placeholder key into pattern_elements.
+    /// Chars absent from pattern_elements must be air.
+    pub pattern: Vec<Vec<String>>,
+    pub pattern_elements: HashMap<String, CellMatcher>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -364,7 +379,9 @@ fn try_form_machine(
     tiers.sort_by(|a, b| b.tier.cmp(&a.tier));
 
     for tier_def in tiers {
-        let Some(key_in_pattern) = find_key_in_pattern(&tier_def.pattern, &def.key_block) else {
+        let Some(key_in_pattern) =
+            find_key_in_pattern(&tier_def.pattern, &tier_def.pattern_elements, &def.key_block)
+        else {
             continue;
         };
         for orientation in Orientation::all() {
@@ -372,6 +389,7 @@ fn try_form_machine(
                 key_world,
                 key_in_pattern,
                 &tier_def.pattern,
+                &tier_def.pattern_elements,
                 orientation,
                 item_registry,
                 voxel_world,
@@ -383,11 +401,19 @@ fn try_form_machine(
     None
 }
 
-fn find_key_in_pattern(pattern: &[Vec<Vec<String>>], key_block: &str) -> Option<IVec3> {
+fn find_key_in_pattern(
+    pattern: &[Vec<String>],
+    elements: &HashMap<String, CellMatcher>,
+    key_block: &str,
+) -> Option<IVec3> {
+    let key_char = elements
+        .iter()
+        .find_map(|(ch, matcher)| if matcher.matches_id(key_block) { Some(ch.clone()) } else { None })?;
+
     for (y, layer) in pattern.iter().enumerate() {
         for (z, row) in layer.iter().enumerate() {
-            for (x, cell) in row.iter().enumerate() {
-                if cell == key_block {
+            for (x, ch) in row.chars().enumerate() {
+                if ch.to_string() == key_char {
                     return Some(IVec3::new(x as i32, y as i32, z as i32));
                 }
             }
@@ -399,7 +425,8 @@ fn find_key_in_pattern(pattern: &[Vec<Vec<String>>], key_block: &str) -> Option<
 fn check_pattern(
     key_world: IVec3,
     key_in_pattern: IVec3,
-    pattern: &[Vec<Vec<String>>],
+    pattern: &[Vec<String>],
+    elements: &HashMap<String, CellMatcher>,
     orientation: Orientation,
     item_registry: &ItemRegistry,
     voxel_world: &VoxelWorld<WorldConfig>,
@@ -408,22 +435,25 @@ fn check_pattern(
 
     for (y, layer) in pattern.iter().enumerate() {
         for (z, row) in layer.iter().enumerate() {
-            for (x, cell) in row.iter().enumerate() {
+            for (x, ch) in row.chars().enumerate() {
                 let pat_pos = IVec3::new(x as i32, y as i32, z as i32);
                 let delta = pat_pos - key_in_pattern;
                 let world_pos = key_world + orientation.transform(delta);
                 let voxel = voxel_world.get_voxel(world_pos);
 
-                let ok = match cell.as_str() {
-                    "" | "air" => matches!(voxel, WorldVoxel::Air | WorldVoxel::Unset),
-                    "?" => matches!(voxel, WorldVoxel::Solid(_)),
-                    item_id => {
-                        if let WorldVoxel::Solid(vox_id) = voxel {
-                            item_registry.voxel_id(item_id) == Some(vox_id)
-                        } else {
-                            false
+                let ok = if let Some(matcher) = elements.get(&ch.to_string()) {
+                    match matcher {
+                        CellMatcher::BlockMatcher(item_id) => {
+                            if let WorldVoxel::Solid(vox_id) = voxel {
+                                item_registry.voxel_id(item_id) == Some(vox_id)
+                            } else {
+                                false
+                            }
                         }
                     }
+                } else {
+                    // Char not in elements → must be air
+                    matches!(voxel, WorldVoxel::Air | WorldVoxel::Unset)
                 };
 
                 if !ok {
