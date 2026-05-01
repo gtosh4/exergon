@@ -53,7 +53,7 @@ impl Plugin for DebugPlugin {
         app.init_resource::<DebugOverlay>()
             .insert_resource(TestMode(test_mode))
             .add_systems(Update, toggle_overlay)
-            .add_systems(OnEnter(GameState::Playing), give_test_blocks)
+            .add_systems(OnEnter(GameState::Playing), give_test_blocks.run_if(run_once))
             .add_systems(
                 Update,
                 draw_gizmos.run_if(in_state(GameState::Playing)),
@@ -76,11 +76,17 @@ fn give_test_blocks(
     if !test_mode.0 {
         return;
     }
-    inventory.add("machine_casing", 64);
+    inventory.add("machine_casing", 128);
     inventory.add("smelter_core", 8);
-    hotbar.slots[0] = Some(HotbarSlot { item_id: "machine_casing".into(), count: 64 });
+    inventory.add("assembler_core", 8);
+    inventory.add("refinery_core", 8);
+    inventory.add("gateway_core", 8);
+    hotbar.slots[0] = Some(HotbarSlot { item_id: "machine_casing".into(), count: 128 });
     hotbar.slots[1] = Some(HotbarSlot { item_id: "smelter_core".into(), count: 8 });
-    info!("Test mode: gave machine_casing ×64 and smelter_core ×8");
+    hotbar.slots[2] = Some(HotbarSlot { item_id: "assembler_core".into(), count: 8 });
+    hotbar.slots[3] = Some(HotbarSlot { item_id: "refinery_core".into(), count: 8 });
+    hotbar.slots[4] = Some(HotbarSlot { item_id: "gateway_core".into(), count: 8 });
+    info!("Test mode: gave machine_casing ×128 and all machine cores ×8");
 }
 
 fn toggle_overlay(keyboard: Res<ButtonInput<KeyCode>>, mut overlay: ResMut<DebugOverlay>) {

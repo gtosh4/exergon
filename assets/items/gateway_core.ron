@@ -1,0 +1,1 @@
+(id: "gateway_core", name: "Gateway Core", block: Some((voxel_id: 11, hardness: 3.0)))

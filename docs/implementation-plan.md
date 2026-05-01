@@ -31,8 +31,8 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 - [x] Voxel block placement/removal (hotbar + raycast)
 - [x] Inventory (open with tab, move block items into hotbar) like Factorio / Minecraft
 - [x] Multiblock scanner: adjacency pattern matching, 8 orientations
-- [ ] 3–4 machine types (Smelter, Processor, Analyzer, Gateway)
-- [ ] Machine validity state (scanning → valid/invalid → running)
+- [x] 3–4 machine types (electric_furnace, assembler, refinery, gateway)
+- [x] Machine validity state (`MachineState::Idle/Running`; unformed = invalid)
 - [x] "--test" flag when `#[cfg(debug_assertions)]` for test setup
   - [x] Give blocks for testing machines
 

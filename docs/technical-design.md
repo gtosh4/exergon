@@ -392,40 +392,39 @@ Machines are multi-block structures: a fixed core footprint defined by a machine
 
 Each machine type is defined in a data file (content pack). The definition declares the 3D block pattern for each tier and the valid module attachment positions:
 
-```toml
-[machine.electric_furnace]
-key_block = "electric_furnace_core"
-
-[[machine.electric_furnace.tier]]
-tier = 1
-# 3D pattern in canonical (north-facing) orientation
-# Each cell: block type ID or "_" for air, "?" for any player block
-pattern = [
-  # layer y=0
-  [["casing", "casing", "casing"],
-   ["casing", "electric_furnace_core", "casing"],
-   ["casing", "casing", "casing"]],
-]
-[[machine.electric_furnace.tier.module_slot]]
-position = [1, 0, 2]   # relative to core block, canonical orientation
-allowed_types = ["speed", "efficiency"]
-
-[[machine.electric_furnace.tier]]
-tier = 2
-# larger pattern; tier-1 structure is a valid sub-structure
-pattern = [ ... ]
-# more module slots than tier 1
+```ron
+(
+    id: "electric_furnace",
+    tiers: [
+        (
+            tier: 1,
+            // pattern[y][z] = row string; each char maps to pattern_elements
+            // 3×1×3 single-layer: 8 casing + 1 core
+            pattern: [
+                [
+                    "AAA",
+                    "ABA",
+                    "AAA",
+                ],
+            ],
+            pattern_elements: {
+                "A": BlockMatcher("machine_casing"),
+                "B": BlockMatcher("smelter_core"),
+            },
+        ),
+    ],
+)
 ```
 
 Higher-tier patterns are strict supersets of lower-tier patterns (the smaller structure is a valid sub-structure), enabling in-place upgrades by adding blocks outward.
 
 ### Structure validation
 
-Validation is **passive and key-block-anchored**:
+Validation is **passive**:
 
-1. When a key block (e.g. `electric_furnace_core`) is placed, a validation scan fires from that block
-2. When any block adjacent to a formed machine is modified or removed, the machine is invalidated and a re-scan fires from the key block
-3. The scan checks the surrounding region against the machine's tier patterns in all 4 valid orientations (Y-axis rotation, 90° increments)
+1. When a block used in a machine (e.g. `smelter_core`, `machine_casing`) is placed, a validation scan fires from that block
+2. When any block adjacent to a formed machine is modified or removed, the machine is invalidated and a re-scan fires
+3. The scan checks the surrounding region against the machine's tier patterns in all 8 valid orientations (Y-axis rotation, 90° increments, mirrored)
 4. The highest matching tier is used (a tier-2 pattern match takes precedence over tier-1)
 5. On successful match: machine entity is formed, orientation is recorded, component blocks are marked
 

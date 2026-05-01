@@ -1,0 +1,30 @@
+(
+    id: "gateway",
+    tiers: [
+        (
+            tier: 1,
+            // 3×3×3: full cube — 26 casing + 1 core
+            pattern: [
+                [
+                    "AAA",
+                    "AAA",
+                    "AAA",
+                ],
+                [
+                    "AAA",
+                    "ABA",
+                    "AAA",
+                ],
+                [
+                    "AAA",
+                    "AAA",
+                    "AAA",
+                ],
+            ],
+            pattern_elements: {
+                "A": BlockMatcher("machine_casing"),
+                "B": BlockMatcher("gateway_core"),
+            },
+        ),
+    ],
+)
