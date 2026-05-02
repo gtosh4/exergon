@@ -1,5 +1,8 @@
 use bevy::log::LogPlugin;
 use bevy::prelude::*;
+use clap::Parser;
+
+use crate::inventory::{Hotbar, HotbarSlot, Inventory};
 
 mod content;
 mod debug;
@@ -17,6 +20,15 @@ mod tech_tree;
 mod textures;
 mod ui;
 mod world;
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    #[cfg(debug_assertions)]
+    /// Start with test items in inventory
+    #[arg(short, long)]
+    test: bool,
+}
 
 #[derive(States, Default, Clone, Eq, PartialEq, Debug, Hash)]
 pub enum GameState {
@@ -45,6 +57,8 @@ pub enum GameSystems {
 }
 
 fn main() {
+    let cli = Cli::parse();
+
     let atlas_layers = textures::build_block_atlas();
     #[cfg(debug_assertions)]
     let log_plugin = LogPlugin {
@@ -59,8 +73,9 @@ fn main() {
         ..default()
     };
 
-    App::new()
-        .insert_resource(textures::BlockAtlasLayers(atlas_layers))
+    let mut app = App::new();
+
+    app.insert_resource(textures::BlockAtlasLayers(atlas_layers))
         .add_plugins(
             DefaultPlugins
                 .set(WindowPlugin {
@@ -98,6 +113,70 @@ fn main() {
             reactivity::ReactivityPlugin,
             meta::MetaPlugin,
             ui::UiPlugin,
-        ))
-        .run();
+        ));
+
+    #[cfg(debug_assertions)]
+    if cli.test {
+        app.add_systems(
+            OnTransition {
+                exited: GameState::Loading,
+                entered: GameState::Playing,
+            },
+            give_test_blocks,
+        );
+    }
+    app.run();
+}
+
+fn give_test_blocks(mut inventory: ResMut<Inventory>, mut hotbar: ResMut<Hotbar>) {
+    inventory.add("machine_casing", 128);
+    inventory.add("smelter_core", 8);
+    inventory.add("assembler_core", 8);
+    inventory.add("refinery_core", 8);
+    inventory.add("gateway_core", 8);
+    inventory.add("logistics_cable", 64);
+    inventory.add("power_cable", 64);
+    inventory.add("storage_crate", 8);
+    inventory.add("generator", 4);
+    inventory.add("energy_io", 16);
+    inventory.add("logistics_io", 16);
+    hotbar.slots[0] = Some(HotbarSlot {
+        item_id: "machine_casing".into(),
+        count: 128,
+    });
+    hotbar.slots[1] = Some(HotbarSlot {
+        item_id: "smelter_core".into(),
+        count: 8,
+    });
+    hotbar.slots[2] = Some(HotbarSlot {
+        item_id: "assembler_core".into(),
+        count: 8,
+    });
+    hotbar.slots[3] = Some(HotbarSlot {
+        item_id: "refinery_core".into(),
+        count: 8,
+    });
+    hotbar.slots[4] = Some(HotbarSlot {
+        item_id: "gateway_core".into(),
+        count: 8,
+    });
+    hotbar.slots[5] = Some(HotbarSlot {
+        item_id: "logistics_cable".into(),
+        count: 64,
+    });
+    hotbar.slots[6] = Some(HotbarSlot {
+        item_id: "power_cable".into(),
+        count: 64,
+    });
+    hotbar.slots[7] = Some(HotbarSlot {
+        item_id: "storage_crate".into(),
+        count: 8,
+    });
+    hotbar.slots[8] = Some(HotbarSlot {
+        item_id: "generator".into(),
+        count: 4,
+    });
+    info!(
+        "Test mode: gave machine_casing ×128, machine cores ×8, logistics/power cables ×64, storage ×8, generators ×4, IO hatches ×16"
+    );
 }

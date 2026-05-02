@@ -4,7 +4,9 @@ use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;
 
 use crate::inventory::ItemRegistry;
-use crate::machine::{Machine, MachineActivity, MachineScanSet, MachineNetworkChanged, MachineState, MachineUnformed};
+use crate::machine::{
+    Machine, MachineActivity, MachineNetworkChanged, MachineScanSet, MachineState, MachineUnformed,
+};
 use crate::recipe_graph::RecipeGraph;
 use crate::world::{BlockChangeKind, BlockChangedEvent};
 
@@ -16,11 +18,9 @@ impl Plugin for LogisticsPlugin {
             Update,
             (
                 ApplyDeferred,
-                update_logistics_networks
-                    .run_if(resource_exists::<ItemRegistry>),
+                update_logistics_networks.run_if(resource_exists::<ItemRegistry>),
                 ApplyDeferred,
-                machine_io_system
-                    .run_if(resource_exists::<RecipeGraph>),
+                machine_io_system.run_if(resource_exists::<RecipeGraph>),
             )
                 .chain()
                 .after(MachineScanSet)
@@ -121,9 +121,10 @@ fn update_logistics_networks(
         let placed = match ev.kind {
             BlockChangeKind::Placed { voxel_id } => Some((None::<u8>, Some(voxel_id))),
             BlockChangeKind::Removed { voxel_id } => Some((Some(voxel_id), None)),
-            BlockChangeKind::Replaced { old_voxel_id, new_voxel_id } => {
-                Some((Some(old_voxel_id), Some(new_voxel_id)))
-            }
+            BlockChangeKind::Replaced {
+                old_voxel_id,
+                new_voxel_id,
+            } => Some((Some(old_voxel_id), Some(new_voxel_id))),
         };
         if let Some((removed, added)) = placed {
             if removed.map(|v| Some(v) == cable_vox).unwrap_or(false) {
@@ -208,9 +209,15 @@ fn update_logistics_networks(
             }
         }
 
-        let net_entity = commands.spawn(LogisticsNetwork { storage_positions: net_storage }).id();
+        let net_entity = commands
+            .spawn(LogisticsNetwork {
+                storage_positions: net_storage,
+            })
+            .id();
         for machine_entity in machine_entities {
-            commands.entity(machine_entity).insert(LogisticsMember(net_entity));
+            commands
+                .entity(machine_entity)
+                .insert(LogisticsMember(net_entity));
         }
         network_count += 1;
     }
@@ -230,7 +237,13 @@ fn machine_io_system(
     recipe_graph: Res<RecipeGraph>,
     net_q: Query<&LogisticsNetwork>,
     mut params: ParamSet<(
-        Query<(Entity, &Machine, &MachineState, Option<&MachineActivity>, &LogisticsMember)>,
+        Query<(
+            Entity,
+            &Machine,
+            &MachineState,
+            Option<&MachineActivity>,
+            &LogisticsMember,
+        )>,
         Query<&mut MachineActivity>,
     )>,
 ) {
@@ -244,7 +257,9 @@ fn machine_io_system(
         let machine_q = params.p0();
         for (entity, machine, state, activity, member) in &machine_q {
             let net_entity = member.0;
-            let Ok(network) = net_q.get(net_entity) else { continue; };
+            let Ok(network) = net_q.get(net_entity) else {
+                continue;
+            };
 
             match *state {
                 MachineState::Idle => {
@@ -312,7 +327,11 @@ fn machine_io_system(
             }
         }
         commands.entity(entity).insert((
-            MachineActivity { recipe_id, progress: 0.0, speed_factor: 1.0 },
+            MachineActivity {
+                recipe_id,
+                progress: 0.0,
+                speed_factor: 1.0,
+            },
             MachineState::Running,
         ));
         info!("Machine {:?} started recipe", entity);
@@ -326,7 +345,10 @@ fn machine_io_system(
                 }
             }
         }
-        commands.entity(entity).remove::<MachineActivity>().insert(MachineState::Idle);
+        commands
+            .entity(entity)
+            .remove::<MachineActivity>()
+            .insert(MachineState::Idle);
         info!("Machine {:?} finished recipe", entity);
     }
 }

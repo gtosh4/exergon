@@ -1,13 +1,8 @@
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use xxhash_rust::xxh64::xxh64;
 
-use crate::{
-    content::VeinRegistry,
-    inventory::{Hotbar, HotbarSlot, Inventory},
-    seed::DomainSeeds,
-    GameState,
-};
+use crate::{GameState, content::VeinRegistry, seed::DomainSeeds};
 
 const CHUNK_SIZE: f32 = 32.0;
 const CELL_SIZE: f32 = 96.0; // 3 × 32
@@ -45,58 +40,14 @@ pub struct DebugPlugin;
 
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
-        #[cfg(debug_assertions)]
-        let test_mode = std::env::args().any(|a| a == "--test");
-        #[cfg(not(debug_assertions))]
-        let test_mode = false;
-
         app.init_resource::<DebugOverlay>()
-            .insert_resource(TestMode(test_mode))
             .add_systems(Update, toggle_overlay)
-            .add_systems(OnEnter(GameState::Playing), give_test_blocks.run_if(run_once))
-            .add_systems(
-                Update,
-                draw_gizmos.run_if(in_state(GameState::Playing)),
-            )
+            .add_systems(Update, draw_gizmos.run_if(in_state(GameState::Playing)))
             .add_systems(
                 EguiPrimaryContextPass,
                 draw_ui.run_if(in_state(GameState::Playing)),
             );
     }
-}
-
-#[derive(Resource)]
-struct TestMode(bool);
-
-fn give_test_blocks(
-    test_mode: Res<TestMode>,
-    mut inventory: ResMut<Inventory>,
-    mut hotbar: ResMut<Hotbar>,
-) {
-    if !test_mode.0 {
-        return;
-    }
-    inventory.add("machine_casing", 128);
-    inventory.add("smelter_core", 8);
-    inventory.add("assembler_core", 8);
-    inventory.add("refinery_core", 8);
-    inventory.add("gateway_core", 8);
-    inventory.add("logistics_cable", 64);
-    inventory.add("power_cable", 64);
-    inventory.add("storage_crate", 8);
-    inventory.add("generator", 4);
-    inventory.add("energy_io", 16);
-    inventory.add("logistics_io", 16);
-    hotbar.slots[0] = Some(HotbarSlot { item_id: "machine_casing".into(), count: 128 });
-    hotbar.slots[1] = Some(HotbarSlot { item_id: "smelter_core".into(), count: 8 });
-    hotbar.slots[2] = Some(HotbarSlot { item_id: "assembler_core".into(), count: 8 });
-    hotbar.slots[3] = Some(HotbarSlot { item_id: "refinery_core".into(), count: 8 });
-    hotbar.slots[4] = Some(HotbarSlot { item_id: "gateway_core".into(), count: 8 });
-    hotbar.slots[5] = Some(HotbarSlot { item_id: "logistics_cable".into(), count: 64 });
-    hotbar.slots[6] = Some(HotbarSlot { item_id: "power_cable".into(), count: 64 });
-    hotbar.slots[7] = Some(HotbarSlot { item_id: "storage_crate".into(), count: 8 });
-    hotbar.slots[8] = Some(HotbarSlot { item_id: "generator".into(), count: 4 });
-    info!("Test mode: gave machine_casing ×128, machine cores ×8, logistics/power cables ×64, storage ×8, generators ×4, IO hatches ×16");
 }
 
 fn toggle_overlay(keyboard: Res<ButtonInput<KeyCode>>, mut overlay: ResMut<DebugOverlay>) {
@@ -197,7 +148,16 @@ fn biome_color(registry: Option<&VeinRegistry>, cell_y: i32) -> Color {
     }
 }
 
-fn box_xz(gizmos: &mut Gizmos, x0: f32, z0: f32, x1: f32, z1: f32, y_lo: f32, y_hi: f32, color: Color) {
+fn box_xz(
+    gizmos: &mut Gizmos,
+    x0: f32,
+    z0: f32,
+    x1: f32,
+    z1: f32,
+    y_lo: f32,
+    y_hi: f32,
+    color: Color,
+) {
     // Top ring
     gizmos.line(Vec3::new(x0, y_hi, z0), Vec3::new(x1, y_hi, z0), color);
     gizmos.line(Vec3::new(x1, y_hi, z0), Vec3::new(x1, y_hi, z1), color);
@@ -225,7 +185,9 @@ fn draw_ui(
     if *overlay == DebugOverlay::None {
         return Ok(());
     }
-    let Ok(cam) = camera_q.single() else { return Ok(()) };
+    let Ok(cam) = camera_q.single() else {
+        return Ok(());
+    };
     let pos = cam.translation;
     let cell_y = pos.y.div_euclid(CELL_SIZE) as i32;
     let ctx = contexts.ctx_mut()?;
@@ -254,13 +216,14 @@ fn draw_ui(
                             );
                         }
                         DebugOverlay::Biomes => {
-                            let text = match registry.as_deref().and_then(|r| r.biome_at_cell_y(cell_y)) {
-                                None => format!("Layer [y={cell_y}]: (none)"),
-                                Some(info) => format!(
-                                    "Layer [y={cell_y}]: {} / {}",
-                                    info.layer_name, info.id
-                                ),
-                            };
+                            let text =
+                                match registry.as_deref().and_then(|r| r.biome_at_cell_y(cell_y)) {
+                                    None => format!("Layer [y={cell_y}]: (none)"),
+                                    Some(info) => format!(
+                                        "Layer [y={cell_y}]: {} / {}",
+                                        info.layer_name, info.id
+                                    ),
+                                };
                             ui.colored_label(egui::Color32::WHITE, text);
                         }
                         _ => {}
