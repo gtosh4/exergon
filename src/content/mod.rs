@@ -326,3 +326,178 @@ pub(crate) fn load_ron_dir<T: for<'de> Deserialize<'de>>(dir: &str, label: &str)
     }
     results
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::SeedableRng;
+    use rand_pcg::Pcg64;
+
+    fn ore(name: &str, material: u8, weight: u32) -> OreSpec {
+        OreSpec {
+            name: name.to_string(),
+            material,
+            weight,
+        }
+    }
+
+    fn vein(id: &str, primary_w: u32, secondary_w: u32, sporadic: Option<OreSpec>) -> VeinDef {
+        VeinDef {
+            id: id.to_string(),
+            density: 1.0,
+            primary: ore("Primary", 1, primary_w),
+            secondary: ore("Secondary", 2, secondary_w),
+            sporadic,
+        }
+    }
+
+    fn layer(id: &str, y_range: (i32, i32)) -> LayerDef {
+        LayerDef {
+            id: id.to_string(),
+            name: format!("Layer {id}"),
+            y_cell_range: y_range,
+        }
+    }
+
+    fn biome(id: &str, layer_id: &str, pool: Vec<(&str, u32)>) -> BiomeDef {
+        BiomeDef {
+            id: id.to_string(),
+            layer: layer_id.to_string(),
+            vein_pool: pool.into_iter().map(|(s, w)| (s.to_string(), w)).collect(),
+        }
+    }
+
+    #[test]
+    fn pick_ore_zero_weight_returns_primary() {
+        let v = vein("v", 0, 0, None);
+        let mut rng = Pcg64::seed_from_u64(0);
+        assert_eq!(v.pick_ore(&mut rng).material, 1);
+    }
+
+    #[test]
+    fn pick_ore_primary_only() {
+        let v = vein("v", 100, 0, None);
+        let mut rng = Pcg64::seed_from_u64(0);
+        for _ in 0..20 {
+            assert_eq!(v.pick_ore(&mut rng).material, 1);
+        }
+    }
+
+    #[test]
+    fn pick_ore_sporadic_when_only_weight() {
+        let v = vein("v", 0, 0, Some(ore("Sporadic", 3, 100)));
+        let mut rng = Pcg64::seed_from_u64(0);
+        assert_eq!(v.pick_ore(&mut rng).material, 3);
+    }
+
+    #[test]
+    fn pick_ore_secondary_reachable() {
+        // primary=0, secondary=100 → always secondary
+        let v = VeinDef {
+            id: "v".into(),
+            density: 1.0,
+            primary: ore("P", 1, 0),
+            secondary: ore("S", 2, 100),
+            sporadic: None,
+        };
+        let mut rng = Pcg64::seed_from_u64(42);
+        assert_eq!(v.pick_ore(&mut rng).material, 2);
+    }
+
+    #[test]
+    fn material_name_defaults_present() {
+        let reg = VeinRegistry::new(vec![], vec![], vec![]);
+        assert_eq!(reg.material_name(0), Some("Stone"));
+        assert_eq!(reg.material_name(1), Some("Surface Rock"));
+        assert_eq!(reg.material_name(99), None);
+    }
+
+    #[test]
+    fn material_name_from_vein() {
+        let v = vein("v", 50, 50, Some(ore("Copper", 5, 10)));
+        let l = layer("l", (0, 5));
+        let b = biome("b", "l", vec![("v", 1)]);
+        let reg = VeinRegistry::new(vec![v], vec![l], vec![b]);
+        assert_eq!(reg.material_name(1), Some("Primary"));
+        assert_eq!(reg.material_name(2), Some("Secondary"));
+        assert_eq!(reg.material_name(5), Some("Copper"));
+    }
+
+    #[test]
+    fn biome_at_cell_y_in_range() {
+        let l = layer("deep", (0, 10));
+        let v = vein("v", 1, 1, None);
+        let b = biome("deep_biome", "deep", vec![("v", 1)]);
+        let reg = VeinRegistry::new(vec![v], vec![l], vec![b]);
+        let info = reg.biome_at_cell_y(5).unwrap();
+        assert_eq!(info.id, "deep_biome");
+        assert_eq!(info.layer_id, "deep");
+        assert_eq!(info.layer_name, "Layer deep");
+    }
+
+    #[test]
+    fn biome_at_cell_y_boundary() {
+        let l = layer("l", (0, 5));
+        let v = vein("v", 1, 1, None);
+        let b = biome("b", "l", vec![("v", 1)]);
+        let reg = VeinRegistry::new(vec![v], vec![l], vec![b]);
+        assert!(reg.biome_at_cell_y(0).is_some());
+        assert!(reg.biome_at_cell_y(5).is_some());
+        assert!(reg.biome_at_cell_y(-1).is_none());
+        assert!(reg.biome_at_cell_y(6).is_none());
+    }
+
+    #[test]
+    fn biome_at_cell_y_no_biomes_returns_none() {
+        let reg = VeinRegistry::new(vec![], vec![], vec![]);
+        assert!(reg.biome_at_cell_y(0).is_none());
+    }
+
+    #[test]
+    fn cell_vein_no_biome_returns_none() {
+        let reg = VeinRegistry::new(vec![], vec![], vec![]);
+        assert!(reg.cell_vein(0, 0, 99, 0).is_none());
+    }
+
+    #[test]
+    fn cell_vein_empty_pool_returns_none() {
+        let l = layer("l", (0, 5));
+        let reg = VeinRegistry::new(vec![], vec![l], vec![biome("b", "l", vec![])]);
+        assert!(reg.cell_vein(0, 0, 0, 0).is_none());
+    }
+
+    #[test]
+    fn cell_vein_deterministic() {
+        let l = layer("l", (0, 5));
+        let v = vein("iron", 1, 1, None);
+        let b = biome("b", "l", vec![("iron", 1)]);
+        let reg = VeinRegistry::new(vec![v], vec![l], vec![b]);
+        // Same seed + coords must give same result
+        let a = reg.cell_vein(12345, 1, 0, 1).map(|v| v.id.clone());
+        let b_result = reg.cell_vein(12345, 1, 0, 1).map(|v| v.id.clone());
+        assert_eq!(a, b_result);
+    }
+
+    #[test]
+    fn ore_at_no_biome_returns_none() {
+        let reg = VeinRegistry::new(vec![], vec![], vec![]);
+        assert!(reg.ore_at(0, 0, 0, 0).is_none());
+    }
+
+    #[test]
+    fn ore_at_deterministic() {
+        let l = layer("l", (0, 5));
+        let v = VeinDef {
+            id: "iron".into(),
+            density: 1.0,
+            primary: ore("Iron", 10, 100),
+            secondary: ore("Copper", 11, 0),
+            sporadic: None,
+        };
+        let b = biome("b", "l", vec![("iron", 1)]);
+        let reg = VeinRegistry::new(vec![v], vec![l], vec![b]);
+        let r1 = reg.ore_at(999, 10, 10, 10);
+        let r2 = reg.ore_at(999, 10, 10, 10);
+        assert_eq!(r1, r2);
+    }
+}

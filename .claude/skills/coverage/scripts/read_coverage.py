@@ -16,7 +16,6 @@ d = data["data"][0]
 
 proj = Path(__file__)
 while not (proj / "Cargo.toml").exists():
-    print(proj)
     if proj.name == "/" or proj.name == "":
         raise ValueError("Didn't find src/ parent")
     proj = proj.parent

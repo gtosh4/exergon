@@ -7,7 +7,7 @@ use crate::{GameState, content::VeinRegistry, seed::DomainSeeds};
 const CHUNK_SIZE: f32 = 32.0;
 const CELL_SIZE: f32 = 96.0; // 3 × 32
 
-#[derive(Resource, Default, PartialEq, Clone, Copy)]
+#[derive(Resource, Default, PartialEq, Clone, Copy, Debug)]
 enum DebugOverlay {
     #[default]
     None,
@@ -231,4 +231,31 @@ fn draw_ui(
         });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cycle_visits_all_variants() {
+        let sequence = [
+            DebugOverlay::None,
+            DebugOverlay::Chunks,
+            DebugOverlay::Veins,
+            DebugOverlay::Biomes,
+        ];
+        for (i, &v) in sequence.iter().enumerate() {
+            let next = sequence[(i + 1) % sequence.len()];
+            assert_eq!(v.cycle(), next);
+        }
+    }
+
+    #[test]
+    fn label_matches_variant() {
+        assert_eq!(DebugOverlay::None.label(), "Off");
+        assert_eq!(DebugOverlay::Chunks.label(), "Chunks");
+        assert_eq!(DebugOverlay::Veins.label(), "Veins");
+        assert_eq!(DebugOverlay::Biomes.label(), "Biomes");
+    }
 }

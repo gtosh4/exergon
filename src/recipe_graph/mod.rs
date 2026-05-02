@@ -120,3 +120,90 @@ fn load_recipe_graph(mut commands: Commands) {
     );
     commands.insert_resource(graph);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mat(id: &str, terminal: bool) -> MaterialDef {
+        MaterialDef {
+            id: id.to_string(),
+            name: id.to_string(),
+            kind: MaterialKind::Base,
+            is_terminal: terminal,
+        }
+    }
+
+    fn stack(material: &str, qty: f32) -> ItemStack {
+        ItemStack {
+            material: material.to_string(),
+            quantity: qty,
+        }
+    }
+
+    fn recipe(
+        id: &str,
+        inputs: Vec<ItemStack>,
+        outputs: Vec<ItemStack>,
+        byproducts: Vec<ItemStack>,
+    ) -> RecipeDef {
+        RecipeDef {
+            id: id.to_string(),
+            inputs,
+            outputs,
+            byproducts,
+            machine_type: "furnace".to_string(),
+            machine_tier: 1,
+            processing_time: 1.0,
+            energy_cost: 10.0,
+        }
+    }
+
+    #[test]
+    fn empty_graph() {
+        let g = RecipeGraph::from_vecs(vec![], vec![], "none".into());
+        assert!(g.materials.is_empty());
+        assert!(g.recipes.is_empty());
+        assert!(g.producers.is_empty());
+        assert!(g.consumers.is_empty());
+        assert_eq!(g.terminal, "none");
+    }
+
+    #[test]
+    fn output_creates_producer() {
+        let r = recipe("r1", vec![], vec![stack("iron", 1.0)], vec![]);
+        let g = RecipeGraph::from_vecs(vec![], vec![r], "".into());
+        assert!(g.producers.get("iron").unwrap().contains(&"r1".to_string()));
+    }
+
+    #[test]
+    fn byproduct_creates_producer() {
+        let r = recipe("r1", vec![], vec![], vec![stack("slag", 0.5)]);
+        let g = RecipeGraph::from_vecs(vec![], vec![r], "".into());
+        assert!(g.producers.get("slag").unwrap().contains(&"r1".to_string()));
+    }
+
+    #[test]
+    fn input_creates_consumer() {
+        let r = recipe("r1", vec![stack("coal", 2.0)], vec![], vec![]);
+        let g = RecipeGraph::from_vecs(vec![], vec![r], "".into());
+        assert!(g.consumers.get("coal").unwrap().contains(&"r1".to_string()));
+    }
+
+    #[test]
+    fn terminal_stored_from_argument() {
+        let g = RecipeGraph::from_vecs(vec![mat("crystal", true)], vec![], "crystal".into());
+        assert_eq!(g.terminal, "crystal");
+    }
+
+    #[test]
+    fn materials_indexed_by_id() {
+        let g = RecipeGraph::from_vecs(
+            vec![mat("iron", false), mat("gold", false)],
+            vec![],
+            "".into(),
+        );
+        assert!(g.materials.contains_key("iron"));
+        assert!(g.materials.contains_key("gold"));
+    }
+}
