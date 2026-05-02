@@ -1,11 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
-use bevy::ecs::message::MessageReader;
+use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
 use crate::inventory::ItemRegistry;
-use crate::machine::{
-    Machine, MachineActivity, MachineNetworkChanged, MachineScanSet, MachineState, MachineUnformed,
+use crate::machine::{Machine, MachineActivity, MachineScanSet, MachineState};
+use crate::network::{
+    self, DIRS, HasPos, NetworkChanged, NetworkKind, NetworkMemberComponent,
+    NetworkMembersComponent, Power,
 };
 use crate::recipe_graph::RecipeGraph;
 use crate::world::{BlockChangeKind, BlockChangedMessage};
@@ -14,11 +16,18 @@ pub struct PowerPlugin;
 
 impl Plugin for PowerPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<PowerData>().add_systems(
+        network::init_network::<Power>(app);
+        app.add_systems(
             Update,
             (
                 ApplyDeferred,
-                update_power_networks.run_if(resource_exists::<ItemRegistry>),
+                network::cable_placed_system::<Power>.run_if(resource_exists::<ItemRegistry>),
+                network::cable_removed_system::<Power>.run_if(resource_exists::<ItemRegistry>),
+                network::machine_membership_system::<Power>.run_if(resource_exists::<ItemRegistry>),
+                ApplyDeferred,
+                generator_system.run_if(resource_exists::<ItemRegistry>),
+                ApplyDeferred,
+                recalc_capacity_system,
                 ApplyDeferred,
                 brownout_system.run_if(resource_exists::<RecipeGraph>),
             )
@@ -34,181 +43,189 @@ const POWER_CABLE_ID: &str = "power_cable";
 const GENERATOR_ID: &str = "generator";
 const GENERATOR_DEFAULT_WATTS: f32 = 50.0;
 
-const DIRS: [IVec3; 6] = [
-    IVec3::new(1, 0, 0),
-    IVec3::new(-1, 0, 0),
-    IVec3::new(0, 1, 0),
-    IVec3::new(0, -1, 0),
-    IVec3::new(0, 0, 1),
-    IVec3::new(0, 0, -1),
-];
+// -- Components --------------------------------------------------------------
+
+#[derive(Component)]
+pub struct PowerCableBlock {
+    pub pos: IVec3,
+}
+
+impl HasPos for PowerCableBlock {
+    fn pos(&self) -> IVec3 {
+        self.pos
+    }
+}
 
 #[derive(Component)]
 #[relationship(relationship_target = PowerNetworkMembers)]
-pub struct PowerMember(pub Entity);
+pub struct PowerNetworkMember(pub Entity);
 
 #[derive(Component)]
-#[relationship_target(relationship = PowerMember)]
+#[relationship_target(relationship = PowerNetworkMember)]
 pub struct PowerNetworkMembers(Vec<Entity>);
+
+impl NetworkMemberComponent for PowerNetworkMember {
+    fn new(network: Entity) -> Self {
+        PowerNetworkMember(network)
+    }
+    fn network(&self) -> Entity {
+        self.0
+    }
+}
+
+impl NetworkMembersComponent for PowerNetworkMembers {
+    fn members(&self) -> &[Entity] {
+        &self.0
+    }
+}
+
+#[derive(Component)]
+pub struct GeneratorBlock {
+    pub pos: IVec3,
+    pub watts: f32,
+}
 
 #[derive(Component)]
 pub struct PowerNetwork {
     pub capacity_watts: f32,
 }
 
-#[derive(Resource, Default)]
-pub struct PowerData {
-    pub cable_positions: HashSet<IVec3>,
-    /// Watts output per generator block position.
-    pub generator_blocks: HashMap<IVec3, f32>,
-    dirty: bool,
+// -- NetworkKind impl --------------------------------------------------------
+
+impl NetworkKind for Power {
+    const CABLE_ITEM_ID: &'static str = POWER_CABLE_ID;
+
+    type CableBlock = PowerCableBlock;
+    type Member = PowerNetworkMember;
+    type Members = PowerNetworkMembers;
+
+    fn io_blocks(machine: &Machine) -> &HashSet<IVec3> {
+        &machine.energy_io_blocks
+    }
+
+    fn new_cable_block(pos: IVec3) -> PowerCableBlock {
+        PowerCableBlock { pos }
+    }
+
+    fn spawn_network(commands: &mut Commands) -> Entity {
+        commands
+            .spawn(PowerNetwork {
+                capacity_watts: 0.0,
+            })
+            .id()
+    }
 }
 
-fn update_power_networks(
+// -- Systems -----------------------------------------------------------------
+
+fn generator_system(
     mut commands: Commands,
-    mut power_data: ResMut<PowerData>,
-    existing_nets: Query<Entity, With<PowerNetwork>>,
     mut block_events: MessageReader<BlockChangedMessage>,
-    mut machine_events: MessageReader<MachineNetworkChanged>,
     item_registry: Res<ItemRegistry>,
-    machine_q: Query<(Entity, &Machine), Without<MachineUnformed>>,
+    cable_q: Query<(&PowerCableBlock, &PowerNetworkMember)>,
+    gen_q: Query<(Entity, &GeneratorBlock)>,
+    mut changed: MessageWriter<NetworkChanged<Power>>,
 ) {
-    let cable_vox = item_registry.voxel_id(POWER_CABLE_ID);
-    let generator_vox = item_registry.voxel_id(GENERATOR_ID);
+    let Some(generator_vox) = item_registry.voxel_id(GENERATOR_ID) else {
+        return;
+    };
+
+    let cable_pos_to_net: HashMap<IVec3, Entity> =
+        cable_q.iter().map(|(c, m)| (c.pos, m.0)).collect();
+
+    let mut affected_nets: HashSet<Entity> = HashSet::new();
 
     for ev in block_events.read() {
-        let placed = match ev.kind {
-            BlockChangeKind::Placed { voxel_id } => Some((None::<u8>, Some(voxel_id))),
-            BlockChangeKind::Removed { voxel_id } => Some((Some(voxel_id), None)),
+        let (removed, added) = match ev.kind {
+            BlockChangeKind::Placed { voxel_id } => (None, Some(voxel_id)),
+            BlockChangeKind::Removed { voxel_id } => (Some(voxel_id), None),
             BlockChangeKind::Replaced {
                 old_voxel_id,
                 new_voxel_id,
-            } => Some((Some(old_voxel_id), Some(new_voxel_id))),
+            } => (Some(old_voxel_id), Some(new_voxel_id)),
         };
-        if let Some((removed, added)) = placed {
-            if removed.is_some_and(|v| Some(v) == cable_vox) {
-                power_data.cable_positions.remove(&ev.pos);
-                power_data.dirty = true;
+
+        if removed.is_some_and(|v| v == generator_vox)
+            && let Some((gen_e, _)) = gen_q.iter().find(|(_, g)| g.pos == ev.pos)
+        {
+            for &dir in &DIRS {
+                if let Some(&net) = cable_pos_to_net.get(&(ev.pos + dir)) {
+                    affected_nets.insert(net);
+                    break;
+                }
             }
-            if added.is_some_and(|v| Some(v) == cable_vox) {
-                power_data.cable_positions.insert(ev.pos);
-                power_data.dirty = true;
-            }
-            if removed.is_some_and(|v| Some(v) == generator_vox) {
-                power_data.generator_blocks.remove(&ev.pos);
-                power_data.dirty = true;
-            }
-            if added.is_some_and(|v| Some(v) == generator_vox) {
-                power_data
-                    .generator_blocks
-                    .insert(ev.pos, GENERATOR_DEFAULT_WATTS);
-                power_data.dirty = true;
+            commands.entity(gen_e).despawn();
+        }
+
+        if added.is_some_and(|v| v == generator_vox) {
+            let gen_e = commands
+                .spawn(GeneratorBlock {
+                    pos: ev.pos,
+                    watts: GENERATOR_DEFAULT_WATTS,
+                })
+                .id();
+            for &dir in &DIRS {
+                if let Some(&net) = cable_pos_to_net.get(&(ev.pos + dir)) {
+                    commands.entity(gen_e).insert(PowerNetworkMember(net));
+                    affected_nets.insert(net);
+                    break;
+                }
             }
         }
     }
 
-    for _ in machine_events.read() {
-        power_data.dirty = true;
+    for net in affected_nets {
+        changed.write(NetworkChanged::new(net));
     }
+}
 
-    if !power_data.dirty {
+fn recalc_capacity_system(
+    mut events: MessageReader<NetworkChanged<Power>>,
+    mut net_q: Query<(Entity, &mut PowerNetwork, &PowerNetworkMembers)>,
+    gen_q: Query<&GeneratorBlock>,
+) {
+    let affected: HashSet<Entity> = events.read().map(|e| e.network).collect();
+    if affected.is_empty() {
         return;
     }
-    power_data.dirty = false;
-
-    for net_entity in &existing_nets {
-        commands.entity(net_entity).despawn();
-    }
-
-    let cable_positions = power_data.cable_positions.clone();
-    let generator_positions: HashSet<IVec3> = power_data.generator_blocks.keys().copied().collect();
-
-    let energy_io_map: HashMap<IVec3, Entity> = machine_q
-        .iter()
-        .flat_map(|(e, m)| m.energy_io_blocks.iter().map(move |&p| (p, e)))
-        .collect();
-
-    let mut visited: HashSet<IVec3> = HashSet::new();
-    let mut network_count = 0usize;
-
-    for &start in &cable_positions {
-        if visited.contains(&start) {
+    for (net_entity, mut network, members) in &mut net_q {
+        if !affected.contains(&net_entity) {
             continue;
         }
-
-        let mut queue = vec![start];
-        let mut component: HashSet<IVec3> = HashSet::new();
-        visited.insert(start);
-        component.insert(start);
-
-        while let Some(pos) = queue.pop() {
-            for &dir in &DIRS {
-                let n = pos + dir;
-                if !visited.contains(&n) && cable_positions.contains(&n) {
-                    visited.insert(n);
-                    component.insert(n);
-                    queue.push(n);
-                }
-            }
-        }
-
-        let mut machine_entities: Vec<Entity> = Vec::new();
-        let mut net_generators: Vec<IVec3> = Vec::new();
-        let mut seen_machines: HashSet<Entity> = HashSet::new();
-
-        for &cable_pos in &component {
-            for &dir in &DIRS {
-                let n = cable_pos + dir;
-                if let Some(&entity) = energy_io_map.get(&n)
-                    && seen_machines.insert(entity)
-                {
-                    machine_entities.push(entity);
-                }
-                if generator_positions.contains(&n) && !net_generators.contains(&n) {
-                    net_generators.push(n);
-                }
-            }
-        }
-
-        let capacity_watts: f32 = net_generators
+        network.capacity_watts = members
+            .0
             .iter()
-            .filter_map(|p| power_data.generator_blocks.get(p))
+            .filter_map(|&e| gen_q.get(e).ok())
+            .map(|g| g.watts)
             .sum();
-
-        let net_entity = commands.spawn(PowerNetwork { capacity_watts }).id();
-        for machine_entity in machine_entities {
-            commands
-                .entity(machine_entity)
-                .insert(PowerMember(net_entity));
-        }
-        network_count += 1;
     }
-
-    debug!(
-        "Power: {} networks, {} cables, {} generators",
-        network_count,
-        power_data.cable_positions.len(),
-        power_data.generator_blocks.len(),
-    );
 }
 
 fn brownout_system(
-    net_q: Query<(&PowerNetwork, &PowerNetworkMembers)>,
+    mut events: MessageReader<NetworkChanged<Power>>,
+    net_q: Query<(Entity, &PowerNetwork, &PowerNetworkMembers)>,
     recipe_graph: Res<RecipeGraph>,
     mut params: ParamSet<(
         Query<(&MachineState, Option<&MachineActivity>)>,
         Query<&mut MachineActivity>,
     )>,
 ) {
+    let affected: HashSet<Entity> = events.read().map(|e| e.network).collect();
+    if affected.is_empty() {
+        return;
+    }
+
     let net_speeds: Vec<(Vec<Entity>, f32)> = {
         let machine_q = params.p0();
         net_q
             .iter()
-            .map(|(network, members)| {
+            .filter(|(e, _, _)| affected.contains(e))
+            .map(|(_, network, members)| {
                 let speed = if network.capacity_watts > 0.0 {
                     let demand: f32 = members
+                        .0
                         .iter()
-                        .filter_map(|e| {
+                        .filter_map(|&e| {
                             let (state, activity) = machine_q.get(e).ok()?;
                             if *state != MachineState::Running {
                                 return None;
@@ -226,7 +243,7 @@ fn brownout_system(
                 } else {
                     1.0
                 };
-                (members.iter().collect::<Vec<_>>(), speed)
+                (members.0.clone(), speed)
             })
             .collect()
     };
@@ -243,32 +260,44 @@ fn brownout_system(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashSet;
 
     use bevy::prelude::*;
 
     use super::*;
-    use crate::inventory::ItemRegistry;
+    use crate::inventory::{BlockProps, ItemDef, ItemRegistry};
     use crate::machine::{
-        Machine, MachineActivity, MachineNetworkChanged, MachineState, Mirror, Orientation,
-        Rotation,
+        Machine, MachineNetworkChanged, MachineState, Mirror, Orientation, Rotation,
     };
+    use crate::network::NetworkChanged;
     use crate::recipe_graph::{RecipeDef, RecipeGraph};
-    use crate::world::BlockChangedMessage;
+    use crate::world::{BlockChangeKind, BlockChangedMessage};
 
     fn power_app() -> App {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .add_message::<BlockChangedMessage>()
             .add_message::<MachineNetworkChanged>()
+            .add_message::<NetworkChanged<Power>>()
             .insert_resource(ItemRegistry::default())
-            .init_resource::<PowerData>()
-            .add_systems(Update, update_power_networks);
+            .add_systems(
+                Update,
+                (
+                    network::cable_placed_system::<Power>,
+                    network::cable_removed_system::<Power>,
+                    network::machine_membership_system::<Power>,
+                    ApplyDeferred,
+                    generator_system,
+                    ApplyDeferred,
+                    recalc_capacity_system,
+                )
+                    .chain()
+                    .run_if(resource_exists::<ItemRegistry>),
+            );
         app
     }
 
     fn registered_power_app() -> App {
-        use crate::inventory::{BlockProps, ItemDef};
         let mut app = power_app();
         {
             let mut reg = app.world_mut().resource_mut::<ItemRegistry>();
@@ -292,8 +321,8 @@ mod tests {
         app
     }
 
-    fn recipe_graph(energy_cost: f32, processing_time: f32) -> RecipeGraph {
-        let mut recipes = HashMap::new();
+    fn recipe_graph_with(energy_cost: f32, processing_time: f32) -> RecipeGraph {
+        let mut recipes = std::collections::HashMap::new();
         recipes.insert(
             "r1".to_string(),
             RecipeDef {
@@ -308,238 +337,138 @@ mod tests {
             },
         );
         RecipeGraph {
-            materials: HashMap::new(),
+            materials: std::collections::HashMap::new(),
             recipes,
             terminal: String::new(),
-            producers: HashMap::new(),
-            consumers: HashMap::new(),
+            producers: std::collections::HashMap::new(),
+            consumers: std::collections::HashMap::new(),
         }
     }
 
-    #[test]
-    fn no_dirty_no_networks_spawned() {
-        let mut app = power_app();
-        app.update();
+    fn write_cable_placed(app: &mut App, pos: IVec3) {
+        app.world_mut().write_message(BlockChangedMessage {
+            pos,
+            kind: BlockChangeKind::Placed { voxel_id: 20 },
+        });
+    }
+
+    fn write_cable_removed(app: &mut App, pos: IVec3) {
+        app.world_mut().write_message(BlockChangedMessage {
+            pos,
+            kind: BlockChangeKind::Removed { voxel_id: 20 },
+        });
+    }
+
+    fn network_count(app: &mut App) -> usize {
         let world = app.world_mut();
-        let count = world.query::<&PowerNetwork>().iter(world).count();
-        assert_eq!(count, 0);
+        world
+            .query_filtered::<(), With<PowerNetwork>>()
+            .iter(world)
+            .count()
+    }
+
+    #[test]
+    fn no_cables_no_networks() {
+        let mut app = registered_power_app();
+        app.update();
+        assert_eq!(network_count(&mut app), 0);
     }
 
     #[test]
     fn single_cable_creates_one_network() {
-        let mut app = power_app();
-        {
-            let mut pd = app.world_mut().resource_mut::<PowerData>();
-            pd.cable_positions.insert(IVec3::ZERO);
-            pd.dirty = true;
-        }
+        let mut app = registered_power_app();
+        write_cable_placed(&mut app, IVec3::ZERO);
         app.update();
-        let world = app.world_mut();
-        let count = world.query::<&PowerNetwork>().iter(world).count();
-        assert_eq!(count, 1);
+        assert_eq!(network_count(&mut app), 1);
     }
 
     #[test]
     fn two_adjacent_cables_one_network() {
-        let mut app = power_app();
-        {
-            let mut pd = app.world_mut().resource_mut::<PowerData>();
-            pd.cable_positions.insert(IVec3::ZERO);
-            pd.cable_positions.insert(IVec3::new(1, 0, 0));
-            pd.dirty = true;
-        }
+        let mut app = registered_power_app();
+        write_cable_placed(&mut app, IVec3::ZERO);
         app.update();
-        let world = app.world_mut();
-        let count = world.query::<&PowerNetwork>().iter(world).count();
-        assert_eq!(count, 1);
+        write_cable_placed(&mut app, IVec3::new(1, 0, 0));
+        app.update();
+        assert_eq!(network_count(&mut app), 1);
     }
 
     #[test]
     fn two_disconnected_cables_two_networks() {
-        let mut app = power_app();
-        {
-            let mut pd = app.world_mut().resource_mut::<PowerData>();
-            pd.cable_positions.insert(IVec3::ZERO);
-            pd.cable_positions.insert(IVec3::new(5, 0, 0));
-            pd.dirty = true;
-        }
+        let mut app = registered_power_app();
+        write_cable_placed(&mut app, IVec3::ZERO);
         app.update();
-        let world = app.world_mut();
-        let count = world.query::<&PowerNetwork>().iter(world).count();
-        assert_eq!(count, 2);
+        write_cable_placed(&mut app, IVec3::new(5, 0, 0));
+        app.update();
+        assert_eq!(network_count(&mut app), 2);
+    }
+
+    #[test]
+    fn cable_removed_clears_network() {
+        let mut app = registered_power_app();
+        write_cable_placed(&mut app, IVec3::ZERO);
+        app.update();
+        write_cable_removed(&mut app, IVec3::ZERO);
+        app.update();
+        assert_eq!(network_count(&mut app), 0);
+    }
+
+    #[test]
+    fn middle_cable_removed_splits_network() {
+        let mut app = registered_power_app();
+        write_cable_placed(&mut app, IVec3::new(0, 0, 0));
+        app.update();
+        write_cable_placed(&mut app, IVec3::new(1, 0, 0));
+        app.update();
+        write_cable_placed(&mut app, IVec3::new(2, 0, 0));
+        app.update();
+        assert_eq!(network_count(&mut app), 1);
+        write_cable_removed(&mut app, IVec3::new(1, 0, 0));
+        app.update();
+        assert_eq!(network_count(&mut app), 2);
+    }
+
+    #[test]
+    fn placing_cable_between_two_merges() {
+        let mut app = registered_power_app();
+        write_cable_placed(&mut app, IVec3::new(0, 0, 0));
+        app.update();
+        write_cable_placed(&mut app, IVec3::new(2, 0, 0));
+        app.update();
+        assert_eq!(network_count(&mut app), 2);
+        write_cable_placed(&mut app, IVec3::new(1, 0, 0));
+        app.update();
+        assert_eq!(network_count(&mut app), 1);
     }
 
     #[test]
     fn generator_adjacent_to_cable_adds_capacity() {
-        let mut app = power_app();
-        {
-            let mut pd = app.world_mut().resource_mut::<PowerData>();
-            pd.cable_positions.insert(IVec3::ZERO);
-            pd.generator_blocks.insert(IVec3::new(1, 0, 0), 50.0);
-            pd.dirty = true;
-        }
-        app.update();
-        let world = app.world_mut();
-        let caps: Vec<f32> = world
-            .query::<&PowerNetwork>()
-            .iter(world)
-            .map(|n| n.capacity_watts)
-            .collect();
-        assert_eq!(caps.len(), 1);
-        assert_eq!(caps[0], 50.0);
-    }
-
-    #[test]
-    fn dirty_rebuild_replaces_old_networks() {
-        let mut app = power_app();
-        {
-            let mut pd = app.world_mut().resource_mut::<PowerData>();
-            pd.cable_positions.insert(IVec3::ZERO);
-            pd.dirty = true;
-        }
-        app.update();
-        {
-            // Remove cable, mark dirty → should clear networks
-            let mut pd = app.world_mut().resource_mut::<PowerData>();
-            pd.cable_positions.clear();
-            pd.dirty = true;
-        }
-        app.update();
-        let world = app.world_mut();
-        let count = world.query::<&PowerNetwork>().iter(world).count();
-        assert_eq!(count, 0);
-    }
-
-    #[test]
-    fn brownout_full_speed_when_capacity_exceeds_demand() {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins)
-            .insert_resource(recipe_graph(50.0, 1.0))
-            .add_systems(Update, brownout_system);
-
-        let net = app
-            .world_mut()
-            .spawn(PowerNetwork {
-                capacity_watts: 200.0,
-            })
-            .id();
-        app.world_mut().spawn((
-            MachineState::Running,
-            MachineActivity {
-                recipe_id: "r1".to_string(),
-                progress: 0.0,
-                speed_factor: 1.0,
-            },
-            PowerMember(net),
-        ));
-
-        app.update();
-
-        let world = app.world_mut();
-        let speed = world
-            .query::<&MachineActivity>()
-            .iter(world)
-            .next()
-            .unwrap()
-            .speed_factor;
-        assert_eq!(speed, 1.0);
-    }
-
-    #[test]
-    fn brownout_throttles_when_demand_exceeds_capacity() {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins)
-            .insert_resource(recipe_graph(100.0, 1.0))
-            .add_systems(Update, brownout_system);
-
-        let net = app
-            .world_mut()
-            .spawn(PowerNetwork {
-                capacity_watts: 50.0,
-            })
-            .id();
-        app.world_mut().spawn((
-            MachineState::Running,
-            MachineActivity {
-                recipe_id: "r1".to_string(),
-                progress: 0.0,
-                speed_factor: 1.0,
-            },
-            PowerMember(net),
-        ));
-
-        app.update();
-
-        let world = app.world_mut();
-        let speed = world
-            .query::<&MachineActivity>()
-            .iter(world)
-            .next()
-            .unwrap()
-            .speed_factor;
-        assert!((speed - 0.5).abs() < 1e-6, "expected 0.5, got {speed}");
-    }
-
-    #[test]
-    fn block_placed_cable_message_builds_network() {
         let mut app = registered_power_app();
-        app.world_mut().write_message(BlockChangedMessage {
-            pos: IVec3::ZERO,
-            kind: BlockChangeKind::Placed { voxel_id: 20 },
-        });
+        write_cable_placed(&mut app, IVec3::ZERO);
         app.update();
-        let world = app.world_mut();
-        let count = world.query::<&PowerNetwork>().iter(world).count();
-        assert_eq!(count, 1);
-    }
-
-    #[test]
-    fn block_removed_cable_message_removes_network() {
-        let mut app = registered_power_app();
-        {
-            let mut pd = app.world_mut().resource_mut::<PowerData>();
-            pd.cable_positions.insert(IVec3::ZERO);
-            pd.dirty = true;
-        }
-        app.update();
-        app.world_mut().write_message(BlockChangedMessage {
-            pos: IVec3::ZERO,
-            kind: BlockChangeKind::Removed { voxel_id: 20 },
-        });
-        app.update();
-        let world = app.world_mut();
-        let count = world.query::<&PowerNetwork>().iter(world).count();
-        assert_eq!(count, 0);
-    }
-
-    #[test]
-    fn block_placed_generator_message_adds_capacity() {
-        let mut app = registered_power_app();
-        // cable at origin, generator adjacent
-        app.world_mut().write_message(BlockChangedMessage {
-            pos: IVec3::ZERO,
-            kind: BlockChangeKind::Placed { voxel_id: 20 },
-        });
         app.world_mut().write_message(BlockChangedMessage {
             pos: IVec3::new(1, 0, 0),
             kind: BlockChangeKind::Placed { voxel_id: 21 },
         });
         app.update();
         let world = app.world_mut();
-        let mut q = world.query::<&PowerNetwork>();
-        let net = q.iter(world).next().unwrap();
-        assert!(net.capacity_watts > 0.0);
+        let caps: Vec<f32> = world
+            .query_filtered::<&PowerNetwork, ()>()
+            .iter(world)
+            .map(|n| n.capacity_watts)
+            .collect();
+        assert_eq!(caps.len(), 1);
+        assert_eq!(caps[0], GENERATOR_DEFAULT_WATTS);
     }
 
     #[test]
-    fn block_removed_generator_message_clears_capacity() {
+    fn generator_removed_clears_capacity() {
         let mut app = registered_power_app();
-        {
-            let mut pd = app.world_mut().resource_mut::<PowerData>();
-            pd.cable_positions.insert(IVec3::ZERO);
-            pd.generator_blocks.insert(IVec3::new(1, 0, 0), 50.0);
-            pd.dirty = true;
-        }
+        write_cable_placed(&mut app, IVec3::ZERO);
+        app.update();
+        app.world_mut().write_message(BlockChangedMessage {
+            pos: IVec3::new(1, 0, 0),
+            kind: BlockChangeKind::Placed { voxel_id: 21 },
+        });
         app.update();
         app.world_mut().write_message(BlockChangedMessage {
             pos: IVec3::new(1, 0, 0),
@@ -547,61 +476,21 @@ mod tests {
         });
         app.update();
         let world = app.world_mut();
-        let mut q = world.query::<&PowerNetwork>();
-        let net = q.iter(world).next().unwrap();
-        assert_eq!(net.capacity_watts, 0.0);
-    }
-
-    #[test]
-    fn machine_network_changed_message_sets_dirty() {
-        let mut app = power_app();
-        {
-            let mut pd = app.world_mut().resource_mut::<PowerData>();
-            pd.cable_positions.insert(IVec3::ZERO);
-        }
-        app.world_mut().write_message(MachineNetworkChanged);
-        app.update();
-        let world = app.world_mut();
-        let count = world.query::<&PowerNetwork>().iter(world).count();
-        assert_eq!(count, 1);
-    }
-
-    #[test]
-    fn brownout_idle_machine_not_counted_in_demand() {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins)
-            .insert_resource(recipe_graph(1000.0, 1.0))
-            .add_systems(Update, brownout_system);
-
-        let net = app
-            .world_mut()
-            .spawn(PowerNetwork {
-                capacity_watts: 1.0,
-            })
-            .id();
-        // Idle machine with no activity → contributes 0 demand
-        app.world_mut()
-            .spawn((MachineState::Idle, PowerMember(net)));
-
-        app.update();
-
-        // No MachineActivity to check speed on, but system should not crash
-        // and network should still exist
-        let world = app.world_mut();
-        let count = world.query::<&PowerNetwork>().iter(world).count();
-        assert_eq!(count, 1);
+        let caps: Vec<f32> = world
+            .query_filtered::<&PowerNetwork, ()>()
+            .iter(world)
+            .map(|n| n.capacity_watts)
+            .collect();
+        assert_eq!(caps.len(), 1);
+        assert_eq!(caps[0], 0.0);
     }
 
     #[test]
     fn machine_with_energy_io_adjacent_to_cable_gets_member() {
-        let mut app = power_app();
+        let mut app = registered_power_app();
         let cable_pos = IVec3::ZERO;
         let io_pos = IVec3::new(1, 0, 0);
-        {
-            let mut pd = app.world_mut().resource_mut::<PowerData>();
-            pd.cable_positions.insert(cable_pos);
-            pd.dirty = true;
-        }
+        write_cable_placed(&mut app, cable_pos);
         let machine_entity = app
             .world_mut()
             .spawn((
@@ -620,7 +509,109 @@ mod tests {
                 MachineState::Idle,
             ))
             .id();
+        app.world_mut().write_message(MachineNetworkChanged);
         app.update();
-        assert!(app.world().get::<PowerMember>(machine_entity).is_some());
+        assert!(
+            app.world()
+                .get::<PowerNetworkMember>(machine_entity)
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn brownout_full_speed_when_capacity_exceeds_demand() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(recipe_graph_with(50.0, 1.0))
+            .add_message::<NetworkChanged<Power>>()
+            .add_systems(Update, brownout_system);
+
+        let net = app
+            .world_mut()
+            .spawn(PowerNetwork {
+                capacity_watts: 200.0,
+            })
+            .id();
+        app.world_mut().spawn((
+            MachineState::Running,
+            MachineActivity {
+                recipe_id: "r1".to_string(),
+                progress: 0.0,
+                speed_factor: 1.0,
+            },
+            PowerNetworkMember(net),
+        ));
+        app.world_mut()
+            .write_message(NetworkChanged::<Power>::new(net));
+        app.update();
+
+        let world = app.world_mut();
+        let speed = world
+            .query_filtered::<&MachineActivity, ()>()
+            .iter(world)
+            .next()
+            .unwrap()
+            .speed_factor;
+        assert_eq!(speed, 1.0);
+    }
+
+    #[test]
+    fn brownout_throttles_when_demand_exceeds_capacity() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(recipe_graph_with(100.0, 1.0))
+            .add_message::<NetworkChanged<Power>>()
+            .add_systems(Update, brownout_system);
+
+        let net = app
+            .world_mut()
+            .spawn(PowerNetwork {
+                capacity_watts: 50.0,
+            })
+            .id();
+        app.world_mut().spawn((
+            MachineState::Running,
+            MachineActivity {
+                recipe_id: "r1".to_string(),
+                progress: 0.0,
+                speed_factor: 1.0,
+            },
+            PowerNetworkMember(net),
+        ));
+        app.world_mut()
+            .write_message(NetworkChanged::<Power>::new(net));
+        app.update();
+
+        let world = app.world_mut();
+        let speed = world
+            .query_filtered::<&MachineActivity, ()>()
+            .iter(world)
+            .next()
+            .unwrap()
+            .speed_factor;
+        assert!((speed - 0.5).abs() < 1e-6, "expected 0.5, got {speed}");
+    }
+
+    #[test]
+    fn brownout_idle_machine_not_counted_in_demand() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(recipe_graph_with(1000.0, 1.0))
+            .add_message::<NetworkChanged<Power>>()
+            .add_systems(Update, brownout_system);
+
+        let net = app
+            .world_mut()
+            .spawn(PowerNetwork {
+                capacity_watts: 1.0,
+            })
+            .id();
+        app.world_mut()
+            .spawn((MachineState::Idle, PowerNetworkMember(net)));
+        app.world_mut()
+            .write_message(NetworkChanged::<Power>::new(net));
+        app.update();
+
+        assert_eq!(network_count(&mut app), 1);
     }
 }

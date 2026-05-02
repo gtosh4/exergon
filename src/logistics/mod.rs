@@ -1,11 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
-use bevy::ecs::message::MessageReader;
+use bevy::ecs::message::{Message, MessageReader, MessageWriter};
 use bevy::prelude::*;
 
 use crate::inventory::ItemRegistry;
-use crate::machine::{
-    Machine, MachineActivity, MachineNetworkChanged, MachineScanSet, MachineState, MachineUnformed,
+use crate::machine::{Machine, MachineActivity, MachineScanSet, MachineState};
+use crate::network::{
+    self, DIRS, HasPos, Logistics, NetworkKind, NetworkMemberComponent, NetworkMembersComponent,
 };
 use crate::recipe_graph::RecipeGraph;
 use crate::research::{RESEARCH_POINTS_ID, ResearchPool, TechTreeProgress};
@@ -15,13 +16,21 @@ pub struct LogisticsPlugin;
 
 impl Plugin for LogisticsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<LogisticsData>().add_systems(
+        network::init_network::<Logistics>(app);
+        app.add_message::<NetworkStorageChanged>().add_systems(
             Update,
             (
                 ApplyDeferred,
-                update_logistics_networks.run_if(resource_exists::<ItemRegistry>),
+                network::cable_placed_system::<Logistics>.run_if(resource_exists::<ItemRegistry>),
+                network::cable_removed_system::<Logistics>.run_if(resource_exists::<ItemRegistry>),
+                network::machine_membership_system::<Logistics>
+                    .run_if(resource_exists::<ItemRegistry>),
                 ApplyDeferred,
-                machine_io_system.run_if(resource_exists::<RecipeGraph>),
+                storage_block_system.run_if(resource_exists::<ItemRegistry>),
+                ApplyDeferred,
+                recipe_start_system.run_if(resource_exists::<RecipeGraph>),
+                ApplyDeferred,
+                recipe_progress_system.run_if(resource_exists::<RecipeGraph>),
             )
                 .chain()
                 .after(MachineScanSet)
@@ -34,321 +43,332 @@ impl Plugin for LogisticsPlugin {
 const LOGISTICS_CABLE_ID: &str = "logistics_cable";
 const STORAGE_CRATE_ID: &str = "storage_crate";
 
-const DIRS: [IVec3; 6] = [
-    IVec3::new(1, 0, 0),
-    IVec3::new(-1, 0, 0),
-    IVec3::new(0, 1, 0),
-    IVec3::new(0, -1, 0),
-    IVec3::new(0, 0, 1),
-    IVec3::new(0, 0, -1),
-];
+// -- Messages ----------------------------------------------------------------
+
+#[derive(Clone)]
+pub struct NetworkStorageChanged {
+    pub network: Entity,
+}
+
+impl Message for NetworkStorageChanged {}
+
+// -- Components --------------------------------------------------------------
+
+#[derive(Component)]
+pub struct LogisticsCableBlock {
+    pub pos: IVec3,
+}
+
+impl HasPos for LogisticsCableBlock {
+    fn pos(&self) -> IVec3 {
+        self.pos
+    }
+}
 
 #[derive(Component)]
 #[relationship(relationship_target = LogisticsNetworkMembers)]
-pub struct LogisticsMember(pub Entity);
+pub struct LogisticsNetworkMember(pub Entity);
 
 #[derive(Component)]
-#[relationship_target(relationship = LogisticsMember)]
+#[relationship_target(relationship = LogisticsNetworkMember)]
 pub struct LogisticsNetworkMembers(Vec<Entity>);
 
+impl NetworkMemberComponent for LogisticsNetworkMember {
+    fn new(network: Entity) -> Self {
+        LogisticsNetworkMember(network)
+    }
+    fn network(&self) -> Entity {
+        self.0
+    }
+}
+
+impl NetworkMembersComponent for LogisticsNetworkMembers {
+    fn members(&self) -> &[Entity] {
+        &self.0
+    }
+}
+
 #[derive(Component)]
-pub struct LogisticsNetwork {
-    pub storage_positions: Vec<IVec3>,
+pub struct StorageBlock {
+    pub pos: IVec3,
+    pub items: HashMap<String, u32>,
 }
 
-#[derive(Resource, Default)]
-pub struct LogisticsData {
-    pub cable_positions: HashSet<IVec3>,
-    /// Items stored at each storage crate position. Persists through rebuilds.
-    pub storage_blocks: HashMap<IVec3, HashMap<String, u32>>,
-    dirty: bool,
-}
+#[derive(Component)]
+pub struct LogisticsNetwork;
 
-impl LogisticsData {
-    pub fn has_items(&self, storage_positions: &[IVec3], item_id: &str, count: u32) -> bool {
-        let available: u32 = storage_positions
-            .iter()
-            .filter_map(|p| self.storage_blocks.get(p))
-            .map(|s| s.get(item_id).copied().unwrap_or(0))
-            .sum();
-        available >= count
+// -- NetworkKind impl --------------------------------------------------------
+
+impl NetworkKind for Logistics {
+    const CABLE_ITEM_ID: &'static str = LOGISTICS_CABLE_ID;
+
+    type CableBlock = LogisticsCableBlock;
+    type Member = LogisticsNetworkMember;
+    type Members = LogisticsNetworkMembers;
+
+    fn io_blocks(machine: &Machine) -> &HashSet<IVec3> {
+        &machine.logistics_io_blocks
     }
 
-    pub fn take_items(&mut self, storage_positions: &[IVec3], item_id: &str, count: u32) {
-        let mut remaining = count;
-        for pos in storage_positions {
-            if remaining == 0 {
-                break;
-            }
-            if let Some(block) = self.storage_blocks.get_mut(pos) {
-                let avail = *block.get(item_id).unwrap_or(&0);
-                let take = remaining.min(avail);
-                if take > 0 {
-                    let v = block.entry(item_id.to_owned()).or_insert(0);
-                    *v -= take;
-                    if *v == 0 {
-                        block.remove(item_id);
-                    }
-                    remaining -= take;
+    fn new_cable_block(pos: IVec3) -> LogisticsCableBlock {
+        LogisticsCableBlock { pos }
+    }
+
+    fn spawn_network(commands: &mut Commands) -> Entity {
+        commands.spawn(LogisticsNetwork).id()
+    }
+}
+
+// -- Item helpers (pure, no ECS) ---------------------------------------------
+
+pub fn has_items(
+    members: &LogisticsNetworkMembers,
+    storage_q: &Query<&StorageBlock>,
+    item_id: &str,
+    count: u32,
+) -> bool {
+    let available: u32 = members
+        .0
+        .iter()
+        .filter_map(|&e| storage_q.get(e).ok())
+        .map(|s| s.items.get(item_id).copied().unwrap_or(0))
+        .sum();
+    available >= count
+}
+
+pub fn take_items(
+    members: &LogisticsNetworkMembers,
+    storage_q: &mut Query<&mut StorageBlock>,
+    item_id: &str,
+    count: u32,
+) {
+    let mut remaining = count;
+    for &e in &members.0 {
+        if remaining == 0 {
+            break;
+        }
+        if let Ok(mut block) = storage_q.get_mut(e) {
+            let avail = *block.items.get(item_id).unwrap_or(&0);
+            let take = remaining.min(avail);
+            if take > 0 {
+                let v = block.items.entry(item_id.to_owned()).or_insert(0);
+                *v -= take;
+                if *v == 0 {
+                    block.items.remove(item_id);
                 }
+                remaining -= take;
             }
         }
     }
+}
 
-    pub fn give_items(&mut self, storage_positions: &[IVec3], item_id: &str, count: u32) {
-        if let Some(pos) = storage_positions.first()
-            && let Some(block) = self.storage_blocks.get_mut(pos)
-        {
-            *block.entry(item_id.to_owned()).or_insert(0) += count;
+pub fn give_items(
+    members: &LogisticsNetworkMembers,
+    storage_q: &mut Query<&mut StorageBlock>,
+    item_id: &str,
+    count: u32,
+) {
+    for &e in &members.0 {
+        if let Ok(mut block) = storage_q.get_mut(e) {
+            *block.items.entry(item_id.to_owned()).or_insert(0) += count;
             return;
         }
-        warn!("No storage for network; {item_id} ×{count} lost");
     }
+    warn!("No storage for network; {item_id} ×{count} lost");
 }
 
-fn update_logistics_networks(
+// -- Systems -----------------------------------------------------------------
+
+fn storage_block_system(
     mut commands: Commands,
-    mut net_data: ResMut<LogisticsData>,
-    existing_nets: Query<Entity, With<LogisticsNetwork>>,
     mut block_events: MessageReader<BlockChangedMessage>,
-    mut machine_events: MessageReader<MachineNetworkChanged>,
     item_registry: Res<ItemRegistry>,
-    machine_q: Query<(Entity, &Machine), Without<MachineUnformed>>,
+    cable_q: Query<(&LogisticsCableBlock, &LogisticsNetworkMember)>,
+    storage_q: Query<(Entity, &StorageBlock)>,
+    mut changed: MessageWriter<NetworkStorageChanged>,
 ) {
-    let cable_vox = item_registry.voxel_id(LOGISTICS_CABLE_ID);
-    let storage_vox = item_registry.voxel_id(STORAGE_CRATE_ID);
+    let Some(storage_vox) = item_registry.voxel_id(STORAGE_CRATE_ID) else {
+        return;
+    };
+
+    let cable_pos_to_net: HashMap<IVec3, Entity> =
+        cable_q.iter().map(|(c, m)| (c.pos, m.0)).collect();
+
+    let mut affected_nets: HashSet<Entity> = HashSet::new();
 
     for ev in block_events.read() {
-        let placed = match ev.kind {
-            BlockChangeKind::Placed { voxel_id } => Some((None::<u8>, Some(voxel_id))),
-            BlockChangeKind::Removed { voxel_id } => Some((Some(voxel_id), None)),
+        let (removed, added) = match ev.kind {
+            BlockChangeKind::Placed { voxel_id } => (None, Some(voxel_id)),
+            BlockChangeKind::Removed { voxel_id } => (Some(voxel_id), None),
             BlockChangeKind::Replaced {
                 old_voxel_id,
                 new_voxel_id,
-            } => Some((Some(old_voxel_id), Some(new_voxel_id))),
+            } => (Some(old_voxel_id), Some(new_voxel_id)),
         };
-        if let Some((removed, added)) = placed {
-            if removed.is_some_and(|v| Some(v) == cable_vox) {
-                net_data.cable_positions.remove(&ev.pos);
-                net_data.dirty = true;
-            }
-            if added.is_some_and(|v| Some(v) == cable_vox) {
-                net_data.cable_positions.insert(ev.pos);
-                net_data.dirty = true;
-            }
-            if removed.is_some_and(|v| Some(v) == storage_vox) {
-                net_data.storage_blocks.remove(&ev.pos);
-                net_data.dirty = true;
-            }
-            if added.is_some_and(|v| Some(v) == storage_vox) {
-                net_data.storage_blocks.entry(ev.pos).or_default();
-                net_data.dirty = true;
-            }
-        }
-    }
 
-    for _ in machine_events.read() {
-        net_data.dirty = true;
-    }
-
-    if !net_data.dirty {
-        return;
-    }
-    net_data.dirty = false;
-
-    for net_entity in &existing_nets {
-        commands.entity(net_entity).despawn();
-    }
-
-    let cable_positions = net_data.cable_positions.clone();
-    let storage_positions: HashSet<IVec3> = net_data.storage_blocks.keys().copied().collect();
-
-    let logistics_io_map: HashMap<IVec3, Entity> = machine_q
-        .iter()
-        .flat_map(|(e, m)| m.logistics_io_blocks.iter().map(move |&p| (p, e)))
-        .collect();
-
-    let mut visited: HashSet<IVec3> = HashSet::new();
-    let mut network_count = 0usize;
-
-    for &start in &cable_positions {
-        if visited.contains(&start) {
-            continue;
-        }
-
-        let mut queue = vec![start];
-        let mut component: HashSet<IVec3> = HashSet::new();
-        visited.insert(start);
-        component.insert(start);
-
-        while let Some(pos) = queue.pop() {
+        if removed.is_some_and(|v| v == storage_vox)
+            && let Some((storage_e, _)) = storage_q.iter().find(|(_, s)| s.pos == ev.pos)
+        {
             for &dir in &DIRS {
-                let n = pos + dir;
-                if !visited.contains(&n) && cable_positions.contains(&n) {
-                    visited.insert(n);
-                    component.insert(n);
-                    queue.push(n);
+                if let Some(&net) = cable_pos_to_net.get(&(ev.pos + dir)) {
+                    affected_nets.insert(net);
+                    break;
                 }
             }
+            commands.entity(storage_e).despawn();
         }
 
-        let mut machine_entities: Vec<Entity> = Vec::new();
-        let mut net_storage: Vec<IVec3> = Vec::new();
-        let mut seen_machines: HashSet<Entity> = HashSet::new();
-
-        for &cable_pos in &component {
+        if added.is_some_and(|v| v == storage_vox) {
+            let storage_e = commands
+                .spawn(StorageBlock {
+                    pos: ev.pos,
+                    items: HashMap::new(),
+                })
+                .id();
             for &dir in &DIRS {
-                let n = cable_pos + dir;
-                if let Some(&entity) = logistics_io_map.get(&n)
-                    && seen_machines.insert(entity)
-                {
-                    machine_entities.push(entity);
-                }
-                if storage_positions.contains(&n) && !net_storage.contains(&n) {
-                    net_storage.push(n);
+                if let Some(&net) = cable_pos_to_net.get(&(ev.pos + dir)) {
+                    commands
+                        .entity(storage_e)
+                        .insert(LogisticsNetworkMember(net));
+                    affected_nets.insert(net);
+                    break;
                 }
             }
         }
-
-        let net_entity = commands
-            .spawn(LogisticsNetwork {
-                storage_positions: net_storage,
-            })
-            .id();
-        for machine_entity in machine_entities {
-            commands
-                .entity(machine_entity)
-                .insert(LogisticsMember(net_entity));
-        }
-        network_count += 1;
     }
 
-    debug!(
-        "Logistics: {} networks, {} cables, {} storage blocks",
-        network_count,
-        net_data.cable_positions.len(),
-        net_data.storage_blocks.len(),
-    );
+    for net in affected_nets {
+        changed.write(NetworkStorageChanged { network: net });
+    }
 }
 
-fn machine_io_system(
+fn recipe_start_system(
     mut commands: Commands,
-    time: Res<Time>,
-    mut net_data: ResMut<LogisticsData>,
+    mut storage_changed: MessageReader<NetworkStorageChanged>,
+    net_q: Query<(Entity, &LogisticsNetworkMembers)>,
+    machine_q: Query<
+        (Entity, &Machine, &MachineState, &LogisticsNetworkMember),
+        Without<MachineActivity>,
+    >,
     recipe_graph: Res<RecipeGraph>,
     progress: Option<Res<TechTreeProgress>>,
-    mut research_pool: Option<ResMut<ResearchPool>>,
-    net_q: Query<&LogisticsNetwork>,
-    mut params: ParamSet<(
-        Query<(
-            Entity,
-            &Machine,
-            &MachineState,
-            Option<&MachineActivity>,
-            &LogisticsMember,
-        )>,
-        Query<&mut MachineActivity>,
+    mut storage_params: ParamSet<(Query<&StorageBlock>, Query<&mut StorageBlock>)>,
+) {
+    let affected: HashSet<Entity> = storage_changed.read().map(|e| e.network).collect();
+    if affected.is_empty() {
+        return;
+    }
+
+    // Collect starts with immutable storage borrow
+    let mut to_start: Vec<(Entity, String, Entity)> = Vec::new();
+    {
+        let storage_q = storage_params.p0();
+        for (net_entity, members) in &net_q {
+            if !affected.contains(&net_entity) {
+                continue;
+            }
+            for (machine_e, machine, state, member) in &machine_q {
+                if member.0 != net_entity || *state != MachineState::Idle {
+                    continue;
+                }
+                for recipe in recipe_graph.recipes.values() {
+                    if recipe.machine_type != machine.machine_type
+                        || recipe.machine_tier > machine.tier
+                    {
+                        continue;
+                    }
+                    if let Some(ref prog) = progress
+                        && !prog.unlocked_recipes.contains(&recipe.id)
+                    {
+                        continue;
+                    }
+                    let all_ok = recipe.inputs.iter().all(|input| {
+                        has_items(members, &storage_q, &input.material, input.quantity as u32)
+                    });
+                    if all_ok {
+                        to_start.push((machine_e, recipe.id.clone(), net_entity));
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Consume inputs with mutable storage borrow
+    {
+        let mut storage_q = storage_params.p1();
+        for (machine_e, recipe_id, net_entity) in to_start {
+            let Some(recipe) = recipe_graph.recipes.get(&recipe_id) else {
+                continue;
+            };
+            if let Ok((_, members)) = net_q.get(net_entity) {
+                for input in &recipe.inputs {
+                    take_items(
+                        members,
+                        &mut storage_q,
+                        &input.material,
+                        input.quantity as u32,
+                    );
+                }
+            }
+            commands.entity(machine_e).insert((
+                MachineActivity {
+                    recipe_id,
+                    progress: 0.0,
+                    speed_factor: 1.0,
+                },
+                MachineState::Running,
+            ));
+            info!("Machine {:?} started recipe", machine_e);
+        }
+    }
+}
+
+fn recipe_progress_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    recipe_graph: Res<RecipeGraph>,
+    net_q: Query<(Entity, &LogisticsNetworkMembers)>,
+    mut machine_q: Query<(
+        Entity,
+        &mut MachineActivity,
+        &MachineState,
+        &LogisticsNetworkMember,
     )>,
+    mut storage_q: Query<&mut StorageBlock>,
+    mut storage_changed: MessageWriter<NetworkStorageChanged>,
+    mut research_pool: Option<ResMut<ResearchPool>>,
 ) {
     let dt = time.delta_secs();
 
-    let mut to_start: Vec<(Entity, String, Entity)> = Vec::new();
     let mut to_finish: Vec<(Entity, Vec<(String, u32)>, Entity)> = Vec::new();
     let mut progress_updates: Vec<(Entity, f32)> = Vec::new();
 
-    {
-        let machine_q = params.p0();
-        for (entity, machine, state, activity, member) in &machine_q {
-            let net_entity = member.0;
-            let Ok(network) = net_q.get(net_entity) else {
-                continue;
-            };
-
-            match *state {
-                MachineState::Idle => {
-                    for recipe in recipe_graph.recipes.values() {
-                        if recipe.machine_type != machine.machine_type {
-                            continue;
-                        }
-                        if recipe.machine_tier > machine.tier {
-                            continue;
-                        }
-                        if let Some(ref prog) = progress
-                            && !prog.unlocked_recipes.contains(&recipe.id)
-                        {
-                            continue;
-                        }
-                        let all_ok = recipe.inputs.iter().all(|input| {
-                            net_data.has_items(
-                                &network.storage_positions,
-                                &input.material,
-                                input.quantity as u32,
-                            )
-                        });
-                        if all_ok {
-                            to_start.push((entity, recipe.id.clone(), net_entity));
-                            break;
-                        }
-                    }
-                }
-                MachineState::Running => {
-                    if let Some(activity) = activity {
-                        let Some(recipe) = recipe_graph.recipes.get(&activity.recipe_id) else {
-                            continue;
-                        };
-                        let new_progress = activity.progress + dt * activity.speed_factor;
-                        if new_progress >= recipe.processing_time {
-                            let outputs: Vec<(String, u32)> = recipe
-                                .outputs
-                                .iter()
-                                .chain(recipe.byproducts.iter())
-                                .map(|o| (o.material.clone(), o.quantity as u32))
-                                .collect();
-                            to_finish.push((entity, outputs, net_entity));
-                        } else {
-                            progress_updates.push((entity, new_progress));
-                        }
-                    }
-                }
-            }
+    for (machine_e, mut activity, state, member) in &mut machine_q {
+        if *state != MachineState::Running {
+            continue;
         }
-    }
-
-    {
-        let mut activity_q = params.p1();
-        for (entity, new_progress) in progress_updates {
-            if let Ok(mut act) = activity_q.get_mut(entity) {
-                act.progress = new_progress;
-            }
-        }
-    }
-
-    for (entity, recipe_id, net_entity) in to_start {
-        let Some(recipe) = recipe_graph.recipes.get(&recipe_id) else {
+        let Some(recipe) = recipe_graph.recipes.get(&activity.recipe_id) else {
             continue;
         };
-        if let Ok(network) = net_q.get(net_entity) {
-            for input in &recipe.inputs {
-                net_data.take_items(
-                    &network.storage_positions,
-                    &input.material,
-                    input.quantity as u32,
-                );
-            }
+        let new_progress = activity.progress + dt * activity.speed_factor;
+        if new_progress >= recipe.processing_time {
+            let outputs: Vec<(String, u32)> = recipe
+                .outputs
+                .iter()
+                .chain(recipe.byproducts.iter())
+                .map(|o| (o.material.clone(), o.quantity as u32))
+                .collect();
+            to_finish.push((machine_e, outputs, member.0));
+        } else {
+            activity.progress = new_progress;
+            progress_updates.push((machine_e, new_progress));
         }
-        commands.entity(entity).insert((
-            MachineActivity {
-                recipe_id,
-                progress: 0.0,
-                speed_factor: 1.0,
-            },
-            MachineState::Running,
-        ));
-        info!("Machine {:?} started recipe", entity);
     }
+    let _ = progress_updates; // already applied above via &mut activity
 
-    for (entity, outputs, net_entity) in to_finish {
-        if let Ok(network) = net_q.get(net_entity) {
+    for (machine_e, outputs, net_entity) in to_finish {
+        if let Ok((_, members)) = net_q.get(net_entity) {
             for (item_id, count) in outputs {
                 if item_id == RESEARCH_POINTS_ID {
                     if let Some(ref mut pool) = research_pool {
@@ -356,21 +376,25 @@ fn machine_io_system(
                         info!("Research pool +{} points (total: {})", count, pool.points);
                     }
                 } else if count > 0 {
-                    net_data.give_items(&network.storage_positions, &item_id, count);
+                    give_items(members, &mut storage_q, &item_id, count);
                 }
             }
+            storage_changed.write(NetworkStorageChanged {
+                network: net_entity,
+            });
         }
         commands
-            .entity(entity)
+            .entity(machine_e)
             .remove::<MachineActivity>()
             .insert(MachineState::Idle);
-        info!("Machine {:?} finished recipe", entity);
+        info!("Machine {:?} finished recipe", machine_e);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
+    use std::collections::HashSet;
 
     use bevy::prelude::*;
 
@@ -380,6 +404,7 @@ mod tests {
         Machine, MachineActivity, MachineNetworkChanged, MachineState, Mirror, Orientation,
         Rotation,
     };
+    use crate::network::NetworkChanged;
     use crate::recipe_graph::{ItemStack, RecipeDef, RecipeGraph};
     use crate::world::{BlockChangeKind, BlockChangedMessage};
 
@@ -388,9 +413,22 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .add_message::<BlockChangedMessage>()
             .add_message::<MachineNetworkChanged>()
+            .add_message::<NetworkChanged<Logistics>>()
+            .add_message::<NetworkStorageChanged>()
             .insert_resource(ItemRegistry::default())
-            .init_resource::<LogisticsData>()
-            .add_systems(Update, update_logistics_networks);
+            .add_systems(
+                Update,
+                (
+                    network::cable_placed_system::<Logistics>,
+                    network::cable_removed_system::<Logistics>,
+                    network::machine_membership_system::<Logistics>,
+                    ApplyDeferred,
+                    storage_block_system,
+                    ApplyDeferred,
+                )
+                    .chain()
+                    .run_if(resource_exists::<ItemRegistry>),
+            );
         app
     }
 
@@ -418,245 +456,150 @@ mod tests {
         app
     }
 
-    #[test]
-    fn no_dirty_no_networks_spawned() {
-        let mut app = logistics_app();
-        app.update();
+    fn network_count(app: &mut App) -> usize {
         let world = app.world_mut();
-        let count = world.query::<&LogisticsNetwork>().iter(world).count();
-        assert_eq!(count, 0);
+        world
+            .query_filtered::<(), With<LogisticsNetwork>>()
+            .iter(world)
+            .count()
+    }
+
+    fn write_cable_placed(app: &mut App, pos: IVec3) {
+        app.world_mut().write_message(BlockChangedMessage {
+            pos,
+            kind: BlockChangeKind::Placed { voxel_id: 10 },
+        });
+    }
+
+    fn write_cable_removed(app: &mut App, pos: IVec3) {
+        app.world_mut().write_message(BlockChangedMessage {
+            pos,
+            kind: BlockChangeKind::Removed { voxel_id: 10 },
+        });
+    }
+
+    #[test]
+    fn no_cables_no_networks() {
+        let mut app = registered_logistics_app();
+        app.update();
+        assert_eq!(network_count(&mut app), 0);
     }
 
     #[test]
     fn single_cable_creates_one_network() {
-        let mut app = logistics_app();
-        {
-            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
-            nd.cable_positions.insert(IVec3::ZERO);
-            nd.dirty = true;
-        }
+        let mut app = registered_logistics_app();
+        write_cable_placed(&mut app, IVec3::ZERO);
         app.update();
-        let world = app.world_mut();
-        let count = world.query::<&LogisticsNetwork>().iter(world).count();
-        assert_eq!(count, 1);
+        assert_eq!(network_count(&mut app), 1);
     }
 
     #[test]
     fn two_adjacent_cables_one_network() {
-        let mut app = logistics_app();
-        {
-            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
-            nd.cable_positions.insert(IVec3::ZERO);
-            nd.cable_positions.insert(IVec3::new(1, 0, 0));
-            nd.dirty = true;
-        }
+        let mut app = registered_logistics_app();
+        write_cable_placed(&mut app, IVec3::ZERO);
         app.update();
-        let world = app.world_mut();
-        let count = world.query::<&LogisticsNetwork>().iter(world).count();
-        assert_eq!(count, 1);
+        write_cable_placed(&mut app, IVec3::new(1, 0, 0));
+        app.update();
+        assert_eq!(network_count(&mut app), 1);
     }
 
     #[test]
     fn two_disconnected_cables_two_networks() {
-        let mut app = logistics_app();
-        {
-            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
-            nd.cable_positions.insert(IVec3::ZERO);
-            nd.cable_positions.insert(IVec3::new(3, 0, 0));
-            nd.dirty = true;
-        }
-        app.update();
-        let world = app.world_mut();
-        let count = world.query::<&LogisticsNetwork>().iter(world).count();
-        assert_eq!(count, 2);
-    }
-
-    #[test]
-    fn storage_adjacent_to_cable_added_to_network() {
-        let mut app = logistics_app();
-        let storage_pos = IVec3::new(1, 0, 0);
-        {
-            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
-            nd.cable_positions.insert(IVec3::ZERO);
-            nd.storage_blocks.insert(storage_pos, HashMap::new());
-            nd.dirty = true;
-        }
-        app.update();
-        let world = app.world_mut();
-        let mut q = world.query::<&LogisticsNetwork>();
-        let net = q.iter(world).next().unwrap();
-        assert!(net.storage_positions.contains(&storage_pos));
-    }
-
-    #[test]
-    fn dirty_rebuild_replaces_old_network() {
-        let mut app = logistics_app();
-        {
-            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
-            nd.cable_positions.insert(IVec3::ZERO);
-            nd.dirty = true;
-        }
-        app.update();
-        {
-            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
-            nd.dirty = true;
-        }
-        app.update();
-        let world = app.world_mut();
-        let count = world.query::<&LogisticsNetwork>().iter(world).count();
-        assert_eq!(count, 1);
-    }
-
-    #[test]
-    fn block_placed_cable_message_builds_network() {
         let mut app = registered_logistics_app();
-        app.world_mut().write_message(BlockChangedMessage {
-            pos: IVec3::ZERO,
-            kind: BlockChangeKind::Placed { voxel_id: 10 },
-        });
+        write_cable_placed(&mut app, IVec3::ZERO);
         app.update();
-        let world = app.world_mut();
-        let count = world.query::<&LogisticsNetwork>().iter(world).count();
-        assert_eq!(count, 1);
+        write_cable_placed(&mut app, IVec3::new(5, 0, 0));
+        app.update();
+        assert_eq!(network_count(&mut app), 2);
     }
 
     #[test]
-    fn block_removed_cable_message_removes_network() {
+    fn cable_removed_clears_network() {
         let mut app = registered_logistics_app();
-        {
-            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
-            nd.cable_positions.insert(IVec3::ZERO);
-            nd.dirty = true;
-        }
+        write_cable_placed(&mut app, IVec3::ZERO);
+        app.update();
+        write_cable_removed(&mut app, IVec3::ZERO);
+        app.update();
+        assert_eq!(network_count(&mut app), 0);
+    }
+
+    #[test]
+    fn middle_cable_removed_splits_network() {
+        let mut app = registered_logistics_app();
+        write_cable_placed(&mut app, IVec3::new(0, 0, 0));
+        app.update();
+        write_cable_placed(&mut app, IVec3::new(1, 0, 0));
+        app.update();
+        write_cable_placed(&mut app, IVec3::new(2, 0, 0));
+        app.update();
+        assert_eq!(network_count(&mut app), 1);
+        write_cable_removed(&mut app, IVec3::new(1, 0, 0));
+        app.update();
+        assert_eq!(network_count(&mut app), 2);
+    }
+
+    #[test]
+    fn placing_cable_between_two_merges() {
+        let mut app = registered_logistics_app();
+        write_cable_placed(&mut app, IVec3::new(0, 0, 0));
+        app.update();
+        write_cable_placed(&mut app, IVec3::new(2, 0, 0));
+        app.update();
+        assert_eq!(network_count(&mut app), 2);
+        write_cable_placed(&mut app, IVec3::new(1, 0, 0));
+        app.update();
+        assert_eq!(network_count(&mut app), 1);
+    }
+
+    #[test]
+    fn storage_adjacent_to_cable_becomes_member() {
+        let mut app = registered_logistics_app();
+        write_cable_placed(&mut app, IVec3::ZERO);
         app.update();
         app.world_mut().write_message(BlockChangedMessage {
-            pos: IVec3::ZERO,
-            kind: BlockChangeKind::Removed { voxel_id: 10 },
-        });
-        app.update();
-        let world = app.world_mut();
-        let count = world.query::<&LogisticsNetwork>().iter(world).count();
-        assert_eq!(count, 0);
-    }
-
-    #[test]
-    fn block_placed_storage_message_registers_storage_block() {
-        let mut app = registered_logistics_app();
-        let storage_pos = IVec3::new(1, 0, 0);
-        app.world_mut().write_message(BlockChangedMessage {
-            pos: storage_pos,
+            pos: IVec3::new(1, 0, 0),
             kind: BlockChangeKind::Placed { voxel_id: 11 },
         });
         app.update();
         let world = app.world_mut();
-        let nd = world.resource::<LogisticsData>();
-        assert!(nd.storage_blocks.contains_key(&storage_pos));
-    }
-
-    #[test]
-    fn machine_network_changed_message_sets_dirty() {
-        let mut app = logistics_app();
-        {
-            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
-            nd.cable_positions.insert(IVec3::ZERO);
-        }
-        app.world_mut().write_message(MachineNetworkChanged);
-        app.update();
-        let world = app.world_mut();
-        let count = world.query::<&LogisticsNetwork>().iter(world).count();
+        let count = world
+            .query_filtered::<(), With<StorageBlock>>()
+            .iter(world)
+            .count();
         assert_eq!(count, 1);
     }
 
-    fn storage_at(pos: IVec3, items: &[(&str, u32)]) -> LogisticsData {
-        let mut data = LogisticsData::default();
-        let mut s = HashMap::new();
-        for &(id, count) in items {
-            s.insert(id.to_owned(), count);
-        }
-        data.storage_blocks.insert(pos, s);
-        data
-    }
-
     #[test]
-    fn has_items_false_when_empty() {
-        let data = LogisticsData::default();
-        assert!(!data.has_items(&[IVec3::ZERO], "iron", 1));
-    }
-
-    #[test]
-    fn has_items_true_when_enough() {
-        let pos = IVec3::ZERO;
-        let data = storage_at(pos, &[("iron", 10)]);
-        assert!(data.has_items(&[pos], "iron", 10));
-        assert!(!data.has_items(&[pos], "iron", 11));
-    }
-
-    #[test]
-    fn take_items_reduces_count() {
-        let pos = IVec3::ZERO;
-        let mut data = storage_at(pos, &[("iron", 10)]);
-        data.take_items(&[pos], "iron", 4);
-        assert_eq!(*data.storage_blocks[&pos].get("iron").unwrap(), 6);
-    }
-
-    #[test]
-    fn take_items_removes_entry_at_zero() {
-        let pos = IVec3::ZERO;
-        let mut data = storage_at(pos, &[("iron", 5)]);
-        data.take_items(&[pos], "iron", 5);
-        assert!(!data.storage_blocks[&pos].contains_key("iron"));
-    }
-
-    #[test]
-    fn take_items_spans_multiple_storages() {
-        let p1 = IVec3::new(0, 0, 0);
-        let p2 = IVec3::new(1, 0, 0);
-        let mut data = LogisticsData::default();
-        let mut s1 = HashMap::new();
-        s1.insert("iron".to_owned(), 3u32);
-        let mut s2 = HashMap::new();
-        s2.insert("iron".to_owned(), 5u32);
-        data.storage_blocks.insert(p1, s1);
-        data.storage_blocks.insert(p2, s2);
-        data.take_items(&[p1, p2], "iron", 6);
-        let remaining: u32 = data
-            .storage_blocks
-            .values()
-            .filter_map(|s| s.get("iron"))
-            .sum();
-        assert_eq!(remaining, 2);
-    }
-
-    #[test]
-    fn give_items_adds_to_first_storage() {
-        let pos = IVec3::ZERO;
-        let mut data = storage_at(pos, &[]);
-        data.give_items(&[pos], "copper", 3);
-        assert_eq!(*data.storage_blocks[&pos].get("copper").unwrap(), 3);
-    }
-
-    #[test]
-    fn block_replaced_cable_updates_network() {
+    fn machine_with_logistics_io_adjacent_to_cable_gets_member() {
         let mut app = registered_logistics_app();
-        // Place cable via Placed message first
-        app.world_mut().write_message(BlockChangedMessage {
-            pos: IVec3::ZERO,
-            kind: BlockChangeKind::Placed { voxel_id: 10 },
-        });
+        let cable_pos = IVec3::ZERO;
+        let io_pos = IVec3::new(1, 0, 0);
+        write_cable_placed(&mut app, cable_pos);
+        let machine_entity = app
+            .world_mut()
+            .spawn((
+                Machine {
+                    machine_type: "furnace".to_string(),
+                    tier: 1,
+                    orientation: Orientation {
+                        rotation: Rotation::North,
+                        mirror: Mirror::Normal,
+                    },
+                    origin_pos: IVec3::ZERO,
+                    blocks: HashSet::new(),
+                    energy_io_blocks: HashSet::new(),
+                    logistics_io_blocks: [io_pos].into_iter().collect(),
+                },
+                MachineState::Idle,
+            ))
+            .id();
+        app.world_mut().write_message(MachineNetworkChanged);
         app.update();
-        // Replace with storage crate (removes cable, adds storage)
-        app.world_mut().write_message(BlockChangedMessage {
-            pos: IVec3::ZERO,
-            kind: BlockChangeKind::Replaced {
-                old_voxel_id: 10,
-                new_voxel_id: 11,
-            },
-        });
-        app.update();
-        let world = app.world_mut();
-        let nd = world.resource::<LogisticsData>();
-        assert!(!nd.cable_positions.contains(&IVec3::ZERO));
-        assert!(nd.storage_blocks.contains_key(&IVec3::ZERO));
+        assert!(
+            app.world()
+                .get::<LogisticsNetworkMember>(machine_entity)
+                .is_some()
+        );
     }
 
     fn test_recipe_def(
@@ -701,15 +644,6 @@ mod tests {
         }
     }
 
-    fn machine_io_app(rg: RecipeGraph) -> App {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins)
-            .insert_resource(LogisticsData::default())
-            .insert_resource(rg)
-            .add_systems(Update, machine_io_system);
-        app
-    }
-
     fn bare_machine(machine_type: &str) -> Machine {
         Machine {
             machine_type: machine_type.to_string(),
@@ -725,36 +659,17 @@ mod tests {
         }
     }
 
-    #[test]
-    fn machine_with_logistics_io_adjacent_to_cable_gets_member() {
-        let mut app = logistics_app();
-        let cable_pos = IVec3::ZERO;
-        let io_pos = IVec3::new(1, 0, 0);
-        {
-            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
-            nd.cable_positions.insert(cable_pos);
-            nd.dirty = true;
-        }
-        let machine_entity = app
-            .world_mut()
-            .spawn((
-                Machine {
-                    machine_type: "furnace".to_string(),
-                    tier: 1,
-                    orientation: Orientation {
-                        rotation: Rotation::North,
-                        mirror: Mirror::Normal,
-                    },
-                    origin_pos: IVec3::ZERO,
-                    blocks: HashSet::new(),
-                    energy_io_blocks: HashSet::new(),
-                    logistics_io_blocks: [io_pos].into_iter().collect(),
-                },
-                MachineState::Idle,
-            ))
-            .id();
-        app.update();
-        assert!(app.world().get::<LogisticsMember>(machine_entity).is_some());
+    fn recipe_io_app(rg: RecipeGraph) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_message::<NetworkChanged<Logistics>>()
+            .add_message::<NetworkStorageChanged>()
+            .insert_resource(rg)
+            .add_systems(
+                Update,
+                (recipe_start_system, ApplyDeferred, recipe_progress_system).chain(),
+            );
+        app
     }
 
     #[test]
@@ -764,30 +679,31 @@ mod tests {
             &[("iron", 1.0)],
             &[("copper", 1.0)],
         ));
-        let mut app = machine_io_app(rg);
+        let mut app = recipe_io_app(rg);
 
-        let storage_pos = IVec3::new(0, 0, 5);
-        {
-            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
-            let mut s = HashMap::new();
-            s.insert("iron".to_owned(), 10u32);
-            nd.storage_blocks.insert(storage_pos, s);
-        }
-        let net_entity = app
+        let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
+        let storage_e = app
             .world_mut()
-            .spawn(LogisticsNetwork {
-                storage_positions: vec![storage_pos],
-            })
+            .spawn((
+                StorageBlock {
+                    pos: IVec3::ZERO,
+                    items: [("iron".to_owned(), 10u32)].into_iter().collect(),
+                },
+                LogisticsNetworkMember(net_entity),
+            ))
             .id();
         let machine_entity = app
             .world_mut()
             .spawn((
                 bare_machine("furnace"),
                 MachineState::Idle,
-                LogisticsMember(net_entity),
+                LogisticsNetworkMember(net_entity),
             ))
             .id();
 
+        app.world_mut().write_message(NetworkStorageChanged {
+            network: net_entity,
+        });
         app.update();
 
         let world = app.world();
@@ -796,29 +712,26 @@ mod tests {
             MachineState::Running
         );
         assert!(world.get::<MachineActivity>(machine_entity).is_some());
-        let nd = world.resource::<LogisticsData>();
-        // 1 iron consumed out of 10; 9 remain
-        assert!(nd.has_items(&[storage_pos], "iron", 9));
-        assert!(!nd.has_items(&[storage_pos], "iron", 10));
+        let storage = world.get::<StorageBlock>(storage_e).unwrap();
+        assert_eq!(storage.items.get("iron").copied().unwrap_or(0), 9);
     }
 
     #[test]
     fn running_machine_completes_and_stores_output() {
         let rg = single_recipe_graph(test_recipe_def("furnace", &[], &[("copper", 2.0)]));
-        let mut app = machine_io_app(rg);
+        let mut app = recipe_io_app(rg);
 
-        let storage_pos = IVec3::new(0, 0, 5);
-        {
-            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
-            nd.storage_blocks.insert(storage_pos, HashMap::new());
-        }
-        let net_entity = app
+        let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
+        let storage_e = app
             .world_mut()
-            .spawn(LogisticsNetwork {
-                storage_positions: vec![storage_pos],
-            })
+            .spawn((
+                StorageBlock {
+                    pos: IVec3::ZERO,
+                    items: HashMap::new(),
+                },
+                LogisticsNetworkMember(net_entity),
+            ))
             .id();
-        // progress > processing_time (1.0) so it completes even with dt=0
         let machine_entity = app
             .world_mut()
             .spawn((
@@ -829,7 +742,7 @@ mod tests {
                     progress: 10.0,
                     speed_factor: 1.0,
                 },
-                LogisticsMember(net_entity),
+                LogisticsNetworkMember(net_entity),
             ))
             .id();
 
@@ -841,26 +754,23 @@ mod tests {
             MachineState::Idle
         );
         assert!(world.get::<MachineActivity>(machine_entity).is_none());
-        let nd = world.resource::<LogisticsData>();
-        assert!(nd.has_items(&[storage_pos], "copper", 2));
+        let storage = world.get::<StorageBlock>(storage_e).unwrap();
+        assert_eq!(storage.items.get("copper").copied().unwrap_or(0), 2);
     }
 
     #[test]
     fn running_machine_updates_progress_when_not_done() {
         let rg = single_recipe_graph(test_recipe_def("furnace", &[], &[]));
-        let mut app = machine_io_app(rg);
+        let mut app = recipe_io_app(rg);
 
-        let storage_pos = IVec3::ZERO;
-        {
-            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
-            nd.storage_blocks.insert(storage_pos, HashMap::new());
-        }
-        let net_entity = app
-            .world_mut()
-            .spawn(LogisticsNetwork {
-                storage_positions: vec![storage_pos],
-            })
-            .id();
+        let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
+        app.world_mut().spawn((
+            StorageBlock {
+                pos: IVec3::ZERO,
+                items: HashMap::new(),
+            },
+            LogisticsNetworkMember(net_entity),
+        ));
         let machine_entity = app
             .world_mut()
             .spawn((
@@ -871,13 +781,12 @@ mod tests {
                     progress: 0.5,
                     speed_factor: 1.0,
                 },
-                LogisticsMember(net_entity),
+                LogisticsNetworkMember(net_entity),
             ))
             .id();
 
         app.update();
 
-        // Still running (0.5 + 0*1.0 = 0.5 < 1.0); MachineActivity persists
         let world = app.world();
         assert_eq!(
             *world.get::<MachineState>(machine_entity).unwrap(),

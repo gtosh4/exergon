@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use xxhash_rust::xxh64::xxh64;
 
@@ -42,6 +43,7 @@ impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DebugOverlay>()
             .add_systems(Update, toggle_overlay)
+            .add_systems(Update, screenshot_on_f12)
             .add_systems(Update, draw_gizmos.run_if(in_state(GameState::Playing)))
             .add_systems(
                 EguiPrimaryContextPass,
@@ -231,6 +233,15 @@ fn draw_ui(
         });
 
     Ok(())
+}
+
+fn screenshot_on_f12(input: Res<ButtonInput<KeyCode>>, mut commands: Commands) {
+    if input.just_pressed(KeyCode::F12) {
+        let ts = chrono::Local::now().to_rfc3339();
+        commands
+            .spawn(Screenshot::primary_window())
+            .observe(save_to_disk(format!("screenshot_{ts}.png")));
+    }
 }
 
 #[cfg(test)]

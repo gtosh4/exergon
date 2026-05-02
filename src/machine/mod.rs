@@ -18,7 +18,7 @@ pub struct MachineScanSet;
 
 /// Emitted whenever machines form, unform, or are destroyed.
 /// Listeners (logistics, power) use this to trigger network rebuilds.
-#[derive(bevy::ecs::message::Message, Clone, Copy)]
+#[derive(Message, Clone, Copy)]
 pub struct MachineNetworkChanged;
 
 /// Active recipe processing state on a running machine.

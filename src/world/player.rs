@@ -110,6 +110,73 @@ pub(super) fn toggle_inventory(
     }
 }
 
+pub(super) fn camera_input(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mouse_motion: Res<AccumulatedMouseMotion>,
+    mut camera_q: Query<&mut Transform, With<MainCamera>>,
+    time: Res<Time>,
+    voxel_world: VoxelWorld<WorldConfig>,
+) {
+    let Ok(mut transform) = camera_q.single_mut() else {
+        return;
+    };
+
+    let yaw = -mouse_motion.delta.x * 0.003;
+    let pitch = -mouse_motion.delta.y * 0.003;
+
+    if yaw != 0.0 || pitch != 0.0 {
+        let (current_yaw, current_pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
+        let new_yaw = current_yaw + yaw;
+        let new_pitch = (current_pitch + pitch).clamp(-FRAC_PI_2 + 0.01, FRAC_PI_2 - 0.01);
+        transform.rotation = Quat::from_euler(EulerRot::YXZ, new_yaw, new_pitch, 0.0);
+    }
+
+    let mut direction = Vec3::ZERO;
+    if keyboard.pressed(KeyCode::KeyW) {
+        direction += *transform.forward();
+    }
+    if keyboard.pressed(KeyCode::KeyS) {
+        direction -= *transform.forward();
+    }
+    if keyboard.pressed(KeyCode::KeyA) {
+        direction -= *transform.right();
+    }
+    if keyboard.pressed(KeyCode::KeyD) {
+        direction += *transform.right();
+    }
+    if keyboard.pressed(KeyCode::Space) {
+        direction += Vec3::Y;
+    }
+    if keyboard.pressed(KeyCode::ControlLeft) {
+        direction -= Vec3::Y;
+    }
+
+    if direction == Vec3::ZERO {
+        return;
+    }
+
+    const R: f32 = 0.35;
+    let delta = direction.normalize() * 50.0 * time.delta_secs();
+    let current = transform.translation;
+
+    if is_blocked(&voxel_world, current + delta, R) {
+        let dx = Vec3::new(delta.x, 0.0, 0.0);
+        let dy = Vec3::new(0.0, delta.y, 0.0);
+        let dz = Vec3::new(0.0, 0.0, delta.z);
+        if !is_blocked(&voxel_world, current + dx, R) {
+            transform.translation.x += dx.x;
+        }
+        if !is_blocked(&voxel_world, current + dy, R) {
+            transform.translation.y += dy.y;
+        }
+        if !is_blocked(&voxel_world, current + dz, R) {
+            transform.translation.z += dz.z;
+        }
+    } else {
+        transform.translation += delta;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::prelude::*;
@@ -242,72 +309,5 @@ mod tests {
             .press(KeyCode::Tab);
         app.update();
         // Just checking no panic when InventoryOpen resource absent
-    }
-}
-
-pub(super) fn camera_input(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mouse_motion: Res<AccumulatedMouseMotion>,
-    mut camera_q: Query<&mut Transform, With<MainCamera>>,
-    time: Res<Time>,
-    voxel_world: VoxelWorld<WorldConfig>,
-) {
-    let Ok(mut transform) = camera_q.single_mut() else {
-        return;
-    };
-
-    let yaw = -mouse_motion.delta.x * 0.003;
-    let pitch = -mouse_motion.delta.y * 0.003;
-
-    if yaw != 0.0 || pitch != 0.0 {
-        let (current_yaw, current_pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
-        let new_yaw = current_yaw + yaw;
-        let new_pitch = (current_pitch + pitch).clamp(-FRAC_PI_2 + 0.01, FRAC_PI_2 - 0.01);
-        transform.rotation = Quat::from_euler(EulerRot::YXZ, new_yaw, new_pitch, 0.0);
-    }
-
-    let mut direction = Vec3::ZERO;
-    if keyboard.pressed(KeyCode::KeyW) {
-        direction += *transform.forward();
-    }
-    if keyboard.pressed(KeyCode::KeyS) {
-        direction -= *transform.forward();
-    }
-    if keyboard.pressed(KeyCode::KeyA) {
-        direction -= *transform.right();
-    }
-    if keyboard.pressed(KeyCode::KeyD) {
-        direction += *transform.right();
-    }
-    if keyboard.pressed(KeyCode::Space) {
-        direction += Vec3::Y;
-    }
-    if keyboard.pressed(KeyCode::ControlLeft) {
-        direction -= Vec3::Y;
-    }
-
-    if direction == Vec3::ZERO {
-        return;
-    }
-
-    const R: f32 = 0.35;
-    let delta = direction.normalize() * 50.0 * time.delta_secs();
-    let current = transform.translation;
-
-    if is_blocked(&voxel_world, current + delta, R) {
-        let dx = Vec3::new(delta.x, 0.0, 0.0);
-        let dy = Vec3::new(0.0, delta.y, 0.0);
-        let dz = Vec3::new(0.0, 0.0, delta.z);
-        if !is_blocked(&voxel_world, current + dx, R) {
-            transform.translation.x += dx.x;
-        }
-        if !is_blocked(&voxel_world, current + dy, R) {
-            transform.translation.y += dy.y;
-        }
-        if !is_blocked(&voxel_world, current + dz, R) {
-            transform.translation.z += dz.z;
-        }
-    } else {
-        transform.translation += delta;
     }
 }

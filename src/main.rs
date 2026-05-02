@@ -15,6 +15,7 @@ mod inventory;
 mod logistics;
 mod machine;
 mod meta;
+mod network;
 mod power;
 mod reactivity;
 mod recipe_graph;

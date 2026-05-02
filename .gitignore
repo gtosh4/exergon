@@ -28,8 +28,9 @@ target
 /coverage.json
 /coverage.info
 
-# Generated at launch from assets/textures/blocks/
+# Generated files
 assets/textures/blocks.png
+/screenshot_*.png
 
 # Large binary assets
 assets/**/*.png
