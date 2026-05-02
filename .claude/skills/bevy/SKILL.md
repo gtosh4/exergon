@@ -14,6 +14,12 @@ user-invocable: false
 
 Version: **0.18.1**. Exergon is a **3D game** — use `Camera3d`, `Mesh3d`, `StandardMaterial`, PBR lighting.
 
+## Rules:
+1. **Data lives in components and resources. Logic lives in systems and observers.** A method on a component is fine if it's a pure projection of its own fields (`Health::is_alive`, `Vec3::length`). Anything that touches another entity, spawns, despawns, or reads a resource belongs in a system or observer. The advice "components are just data" has limits — small impl blocks for invariant-preserving setters and convenient accessors are good — but anything that walks the world goes in a system.
+2. **One plugin per domain.** Each feature gets a `XPlugin` struct that registers its messages, resources, observers, and systems. Plugins are composable, and breaking work into plugins is the canonical way to keep a Bevy project navigable as it grows. Drop plugins into `App` from a small `main.rs` (or a binary crate that depends on a library crate); resist the urge to put everything in one file.
+3. **Centralize ordering with a `SystemSet` enum.** Define one enum with variants for each ordered phase of your game (`InputGather`, `AiBrain`, `Locomotion`, `CameraFollow`, `UpdateUi`, etc.), `chain()` them once in `app.rs`, and have plugins drop systems *into* those sets via `.in_set(...)`. Don't sprinkle `configure_sets` calls across plugins — that splits the source of truth and ordering becomes nondeterministic in practice.
+
+
 ## Resources
 
 Load the relevant resource file(s) before writing code:

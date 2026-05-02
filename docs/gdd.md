@@ -29,16 +29,16 @@
 
 ## 1. Vision & Concept
 
-This game is a **factory-building roguelike** in which every run takes place on a procedurally generated world with alien physical laws. The player is a scientist-engineer whose job is to decode how this particular world works, design a factory that exploits those laws, and synthesize a single large escape artifact that proves they understood the system well enough to master it.
+This game is a **factory-building roguelite** in which every run takes place on a procedurally generated world with alien physical laws. The player is a scientist-engineer whose job is to decode how this particular world works, design a factory that exploits those laws, and synthesize a single large escape artifact that proves they understood the system well enough to master it.
 
-The primary inspiration is **GregTech: New Horizons (GTNH)** — specifically its depth of production graph complexity, its multi-tier processing chains, its demand that players understand systems rather than execute recipes from memory, and its culture of genuine accomplishment through genuine difficulty. The roguelike layer is not a cosmetic addition. It is the mechanism by which a GTNH-depth game becomes replayable: the graph itself is different every run.
+The primary inspiration is **GregTech: New Horizons (GTNH)** — specifically its depth of production graph complexity, its multi-tier processing chains, its demand that players understand systems rather than execute recipes from memory, and its culture of genuine accomplishment through genuine difficulty. The roguelite layer is not a cosmetic addition. It is the mechanism by which a GTNH-depth game becomes replayable: the graph itself is different every run.
 
 The game is also meaningfully different from GTNH in one key respect: **the design phase is the game.** Watching machines run, fixing belt bottlenecks, and grinding execution time are minimized. The intellectual work of reading a run, planning a factory, and discovering alien science is maximized. A run that takes 20 hours of engaged thinking is more satisfying than a run that takes 200 hours of engaged thinking plus 800 hours of waiting and grinding.
 
 ### Closest existing references
 - **GregTech: New Horizons** — depth, complexity, tier-gated progression, power systems
 - **Factorio** — factory layout, belt logistics, the satisfaction of throughput
-- **Slay the Spire** — roguelike meta-progression, run variance as the replayability engine
+- **Slay the Spire** — roguelite meta-progression, run variance as the replayability engine
 - **Zachtronics games (Opus Magnum, Infinifactory)** — puzzle-oriented, the solution is the reward
 - **Outer Wilds** — physical presence in a world whose rules you are discovering
 
@@ -284,7 +284,7 @@ These tools are diegetic where possible — the graph viewer is the player's fie
 Power is one of the most strategically important axes of variance in the game. Solving power well is never a one-time achievement — it requires active renegotiation as the run progresses through tiers.
 
 ### Core design intent
-No single power source should be the correct answer across an entire run. Players are forced to transition their power strategy as they progress, making power a recurring strategic problem rather than a solved one. This mirrors GTNH's best power design while adding roguelike variance on top.
+No single power source should be the correct answer across an entire run. Players are forced to transition their power strategy as they progress, making power a recurring strategic problem rather than a solved one. This mirrors GTNH's best power design while adding roguelite variance on top.
 
 ### Variance layers
 
@@ -580,12 +580,12 @@ The first run uses a **constrained seed** — a seed selected to produce a hospi
 ## 16. Failure & Permadeath
 
 ### Player choice
-Permadeath is **opt-in**. Players choose their relationship with failure at run start. This respects the tension between roguelike tradition and factory game investment — a player who has spent 20 hours on a run should be able to choose whether losing it is part of the game.
+Permadeath is **opt-in**. Players choose their relationship with failure at run start. This respects the tension between roguelite tradition and factory game investment — a player who has spent 20 hours on a run should be able to choose whether losing it is part of the game.
 
 ### Failure conditions
 There are no forced failure conditions. A run can always be completed — the player can always limp to the escape condition with an inefficient factory. World reactivity, power problems, and resource pressure create difficulty and strategic cost, but none of them end the run. Given run lengths of 10–30+ hours, forced failure would be devastating rather than interesting.
 
-The roguelike variance expresses itself as difficulty and elegance, not binary success/failure. A bad run produces a slow, ugly escape. A good run produces a clean, optimized one.
+The roguelite variance expresses itself as difficulty and elegance, not binary success/failure. A bad run produces a slow, ugly escape. A good run produces a clean, optimized one.
 
 ### Permadeath
 Permadeath modes are **post-MVP**. The exact form permadeath takes in Exergon needs careful design given the no-forced-failure model — it likely involves constraints on saves or meta-progression rewards rather than run termination by game systems. Multiple permadeath variants are expected.

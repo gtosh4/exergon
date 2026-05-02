@@ -74,7 +74,7 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
   - [ ] Game starts with a land drone
 - [ ] Camera handoff (`DronePilot` play mode)
 - [ ] Separate drone inventory
-- [ ] Hotbar replaced with "tools" specific to the drone type
+- [ ] Hotbar replaced with "tools" (land drone: just 'mine')
 - [ ] Fog-of-war reveal (bitmask per chunk)
 - [ ] Sample collection interaction → add items to inventory
 

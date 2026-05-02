@@ -11,7 +11,7 @@ use crate::GameState;
 use super::generation::WorldConfig;
 
 #[derive(Component)]
-pub(super) struct MainCamera;
+pub struct MainCamera;
 
 pub(super) fn is_blocked(voxel_world: &VoxelWorld<'_, WorldConfig>, center: Vec3, r: f32) -> bool {
     let offsets = [

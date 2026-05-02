@@ -3,6 +3,7 @@ mod interaction;
 mod player;
 
 pub use interaction::LookTarget;
+pub use player::MainCamera;
 
 #[derive(Debug, Clone, Copy)]
 pub enum BlockChangeKind {
@@ -20,7 +21,7 @@ pub struct BlockChangedMessage {
 use bevy::prelude::*;
 use bevy_voxel_world::prelude::*;
 
-use crate::GameState;
+use crate::{GameState, PlayMode};
 use crate::inventory::InventoryOpen;
 use crate::textures::BlockAtlasLayers;
 
@@ -46,6 +47,7 @@ impl Plugin for WorldPlugin {
             (player::spawn_camera, interaction::setup_ghost_preview),
         )
         .add_systems(OnEnter(GameState::Loading), generation::finish_loading)
+        .add_systems(Update, generation::add_chunk_colliders)
         .add_systems(
             OnEnter(GameState::Playing),
             (player::setup_world_once, player::lock_cursor),
@@ -60,7 +62,8 @@ impl Plugin for WorldPlugin {
                 player::toggle_pause,
                 player::toggle_inventory,
                 player::camera_input
-                    .run_if(|o: Option<Res<InventoryOpen>>| !o.map(|r| r.0).unwrap_or(false)),
+                    .run_if(|o: Option<Res<InventoryOpen>>| !o.map(|r| r.0).unwrap_or(false))
+                    .run_if(in_state(PlayMode::Exploring)),
                 interaction::update_look_target.after(player::camera_input),
                 interaction::block_interaction
                     .after(interaction::update_look_target)

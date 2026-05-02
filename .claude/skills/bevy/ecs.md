@@ -13,6 +13,7 @@ Data holders (structs) attached to entities. No logic; pure data (x, y for Posit
 ## Systems
 Logic blocks processing entity groups sharing components. Parallel execution, efficient.
 ✓ System Efficiency: Process only relevant entities using queries. Leverage change detection, events, and messages
+✓ `par_iter_mut` for parallel iteration when the body is independent across entities. Combine with `ParallelCommands::command_scope` to issue commands from parallel work.
 
 testing:
 ```rust

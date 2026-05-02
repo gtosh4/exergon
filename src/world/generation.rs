@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_voxel_world::prelude::*;
 use noise::{HybridMulti, NoiseFn, Perlin};
@@ -18,7 +19,7 @@ pub(crate) struct WorldConfig {
 
 impl VoxelWorldConfig for WorldConfig {
     type MaterialIndex = u8;
-    type ChunkUserBundle = ();
+    type ChunkUserBundle = RigidBody;
 
     fn spawning_distance(&self) -> u32 {
         if self.active { 12 } else { 0 }
@@ -64,6 +65,19 @@ impl VoxelWorldConfig for WorldConfig {
             _ => [0, 0, 0],
         })
     }
+
+    fn chunk_meshing_delegate(
+        &self,
+    ) -> ChunkMeshingDelegate<Self::MaterialIndex, Self::ChunkUserBundle> {
+        Some(Box::new(|pos, lod, data_shape, mesh_shape, previous_data| {
+            let mut inner =
+                default_chunk_meshing_delegate::<u8, RigidBody>(pos, lod, data_shape, mesh_shape, previous_data);
+            Box::new(move |voxels, ds, ms, mapper| {
+                let (mesh, _) = inner(voxels, ds, ms, mapper);
+                (mesh, Some(RigidBody::Static))
+            })
+        }))
+    }
 }
 
 pub(super) fn make_voxel_fn(
@@ -99,6 +113,23 @@ pub(super) fn make_voxel_fn(
             WorldVoxel::Solid(mat)
         }
     })
+}
+
+// Avian can't read Mesh3d when TrimeshFromMesh is inserted (assign_material runs later).
+// Build the collider directly here once Mesh3d is present.
+pub(super) fn add_chunk_colliders(
+    mut commands: Commands,
+    meshes: Res<Assets<Mesh>>,
+    query: Query<(Entity, &Mesh3d), (Changed<Mesh3d>, With<RigidBody>)>,
+) {
+    for (entity, mesh3d) in query.iter() {
+        let Some(mesh) = meshes.get(&mesh3d.0) else {
+            continue;
+        };
+        if let Some(collider) = Collider::trimesh_from_mesh(mesh) {
+            commands.entity(entity).insert(collider);
+        }
+    }
 }
 
 pub(super) fn finish_loading(
