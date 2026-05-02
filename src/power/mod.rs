@@ -264,6 +264,31 @@ mod tests {
         app
     }
 
+    fn registered_power_app() -> App {
+        use crate::inventory::{BlockProps, ItemDef};
+        let mut app = power_app();
+        {
+            let mut reg = app.world_mut().resource_mut::<ItemRegistry>();
+            reg.register(ItemDef {
+                id: POWER_CABLE_ID.to_string(),
+                name: POWER_CABLE_ID.to_string(),
+                block: Some(BlockProps {
+                    voxel_id: 20,
+                    hardness: 1.0,
+                }),
+            });
+            reg.register(ItemDef {
+                id: GENERATOR_ID.to_string(),
+                name: GENERATOR_ID.to_string(),
+                block: Some(BlockProps {
+                    voxel_id: 21,
+                    hardness: 1.0,
+                }),
+            });
+        }
+        app
+    }
+
     fn recipe_graph(energy_cost: f32, processing_time: f32) -> RecipeGraph {
         let mut recipes = HashMap::new();
         recipes.insert(
@@ -450,6 +475,92 @@ mod tests {
             .unwrap()
             .speed_factor;
         assert!((speed - 0.5).abs() < 1e-6, "expected 0.5, got {speed}");
+    }
+
+    #[test]
+    fn block_placed_cable_message_builds_network() {
+        let mut app = registered_power_app();
+        app.world_mut().write_message(BlockChangedMessage {
+            pos: IVec3::ZERO,
+            kind: BlockChangeKind::Placed { voxel_id: 20 },
+        });
+        app.update();
+        let world = app.world_mut();
+        let count = world.query::<&PowerNetwork>().iter(world).count();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn block_removed_cable_message_removes_network() {
+        let mut app = registered_power_app();
+        {
+            let mut pd = app.world_mut().resource_mut::<PowerData>();
+            pd.cable_positions.insert(IVec3::ZERO);
+            pd.dirty = true;
+        }
+        app.update();
+        app.world_mut().write_message(BlockChangedMessage {
+            pos: IVec3::ZERO,
+            kind: BlockChangeKind::Removed { voxel_id: 20 },
+        });
+        app.update();
+        let world = app.world_mut();
+        let count = world.query::<&PowerNetwork>().iter(world).count();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn block_placed_generator_message_adds_capacity() {
+        let mut app = registered_power_app();
+        // cable at origin, generator adjacent
+        app.world_mut().write_message(BlockChangedMessage {
+            pos: IVec3::ZERO,
+            kind: BlockChangeKind::Placed { voxel_id: 20 },
+        });
+        app.world_mut().write_message(BlockChangedMessage {
+            pos: IVec3::new(1, 0, 0),
+            kind: BlockChangeKind::Placed { voxel_id: 21 },
+        });
+        app.update();
+        let world = app.world_mut();
+        let mut q = world.query::<&PowerNetwork>();
+        let net = q.iter(world).next().unwrap();
+        assert!(net.capacity_watts > 0.0);
+    }
+
+    #[test]
+    fn block_removed_generator_message_clears_capacity() {
+        let mut app = registered_power_app();
+        {
+            let mut pd = app.world_mut().resource_mut::<PowerData>();
+            pd.cable_positions.insert(IVec3::ZERO);
+            pd.generator_blocks.insert(IVec3::new(1, 0, 0), 50.0);
+            pd.dirty = true;
+        }
+        app.update();
+        app.world_mut().write_message(BlockChangedMessage {
+            pos: IVec3::new(1, 0, 0),
+            kind: BlockChangeKind::Removed { voxel_id: 21 },
+        });
+        app.update();
+        let world = app.world_mut();
+        let mut q = world.query::<&PowerNetwork>();
+        let net = q.iter(world).next().unwrap();
+        assert_eq!(net.capacity_watts, 0.0);
+    }
+
+    #[test]
+    fn machine_network_changed_message_sets_dirty() {
+        let mut app = power_app();
+        {
+            let mut pd = app.world_mut().resource_mut::<PowerData>();
+            pd.cable_positions.insert(IVec3::ZERO);
+        }
+        app.world_mut().write_message(MachineNetworkChanged);
+        app.update();
+        let world = app.world_mut();
+        let count = world.query::<&PowerNetwork>().iter(world).count();
+        assert_eq!(count, 1);
     }
 
     #[test]

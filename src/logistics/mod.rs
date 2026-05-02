@@ -370,7 +370,196 @@ fn machine_io_system(
 
 #[cfg(test)]
 mod tests {
+    use bevy::prelude::*;
+
     use super::*;
+    use crate::inventory::{BlockProps, ItemDef, ItemRegistry};
+    use crate::machine::MachineNetworkChanged;
+    use crate::world::{BlockChangeKind, BlockChangedMessage};
+
+    fn logistics_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_message::<BlockChangedMessage>()
+            .add_message::<MachineNetworkChanged>()
+            .insert_resource(ItemRegistry::default())
+            .init_resource::<LogisticsData>()
+            .add_systems(Update, update_logistics_networks);
+        app
+    }
+
+    fn registered_logistics_app() -> App {
+        let mut app = logistics_app();
+        {
+            let mut reg = app.world_mut().resource_mut::<ItemRegistry>();
+            reg.register(ItemDef {
+                id: LOGISTICS_CABLE_ID.to_string(),
+                name: LOGISTICS_CABLE_ID.to_string(),
+                block: Some(BlockProps {
+                    voxel_id: 10,
+                    hardness: 1.0,
+                }),
+            });
+            reg.register(ItemDef {
+                id: STORAGE_CRATE_ID.to_string(),
+                name: STORAGE_CRATE_ID.to_string(),
+                block: Some(BlockProps {
+                    voxel_id: 11,
+                    hardness: 1.0,
+                }),
+            });
+        }
+        app
+    }
+
+    #[test]
+    fn no_dirty_no_networks_spawned() {
+        let mut app = logistics_app();
+        app.update();
+        let world = app.world_mut();
+        let count = world.query::<&LogisticsNetwork>().iter(world).count();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn single_cable_creates_one_network() {
+        let mut app = logistics_app();
+        {
+            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
+            nd.cable_positions.insert(IVec3::ZERO);
+            nd.dirty = true;
+        }
+        app.update();
+        let world = app.world_mut();
+        let count = world.query::<&LogisticsNetwork>().iter(world).count();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn two_adjacent_cables_one_network() {
+        let mut app = logistics_app();
+        {
+            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
+            nd.cable_positions.insert(IVec3::ZERO);
+            nd.cable_positions.insert(IVec3::new(1, 0, 0));
+            nd.dirty = true;
+        }
+        app.update();
+        let world = app.world_mut();
+        let count = world.query::<&LogisticsNetwork>().iter(world).count();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn two_disconnected_cables_two_networks() {
+        let mut app = logistics_app();
+        {
+            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
+            nd.cable_positions.insert(IVec3::ZERO);
+            nd.cable_positions.insert(IVec3::new(3, 0, 0));
+            nd.dirty = true;
+        }
+        app.update();
+        let world = app.world_mut();
+        let count = world.query::<&LogisticsNetwork>().iter(world).count();
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn storage_adjacent_to_cable_added_to_network() {
+        let mut app = logistics_app();
+        let storage_pos = IVec3::new(1, 0, 0);
+        {
+            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
+            nd.cable_positions.insert(IVec3::ZERO);
+            nd.storage_blocks.insert(storage_pos, HashMap::new());
+            nd.dirty = true;
+        }
+        app.update();
+        let world = app.world_mut();
+        let mut q = world.query::<&LogisticsNetwork>();
+        let net = q.iter(world).next().unwrap();
+        assert!(net.storage_positions.contains(&storage_pos));
+    }
+
+    #[test]
+    fn dirty_rebuild_replaces_old_network() {
+        let mut app = logistics_app();
+        {
+            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
+            nd.cable_positions.insert(IVec3::ZERO);
+            nd.dirty = true;
+        }
+        app.update();
+        {
+            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
+            nd.dirty = true;
+        }
+        app.update();
+        let world = app.world_mut();
+        let count = world.query::<&LogisticsNetwork>().iter(world).count();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn block_placed_cable_message_builds_network() {
+        let mut app = registered_logistics_app();
+        app.world_mut().write_message(BlockChangedMessage {
+            pos: IVec3::ZERO,
+            kind: BlockChangeKind::Placed { voxel_id: 10 },
+        });
+        app.update();
+        let world = app.world_mut();
+        let count = world.query::<&LogisticsNetwork>().iter(world).count();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn block_removed_cable_message_removes_network() {
+        let mut app = registered_logistics_app();
+        {
+            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
+            nd.cable_positions.insert(IVec3::ZERO);
+            nd.dirty = true;
+        }
+        app.update();
+        app.world_mut().write_message(BlockChangedMessage {
+            pos: IVec3::ZERO,
+            kind: BlockChangeKind::Removed { voxel_id: 10 },
+        });
+        app.update();
+        let world = app.world_mut();
+        let count = world.query::<&LogisticsNetwork>().iter(world).count();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn block_placed_storage_message_registers_storage_block() {
+        let mut app = registered_logistics_app();
+        let storage_pos = IVec3::new(1, 0, 0);
+        app.world_mut().write_message(BlockChangedMessage {
+            pos: storage_pos,
+            kind: BlockChangeKind::Placed { voxel_id: 11 },
+        });
+        app.update();
+        let world = app.world_mut();
+        let nd = world.resource::<LogisticsData>();
+        assert!(nd.storage_blocks.contains_key(&storage_pos));
+    }
+
+    #[test]
+    fn machine_network_changed_message_sets_dirty() {
+        let mut app = logistics_app();
+        {
+            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
+            nd.cable_positions.insert(IVec3::ZERO);
+        }
+        app.world_mut().write_message(MachineNetworkChanged);
+        app.update();
+        let world = app.world_mut();
+        let count = world.query::<&LogisticsNetwork>().iter(world).count();
+        assert_eq!(count, 1);
+    }
 
     fn storage_at(pos: IVec3, items: &[(&str, u32)]) -> LogisticsData {
         let mut data = LogisticsData::default();
