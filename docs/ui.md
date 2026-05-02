@@ -9,6 +9,7 @@
 <details><summary>Sanky flow</summary>
 
 ![](planner_sanky_mock_v0.1.png)
+</details>
 
 ## Tech Tree
 ![](tech_tree_mock_v0.1.png)
