@@ -1,12 +1,31 @@
 # Bevy 0.18 — Schedules, State
-Finite-state machine for game state
 
-## State
-Manage states in systems with `State`/`NextState` in queries.
+## Ordering Systems
+- `after`/`before`: explicit ordering
+- `chain`: sequential
+- `SystemSet`+`in_set`: Grouping
 
-## Schedule & Conditions
-Run systems
-- continuously in states using condition: `.run_if(in_state(..))`
-- on state transitions: `OnEnter`, `OnTransition`, `OnExit`
+## Run Conditions
+- State: `in_state`, `state_changed`, `state_exists`
+- Resource: `resource_changed`
+- Other: `on_message`, `and`, `or`, `not`
 
-Order systems when necessary using `.after` (or convenience `.chain`).
+## State Machine
+
+### Read & Transition
+- `Res<State<T>>`: Read current state
+- `ResMut<NextState<T>>`: Write next state
+
+### Transition Schedules
+Order: `OnExit` → `OnTransition` → `OnEnter`
+
+### State Change Events
+- `StateTransitionEvent<T>`: For systems
+
+## SubStates
+Active only when parent state matches. Freely mutable via `NextState`.
+`State<GamePhase>` resource only exists while `AppState == InGame`.
+
+
+## Entity Lifecycle Helpers
+`DespawnOnExit`, `DespawnOnEnter` components for state change
