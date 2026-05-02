@@ -82,11 +82,10 @@ mod tests {
     }
 
     #[test]
-    fn find_components_no_split() {
+    fn find_components_line_removal_splits_into_two() {
         // Line: (0,0,0) - (1,0,0) - (2,0,0); remove middle
         let remaining = make_map(&[(IVec3::new(0, 0, 0), 1), (IVec3::new(2, 0, 0), 2)]);
         let components = find_components(remaining, IVec3::new(1, 0, 0));
-        // (0,0,0) and (2,0,0) are not adjacent so this IS a split
         assert_eq!(components.len(), 2);
     }
 

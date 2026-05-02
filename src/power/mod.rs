@@ -4,10 +4,10 @@ use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
 use crate::inventory::ItemRegistry;
-use crate::machine::{Machine, MachineActivity, MachineScanSet, MachineState};
+use crate::machine::{Machine, MachineActivity, MachineState};
 use crate::network::{
-    self, DIRS, HasPos, NetworkChanged, NetworkKind, NetworkMemberComponent,
-    NetworkMembersComponent, Power,
+    DIRS, HasPos, NetworkChanged, NetworkKind, NetworkMemberComponent, NetworkMembersComponent,
+    NetworkPlugin, NetworkSystems, Power,
 };
 use crate::recipe_graph::RecipeGraph;
 use crate::world::{BlockChangeKind, BlockChangedMessage};
@@ -16,23 +16,20 @@ pub struct PowerPlugin;
 
 impl Plugin for PowerPlugin {
     fn build(&self, app: &mut App) {
-        network::init_network::<Power>(app);
+        app.add_plugins(NetworkPlugin::<Power>::default());
+        app.configure_sets(
+            Update,
+            NetworkSystems::of::<Power>().run_if(in_state(crate::GameState::Playing)),
+        );
         app.add_systems(
             Update,
             (
-                ApplyDeferred,
-                network::cable_placed_system::<Power>.run_if(resource_exists::<ItemRegistry>),
-                network::cable_removed_system::<Power>.run_if(resource_exists::<ItemRegistry>),
-                network::machine_membership_system::<Power>.run_if(resource_exists::<ItemRegistry>),
-                ApplyDeferred,
                 generator_system.run_if(resource_exists::<ItemRegistry>),
-                ApplyDeferred,
                 recalc_capacity_system,
-                ApplyDeferred,
                 brownout_system.run_if(resource_exists::<RecipeGraph>),
             )
                 .chain()
-                .after(MachineScanSet)
+                .after(NetworkSystems::of::<Power>())
                 .in_set(crate::GameSystems::Simulation)
                 .run_if(in_state(crate::GameState::Playing)),
         );
@@ -269,7 +266,7 @@ mod tests {
     use crate::machine::{
         Machine, MachineNetworkChanged, MachineState, Mirror, Orientation, Rotation,
     };
-    use crate::network::NetworkChanged;
+    use crate::network::{NetworkChanged, NetworkPlugin, NetworkSystems};
     use crate::recipe_graph::{RecipeDef, RecipeGraph};
     use crate::world::{BlockChangeKind, BlockChangedMessage};
 
@@ -278,21 +275,13 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .add_message::<BlockChangedMessage>()
             .add_message::<MachineNetworkChanged>()
-            .add_message::<NetworkChanged<Power>>()
             .insert_resource(ItemRegistry::default())
+            .add_plugins(NetworkPlugin::<Power>::default())
             .add_systems(
                 Update,
-                (
-                    network::cable_placed_system::<Power>,
-                    network::cable_removed_system::<Power>,
-                    network::machine_membership_system::<Power>,
-                    ApplyDeferred,
-                    generator_system,
-                    ApplyDeferred,
-                    recalc_capacity_system,
-                )
+                (generator_system, recalc_capacity_system)
                     .chain()
-                    .run_if(resource_exists::<ItemRegistry>),
+                    .after(NetworkSystems::of::<Power>()),
             );
         app
     }
@@ -365,79 +354,6 @@ mod tests {
             .query_filtered::<(), With<PowerNetwork>>()
             .iter(world)
             .count()
-    }
-
-    #[test]
-    fn no_cables_no_networks() {
-        let mut app = registered_power_app();
-        app.update();
-        assert_eq!(network_count(&mut app), 0);
-    }
-
-    #[test]
-    fn single_cable_creates_one_network() {
-        let mut app = registered_power_app();
-        write_cable_placed(&mut app, IVec3::ZERO);
-        app.update();
-        assert_eq!(network_count(&mut app), 1);
-    }
-
-    #[test]
-    fn two_adjacent_cables_one_network() {
-        let mut app = registered_power_app();
-        write_cable_placed(&mut app, IVec3::ZERO);
-        app.update();
-        write_cable_placed(&mut app, IVec3::new(1, 0, 0));
-        app.update();
-        assert_eq!(network_count(&mut app), 1);
-    }
-
-    #[test]
-    fn two_disconnected_cables_two_networks() {
-        let mut app = registered_power_app();
-        write_cable_placed(&mut app, IVec3::ZERO);
-        app.update();
-        write_cable_placed(&mut app, IVec3::new(5, 0, 0));
-        app.update();
-        assert_eq!(network_count(&mut app), 2);
-    }
-
-    #[test]
-    fn cable_removed_clears_network() {
-        let mut app = registered_power_app();
-        write_cable_placed(&mut app, IVec3::ZERO);
-        app.update();
-        write_cable_removed(&mut app, IVec3::ZERO);
-        app.update();
-        assert_eq!(network_count(&mut app), 0);
-    }
-
-    #[test]
-    fn middle_cable_removed_splits_network() {
-        let mut app = registered_power_app();
-        write_cable_placed(&mut app, IVec3::new(0, 0, 0));
-        app.update();
-        write_cable_placed(&mut app, IVec3::new(1, 0, 0));
-        app.update();
-        write_cable_placed(&mut app, IVec3::new(2, 0, 0));
-        app.update();
-        assert_eq!(network_count(&mut app), 1);
-        write_cable_removed(&mut app, IVec3::new(1, 0, 0));
-        app.update();
-        assert_eq!(network_count(&mut app), 2);
-    }
-
-    #[test]
-    fn placing_cable_between_two_merges() {
-        let mut app = registered_power_app();
-        write_cable_placed(&mut app, IVec3::new(0, 0, 0));
-        app.update();
-        write_cable_placed(&mut app, IVec3::new(2, 0, 0));
-        app.update();
-        assert_eq!(network_count(&mut app), 2);
-        write_cable_placed(&mut app, IVec3::new(1, 0, 0));
-        app.update();
-        assert_eq!(network_count(&mut app), 1);
     }
 
     #[test]

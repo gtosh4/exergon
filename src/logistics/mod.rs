@@ -4,9 +4,10 @@ use bevy::ecs::message::{Message, MessageReader, MessageWriter};
 use bevy::prelude::*;
 
 use crate::inventory::ItemRegistry;
-use crate::machine::{Machine, MachineActivity, MachineScanSet, MachineState};
+use crate::machine::{Machine, MachineActivity, MachineState};
 use crate::network::{
-    self, DIRS, HasPos, Logistics, NetworkKind, NetworkMemberComponent, NetworkMembersComponent,
+    DIRS, HasPos, Logistics, NetworkKind, NetworkMemberComponent, NetworkMembersComponent,
+    NetworkPlugin, NetworkSystems,
 };
 use crate::recipe_graph::RecipeGraph;
 use crate::research::{RESEARCH_POINTS_ID, ResearchPool, TechTreeProgress};
@@ -16,24 +17,20 @@ pub struct LogisticsPlugin;
 
 impl Plugin for LogisticsPlugin {
     fn build(&self, app: &mut App) {
-        network::init_network::<Logistics>(app);
+        app.add_plugins(NetworkPlugin::<Logistics>::default());
+        app.configure_sets(
+            Update,
+            NetworkSystems::of::<Logistics>().run_if(in_state(crate::GameState::Playing)),
+        );
         app.add_message::<NetworkStorageChanged>().add_systems(
             Update,
             (
-                ApplyDeferred,
-                network::cable_placed_system::<Logistics>.run_if(resource_exists::<ItemRegistry>),
-                network::cable_removed_system::<Logistics>.run_if(resource_exists::<ItemRegistry>),
-                network::machine_membership_system::<Logistics>
-                    .run_if(resource_exists::<ItemRegistry>),
-                ApplyDeferred,
                 storage_block_system.run_if(resource_exists::<ItemRegistry>),
-                ApplyDeferred,
                 recipe_start_system.run_if(resource_exists::<RecipeGraph>),
-                ApplyDeferred,
                 recipe_progress_system.run_if(resource_exists::<RecipeGraph>),
             )
                 .chain()
-                .after(MachineScanSet)
+                .after(NetworkSystems::of::<Logistics>())
                 .in_set(crate::GameSystems::Simulation)
                 .run_if(in_state(crate::GameState::Playing)),
         );
@@ -404,7 +401,7 @@ mod tests {
         Machine, MachineActivity, MachineNetworkChanged, MachineState, Mirror, Orientation,
         Rotation,
     };
-    use crate::network::NetworkChanged;
+    use crate::network::{NetworkChanged, NetworkPlugin, NetworkSystems};
     use crate::recipe_graph::{ItemStack, RecipeDef, RecipeGraph};
     use crate::world::{BlockChangeKind, BlockChangedMessage};
 
@@ -413,21 +410,12 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .add_message::<BlockChangedMessage>()
             .add_message::<MachineNetworkChanged>()
-            .add_message::<NetworkChanged<Logistics>>()
             .add_message::<NetworkStorageChanged>()
             .insert_resource(ItemRegistry::default())
+            .add_plugins(NetworkPlugin::<Logistics>::default())
             .add_systems(
                 Update,
-                (
-                    network::cable_placed_system::<Logistics>,
-                    network::cable_removed_system::<Logistics>,
-                    network::machine_membership_system::<Logistics>,
-                    ApplyDeferred,
-                    storage_block_system,
-                    ApplyDeferred,
-                )
-                    .chain()
-                    .run_if(resource_exists::<ItemRegistry>),
+                storage_block_system.after(NetworkSystems::of::<Logistics>()),
             );
         app
     }
@@ -456,99 +444,11 @@ mod tests {
         app
     }
 
-    fn network_count(app: &mut App) -> usize {
-        let world = app.world_mut();
-        world
-            .query_filtered::<(), With<LogisticsNetwork>>()
-            .iter(world)
-            .count()
-    }
-
     fn write_cable_placed(app: &mut App, pos: IVec3) {
         app.world_mut().write_message(BlockChangedMessage {
             pos,
             kind: BlockChangeKind::Placed { voxel_id: 10 },
         });
-    }
-
-    fn write_cable_removed(app: &mut App, pos: IVec3) {
-        app.world_mut().write_message(BlockChangedMessage {
-            pos,
-            kind: BlockChangeKind::Removed { voxel_id: 10 },
-        });
-    }
-
-    #[test]
-    fn no_cables_no_networks() {
-        let mut app = registered_logistics_app();
-        app.update();
-        assert_eq!(network_count(&mut app), 0);
-    }
-
-    #[test]
-    fn single_cable_creates_one_network() {
-        let mut app = registered_logistics_app();
-        write_cable_placed(&mut app, IVec3::ZERO);
-        app.update();
-        assert_eq!(network_count(&mut app), 1);
-    }
-
-    #[test]
-    fn two_adjacent_cables_one_network() {
-        let mut app = registered_logistics_app();
-        write_cable_placed(&mut app, IVec3::ZERO);
-        app.update();
-        write_cable_placed(&mut app, IVec3::new(1, 0, 0));
-        app.update();
-        assert_eq!(network_count(&mut app), 1);
-    }
-
-    #[test]
-    fn two_disconnected_cables_two_networks() {
-        let mut app = registered_logistics_app();
-        write_cable_placed(&mut app, IVec3::ZERO);
-        app.update();
-        write_cable_placed(&mut app, IVec3::new(5, 0, 0));
-        app.update();
-        assert_eq!(network_count(&mut app), 2);
-    }
-
-    #[test]
-    fn cable_removed_clears_network() {
-        let mut app = registered_logistics_app();
-        write_cable_placed(&mut app, IVec3::ZERO);
-        app.update();
-        write_cable_removed(&mut app, IVec3::ZERO);
-        app.update();
-        assert_eq!(network_count(&mut app), 0);
-    }
-
-    #[test]
-    fn middle_cable_removed_splits_network() {
-        let mut app = registered_logistics_app();
-        write_cable_placed(&mut app, IVec3::new(0, 0, 0));
-        app.update();
-        write_cable_placed(&mut app, IVec3::new(1, 0, 0));
-        app.update();
-        write_cable_placed(&mut app, IVec3::new(2, 0, 0));
-        app.update();
-        assert_eq!(network_count(&mut app), 1);
-        write_cable_removed(&mut app, IVec3::new(1, 0, 0));
-        app.update();
-        assert_eq!(network_count(&mut app), 2);
-    }
-
-    #[test]
-    fn placing_cable_between_two_merges() {
-        let mut app = registered_logistics_app();
-        write_cable_placed(&mut app, IVec3::new(0, 0, 0));
-        app.update();
-        write_cable_placed(&mut app, IVec3::new(2, 0, 0));
-        app.update();
-        assert_eq!(network_count(&mut app), 2);
-        write_cable_placed(&mut app, IVec3::new(1, 0, 0));
-        app.update();
-        assert_eq!(network_count(&mut app), 1);
     }
 
     #[test]
