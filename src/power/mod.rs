@@ -4,9 +4,11 @@ use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;
 
 use crate::inventory::ItemRegistry;
-use crate::machine::{Machine, MachineActivity, MachineScanSet, MachineNetworkChanged, MachineState, MachineUnformed};
+use crate::machine::{
+    Machine, MachineActivity, MachineNetworkChanged, MachineScanSet, MachineState, MachineUnformed,
+};
 use crate::recipe_graph::RecipeGraph;
-use crate::world::{BlockChangeKind, BlockChangedEvent};
+use crate::world::{BlockChangeKind, BlockChangedMessage};
 
 pub struct PowerPlugin;
 
@@ -16,11 +18,9 @@ impl Plugin for PowerPlugin {
             Update,
             (
                 ApplyDeferred,
-                update_power_networks
-                    .run_if(resource_exists::<ItemRegistry>),
+                update_power_networks.run_if(resource_exists::<ItemRegistry>),
                 ApplyDeferred,
-                brownout_system
-                    .run_if(resource_exists::<RecipeGraph>),
+                brownout_system.run_if(resource_exists::<RecipeGraph>),
             )
                 .chain()
                 .after(MachineScanSet)
@@ -68,7 +68,7 @@ fn update_power_networks(
     mut commands: Commands,
     mut power_data: ResMut<PowerData>,
     existing_nets: Query<Entity, With<PowerNetwork>>,
-    mut block_events: MessageReader<BlockChangedEvent>,
+    mut block_events: MessageReader<BlockChangedMessage>,
     mut machine_events: MessageReader<MachineNetworkChanged>,
     item_registry: Res<ItemRegistry>,
     machine_q: Query<(Entity, &Machine), Without<MachineUnformed>>,
@@ -80,9 +80,10 @@ fn update_power_networks(
         let placed = match ev.kind {
             BlockChangeKind::Placed { voxel_id } => Some((None::<u8>, Some(voxel_id))),
             BlockChangeKind::Removed { voxel_id } => Some((Some(voxel_id), None)),
-            BlockChangeKind::Replaced { old_voxel_id, new_voxel_id } => {
-                Some((Some(old_voxel_id), Some(new_voxel_id)))
-            }
+            BlockChangeKind::Replaced {
+                old_voxel_id,
+                new_voxel_id,
+            } => Some((Some(old_voxel_id), Some(new_voxel_id))),
         };
         if let Some((removed, added)) = placed {
             if removed.map(|v| Some(v) == cable_vox).unwrap_or(false) {
@@ -98,7 +99,9 @@ fn update_power_networks(
                 power_data.dirty = true;
             }
             if added.map(|v| Some(v) == generator_vox).unwrap_or(false) {
-                power_data.generator_blocks.insert(ev.pos, GENERATOR_DEFAULT_WATTS);
+                power_data
+                    .generator_blocks
+                    .insert(ev.pos, GENERATOR_DEFAULT_WATTS);
                 power_data.dirty = true;
             }
         }
@@ -174,7 +177,9 @@ fn update_power_networks(
 
         let net_entity = commands.spawn(PowerNetwork { capacity_watts }).id();
         for machine_entity in machine_entities {
-            commands.entity(machine_entity).insert(PowerMember(net_entity));
+            commands
+                .entity(machine_entity)
+                .insert(PowerMember(net_entity));
         }
         network_count += 1;
     }

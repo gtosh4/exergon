@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::content::load_ron_dir;
 use crate::inventory::ItemRegistry;
-use crate::world::{generation::WorldConfig, BlockChangeKind, BlockChangedEvent};
+use crate::world::{BlockChangeKind, BlockChangedMessage, generation::WorldConfig};
 
 const ENERGY_IO_ID: &str = "energy_io";
 const LOGISTICS_IO_ID: &str = "logistics_io";
@@ -107,10 +107,7 @@ impl MachineRegistry {
             for tier in &machine.tiers {
                 for matcher in tier.pattern_elements.values() {
                     for id in matcher.trigger_ids() {
-                        trigger_blocks
-                            .entry(id.to_owned())
-                            .or_default()
-                            .push(i);
+                        trigger_blocks.entry(id.to_owned()).or_default().push(i);
                     }
                 }
             }
@@ -119,7 +116,10 @@ impl MachineRegistry {
             indices.sort_unstable();
             indices.dedup();
         }
-        Self { machines, trigger_blocks }
+        Self {
+            machines,
+            trigger_blocks,
+        }
     }
 
     pub fn is_trigger_block(&self, item_id: &str) -> bool {
@@ -190,20 +190,48 @@ impl Orientation {
         use Mirror::*;
         use Rotation::*;
         [
-            Orientation { rotation: North, mirror: Normal },
-            Orientation { rotation: East, mirror: Normal },
-            Orientation { rotation: South, mirror: Normal },
-            Orientation { rotation: West, mirror: Normal },
-            Orientation { rotation: North, mirror: Mirrored },
-            Orientation { rotation: East, mirror: Mirrored },
-            Orientation { rotation: South, mirror: Mirrored },
-            Orientation { rotation: West, mirror: Mirrored },
+            Orientation {
+                rotation: North,
+                mirror: Normal,
+            },
+            Orientation {
+                rotation: East,
+                mirror: Normal,
+            },
+            Orientation {
+                rotation: South,
+                mirror: Normal,
+            },
+            Orientation {
+                rotation: West,
+                mirror: Normal,
+            },
+            Orientation {
+                rotation: North,
+                mirror: Mirrored,
+            },
+            Orientation {
+                rotation: East,
+                mirror: Mirrored,
+            },
+            Orientation {
+                rotation: South,
+                mirror: Mirrored,
+            },
+            Orientation {
+                rotation: West,
+                mirror: Mirrored,
+            },
         ]
     }
 
     /// Rotate a canonical-space delta into world-space, applying mirror then rotation.
     pub fn transform(&self, delta: IVec3) -> IVec3 {
-        let dx = if self.mirror == Mirror::Mirrored { -delta.x } else { delta.x };
+        let dx = if self.mirror == Mirror::Mirrored {
+            -delta.x
+        } else {
+            delta.x
+        };
         let dy = delta.y;
         let dz = delta.z;
         let (rx, rz) = match self.rotation {
@@ -232,7 +260,7 @@ fn load_machines(mut commands: Commands) {
 
 fn scan_machines(
     mut commands: Commands,
-    mut events: MessageReader<BlockChangedEvent>,
+    mut events: MessageReader<BlockChangedMessage>,
     registry: Res<MachineRegistry>,
     item_registry: Option<Res<ItemRegistry>>,
     voxel_world: VoxelWorld<WorldConfig>,
@@ -249,11 +277,14 @@ fn scan_machines(
         let pos = ev.pos;
 
         // --- UNFORM on remove or replace ---
-        if matches!(ev.kind, BlockChangeKind::Removed { .. } | BlockChangeKind::Replaced { .. }) {
+        if matches!(
+            ev.kind,
+            BlockChangeKind::Removed { .. } | BlockChangeKind::Replaced { .. }
+        ) {
             // Check formed machine at pos
-            let formed = machine_q
-                .iter()
-                .find(|(e, m, uf)| uf.is_none() && m.blocks.contains(&pos) && !despawned.contains(e));
+            let formed = machine_q.iter().find(|(e, m, uf)| {
+                uf.is_none() && m.blocks.contains(&pos) && !despawned.contains(e)
+            });
 
             if let Some((entity, machine, _)) = formed {
                 let still_valid = registry
@@ -290,9 +321,9 @@ fn scan_machines(
             }
 
             // Check if an unformed machine at pos should now be destroyed
-            let unformed = machine_q
-                .iter()
-                .find(|(e, m, uf)| uf.is_some() && m.blocks.contains(&pos) && !despawned.contains(e));
+            let unformed = machine_q.iter().find(|(e, m, uf)| {
+                uf.is_some() && m.blocks.contains(&pos) && !despawned.contains(e)
+            });
 
             if let Some((entity, machine, _)) = unformed {
                 let solid_count = machine
@@ -350,7 +381,9 @@ fn scan_machines(
                     {
                         // Skip if any position belongs to a formed machine
                         let has_formed = positions.iter().any(|p| {
-                            machine_q.iter().any(|(_, m, uf)| uf.is_none() && m.blocks.contains(p))
+                            machine_q
+                                .iter()
+                                .any(|(_, m, uf)| uf.is_none() && m.blocks.contains(p))
                         });
                         if has_formed {
                             continue;
@@ -399,9 +432,9 @@ fn scan_machines(
             }
 
             // Check if an unformed machine at pos can now re-form
-            let unformed = machine_q
-                .iter()
-                .find(|(e, m, uf)| uf.is_some() && m.blocks.contains(&pos) && !despawned.contains(e));
+            let unformed = machine_q.iter().find(|(e, m, uf)| {
+                uf.is_some() && m.blocks.contains(&pos) && !despawned.contains(e)
+            });
 
             if let Some((entity, machine, _)) = unformed {
                 let machine_type = machine.machine_type.clone();
@@ -413,11 +446,16 @@ fn scan_machines(
                     {
                         // uf.is_none() already excludes the current unformed entity
                         let no_overlap = !new_positions.iter().any(|p| {
-                            machine_q.iter().any(|(_, m, uf)| uf.is_none() && m.blocks.contains(p))
+                            machine_q
+                                .iter()
+                                .any(|(_, m, uf)| uf.is_none() && m.blocks.contains(p))
                         });
                         if no_overlap {
-                            let (energy_io_blocks, logistics_io_blocks) =
-                                io_blocks_for_positions(&new_positions, &item_registry, &voxel_world);
+                            let (energy_io_blocks, logistics_io_blocks) = io_blocks_for_positions(
+                                &new_positions,
+                                &item_registry,
+                                &voxel_world,
+                            );
 
                             commands
                                 .entity(entity)
@@ -435,7 +473,10 @@ fn scan_machines(
                             network_changed.write(MachineNetworkChanged);
                             info!(
                                 "Machine '{}' tier {} re-formed at origin {:?} ({:?}/{:?})",
-                                machine_type, tier, origin_pos, orientation.rotation,
+                                machine_type,
+                                tier,
+                                origin_pos,
+                                orientation.rotation,
                                 orientation.mirror
                             );
                         }
@@ -542,7 +583,8 @@ fn check_pattern(
                         }
                         CellMatcher::AnyOf(ids) => {
                             if let WorldVoxel::Solid(vox_id) = voxel {
-                                ids.iter().any(|id| item_registry.voxel_id(id) == Some(vox_id))
+                                ids.iter()
+                                    .any(|id| item_registry.voxel_id(id) == Some(vox_id))
                             } else {
                                 false
                             }

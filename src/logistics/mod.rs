@@ -8,7 +8,7 @@ use crate::machine::{
     Machine, MachineActivity, MachineNetworkChanged, MachineScanSet, MachineState, MachineUnformed,
 };
 use crate::recipe_graph::RecipeGraph;
-use crate::world::{BlockChangeKind, BlockChangedEvent};
+use crate::world::{BlockChangeKind, BlockChangedMessage};
 
 pub struct LogisticsPlugin;
 
@@ -109,7 +109,7 @@ fn update_logistics_networks(
     mut commands: Commands,
     mut net_data: ResMut<LogisticsData>,
     existing_nets: Query<Entity, With<LogisticsNetwork>>,
-    mut block_events: MessageReader<BlockChangedEvent>,
+    mut block_events: MessageReader<BlockChangedMessage>,
     mut machine_events: MessageReader<MachineNetworkChanged>,
     item_registry: Res<ItemRegistry>,
     machine_q: Query<(Entity, &Machine), Without<MachineUnformed>>,

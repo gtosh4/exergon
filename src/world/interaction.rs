@@ -7,7 +7,7 @@ use crate::inventory::{Hotbar, Inventory, InventoryOpen, ItemRegistry};
 
 use super::generation::WorldConfig;
 use super::player::MainCamera;
-use super::{BlockChangeKind, BlockChangedEvent};
+use super::{BlockChangeKind, BlockChangedMessage};
 
 const MAX_REACH: f32 = 8.0;
 
@@ -112,7 +112,9 @@ pub(super) fn update_ghost_preview(
 
     if hotbar.is_changed() {
         if let (Some(m), Some(mats)) = (active_voxel, &ghost_mats) {
-            let idx = (m as usize).saturating_sub(1).min(mats.0.len().saturating_sub(1));
+            let idx = (m as usize)
+                .saturating_sub(1)
+                .min(mats.0.len().saturating_sub(1));
             *mat = MeshMaterial3d(mats.0[idx].clone());
         }
     }
@@ -183,7 +185,7 @@ pub(super) fn block_interaction(
     mut inventory: ResMut<Inventory>,
     item_registry: Option<Res<ItemRegistry>>,
     mut voxel_world: VoxelWorld<WorldConfig>,
-    mut block_changed: MessageWriter<BlockChangedEvent>,
+    mut block_changed: MessageWriter<BlockChangedMessage>,
 ) {
     // Scroll wheel or number keys to select hotbar slot
     for ev in scroll.read() {
@@ -224,11 +226,16 @@ pub(super) fn block_interaction(
     if mouse.just_pressed(MouseButton::Left) {
         if shift {
             voxel_world.set_voxel(pos, WorldVoxel::Air);
-            block_changed.write(BlockChangedEvent {
+            block_changed.write(BlockChangedMessage {
                 pos,
-                kind: BlockChangeKind::Removed { voxel_id: hit_voxel },
+                kind: BlockChangeKind::Removed {
+                    voxel_id: hit_voxel,
+                },
             });
-            if let Some(item) = item_registry.as_ref().and_then(|r| r.item_for_voxel(hit_voxel)) {
+            if let Some(item) = item_registry
+                .as_ref()
+                .and_then(|r| r.item_for_voxel(hit_voxel))
+            {
                 inventory.add(item.id.clone(), 1);
             }
         } else if let Some(voxel_id) = hotbar
@@ -238,7 +245,7 @@ pub(super) fn block_interaction(
             hotbar.consume_active();
             let place_pos = pos + normal;
             voxel_world.set_voxel(place_pos, WorldVoxel::Solid(voxel_id));
-            block_changed.write(BlockChangedEvent {
+            block_changed.write(BlockChangedMessage {
                 pos: place_pos,
                 kind: BlockChangeKind::Placed { voxel_id },
             });
