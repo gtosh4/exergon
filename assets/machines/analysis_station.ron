@@ -1,0 +1,19 @@
+(
+    id: "analysis_station",
+    tiers: [
+        (
+            tier: 1,
+            pattern: [
+                [
+                    "AAA",
+                    "ABA",
+                    "AAA",
+                ],
+            ],
+            pattern_elements: {
+                "A": AnyOf(["machine_casing", "energy_io", "logistics_io"]),
+                "B": BlockMatcher("analysis_station_core"),
+            },
+        ),
+    ],
+)

@@ -58,9 +58,9 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 
 ## Phase 5 — Research
 
-- [ ] Analysis station interaction: spend items → research points
-- [ ] Tech tree unlock: `ResearchSpend` vector triggers node reveal
-- [ ] Unlocked nodes gate machine/recipe availability
+- [x] Analysis station interaction: spend items → research points
+- [x] Tech tree unlock: `ResearchSpend` vector triggers node reveal
+- [x] Unlocked nodes gate machine/recipe availability
 
 **Deliverable:** Science unlocks progression.
 
@@ -116,4 +116,4 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 ## Bug fixes / minor improvements
 - [ ] Machines don't form with IO/Energy hatches
 - [ ] Move machine form/unform log to separate system, use change detection queries
-- [ ]
+- [ ] Bug: machines double forming from mirror - no overlapping machines, first to match wins

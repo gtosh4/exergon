@@ -1,0 +1,10 @@
+(
+    id: "basic_analysis",
+    inputs:     [(material: "stone", quantity: 4.0)],
+    outputs:    [(material: "research_points", quantity: 10.0)],
+    byproducts: [],
+    machine_type: "analysis_station",
+    machine_tier: 1,
+    processing_time: 8.0,
+    energy_cost: 15.0,
+)

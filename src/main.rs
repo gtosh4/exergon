@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use clap::Parser;
 
 use crate::inventory::{Hotbar, HotbarSlot, Inventory};
+use crate::research::{ResearchPool, TechTreeProgress};
 
 mod content;
 mod debug;
@@ -122,7 +123,7 @@ fn main() {
                 exited: GameState::Loading,
                 entered: GameState::Playing,
             },
-            give_test_blocks,
+            (give_test_blocks, give_test_research).chain(),
         );
     }
     app.run();
@@ -134,6 +135,7 @@ fn give_test_blocks(mut inventory: ResMut<Inventory>, mut hotbar: ResMut<Hotbar>
     inventory.add("assembler_core", 8);
     inventory.add("refinery_core", 8);
     inventory.add("gateway_core", 8);
+    inventory.add("analysis_station_core", 8);
     inventory.add("logistics_cable", 64);
     inventory.add("power_cable", 64);
     inventory.add("storage_crate", 8);
@@ -161,11 +163,11 @@ fn give_test_blocks(mut inventory: ResMut<Inventory>, mut hotbar: ResMut<Hotbar>
         count: 8,
     });
     hotbar.slots[5] = Some(HotbarSlot {
-        item_id: "logistics_cable".into(),
-        count: 64,
+        item_id: "analysis_station_core".into(),
+        count: 8,
     });
     hotbar.slots[6] = Some(HotbarSlot {
-        item_id: "power_cable".into(),
+        item_id: "logistics_cable".into(),
         count: 64,
     });
     hotbar.slots[7] = Some(HotbarSlot {
@@ -176,7 +178,17 @@ fn give_test_blocks(mut inventory: ResMut<Inventory>, mut hotbar: ResMut<Hotbar>
         item_id: "generator".into(),
         count: 4,
     });
-    info!(
-        "Test mode: gave machine_casing ×128, machine cores ×8, logistics/power cables ×64, storage ×8, generators ×4, IO hatches ×16"
-    );
+    info!("Test mode: gave blocks including analysis_station_core ×8");
+}
+
+#[cfg(debug_assertions)]
+fn give_test_research(
+    mut pool: ResMut<ResearchPool>,
+    mut progress: ResMut<TechTreeProgress>,
+) {
+    // Pre-unlock basic recipes so test mode has a working factory loop.
+    // basic_analysis stays locked — player must earn research points first.
+    pool.points += 50.0;
+    progress.unlocked_recipes.insert("basic_analysis".to_string());
+    info!("Test mode: +50 research points, basic_analysis unlocked");
 }

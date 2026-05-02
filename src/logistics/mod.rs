@@ -8,6 +8,7 @@ use crate::machine::{
     Machine, MachineActivity, MachineNetworkChanged, MachineScanSet, MachineState, MachineUnformed,
 };
 use crate::recipe_graph::RecipeGraph;
+use crate::research::{ResearchPool, TechTreeProgress, RESEARCH_POINTS_ID};
 use crate::world::{BlockChangeKind, BlockChangedMessage};
 
 pub struct LogisticsPlugin;
@@ -235,6 +236,8 @@ fn machine_io_system(
     time: Res<Time>,
     mut net_data: ResMut<LogisticsData>,
     recipe_graph: Res<RecipeGraph>,
+    progress: Option<Res<TechTreeProgress>>,
+    mut research_pool: Option<ResMut<ResearchPool>>,
     net_q: Query<&LogisticsNetwork>,
     mut params: ParamSet<(
         Query<(
@@ -269,6 +272,11 @@ fn machine_io_system(
                         }
                         if recipe.machine_tier > machine.tier {
                             continue;
+                        }
+                        if let Some(ref prog) = progress {
+                            if !prog.unlocked_recipes.contains(&recipe.id) {
+                                continue;
+                            }
                         }
                         let all_ok = recipe.inputs.iter().all(|input| {
                             net_data.has_items(
@@ -340,7 +348,12 @@ fn machine_io_system(
     for (entity, outputs, net_entity) in to_finish {
         if let Ok(network) = net_q.get(net_entity) {
             for (item_id, count) in outputs {
-                if count > 0 {
+                if item_id == RESEARCH_POINTS_ID {
+                    if let Some(ref mut pool) = research_pool {
+                        pool.points += count as f32;
+                        info!("Research pool +{} points (total: {})", count, pool.points);
+                    }
+                } else if count > 0 {
                     net_data.give_items(&network.storage_positions, &item_id, count);
                 }
             }
