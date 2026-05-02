@@ -152,19 +152,16 @@ This is the game's most distinctive mechanic and the solution to its central des
 The answer is that **discovering the graph is the gameplay.** Players don't look up recipes. They find them.
 
 ### Research currency
-A dedicated **Research** currency (name TBD) is earned through scientific activity and spent to formalize knowledge into actionable game content — unlocking recipe details, confirming tech node requirements, and revealing tier contents.
+Research is not a single currency. Multiple **research types** are earned through different activities and spent on different things. This ensures players cannot bypass the discovery loop by grinding one activity — advancing via exploration feels different from advancing via production, and each unlocks different knowledge.
 
-Research is earned by:
-- Collecting and analyzing samples from the world (primary source, especially early)
-- Running experiments at analysis stations
-- Reaching certain production milestones (the factory itself generates research through operation)
-- Exploration discoveries (found objects, ruins, anomalies in the world)
+| Research type | Primary sources | Gates |
+|---|---|---|
+| Material Science | Mineral, ore, fluid sample analysis | Recipe reveals, machine tier unlocks |
+| Field Research | Ecosystem, biological sample analysis | Exploration-gated tech nodes, biome knowledge |
+| Engineering | Production milestones, machine operation | Machine module unlocks, logistics upgrades |
+| Discovery | Exploration finds, site interactions, observations | Exploration-only tech nodes, tier unlocks |
 
-Research is spent to:
-- Reveal a recipe's full parameters (inputs, outputs, ratios, processing requirements)
-- Confirm a tech node's unlock conditions
-- Partially reveal an adjacent tier's contents
-- Upgrade analysis equipment to access higher-tier samples
+Specific type names and exact gating are content/balance decisions subject to tuning. The architecture supports arbitrary research types defined in the content pack.
 
 Research is **scarce enough to force tradeoffs**, especially early. The player cannot reveal everything before building anything. They must commit to investigating certain paths before others, which makes their scouting decisions consequential.
 
@@ -184,7 +181,9 @@ At any point in a run, the player has three tiers of knowledge about any given r
 2. **Partially revealed** — broad parameters visible (approximate inputs, rough output range), specifics still hidden
 3. **Fully revealed** — complete recipe, all parameters, buildable
 
-The player spends research to move nodes from tier 1 → 2 → 3. The decision of *which* nodes to fully reveal before others is a core strategic choice, especially on runs where research is tight.
+**Partially revealed** is earned through gameplay, not purchased — hitting a related production milestone, making an exploration discovery, or completing a relevant experiment. It is a reward for engagement.
+
+**Fully revealed** is purchased with research currency of the appropriate type. Players can skip partial reveal entirely and go directly from known-to-exist → fully revealed at higher cost. The decision of *which* nodes to fully reveal before others is a core strategic choice, especially on runs where research is tight.
 
 > **Post-MVP:** A "building blind" mechanic — committing to a partially-revealed recipe at some risk cost — is a candidate optional challenge mode, not a core MVP mechanic. Core loop assumes players reveal before committing.
 
