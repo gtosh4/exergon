@@ -706,4 +706,56 @@ mod tests {
         let pivots = find_pivots_for_block(&pattern, &elements, "iron");
         assert_eq!(pivots, vec![IVec3::new(0, 0, 0)]);
     }
+
+    #[test]
+    fn machine_def_found_and_not_found() {
+        let reg = MachineRegistry::new(vec![simple_machine("smelter", "iron")]);
+        assert!(reg.machine_def("smelter").is_some());
+        assert_eq!(reg.machine_def("smelter").unwrap().id, "smelter");
+        assert!(reg.machine_def("unknown").is_none());
+    }
+
+    #[test]
+    fn orientation_south_normal() {
+        let o = Orientation {
+            rotation: Rotation::South,
+            mirror: Mirror::Normal,
+        };
+        // South: (-dx, dy, -dz)
+        assert_eq!(o.transform(IVec3::new(1, 0, 0)), IVec3::new(-1, 0, 0));
+        assert_eq!(o.transform(IVec3::new(0, 0, 1)), IVec3::new(0, 0, -1));
+    }
+
+    #[test]
+    fn orientation_west_normal() {
+        let o = Orientation {
+            rotation: Rotation::West,
+            mirror: Mirror::Normal,
+        };
+        // West: (-dz, dy, dx)
+        assert_eq!(o.transform(IVec3::new(1, 0, 0)), IVec3::new(0, 0, 1));
+        assert_eq!(o.transform(IVec3::new(0, 0, 1)), IVec3::new(-1, 0, 0));
+    }
+
+    #[test]
+    fn orientation_y_unchanged_all_variants() {
+        for o in Orientation::all() {
+            assert_eq!(o.transform(IVec3::new(3, 7, 5)).y, 7);
+        }
+    }
+
+    #[test]
+    fn find_pivots_multi_layer() {
+        let mut elements = HashMap::new();
+        elements.insert(
+            "A".to_string(),
+            CellMatcher::BlockMatcher("iron".to_string()),
+        );
+        // Two Y-layers, each with one A at x=0,z=0
+        let pattern = vec![vec!["A".to_string()], vec!["A".to_string()]];
+        let pivots = find_pivots_for_block(&pattern, &elements, "iron");
+        assert!(pivots.contains(&IVec3::new(0, 0, 0)));
+        assert!(pivots.contains(&IVec3::new(0, 1, 0)));
+        assert_eq!(pivots.len(), 2);
+    }
 }
