@@ -112,3 +112,8 @@ Phased build order. Dependencies flow top→bottom. Check off items as done.
 - [ ] Network debug item: select in hotbar, click on block: show its network (like debug). Click air = clear
 
 **Deliverable:** Vertical slice feels good to test
+
+## Bug fixes / minor improvements
+- [ ] Machines don't form with IO/Energy hatches
+- [ ] Move machine form/unform log to separate system, use change detection queries
+- [ ]

@@ -169,3 +169,4 @@ Features explicitly deferred. Not prioritised within this list.
 | Multiplayer? | via steam? |
 | Demo build | First run maybe two? |
 | Mod workshop | Steam workshop? Or more integrated like Factorio |
+| Quests/TODO | System or player generated TODO items to track progress across sessions |
