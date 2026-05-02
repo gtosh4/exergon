@@ -7,13 +7,14 @@ Built using `bevy` game engine and `clap` for CLI argument parsing.
 
 ## Before Implementing Any Feature
 
-1. Read relevant section of `docs/gdd.md` for design intent
-2. Read relevant section of `docs/technical-design.md` for architecture
-3. Check `docs/milestones.md` — is this feature in scope for current milestone?
+1. Read relevant section of [gdd](docs/gdd.md) for design intent
+2. Read relevant section of [tech-design](docs/technical-design.md) for architecture
+3. Check [milestones](docs/milestones.md) — is this feature in scope for current milestone?
+4. Did we make a design decision? Record in [log](docs/design-decisions.md)
 
 ## Keeping Docs Current
 **Docs = source of truth. Keep in sync with decisions and code.**
-See `docs/README.md` for full doc index.
+See [docs](docs/README.md) for full doc index.
 
 Docs and code diverge → reconcile explicitly. Never leave silent.
 

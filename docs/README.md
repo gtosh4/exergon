@@ -18,6 +18,9 @@ Implementation architecture for all core systems. Covers: seed system, recipe gr
 ### [`milestones.md`](milestones.md) — Milestones
 Defines two pre-release milestones: **Vertical Slice** (core loop playable end-to-end, systems simplified) and **MVP** (all systems at production depth). Includes explicit post-MVP backlog. **Reference when scoping work. Update as scope changes.**
 
+## [`implementation-plan.md`](implementation-plan.md) - Implementation Plan
+The current milestone's implementation plan steps/tasks. **Update this file when implementing features.**
+
 ---
 
 ## How to keep docs current
