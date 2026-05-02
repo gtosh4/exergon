@@ -110,6 +110,141 @@ pub(super) fn toggle_inventory(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use bevy::prelude::*;
+    use bevy::state::app::StatesPlugin;
+
+    use super::*;
+    use crate::GameState;
+    use crate::inventory::InventoryOpen;
+
+    #[test]
+    fn toggle_pause_escape_transitions_to_paused() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, StatesPlugin))
+            .init_state::<GameState>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .add_systems(Update, toggle_pause.run_if(in_state(GameState::Playing)));
+
+        app.world_mut()
+            .resource_mut::<NextState<GameState>>()
+            .set(GameState::Playing);
+        app.update();
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Escape);
+        app.update();
+        app.update();
+
+        assert_eq!(
+            *app.world().resource::<State<GameState>>().get(),
+            GameState::Paused
+        );
+    }
+
+    #[test]
+    fn toggle_pause_blocked_when_inventory_open() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, StatesPlugin))
+            .init_state::<GameState>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .insert_resource(InventoryOpen(true))
+            .add_systems(Update, toggle_pause.run_if(in_state(GameState::Playing)));
+
+        app.world_mut()
+            .resource_mut::<NextState<GameState>>()
+            .set(GameState::Playing);
+        app.update();
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Escape);
+        app.update();
+        app.update();
+
+        assert_eq!(
+            *app.world().resource::<State<GameState>>().get(),
+            GameState::Playing
+        );
+    }
+
+    #[test]
+    fn setup_world_once_spawns_light_when_none_exists() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, setup_world_once);
+        app.update();
+
+        let world = app.world_mut();
+        let light_count = world.query::<&DirectionalLight>().iter(world).count();
+        assert_eq!(light_count, 1);
+        assert!(world.get_resource::<GlobalAmbientLight>().is_some());
+    }
+
+    #[test]
+    fn setup_world_once_does_not_duplicate_light() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, setup_world_once);
+
+        // Pre-spawn a light so the system skips
+        app.world_mut().spawn(DirectionalLight::default());
+        app.update();
+
+        let world = app.world_mut();
+        let light_count = world.query::<&DirectionalLight>().iter(world).count();
+        assert_eq!(light_count, 1);
+    }
+
+    #[test]
+    fn toggle_inventory_tab_opens_when_closed() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<ButtonInput<KeyCode>>()
+            .insert_resource(InventoryOpen(false))
+            .add_systems(Update, toggle_inventory);
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Tab);
+        app.update();
+
+        assert!(app.world().resource::<InventoryOpen>().0);
+    }
+
+    #[test]
+    fn toggle_inventory_escape_closes_when_open() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<ButtonInput<KeyCode>>()
+            .insert_resource(InventoryOpen(true))
+            .add_systems(Update, toggle_inventory);
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Escape);
+        app.update();
+
+        assert!(!app.world().resource::<InventoryOpen>().0);
+    }
+
+    #[test]
+    fn toggle_inventory_no_op_without_resource() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<ButtonInput<KeyCode>>()
+            .add_systems(Update, toggle_inventory);
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Tab);
+        app.update();
+        // Just checking no panic when InventoryOpen resource absent
+    }
+}
+
 pub(super) fn camera_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mouse_motion: Res<AccumulatedMouseMotion>,

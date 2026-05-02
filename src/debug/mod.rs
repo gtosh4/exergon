@@ -258,4 +258,106 @@ mod tests {
         assert_eq!(DebugOverlay::Veins.label(), "Veins");
         assert_eq!(DebugOverlay::Biomes.label(), "Biomes");
     }
+
+    #[test]
+    fn toggle_overlay_f9_cycles_from_none_to_chunks() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<DebugOverlay>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .add_systems(Update, toggle_overlay);
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::F9);
+        app.update();
+
+        assert_eq!(
+            *app.world().resource::<DebugOverlay>(),
+            DebugOverlay::Chunks
+        );
+    }
+
+    #[test]
+    fn biome_color_returns_grey_without_registry() {
+        let color = biome_color(None, 0);
+        assert_eq!(color, Color::srgba(0.4, 0.4, 0.4, 0.35));
+    }
+
+    #[test]
+    fn vein_cell_color_returns_grey_without_registry() {
+        let color = vein_cell_color(None, 0, 0, 0, 0);
+        assert_eq!(color, Color::srgba(0.4, 0.4, 0.4, 0.35));
+    }
+
+    fn minimal_registry() -> VeinRegistry {
+        use crate::content::{BiomeDef, LayerDef, OreSpec, VeinDef};
+        let vein = VeinDef {
+            id: "iron_vein".to_string(),
+            density: 0.5,
+            primary: OreSpec {
+                name: "Iron".to_string(),
+                material: 2,
+                weight: 10,
+            },
+            secondary: OreSpec {
+                name: "Stone".to_string(),
+                material: 0,
+                weight: 5,
+            },
+            sporadic: None,
+        };
+        let layer = LayerDef {
+            id: "surface".to_string(),
+            name: "Surface".to_string(),
+            y_cell_range: (-5, 5),
+        };
+        let biome = BiomeDef {
+            id: "plains".to_string(),
+            layer: "surface".to_string(),
+            vein_pool: vec![("iron_vein".to_string(), 1)],
+        };
+        VeinRegistry::new(vec![vein], vec![layer], vec![biome])
+    }
+
+    #[test]
+    fn biome_color_returns_color_with_matching_biome() {
+        let reg = minimal_registry();
+        let color = biome_color(Some(&reg), 0); // cell_y=0 is in range [-5,5]
+        // Not grey (registry found biome)
+        assert_ne!(color, Color::srgba(0.4, 0.4, 0.4, 0.35));
+        assert_ne!(color, Color::srgba(0.2, 0.2, 0.2, 0.3));
+    }
+
+    #[test]
+    fn biome_color_returns_dark_grey_when_no_biome_at_y() {
+        let reg = minimal_registry();
+        let color = biome_color(Some(&reg), 100); // cell_y=100 outside range
+        assert_eq!(color, Color::srgba(0.2, 0.2, 0.2, 0.3));
+    }
+
+    #[test]
+    fn vein_cell_color_returns_dark_grey_when_no_biome() {
+        let reg = minimal_registry();
+        let color = vein_cell_color(Some(&reg), 0, 0, 100, 0); // cell_y=100 out of range
+        assert_eq!(color, Color::srgba(0.2, 0.2, 0.2, 0.3));
+    }
+
+    #[test]
+    fn vein_cell_color_returns_hue_when_vein_found() {
+        let reg = minimal_registry();
+        // Scan positions until cell_vein returns Some (roughly 33% chance each)
+        let found = (0i32..200).find_map(|x| {
+            let c = vein_cell_color(Some(&reg), 0, x, 0, 0);
+            if c != Color::srgba(0.2, 0.2, 0.2, 0.3) {
+                Some(c)
+            } else {
+                None
+            }
+        });
+        assert!(
+            found.is_some(),
+            "should find a colored cell within 200 tries"
+        );
+    }
 }

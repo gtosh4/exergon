@@ -243,13 +243,16 @@ fn brownout_system(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
     use bevy::prelude::*;
 
     use super::*;
     use crate::inventory::ItemRegistry;
-    use crate::machine::{MachineActivity, MachineNetworkChanged, MachineState};
+    use crate::machine::{
+        Machine, MachineActivity, MachineNetworkChanged, MachineState, Mirror, Orientation,
+        Rotation,
+    };
     use crate::recipe_graph::{RecipeDef, RecipeGraph};
     use crate::world::BlockChangedMessage;
 
@@ -587,5 +590,37 @@ mod tests {
         let world = app.world_mut();
         let count = world.query::<&PowerNetwork>().iter(world).count();
         assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn machine_with_energy_io_adjacent_to_cable_gets_member() {
+        let mut app = power_app();
+        let cable_pos = IVec3::ZERO;
+        let io_pos = IVec3::new(1, 0, 0);
+        {
+            let mut pd = app.world_mut().resource_mut::<PowerData>();
+            pd.cable_positions.insert(cable_pos);
+            pd.dirty = true;
+        }
+        let machine_entity = app
+            .world_mut()
+            .spawn((
+                Machine {
+                    machine_type: "smelter".to_string(),
+                    tier: 1,
+                    orientation: Orientation {
+                        rotation: Rotation::North,
+                        mirror: Mirror::Normal,
+                    },
+                    origin_pos: IVec3::ZERO,
+                    blocks: HashSet::new(),
+                    energy_io_blocks: [io_pos].into_iter().collect(),
+                    logistics_io_blocks: HashSet::new(),
+                },
+                MachineState::Idle,
+            ))
+            .id();
+        app.update();
+        assert!(app.world().get::<PowerMember>(machine_entity).is_some());
     }
 }

@@ -370,11 +370,17 @@ fn machine_io_system(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{HashMap, HashSet};
+
     use bevy::prelude::*;
 
     use super::*;
     use crate::inventory::{BlockProps, ItemDef, ItemRegistry};
-    use crate::machine::MachineNetworkChanged;
+    use crate::machine::{
+        Machine, MachineActivity, MachineNetworkChanged, MachineState, Mirror, Orientation,
+        Rotation,
+    };
+    use crate::recipe_graph::{ItemStack, RecipeDef, RecipeGraph};
     use crate::world::{BlockChangeKind, BlockChangedMessage};
 
     fn logistics_app() -> App {
@@ -627,5 +633,256 @@ mod tests {
         let mut data = storage_at(pos, &[]);
         data.give_items(&[pos], "copper", 3);
         assert_eq!(*data.storage_blocks[&pos].get("copper").unwrap(), 3);
+    }
+
+    #[test]
+    fn block_replaced_cable_updates_network() {
+        let mut app = registered_logistics_app();
+        // Place cable via Placed message first
+        app.world_mut().write_message(BlockChangedMessage {
+            pos: IVec3::ZERO,
+            kind: BlockChangeKind::Placed { voxel_id: 10 },
+        });
+        app.update();
+        // Replace with storage crate (removes cable, adds storage)
+        app.world_mut().write_message(BlockChangedMessage {
+            pos: IVec3::ZERO,
+            kind: BlockChangeKind::Replaced {
+                old_voxel_id: 10,
+                new_voxel_id: 11,
+            },
+        });
+        app.update();
+        let world = app.world_mut();
+        let nd = world.resource::<LogisticsData>();
+        assert!(!nd.cable_positions.contains(&IVec3::ZERO));
+        assert!(nd.storage_blocks.contains_key(&IVec3::ZERO));
+    }
+
+    fn test_recipe_def(
+        machine_type: &str,
+        inputs: &[(&str, f32)],
+        outputs: &[(&str, f32)],
+    ) -> RecipeDef {
+        RecipeDef {
+            id: "test_recipe".to_string(),
+            inputs: inputs
+                .iter()
+                .map(|(m, q)| ItemStack {
+                    material: m.to_string(),
+                    quantity: *q,
+                })
+                .collect(),
+            outputs: outputs
+                .iter()
+                .map(|(m, q)| ItemStack {
+                    material: m.to_string(),
+                    quantity: *q,
+                })
+                .collect(),
+            byproducts: vec![],
+            machine_type: machine_type.to_string(),
+            machine_tier: 1,
+            processing_time: 1.0,
+            energy_cost: 0.0,
+        }
+    }
+
+    fn single_recipe_graph(recipe: RecipeDef) -> RecipeGraph {
+        let recipe_id = recipe.id.clone();
+        let mut recipes = HashMap::new();
+        recipes.insert(recipe_id, recipe);
+        RecipeGraph {
+            materials: HashMap::new(),
+            recipes,
+            terminal: String::new(),
+            producers: HashMap::new(),
+            consumers: HashMap::new(),
+        }
+    }
+
+    fn machine_io_app(rg: RecipeGraph) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(LogisticsData::default())
+            .insert_resource(rg)
+            .add_systems(Update, machine_io_system);
+        app
+    }
+
+    fn bare_machine(machine_type: &str) -> Machine {
+        Machine {
+            machine_type: machine_type.to_string(),
+            tier: 1,
+            orientation: Orientation {
+                rotation: Rotation::North,
+                mirror: Mirror::Normal,
+            },
+            origin_pos: IVec3::ZERO,
+            blocks: HashSet::new(),
+            energy_io_blocks: HashSet::new(),
+            logistics_io_blocks: HashSet::new(),
+        }
+    }
+
+    #[test]
+    fn machine_with_logistics_io_adjacent_to_cable_gets_member() {
+        let mut app = logistics_app();
+        let cable_pos = IVec3::ZERO;
+        let io_pos = IVec3::new(1, 0, 0);
+        {
+            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
+            nd.cable_positions.insert(cable_pos);
+            nd.dirty = true;
+        }
+        let machine_entity = app
+            .world_mut()
+            .spawn((
+                Machine {
+                    machine_type: "furnace".to_string(),
+                    tier: 1,
+                    orientation: Orientation {
+                        rotation: Rotation::North,
+                        mirror: Mirror::Normal,
+                    },
+                    origin_pos: IVec3::ZERO,
+                    blocks: HashSet::new(),
+                    energy_io_blocks: HashSet::new(),
+                    logistics_io_blocks: [io_pos].into_iter().collect(),
+                },
+                MachineState::Idle,
+            ))
+            .id();
+        app.update();
+        assert!(app.world().get::<LogisticsMember>(machine_entity).is_some());
+    }
+
+    #[test]
+    fn idle_machine_starts_recipe_when_inputs_available() {
+        let rg = single_recipe_graph(test_recipe_def(
+            "furnace",
+            &[("iron", 1.0)],
+            &[("copper", 1.0)],
+        ));
+        let mut app = machine_io_app(rg);
+
+        let storage_pos = IVec3::new(0, 0, 5);
+        {
+            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
+            let mut s = HashMap::new();
+            s.insert("iron".to_owned(), 10u32);
+            nd.storage_blocks.insert(storage_pos, s);
+        }
+        let net_entity = app
+            .world_mut()
+            .spawn(LogisticsNetwork {
+                storage_positions: vec![storage_pos],
+            })
+            .id();
+        let machine_entity = app
+            .world_mut()
+            .spawn((
+                bare_machine("furnace"),
+                MachineState::Idle,
+                LogisticsMember(net_entity),
+            ))
+            .id();
+
+        app.update();
+
+        let world = app.world();
+        assert_eq!(
+            *world.get::<MachineState>(machine_entity).unwrap(),
+            MachineState::Running
+        );
+        assert!(world.get::<MachineActivity>(machine_entity).is_some());
+        let nd = world.resource::<LogisticsData>();
+        // 1 iron consumed out of 10; 9 remain
+        assert!(nd.has_items(&[storage_pos], "iron", 9));
+        assert!(!nd.has_items(&[storage_pos], "iron", 10));
+    }
+
+    #[test]
+    fn running_machine_completes_and_stores_output() {
+        let rg = single_recipe_graph(test_recipe_def("furnace", &[], &[("copper", 2.0)]));
+        let mut app = machine_io_app(rg);
+
+        let storage_pos = IVec3::new(0, 0, 5);
+        {
+            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
+            nd.storage_blocks.insert(storage_pos, HashMap::new());
+        }
+        let net_entity = app
+            .world_mut()
+            .spawn(LogisticsNetwork {
+                storage_positions: vec![storage_pos],
+            })
+            .id();
+        // progress > processing_time (1.0) so it completes even with dt=0
+        let machine_entity = app
+            .world_mut()
+            .spawn((
+                bare_machine("furnace"),
+                MachineState::Running,
+                MachineActivity {
+                    recipe_id: "test_recipe".to_string(),
+                    progress: 10.0,
+                    speed_factor: 1.0,
+                },
+                LogisticsMember(net_entity),
+            ))
+            .id();
+
+        app.update();
+
+        let world = app.world();
+        assert_eq!(
+            *world.get::<MachineState>(machine_entity).unwrap(),
+            MachineState::Idle
+        );
+        assert!(world.get::<MachineActivity>(machine_entity).is_none());
+        let nd = world.resource::<LogisticsData>();
+        assert!(nd.has_items(&[storage_pos], "copper", 2));
+    }
+
+    #[test]
+    fn running_machine_updates_progress_when_not_done() {
+        let rg = single_recipe_graph(test_recipe_def("furnace", &[], &[]));
+        let mut app = machine_io_app(rg);
+
+        let storage_pos = IVec3::ZERO;
+        {
+            let mut nd = app.world_mut().resource_mut::<LogisticsData>();
+            nd.storage_blocks.insert(storage_pos, HashMap::new());
+        }
+        let net_entity = app
+            .world_mut()
+            .spawn(LogisticsNetwork {
+                storage_positions: vec![storage_pos],
+            })
+            .id();
+        let machine_entity = app
+            .world_mut()
+            .spawn((
+                bare_machine("furnace"),
+                MachineState::Running,
+                MachineActivity {
+                    recipe_id: "test_recipe".to_string(),
+                    progress: 0.5,
+                    speed_factor: 1.0,
+                },
+                LogisticsMember(net_entity),
+            ))
+            .id();
+
+        app.update();
+
+        // Still running (0.5 + 0*1.0 = 0.5 < 1.0); MachineActivity persists
+        let world = app.world();
+        assert_eq!(
+            *world.get::<MachineState>(machine_entity).unwrap(),
+            MachineState::Running
+        );
+        assert!(world.get::<MachineActivity>(machine_entity).is_some());
     }
 }

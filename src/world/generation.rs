@@ -154,3 +154,160 @@ pub(super) fn finish_loading(
     world_config.active = true;
     next_state.set(GameState::Playing);
 }
+
+#[cfg(test)]
+mod tests {
+    use bevy::prelude::*;
+    use bevy::state::app::StatesPlugin;
+    use bevy_voxel_world::prelude::*;
+
+    use super::*;
+    use crate::GameState;
+
+    #[test]
+    fn spawning_distance_active() {
+        let config = WorldConfig {
+            active: true,
+            ..Default::default()
+        };
+        assert_eq!(config.spawning_distance(), 12);
+    }
+
+    #[test]
+    fn spawning_distance_inactive() {
+        let config = WorldConfig {
+            active: false,
+            ..Default::default()
+        };
+        assert_eq!(config.spawning_distance(), 0);
+    }
+
+    #[test]
+    fn min_despawn_distance_is_two() {
+        assert_eq!(WorldConfig::default().min_despawn_distance(), 2);
+    }
+
+    #[test]
+    fn voxel_texture_returns_path_when_layers_set() {
+        let config = WorldConfig {
+            texture_layers: 5,
+            ..Default::default()
+        };
+        assert_eq!(
+            config.voxel_texture(),
+            Some(("textures/blocks.png".to_string(), 5))
+        );
+    }
+
+    #[test]
+    fn voxel_texture_returns_none_when_no_layers() {
+        let config = WorldConfig {
+            texture_layers: 0,
+            ..Default::default()
+        };
+        assert_eq!(config.voxel_texture(), None);
+    }
+
+    #[test]
+    fn texture_index_mapper_maps_known_materials() {
+        let mapper = WorldConfig::default().texture_index_mapper();
+        assert_eq!(mapper(0u8), [0, 0, 0]); // unknown → default
+        assert_eq!(mapper(1u8), [1, 2, 3]); // surface material (different top/side/bottom)
+        assert_eq!(mapper(7u8), [9, 9, 9]); // smelter_core
+        assert_eq!(mapper(17u8), [19, 19, 19]); // logistics_io
+        assert_eq!(mapper(18u8), [0, 0, 0]); // out of defined range
+    }
+
+    #[test]
+    fn texture_index_mapper_defined_materials_have_nonzero_index() {
+        let mapper = WorldConfig::default().texture_index_mapper();
+        for mat in 1u8..=17 {
+            let [a, _, _] = mapper(mat);
+            assert_ne!(a, 0, "mat {mat} should have a non-zero texture index");
+        }
+    }
+
+    #[test]
+    fn make_voxel_fn_bedrock_below_y1() {
+        let mut f = make_voxel_fn(0, None);
+        assert_eq!(f(IVec3::new(0, 0, 0), None), WorldVoxel::Solid(0));
+        assert_eq!(f(IVec3::new(5, -3, 5), None), WorldVoxel::Solid(0));
+    }
+
+    #[test]
+    fn make_voxel_fn_high_altitude_is_air() {
+        let mut f = make_voxel_fn(0, None);
+        // noise * 50 < 100; y=1000 is always above surface
+        assert_eq!(f(IVec3::new(0, 1000, 0), None), WorldVoxel::Air);
+    }
+
+    #[test]
+    fn make_voxel_fn_underground_with_registry_uses_ore_lookup() {
+        use crate::content::{BiomeDef, LayerDef, OreSpec, VeinDef, VeinRegistry};
+        use std::sync::Arc;
+
+        let vein = VeinDef {
+            id: "iron_vein".to_string(),
+            density: 1.0,
+            primary: OreSpec {
+                name: "Iron".to_string(),
+                material: 3,
+                weight: 100,
+            },
+            secondary: OreSpec {
+                name: "Stone".to_string(),
+                material: 0,
+                weight: 0,
+            },
+            sporadic: None,
+        };
+        let layer = LayerDef {
+            id: "deep".to_string(),
+            name: "Deep".to_string(),
+            y_cell_range: (-100, 100),
+        };
+        let biome = BiomeDef {
+            id: "deep_biome".to_string(),
+            layer: "deep".to_string(),
+            vein_pool: vec![("iron_vein".to_string(), 1)],
+        };
+        let reg = Arc::new(VeinRegistry::new(vec![vein], vec![layer], vec![biome]));
+        let mut f = make_voxel_fn(0, Some(reg));
+
+        // Scan many positions at y=2 (y >= 1, not bedrock).
+        // When surface > 3 the position is deep underground → the registry
+        // `and_then(|r| r.ore_at(...))` closure executes.
+        // Solid(m) with m != 1 proves we hit that branch (Solid(1) is surface layer).
+        let hit = (0i32..1000).any(
+            |x| matches!(f(IVec3::new(x * 7, 2, x * 3), None), WorldVoxel::Solid(m) if m != 1),
+        );
+        assert!(hit, "no deep-underground solid found in 1000 positions");
+    }
+
+    #[test]
+    fn voxel_lookup_delegate_returns_callable_fn() {
+        let config = WorldConfig {
+            world_seed: 42,
+            ..Default::default()
+        };
+        let delegate = config.voxel_lookup_delegate();
+        let mut voxel_fn = delegate(IVec3::ZERO, 0, None);
+        assert_eq!(voxel_fn(IVec3::new(0, 0, 0), None), WorldVoxel::Solid(0));
+    }
+
+    #[test]
+    fn finish_loading_activates_world_config() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, StatesPlugin))
+            .init_state::<GameState>()
+            .insert_resource(WorldConfig::default())
+            .add_systems(OnEnter(GameState::Loading), finish_loading);
+
+        app.world_mut()
+            .resource_mut::<NextState<GameState>>()
+            .set(GameState::Loading);
+        app.update();
+
+        assert!(app.world().resource::<WorldConfig>().active);
+    }
+}

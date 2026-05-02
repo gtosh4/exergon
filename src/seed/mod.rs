@@ -56,6 +56,8 @@ pub fn derive(master: u64, domain: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use bevy::reflect::{FromReflect, PartialReflect, Reflect};
+
     use super::*;
     use std::collections::HashSet;
 
@@ -89,5 +91,74 @@ mod tests {
         .into_iter()
         .collect();
         assert_eq!(vals.len(), 6);
+    }
+
+    #[test]
+    fn run_seed_reflect_clone_and_from_reflect() {
+        let seed = RunSeed {
+            text: "hello".to_string(),
+            hash: 99,
+        };
+        let cloned = seed.reflect_clone().unwrap();
+        let back = RunSeed::from_reflect(&*cloned).unwrap();
+        assert_eq!(back.text, "hello");
+        assert_eq!(back.hash, 99);
+    }
+
+    #[test]
+    fn run_seed_try_apply_patches_value() {
+        let mut seed = RunSeed {
+            text: "old".to_string(),
+            hash: 0,
+        };
+        let other = RunSeed {
+            text: "new".to_string(),
+            hash: 7,
+        };
+        seed.try_apply(&other).unwrap();
+        assert_eq!(seed.text, "new");
+        assert_eq!(seed.hash, 7);
+    }
+
+    #[test]
+    fn run_seed_reflect_set() {
+        let mut seed = RunSeed {
+            text: "a".to_string(),
+            hash: 1,
+        };
+        let new_seed = Box::new(RunSeed {
+            text: "b".to_string(),
+            hash: 2,
+        });
+        seed.set(new_seed).unwrap();
+        assert_eq!(seed.text, "b");
+        assert_eq!(seed.hash, 2);
+    }
+
+    #[test]
+    fn domain_seeds_reflect_clone_and_from_reflect() {
+        let seeds = DomainSeeds::from_master(42);
+        let cloned = seeds.reflect_clone().unwrap();
+        let back = DomainSeeds::from_reflect(&*cloned).unwrap();
+        assert_eq!(back.world, seeds.world);
+        assert_eq!(back.biomes, seeds.biomes);
+    }
+
+    #[test]
+    fn domain_seeds_try_apply_patches_value() {
+        let mut seeds = DomainSeeds::from_master(1);
+        let other = DomainSeeds::from_master(2);
+        let expected_world = other.world;
+        seeds.try_apply(&other).unwrap();
+        assert_eq!(seeds.world, expected_world);
+    }
+
+    #[test]
+    fn domain_seeds_reflect_set() {
+        let mut seeds = DomainSeeds::from_master(1);
+        let other = DomainSeeds::from_master(99);
+        let expected = other.world;
+        seeds.set(Box::new(other)).unwrap();
+        assert_eq!(seeds.world, expected);
     }
 }
