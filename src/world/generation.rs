@@ -5,9 +5,9 @@ use bevy::prelude::*;
 use bevy_voxel_world::prelude::*;
 use noise::{HybridMulti, NoiseFn, Perlin};
 
+use crate::GameState;
 use crate::content::VeinRegistry;
 use crate::seed::DomainSeeds;
-use crate::GameState;
 
 #[derive(Resource, Clone, Default)]
 pub(crate) struct WorldConfig {
@@ -51,9 +51,9 @@ impl VoxelWorldConfig for WorldConfig {
             4 => [6, 6, 6],
             5 => [7, 7, 7],
             6 => [8, 8, 8],
-            7 => [9, 9, 9],   // smelter_core
-            8 => [10, 10, 10], // machine_casing
-            9 => [11, 11, 11], // assembler_core
+            7 => [9, 9, 9],     // smelter_core
+            8 => [10, 10, 10],  // machine_casing
+            9 => [11, 11, 11],  // assembler_core
             10 => [12, 12, 12], // refinery_core
             11 => [13, 13, 13], // gateway_core
             12 => [14, 14, 14], // logistics_cable
@@ -69,14 +69,21 @@ impl VoxelWorldConfig for WorldConfig {
     fn chunk_meshing_delegate(
         &self,
     ) -> ChunkMeshingDelegate<Self::MaterialIndex, Self::ChunkUserBundle> {
-        Some(Box::new(|pos, lod, data_shape, mesh_shape, previous_data| {
-            let mut inner =
-                default_chunk_meshing_delegate::<u8, RigidBody>(pos, lod, data_shape, mesh_shape, previous_data);
-            Box::new(move |voxels, ds, ms, mapper| {
-                let (mesh, _) = inner(voxels, ds, ms, mapper);
-                (mesh, Some(RigidBody::Static))
-            })
-        }))
+        Some(Box::new(
+            |pos, lod, data_shape, mesh_shape, previous_data| {
+                let mut inner = default_chunk_meshing_delegate::<u8, RigidBody>(
+                    pos,
+                    lod,
+                    data_shape,
+                    mesh_shape,
+                    previous_data,
+                );
+                Box::new(move |voxels, ds, ms, mapper| {
+                    let (mesh, _) = inner(voxels, ds, ms, mapper);
+                    (mesh, Some(RigidBody::Static))
+                })
+            },
+        ))
     }
 }
 

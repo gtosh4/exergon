@@ -1,3 +1,6 @@
+// #![deny(clippy::pedantic)]
+#![allow(clippy::type_complexity, clippy::too_many_arguments)]
+
 use bevy::log::LogPlugin;
 use bevy::prelude::*;
 use clap::Parser;
@@ -60,7 +63,10 @@ pub enum GameSystems {
 fn main() {
     let cli = Cli::parse();
 
-    let atlas_layers = textures::build_block_atlas();
+    let atlas_layers = textures::build_block_atlas().unwrap_or_else(|e| {
+        eprintln!("fatal: {e}");
+        std::process::exit(1)
+    });
     #[cfg(debug_assertions)]
     let log_plugin = LogPlugin {
         level: bevy::log::Level::DEBUG,
@@ -182,13 +188,12 @@ fn give_test_blocks(mut inventory: ResMut<Inventory>, mut hotbar: ResMut<Hotbar>
 }
 
 #[cfg(debug_assertions)]
-fn give_test_research(
-    mut pool: ResMut<ResearchPool>,
-    mut progress: ResMut<TechTreeProgress>,
-) {
+fn give_test_research(mut pool: ResMut<ResearchPool>, mut progress: ResMut<TechTreeProgress>) {
     // Pre-unlock basic recipes so test mode has a working factory loop.
     // basic_analysis stays locked — player must earn research points first.
     pool.points += 50.0;
-    progress.unlocked_recipes.insert("basic_analysis".to_string());
+    progress
+        .unlocked_recipes
+        .insert("basic_analysis".to_string());
     info!("Test mode: +50 research points, basic_analysis unlocked");
 }

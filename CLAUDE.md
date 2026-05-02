@@ -20,5 +20,6 @@ Docs and code diverge → reconcile explicitly. Never leave silent.
 ## Instructions
 - Use TDD: write tests first based on requirements. Minimal tests to cover requirements, not comprehensive
   - Test non-ecs methods (ie, systems) directly, `World`, no `App`. The fastest tests you can write
-  - See `.claude/skills/bevy/ecs.md` for how to test systems
+  - See [ecs.md](.claude/skills/bevy/ecs.md) for how to test systems
   - Don't test: what the compiler already proves. trivial getters, external/dependency crates (eg bevy)
+- Always add non-test code above `mod tests`

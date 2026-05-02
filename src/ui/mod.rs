@@ -1,11 +1,11 @@
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiPrimaryContextPass};
+use bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
 
 use crate::{
-    inventory::{HotbarSlot, Hotbar, Inventory, InventoryOpen, ItemRegistry},
-    seed::{hash_text, DomainSeeds, RunSeed},
-    world::LookTarget,
     GameState,
+    inventory::{Hotbar, HotbarSlot, Inventory, InventoryOpen, ItemRegistry},
+    seed::{DomainSeeds, RunSeed, hash_text},
+    world::LookTarget,
 };
 
 use bevy::app::AppExit;
@@ -34,20 +34,21 @@ struct MainMenuState {
     seed_text: String,
 }
 
-fn crosshair(
-    mut contexts: EguiContexts,
-    inv_open: Option<Res<InventoryOpen>>,
-) -> Result {
-    if inv_open.map(|o| o.0).unwrap_or(false) {
+fn crosshair(mut contexts: EguiContexts, inv_open: Option<Res<InventoryOpen>>) -> Result {
+    if inv_open.is_some_and(|o| o.0) {
         return Ok(());
     }
     let ctx = contexts.ctx_mut()?;
-    let center = ctx.screen_rect().center();
+    let center = ctx.content_rect().center();
     let painter = ctx.layer_painter(egui::LayerId::new(
         egui::Order::Foreground,
         egui::Id::new("crosshair"),
     ));
-    painter.circle_filled(center, 3.0, egui::Color32::from_rgba_unmultiplied(180, 180, 180, 120));
+    painter.circle_filled(
+        center,
+        3.0,
+        egui::Color32::from_rgba_unmultiplied(180, 180, 180, 120),
+    );
     Ok(())
 }
 
@@ -64,8 +65,7 @@ fn look_tooltip(
         LookTarget::Voxel { material, .. } => item_registry
             .as_ref()
             .and_then(|r| r.item_for_voxel(material))
-            .map(|i| i.name.clone())
-            .unwrap_or_else(|| "Unknown".into()),
+            .map_or_else(|| "Unknown".into(), |i| i.name.clone()),
     };
     let ctx = contexts.ctx_mut()?;
     egui::Area::new(egui::Id::new("waila"))
@@ -109,13 +109,12 @@ fn hotbar_ui(
                         .show(ui, |ui| {
                             ui.set_min_size(egui::Vec2::new(64.0, 64.0));
                             ui.set_max_size(egui::Vec2::new(64.0, 64.0));
-                            match hotbar.slots[i].as_ref() {
+                            match hotbar.slots.get(i).and_then(|s| s.as_ref()) {
                                 Some(s) => {
                                     let name = item_registry
                                         .as_ref()
                                         .and_then(|r| r.get(&s.item_id))
-                                        .map(|d| d.name.as_str())
-                                        .unwrap_or(s.item_id.as_str());
+                                        .map_or(s.item_id.as_str(), |d| d.name.as_str());
                                     ui.colored_label(egui::Color32::WHITE, name);
                                     ui.colored_label(
                                         egui::Color32::LIGHT_GRAY,
@@ -126,10 +125,7 @@ fn hotbar_ui(
                                     ui.colored_label(egui::Color32::DARK_GRAY, "·");
                                 }
                             }
-                            ui.colored_label(
-                                egui::Color32::from_gray(160),
-                                format!("{}", i + 1),
-                            );
+                            ui.colored_label(egui::Color32::from_gray(160), format!("{}", i + 1));
                         });
                 }
             });
@@ -144,7 +140,7 @@ fn inventory_ui(
     mut hotbar: Option<ResMut<Hotbar>>,
     item_registry: Option<Res<ItemRegistry>>,
 ) -> Result {
-    if !inv_open.map(|o| o.0).unwrap_or(false) {
+    if !inv_open.is_some_and(|o| o.0) {
         return Ok(());
     }
     let (Some(inventory), Some(hotbar)) = (inventory.as_mut(), hotbar.as_mut()) else {
@@ -178,11 +174,10 @@ fn inventory_ui(
                             let name = item_registry
                                 .as_ref()
                                 .and_then(|r| r.get(item_id))
-                                .map(|d| d.name.as_str())
-                                .unwrap_or(item_id.as_str());
-                            let resp = ui.button(format!("{}\n×{}", name, count));
+                                .map_or(item_id.as_str(), |d| d.name.as_str());
+                            let resp = ui.button(format!("{name}\n×{count}"));
                             if resp.clicked() {
-                                move_item = Some(item_id.to_string());
+                                move_item = Some((*item_id).clone());
                             }
                             resp.on_hover_text("Move to active hotbar slot");
                             if (idx + 1) % 5 == 0 {
@@ -196,20 +191,24 @@ fn inventory_ui(
             ui.label("[Tab] or [Esc] to close");
         });
 
-    if let Some(item_id) = move_item {
-        if let Some(count) = inventory.0.remove(&item_id) {
-            let idx = hotbar.selected;
-            let taken = hotbar.slots[idx].take();
+    if let Some(item_id) = move_item
+        && let Some(count) = inventory.0.remove(&item_id)
+    {
+        let idx = hotbar.selected;
+        if let Some(slot) = hotbar.slots.get_mut(idx) {
+            let taken = slot.take();
             if let Some(current) = taken {
-                if current.item_id != item_id {
-                    inventory.add(current.item_id.clone(), current.count);
-                    hotbar.slots[idx] = Some(HotbarSlot { item_id, count });
+                if current.item_id == item_id {
+                    *slot = Some(HotbarSlot {
+                        item_id,
+                        count: count + current.count,
+                    });
                 } else {
-                    hotbar.slots[idx] =
-                        Some(HotbarSlot { item_id, count: count + current.count });
+                    inventory.add(current.item_id.clone(), current.count);
+                    *slot = Some(HotbarSlot { item_id, count });
                 }
             } else {
-                hotbar.slots[idx] = Some(HotbarSlot { item_id, count });
+                *slot = Some(HotbarSlot { item_id, count });
             }
         }
     }

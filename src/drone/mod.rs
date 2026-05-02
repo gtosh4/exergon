@@ -41,10 +41,7 @@ impl Plugin for DronePlugin {
     }
 }
 
-fn spawn_land_drone(
-    mut commands: Commands,
-    mut scheme_configs: ResMut<Assets<DroneSchemeConfig>>,
-) {
+fn spawn_land_drone(mut commands: Commands, mut scheme_configs: ResMut<Assets<DroneSchemeConfig>>) {
     commands.spawn((
         Transform::from_xyz(0.0, 100.0, 0.0),
         RigidBody::Dynamic,

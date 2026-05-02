@@ -53,3 +53,41 @@ pub fn derive(master: u64, domain: &str) -> u64 {
     buf.extend_from_slice(domain.as_bytes());
     xxh64(&buf, 0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn hash_text_deterministic() {
+        assert_eq!(hash_text("hello"), hash_text("hello"));
+        assert_ne!(hash_text("hello"), hash_text("world"));
+    }
+
+    #[test]
+    fn derive_deterministic() {
+        assert_eq!(derive(42, "world"), derive(42, "world"));
+    }
+
+    #[test]
+    fn derive_differs_by_domain() {
+        assert_ne!(derive(42, "world"), derive(42, "power"));
+    }
+
+    #[test]
+    fn domain_seeds_all_distinct() {
+        let s = DomainSeeds::from_master(12345);
+        let vals: HashSet<u64> = [
+            s.world,
+            s.tech_tree,
+            s.recipes,
+            s.power,
+            s.reactivity,
+            s.biomes,
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(vals.len(), 6);
+    }
+}

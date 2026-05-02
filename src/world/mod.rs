@@ -21,9 +21,9 @@ pub struct BlockChangedMessage {
 use bevy::prelude::*;
 use bevy_voxel_world::prelude::*;
 
-use crate::{GameState, PlayMode};
 use crate::inventory::InventoryOpen;
 use crate::textures::BlockAtlasLayers;
+use crate::{GameState, PlayMode};
 
 use generation::WorldConfig;
 
@@ -34,8 +34,7 @@ impl Plugin for WorldPlugin {
         let texture_layers = app
             .world()
             .get_resource::<BlockAtlasLayers>()
-            .map(|r| r.0)
-            .unwrap_or(0);
+            .map_or(0, |r| r.0);
         app.add_plugins(VoxelWorldPlugin::with_config(WorldConfig {
             texture_layers,
             ..Default::default()
@@ -62,13 +61,13 @@ impl Plugin for WorldPlugin {
                 player::toggle_pause,
                 player::toggle_inventory,
                 player::camera_input
-                    .run_if(|o: Option<Res<InventoryOpen>>| !o.map(|r| r.0).unwrap_or(false))
+                    .run_if(|o: Option<Res<InventoryOpen>>| !o.is_some_and(|r| r.0))
                     .run_if(in_state(PlayMode::Exploring)),
                 interaction::update_look_target.after(player::camera_input),
                 interaction::block_interaction
                     .after(interaction::update_look_target)
                     .in_set(crate::GameSystems::Input)
-                    .run_if(|o: Option<Res<InventoryOpen>>| !o.map(|r| r.0).unwrap_or(false)),
+                    .run_if(|o: Option<Res<InventoryOpen>>| !o.is_some_and(|r| r.0)),
                 interaction::update_ghost_preview.after(interaction::update_look_target),
             )
                 .run_if(in_state(GameState::Playing)),

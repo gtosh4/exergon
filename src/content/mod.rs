@@ -63,7 +63,7 @@ impl VeinDef {
 pub struct LayerDef {
     pub id: String,
     pub name: String,
-    /// Inclusive cell-Y range this layer covers (1 cell = CHUNK_VOXELS × CELL_CHUNKS voxels tall).
+    /// Inclusive cell-Y range this layer covers (1 cell = `CHUNK_VOXELS` × `CELL_CHUNKS` voxels tall).
     pub y_cell_range: (i32, i32),
 }
 
@@ -72,7 +72,7 @@ pub struct BiomeDef {
     pub id: String,
     /// ID of the layer this biome belongs to.
     pub layer: String,
-    /// (vein_id, weight) pairs.
+    /// (`vein_id`, weight) pairs.
     pub vein_pool: Vec<(String, u32)>,
 }
 
@@ -150,7 +150,12 @@ impl VeinRegistry {
             })
             .collect();
 
-        Self { veins, layers, biomes, material_names }
+        Self {
+            veins,
+            layers,
+            biomes,
+            material_names,
+        }
     }
 
     pub fn material_name(&self, material: u8) -> Option<&str> {
@@ -166,13 +171,22 @@ impl VeinRegistry {
             .layers
             .iter()
             .find(|l| l.id == b.layer_id)
-            .map(|l| l.name.as_str())
-            .unwrap_or("");
-        Some(BiomeInfo { id: &b.id, layer_id: &b.layer_id, layer_name })
+            .map_or("", |l| l.name.as_str());
+        Some(BiomeInfo {
+            id: &b.id,
+            layer_id: &b.layer_id,
+            layer_name,
+        })
     }
 
     /// Returns the vein at the given 3-D cell coordinates, or None if the cell is empty.
-    pub fn cell_vein(&self, world_seed: u64, cell_x: i32, cell_y: i32, cell_z: i32) -> Option<&VeinDef> {
+    pub fn cell_vein(
+        &self,
+        world_seed: u64,
+        cell_x: i32,
+        cell_y: i32,
+        cell_z: i32,
+    ) -> Option<&VeinDef> {
         let b = self
             .biomes
             .iter()
@@ -198,7 +212,11 @@ impl VeinRegistry {
         let mut acc = 0u32;
         b.pool.iter().find_map(|(idx, w)| {
             acc += w;
-            if roll < acc { Some(&self.veins[*idx]) } else { None }
+            if roll < acc {
+                self.veins.get(*idx)
+            } else {
+                None
+            }
         })
     }
 
@@ -221,7 +239,7 @@ impl VeinRegistry {
         };
         let mut pos_rng = Pcg64::seed_from_u64(pos_seed);
 
-        if !pos_rng.gen_bool(vein.density as f64) {
+        if !pos_rng.gen_bool(f64::from(vein.density)) {
             return None;
         }
 
@@ -234,7 +252,7 @@ fn validate_layers(layers: &[LayerDef]) {
     sorted.sort_by_key(|l| l.y_cell_range.0);
 
     for pair in sorted.windows(2) {
-        let (a, b) = (&pair[0], &pair[1]);
+        let [a, b] = pair else { continue };
         if a.y_cell_range.1 >= b.y_cell_range.0 {
             error!(
                 "Layer '{}' (y_cell_range {:?}) overlaps layer '{}' (y_cell_range {:?})",
@@ -290,8 +308,8 @@ pub(crate) fn load_ron_dir<T: for<'de> Deserialize<'de>>(dir: &str, label: &str)
     };
     let mut results = Vec::new();
     for entry in entries
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "ron"))
+        .filter_map(std::result::Result::ok)
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "ron"))
     {
         let path = entry.path();
         let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("?");

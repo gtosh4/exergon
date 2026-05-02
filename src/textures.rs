@@ -1,27 +1,29 @@
 use bevy::prelude::*;
 
-/// Inserted before app startup so WorldPlugin can read tile count when building VoxelWorldPlugin.
+/// Inserted before app startup so `WorldPlugin` can read tile count when building `VoxelWorldPlugin`.
 #[derive(Resource)]
 pub struct BlockAtlasLayers(pub u32);
 
 /// Reads `assets/textures/blocks/manifest.ron`, loads each named PNG, stacks them vertically,
 /// and writes `assets/textures/blocks.png`. Returns the layer count.
 ///
-/// Called in main() before App::run() so the file exists when bevy_voxel_world's asset
+/// Called in `main()` before `App::run()` so the file exists when `bevy_voxel_world`'s asset
 /// server load request is processed. See technical-design.md §4 "Block textures".
-pub fn build_block_atlas() -> u32 {
+pub fn build_block_atlas() -> Result<u32, anyhow::Error> {
     let dir = "assets/textures/blocks";
     let manifest_path = format!("{dir}/manifest.ron");
 
     let src = std::fs::read_to_string(&manifest_path)
-        .unwrap_or_else(|e| panic!("cannot read {manifest_path}: {e}"));
+        .map_err(|e| anyhow::anyhow!("cannot read {manifest_path}: {e}"))?;
     let names: Vec<String> = ron::from_str(&src)
-        .unwrap_or_else(|e| panic!("invalid manifest {manifest_path}: {e}"));
-    assert!(!names.is_empty(), "block texture manifest is empty");
+        .map_err(|e| anyhow::anyhow!("invalid manifest {manifest_path}: {e}"))?;
 
-    let first_path = format!("{dir}/{}.png", names[0]);
+    let first_name = names
+        .first()
+        .ok_or_else(|| anyhow::anyhow!("block texture manifest is empty"))?;
+    let first_path = format!("{dir}/{first_name}.png");
     let first = image::open(&first_path)
-        .unwrap_or_else(|e| panic!("cannot load tile {first_path}: {e}"))
+        .map_err(|e| anyhow::anyhow!("cannot load tile {first_path}: {e}"))?
         .into_rgba8();
     let (w, h) = first.dimensions();
 
@@ -31,23 +33,23 @@ pub fn build_block_atlas() -> u32 {
     for (i, name) in names.iter().enumerate() {
         let path = format!("{dir}/{name}.png");
         let tile = image::open(&path)
-            .unwrap_or_else(|e| panic!("cannot load tile {path}: {e}"))
+            .map_err(|e| anyhow::anyhow!("cannot load tile {path}: {e}"))?
             .into_rgba8();
-        assert_eq!(
-            tile.dimensions(),
-            (w, h),
-            "tile {name} is {}x{}, expected {w}x{h}",
-            tile.width(),
-            tile.height()
-        );
-        image::imageops::replace(&mut atlas, &tile, 0, (i as i64) * (h as i64));
+        if tile.dimensions() != (w, h) {
+            anyhow::bail!(
+                "tile {name} is {}x{}, expected {w}x{h}",
+                tile.width(),
+                tile.height()
+            );
+        }
+        image::imageops::replace(&mut atlas, &tile, 0, (i as i64) * i64::from(h));
     }
 
     let out = "assets/textures/blocks.png";
     atlas
         .save(out)
-        .unwrap_or_else(|e| panic!("cannot write atlas {out}: {e}"));
+        .map_err(|e| anyhow::anyhow!("cannot write atlas {out}: {e}"))?;
 
     eprintln!("block atlas: {w}x{} ({n} layers) → {out}", h * n);
-    n
+    Ok(n)
 }

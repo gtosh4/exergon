@@ -64,7 +64,7 @@ pub(super) fn setup_ghost_preview(
         })
         .collect();
 
-    let initial_mat = ghost_mats[0].clone();
+    let initial_mat = ghost_mats.first().cloned().unwrap_or_default();
 
     let entity = commands
         .spawn((
@@ -104,18 +104,20 @@ pub(super) fn update_ghost_preview(
     };
 
     let shift = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
-    let inv_open = inventory_open.map(|o| o.0).unwrap_or(false);
+    let inv_open = inventory_open.is_some_and(|o| o.0);
     let active_voxel = hotbar
         .active_item_id()
         .and_then(|id| item_registry.as_ref().and_then(|r| r.voxel_id(id)));
     let show_ghost = active_voxel.is_some() && !inv_open && !shift;
 
-    if hotbar.is_changed() {
-        if let (Some(m), Some(mats)) = (active_voxel, &ghost_mats) {
-            let idx = (m as usize)
-                .saturating_sub(1)
-                .min(mats.0.len().saturating_sub(1));
-            *mat = MeshMaterial3d(mats.0[idx].clone());
+    if hotbar.is_changed()
+        && let (Some(m), Some(mats)) = (active_voxel, &ghost_mats)
+    {
+        let idx = (m as usize)
+            .saturating_sub(1)
+            .min(mats.0.len().saturating_sub(1));
+        if let Some(h) = mats.0.get(idx) {
+            *mat = MeshMaterial3d(h.clone());
         }
     }
 

@@ -48,7 +48,11 @@ fn check_research_unlocks(
             if progress.unlocked_nodes.contains(id) {
                 continue;
             }
-            if !node.prerequisites.iter().all(|p| progress.unlocked_nodes.contains(p)) {
+            if !node
+                .prerequisites
+                .iter()
+                .all(|p| progress.unlocked_nodes.contains(p))
+            {
                 continue;
             }
             let UnlockVector::ResearchSpend(cost) = node.primary_unlock else {
@@ -87,7 +91,11 @@ mod tests {
         let dependents: HashMap<NodeId, Vec<NodeId>> = HashMap::new();
         let tier_order: Vec<NodeId> = nodes.iter().map(|n| n.id.clone()).collect();
         let nodes_map = nodes.into_iter().map(|n| (n.id.clone(), n)).collect();
-        TechTree { nodes: nodes_map, dependents, tier_order }
+        TechTree {
+            nodes: nodes_map,
+            dependents,
+            tier_order,
+        }
     }
 
     fn base_node(id: &str, cost: u32, prereqs: Vec<String>) -> NodeDef {
@@ -149,7 +157,10 @@ mod tests {
 
         let progress = app.world().resource::<TechTreeProgress>();
         assert!(progress.unlocked_nodes.contains("alpha"));
-        assert!(!progress.unlocked_nodes.contains("beta"), "beta needs alpha first");
+        assert!(
+            !progress.unlocked_nodes.contains("beta"),
+            "beta needs alpha first"
+        );
     }
 
     #[test]

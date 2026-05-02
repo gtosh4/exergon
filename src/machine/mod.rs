@@ -69,7 +69,7 @@ impl CellMatcher {
     fn trigger_ids(&self) -> Vec<&str> {
         match self {
             CellMatcher::BlockMatcher(id) => vec![id.as_str()],
-            CellMatcher::AnyOf(ids) => ids.iter().map(|s| s.as_str()).collect(),
+            CellMatcher::AnyOf(ids) => ids.iter().map(std::string::String::as_str).collect(),
         }
     }
 }
@@ -77,8 +77,8 @@ impl CellMatcher {
 #[derive(Deserialize, Clone, Debug)]
 pub struct MachineTierDef {
     pub tier: u8,
-    /// pattern[y][z] = row string; each char is a placeholder key into pattern_elements.
-    /// Chars absent from pattern_elements must be air.
+    /// pattern[y][z] = row string; each char is a placeholder key into `pattern_elements`.
+    /// Chars absent from `pattern_elements` must be air.
     pub pattern: Vec<Vec<String>>,
     pub pattern_elements: HashMap<String, CellMatcher>,
 }
@@ -96,7 +96,7 @@ pub struct MachineDef {
 #[derive(Resource)]
 pub struct MachineRegistry {
     machines: Vec<MachineDef>,
-    /// block_id → indices into `machines` that use this block in any tier pattern
+    /// `block_id` → indices into `machines` that use this block in any tier pattern
     trigger_blocks: HashMap<String, Vec<usize>>,
 }
 
@@ -130,7 +130,7 @@ impl MachineRegistry {
         self.trigger_blocks
             .get(item_id)
             .into_iter()
-            .flat_map(|indices| indices.iter().map(|&i| &self.machines[i]))
+            .flat_map(|indices| indices.iter().filter_map(|&i| self.machines.get(i)))
     }
 
     fn machine_def(&self, id: &str) -> Option<&MachineDef> {
@@ -187,8 +187,8 @@ pub struct Orientation {
 
 impl Orientation {
     fn all() -> [Orientation; 8] {
-        use Mirror::*;
-        use Rotation::*;
+        use Mirror::{Mirrored, Normal};
+        use Rotation::{East, North, South, West};
         [
             Orientation {
                 rotation: North,
@@ -348,23 +348,22 @@ fn scan_machines(
             let origin_candidates: Vec<(IVec3, String)> = {
                 let mut seen: HashSet<(IVec3, String)> = HashSet::new();
                 let mut out = Vec::new();
-                if let WorldVoxel::Solid(vox_id) = voxel_world.get_voxel(pos) {
-                    if let Some(item) = item_registry.item_for_voxel(vox_id) {
-                        if registry.is_trigger_block(&item.id) {
-                            for machine_def in registry.machines_using_block(&item.id) {
-                                for tier_def in &machine_def.tiers {
-                                    let pivots = find_pivots_for_block(
-                                        &tier_def.pattern,
-                                        &tier_def.pattern_elements,
-                                        &item.id,
-                                    );
-                                    for pivot in pivots {
-                                        for orientation in Orientation::all() {
-                                            let origin = pos - orientation.transform(pivot);
-                                            if seen.insert((origin, machine_def.id.clone())) {
-                                                out.push((origin, machine_def.id.clone()));
-                                            }
-                                        }
+                if let WorldVoxel::Solid(vox_id) = voxel_world.get_voxel(pos)
+                    && let Some(item) = item_registry.item_for_voxel(vox_id)
+                    && registry.is_trigger_block(&item.id)
+                {
+                    for machine_def in registry.machines_using_block(&item.id) {
+                        for tier_def in &machine_def.tiers {
+                            let pivots = find_pivots_for_block(
+                                &tier_def.pattern,
+                                &tier_def.pattern_elements,
+                                &item.id,
+                            );
+                            for pivot in pivots {
+                                for orientation in Orientation::all() {
+                                    let origin = pos - orientation.transform(pivot);
+                                    if seen.insert((origin, machine_def.id.clone())) {
+                                        out.push((origin, machine_def.id.clone()));
                                     }
                                 }
                             }
@@ -375,59 +374,58 @@ fn scan_machines(
             };
 
             'origin_candidates: for (origin, machine_id) in origin_candidates {
-                if let Some(machine_def) = registry.machine_def(&machine_id) {
-                    if let Some((tier, orientation, positions)) =
+                if let Some(machine_def) = registry.machine_def(&machine_id)
+                    && let Some((tier, orientation, positions)) =
                         try_form_machine(origin, machine_def, &item_registry, &voxel_world)
-                    {
-                        // Skip if any position belongs to a formed machine
-                        let has_formed = positions.iter().any(|p| {
-                            machine_q
-                                .iter()
-                                .any(|(_, m, uf)| uf.is_none() && m.blocks.contains(p))
-                        });
-                        if has_formed {
-                            continue;
-                        }
-
-                        // Remove overlapping unformed machines
-                        let mut to_remove: Vec<Entity> = Vec::new();
-                        for &p in &positions {
-                            if let Some((uf_entity, _, _)) = machine_q.iter().find(|(e, m, uf)| {
-                                uf.is_some()
-                                    && m.blocks.contains(&p)
-                                    && !to_remove.contains(e)
-                                    && !despawned.contains(e)
-                            }) {
-                                to_remove.push(uf_entity);
-                            }
-                        }
-                        for uf in to_remove {
-                            despawned.push(uf);
-                            commands.entity(uf).despawn();
-                        }
-
-                        let (energy_io_blocks, logistics_io_blocks) =
-                            io_blocks_for_positions(&positions, &item_registry, &voxel_world);
-
-                        commands.spawn((
-                            Machine {
-                                machine_type: machine_def.id.clone(),
-                                tier,
-                                orientation,
-                                origin_pos: origin,
-                                blocks: positions.iter().copied().collect(),
-                                energy_io_blocks,
-                                logistics_io_blocks,
-                            },
-                            MachineState::Idle,
-                        ));
-                        network_changed.write(MachineNetworkChanged);
-                        info!(
-                            "Machine '{}' tier {} formed at origin {:?} ({:?}/{:?})",
-                            machine_def.id, tier, origin, orientation.rotation, orientation.mirror
-                        );
-                        continue 'origin_candidates;
+                {
+                    // Skip if any position belongs to a formed machine
+                    let has_formed = positions.iter().any(|p| {
+                        machine_q
+                            .iter()
+                            .any(|(_, m, uf)| uf.is_none() && m.blocks.contains(p))
+                    });
+                    if has_formed {
+                        continue;
                     }
+
+                    // Remove overlapping unformed machines
+                    let mut to_remove: Vec<Entity> = Vec::new();
+                    for &p in &positions {
+                        if let Some((uf_entity, _, _)) = machine_q.iter().find(|(e, m, uf)| {
+                            uf.is_some()
+                                && m.blocks.contains(&p)
+                                && !to_remove.contains(e)
+                                && !despawned.contains(e)
+                        }) {
+                            to_remove.push(uf_entity);
+                        }
+                    }
+                    for uf in to_remove {
+                        despawned.push(uf);
+                        commands.entity(uf).despawn();
+                    }
+
+                    let (energy_io_blocks, logistics_io_blocks) =
+                        io_blocks_for_positions(&positions, &item_registry, &voxel_world);
+
+                    commands.spawn((
+                        Machine {
+                            machine_type: machine_def.id.clone(),
+                            tier,
+                            orientation,
+                            origin_pos: origin,
+                            blocks: positions.iter().copied().collect(),
+                            energy_io_blocks,
+                            logistics_io_blocks,
+                        },
+                        MachineState::Idle,
+                    ));
+                    network_changed.write(MachineNetworkChanged);
+                    info!(
+                        "Machine '{}' tier {} formed at origin {:?} ({:?}/{:?})",
+                        machine_def.id, tier, origin, orientation.rotation, orientation.mirror
+                    );
+                    continue 'origin_candidates;
                 }
             }
 
@@ -440,46 +438,42 @@ fn scan_machines(
                 let machine_type = machine.machine_type.clone();
                 let origin_pos = machine.origin_pos;
 
-                if let Some(def) = registry.machine_def(&machine_type) {
-                    if let Some((tier, orientation, new_positions)) =
+                if let Some(def) = registry.machine_def(&machine_type)
+                    && let Some((tier, orientation, new_positions)) =
                         try_form_machine(origin_pos, def, &item_registry, &voxel_world)
-                    {
-                        // uf.is_none() already excludes the current unformed entity
-                        let no_overlap = !new_positions.iter().any(|p| {
-                            machine_q
-                                .iter()
-                                .any(|(_, m, uf)| uf.is_none() && m.blocks.contains(p))
-                        });
-                        if no_overlap {
-                            let (energy_io_blocks, logistics_io_blocks) = io_blocks_for_positions(
-                                &new_positions,
-                                &item_registry,
-                                &voxel_world,
-                            );
+                {
+                    // uf.is_none() already excludes the current unformed entity
+                    let no_overlap = !new_positions.iter().any(|p| {
+                        machine_q
+                            .iter()
+                            .any(|(_, m, uf)| uf.is_none() && m.blocks.contains(p))
+                    });
+                    if no_overlap {
+                        let (energy_io_blocks, logistics_io_blocks) =
+                            io_blocks_for_positions(&new_positions, &item_registry, &voxel_world);
 
-                            commands
-                                .entity(entity)
-                                .insert(Machine {
-                                    machine_type: machine_type.clone(),
-                                    tier,
-                                    orientation,
-                                    origin_pos,
-                                    blocks: new_positions.iter().copied().collect(),
-                                    energy_io_blocks,
-                                    logistics_io_blocks,
-                                })
-                                .remove::<MachineUnformed>()
-                                .insert(MachineState::Idle);
-                            network_changed.write(MachineNetworkChanged);
-                            info!(
-                                "Machine '{}' tier {} re-formed at origin {:?} ({:?}/{:?})",
-                                machine_type,
+                        commands
+                            .entity(entity)
+                            .insert(Machine {
+                                machine_type: machine_type.clone(),
                                 tier,
+                                orientation,
                                 origin_pos,
-                                orientation.rotation,
-                                orientation.mirror
-                            );
-                        }
+                                blocks: new_positions.iter().copied().collect(),
+                                energy_io_blocks,
+                                logistics_io_blocks,
+                            })
+                            .remove::<MachineUnformed>()
+                            .insert(MachineState::Idle);
+                        network_changed.write(MachineNetworkChanged);
+                        info!(
+                            "Machine '{}' tier {} re-formed at origin {:?} ({:?}/{:?})",
+                            machine_type,
+                            tier,
+                            origin_pos,
+                            orientation.rotation,
+                            orientation.mirror
+                        );
                     }
                 }
             }
@@ -495,13 +489,13 @@ fn io_blocks_for_positions(
     let mut energy_io = HashSet::new();
     let mut logistics_io = HashSet::new();
     for &p in positions {
-        if let WorldVoxel::Solid(vox_id) = voxel_world.get_voxel(p) {
-            if let Some(item) = item_registry.item_for_voxel(vox_id) {
-                if item.id == ENERGY_IO_ID {
-                    energy_io.insert(p);
-                } else if item.id == LOGISTICS_IO_ID {
-                    logistics_io.insert(p);
-                }
+        if let WorldVoxel::Solid(vox_id) = voxel_world.get_voxel(p)
+            && let Some(item) = item_registry.item_for_voxel(vox_id)
+        {
+            if item.id == ENERGY_IO_ID {
+                energy_io.insert(p);
+            } else if item.id == LOGISTICS_IO_ID {
+                logistics_io.insert(p);
             }
         }
     }
@@ -544,10 +538,10 @@ fn find_pivots_for_block(
     for (y, layer) in pattern.iter().enumerate() {
         for (z, row) in layer.iter().enumerate() {
             for (x, ch) in row.chars().enumerate() {
-                if let Some(matcher) = elements.get(&ch.to_string()) {
-                    if matcher.matches_id(block_id) {
-                        pivots.push(IVec3::new(x as i32, y as i32, z as i32));
-                    }
+                if let Some(matcher) = elements.get(&ch.to_string())
+                    && matcher.matches_id(block_id)
+                {
+                    pivots.push(IVec3::new(x as i32, y as i32, z as i32));
                 }
             }
         }
@@ -607,4 +601,109 @@ fn check_pattern(
     }
 
     Some(positions)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cell_matcher_block_matches_exact() {
+        let m = CellMatcher::BlockMatcher("iron".to_string());
+        assert!(m.matches_id("iron"));
+        assert!(!m.matches_id("gold"));
+        assert_eq!(m.trigger_ids(), vec!["iron"]);
+    }
+
+    #[test]
+    fn cell_matcher_any_of_matches_member() {
+        let m = CellMatcher::AnyOf(vec!["iron".to_string(), "gold".to_string()]);
+        assert!(m.matches_id("iron"));
+        assert!(m.matches_id("gold"));
+        assert!(!m.matches_id("stone"));
+        let ids = m.trigger_ids();
+        assert!(ids.contains(&"iron"));
+        assert!(ids.contains(&"gold"));
+    }
+
+    #[test]
+    fn orientation_all_returns_8() {
+        assert_eq!(Orientation::all().len(), 8);
+    }
+
+    #[test]
+    fn orientation_north_normal_is_identity() {
+        let o = Orientation {
+            rotation: Rotation::North,
+            mirror: Mirror::Normal,
+        };
+        assert_eq!(o.transform(IVec3::new(1, 2, 3)), IVec3::new(1, 2, 3));
+    }
+
+    #[test]
+    fn orientation_east_rotates_correctly() {
+        let o = Orientation {
+            rotation: Rotation::East,
+            mirror: Mirror::Normal,
+        };
+        // East: (dx, dy, dz) -> (dz, dy, -dx)
+        assert_eq!(o.transform(IVec3::new(1, 0, 0)), IVec3::new(0, 0, -1));
+        assert_eq!(o.transform(IVec3::new(0, 0, 1)), IVec3::new(1, 0, 0));
+    }
+
+    #[test]
+    fn orientation_mirror_negates_x() {
+        let o = Orientation {
+            rotation: Rotation::North,
+            mirror: Mirror::Mirrored,
+        };
+        assert_eq!(o.transform(IVec3::new(2, 1, 3)), IVec3::new(-2, 1, 3));
+    }
+
+    fn simple_machine(id: &str, block_id: &str) -> MachineDef {
+        let mut elements = HashMap::new();
+        elements.insert(
+            "A".to_string(),
+            CellMatcher::BlockMatcher(block_id.to_string()),
+        );
+        MachineDef {
+            id: id.to_string(),
+            tiers: vec![MachineTierDef {
+                tier: 1,
+                pattern: vec![vec!["A".to_string()]],
+                pattern_elements: elements,
+            }],
+        }
+    }
+
+    #[test]
+    fn registry_trigger_block_detected() {
+        let reg = MachineRegistry::new(vec![simple_machine("smelter", "iron")]);
+        assert!(reg.is_trigger_block("iron"));
+        assert!(!reg.is_trigger_block("stone"));
+    }
+
+    #[test]
+    fn registry_machines_using_block() {
+        let reg = MachineRegistry::new(vec![simple_machine("smelter", "iron")]);
+        let names: Vec<&str> = reg
+            .machines_using_block("iron")
+            .map(|m| m.id.as_str())
+            .collect();
+        assert_eq!(names, vec!["smelter"]);
+        assert_eq!(reg.machines_using_block("stone").count(), 0);
+    }
+
+    #[test]
+    fn find_pivots_locates_matching_chars() {
+        let mut elements = HashMap::new();
+        elements.insert(
+            "A".to_string(),
+            CellMatcher::BlockMatcher("iron".to_string()),
+        );
+        // pattern[y=0][z=0] = "AB" → A at x=0, B at x=1
+        let pattern = vec![vec!["AB".to_string()]];
+        let pivots = find_pivots_for_block(&pattern, &elements, "iron");
+        assert_eq!(pivots, vec![IVec3::new(0, 0, 0)]);
+    }
 }

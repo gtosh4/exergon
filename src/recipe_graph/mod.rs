@@ -63,23 +63,39 @@ pub struct RecipeGraph {
 }
 
 impl RecipeGraph {
-    fn from_vecs(materials: Vec<MaterialDef>, recipes: Vec<RecipeDef>, terminal: MaterialId) -> Self {
+    fn from_vecs(
+        materials: Vec<MaterialDef>,
+        recipes: Vec<RecipeDef>,
+        terminal: MaterialId,
+    ) -> Self {
         let mut producers: HashMap<MaterialId, Vec<RecipeId>> = HashMap::new();
         let mut consumers: HashMap<MaterialId, Vec<RecipeId>> = HashMap::new();
 
         for recipe in &recipes {
             for stack in recipe.outputs.iter().chain(recipe.byproducts.iter()) {
-                producers.entry(stack.material.clone()).or_default().push(recipe.id.clone());
+                producers
+                    .entry(stack.material.clone())
+                    .or_default()
+                    .push(recipe.id.clone());
             }
             for stack in &recipe.inputs {
-                consumers.entry(stack.material.clone()).or_default().push(recipe.id.clone());
+                consumers
+                    .entry(stack.material.clone())
+                    .or_default()
+                    .push(recipe.id.clone());
             }
         }
 
         let materials = materials.into_iter().map(|m| (m.id.clone(), m)).collect();
         let recipes = recipes.into_iter().map(|r| (r.id.clone(), r)).collect();
 
-        Self { materials, recipes, terminal, producers, consumers }
+        Self {
+            materials,
+            recipes,
+            terminal,
+            producers,
+            consumers,
+        }
     }
 }
 
@@ -87,14 +103,13 @@ fn load_recipe_graph(mut commands: Commands) {
     let materials = load_ron_dir::<MaterialDef>("assets/materials", "material");
     let recipes = load_ron_dir::<RecipeDef>("assets/recipes", "recipe");
 
-    let terminal = materials
-        .iter()
-        .find(|m| m.is_terminal)
-        .map(|m| m.id.clone())
-        .unwrap_or_else(|| {
+    let terminal = materials.iter().find(|m| m.is_terminal).map_or_else(
+        || {
             warn!("No terminal material defined (is_terminal: true); run may be unwinnable");
             String::new()
-        });
+        },
+        |m| m.id.clone(),
+    );
 
     let graph = RecipeGraph::from_vecs(materials, recipes, terminal);
     info!(

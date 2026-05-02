@@ -86,19 +86,19 @@ fn update_power_networks(
             } => Some((Some(old_voxel_id), Some(new_voxel_id))),
         };
         if let Some((removed, added)) = placed {
-            if removed.map(|v| Some(v) == cable_vox).unwrap_or(false) {
+            if removed.is_some_and(|v| Some(v) == cable_vox) {
                 power_data.cable_positions.remove(&ev.pos);
                 power_data.dirty = true;
             }
-            if added.map(|v| Some(v) == cable_vox).unwrap_or(false) {
+            if added.is_some_and(|v| Some(v) == cable_vox) {
                 power_data.cable_positions.insert(ev.pos);
                 power_data.dirty = true;
             }
-            if removed.map(|v| Some(v) == generator_vox).unwrap_or(false) {
+            if removed.is_some_and(|v| Some(v) == generator_vox) {
                 power_data.generator_blocks.remove(&ev.pos);
                 power_data.dirty = true;
             }
-            if added.map(|v| Some(v) == generator_vox).unwrap_or(false) {
+            if added.is_some_and(|v| Some(v) == generator_vox) {
                 power_data
                     .generator_blocks
                     .insert(ev.pos, GENERATOR_DEFAULT_WATTS);
@@ -159,10 +159,10 @@ fn update_power_networks(
         for &cable_pos in &component {
             for &dir in &DIRS {
                 let n = cable_pos + dir;
-                if let Some(&entity) = energy_io_map.get(&n) {
-                    if seen_machines.insert(entity) {
-                        machine_entities.push(entity);
-                    }
+                if let Some(&entity) = energy_io_map.get(&n)
+                    && seen_machines.insert(entity)
+                {
+                    machine_entities.push(entity);
                 }
                 if generator_positions.contains(&n) && !net_generators.contains(&n) {
                     net_generators.push(n);

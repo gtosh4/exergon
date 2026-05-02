@@ -78,7 +78,7 @@ fn draw_gizmos(
             });
         }
         DebugOverlay::Veins => {
-            let world_seed = seeds.as_deref().map(|s| s.world).unwrap_or(0);
+            let world_seed = seeds.as_deref().map_or(0, |s| s.world);
             draw_grid(&mut gizmos, pos, CELL_SIZE, 3, |cx, cz| {
                 vein_cell_color(registry.as_deref(), world_seed, cx, cell_y, cz)
             });
@@ -202,14 +202,13 @@ fn draw_ui(
                     ui.colored_label(egui::Color32::YELLOW, format!("[F9] {}", overlay.label()));
                     match *overlay {
                         DebugOverlay::Veins => {
-                            let world_seed = seeds.as_deref().map(|s| s.world).unwrap_or(0);
+                            let world_seed = seeds.as_deref().map_or(0, |s| s.world);
                             let cx = pos.x.div_euclid(CELL_SIZE) as i32;
                             let cz = pos.z.div_euclid(CELL_SIZE) as i32;
                             let label = registry
                                 .as_deref()
                                 .and_then(|r| r.cell_vein(world_seed, cx, cell_y, cz))
-                                .map(|v| v.id.as_ref())
-                                .unwrap_or("(empty)");
+                                .map_or("(empty)", |v| v.id.as_ref());
                             ui.colored_label(
                                 egui::Color32::WHITE,
                                 format!("Cell [{cx},{cell_y},{cz}]: {label}"),

@@ -8,7 +8,7 @@ use crate::machine::{
     Machine, MachineActivity, MachineNetworkChanged, MachineScanSet, MachineState, MachineUnformed,
 };
 use crate::recipe_graph::RecipeGraph;
-use crate::research::{ResearchPool, TechTreeProgress, RESEARCH_POINTS_ID};
+use crate::research::{RESEARCH_POINTS_ID, ResearchPool, TechTreeProgress};
 use crate::world::{BlockChangeKind, BlockChangedMessage};
 
 pub struct LogisticsPlugin;
@@ -96,11 +96,11 @@ impl LogisticsData {
     }
 
     pub fn give_items(&mut self, storage_positions: &[IVec3], item_id: &str, count: u32) {
-        if let Some(pos) = storage_positions.first() {
-            if let Some(block) = self.storage_blocks.get_mut(pos) {
-                *block.entry(item_id.to_owned()).or_insert(0) += count;
-                return;
-            }
+        if let Some(pos) = storage_positions.first()
+            && let Some(block) = self.storage_blocks.get_mut(pos)
+        {
+            *block.entry(item_id.to_owned()).or_insert(0) += count;
+            return;
         }
         warn!("No storage for network; {item_id} ×{count} lost");
     }
@@ -128,19 +128,19 @@ fn update_logistics_networks(
             } => Some((Some(old_voxel_id), Some(new_voxel_id))),
         };
         if let Some((removed, added)) = placed {
-            if removed.map(|v| Some(v) == cable_vox).unwrap_or(false) {
+            if removed.is_some_and(|v| Some(v) == cable_vox) {
                 net_data.cable_positions.remove(&ev.pos);
                 net_data.dirty = true;
             }
-            if added.map(|v| Some(v) == cable_vox).unwrap_or(false) {
+            if added.is_some_and(|v| Some(v) == cable_vox) {
                 net_data.cable_positions.insert(ev.pos);
                 net_data.dirty = true;
             }
-            if removed.map(|v| Some(v) == storage_vox).unwrap_or(false) {
+            if removed.is_some_and(|v| Some(v) == storage_vox) {
                 net_data.storage_blocks.remove(&ev.pos);
                 net_data.dirty = true;
             }
-            if added.map(|v| Some(v) == storage_vox).unwrap_or(false) {
+            if added.is_some_and(|v| Some(v) == storage_vox) {
                 net_data.storage_blocks.entry(ev.pos).or_default();
                 net_data.dirty = true;
             }
@@ -199,10 +199,10 @@ fn update_logistics_networks(
         for &cable_pos in &component {
             for &dir in &DIRS {
                 let n = cable_pos + dir;
-                if let Some(&entity) = logistics_io_map.get(&n) {
-                    if seen_machines.insert(entity) {
-                        machine_entities.push(entity);
-                    }
+                if let Some(&entity) = logistics_io_map.get(&n)
+                    && seen_machines.insert(entity)
+                {
+                    machine_entities.push(entity);
                 }
                 if storage_positions.contains(&n) && !net_storage.contains(&n) {
                     net_storage.push(n);
@@ -273,10 +273,10 @@ fn machine_io_system(
                         if recipe.machine_tier > machine.tier {
                             continue;
                         }
-                        if let Some(ref prog) = progress {
-                            if !prog.unlocked_recipes.contains(&recipe.id) {
-                                continue;
-                            }
+                        if let Some(ref prog) = progress
+                            && !prog.unlocked_recipes.contains(&recipe.id)
+                        {
+                            continue;
                         }
                         let all_ok = recipe.inputs.iter().all(|input| {
                             net_data.has_items(
@@ -324,7 +324,9 @@ fn machine_io_system(
     }
 
     for (entity, recipe_id, net_entity) in to_start {
-        let recipe = recipe_graph.recipes.get(&recipe_id).unwrap();
+        let Some(recipe) = recipe_graph.recipes.get(&recipe_id) else {
+            continue;
+        };
         if let Ok(network) = net_q.get(net_entity) {
             for input in &recipe.inputs {
                 net_data.take_items(
@@ -363,5 +365,78 @@ fn machine_io_system(
             .remove::<MachineActivity>()
             .insert(MachineState::Idle);
         info!("Machine {:?} finished recipe", entity);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn storage_at(pos: IVec3, items: &[(&str, u32)]) -> LogisticsData {
+        let mut data = LogisticsData::default();
+        let mut s = HashMap::new();
+        for &(id, count) in items {
+            s.insert(id.to_owned(), count);
+        }
+        data.storage_blocks.insert(pos, s);
+        data
+    }
+
+    #[test]
+    fn has_items_false_when_empty() {
+        let data = LogisticsData::default();
+        assert!(!data.has_items(&[IVec3::ZERO], "iron", 1));
+    }
+
+    #[test]
+    fn has_items_true_when_enough() {
+        let pos = IVec3::ZERO;
+        let data = storage_at(pos, &[("iron", 10)]);
+        assert!(data.has_items(&[pos], "iron", 10));
+        assert!(!data.has_items(&[pos], "iron", 11));
+    }
+
+    #[test]
+    fn take_items_reduces_count() {
+        let pos = IVec3::ZERO;
+        let mut data = storage_at(pos, &[("iron", 10)]);
+        data.take_items(&[pos], "iron", 4);
+        assert_eq!(*data.storage_blocks[&pos].get("iron").unwrap(), 6);
+    }
+
+    #[test]
+    fn take_items_removes_entry_at_zero() {
+        let pos = IVec3::ZERO;
+        let mut data = storage_at(pos, &[("iron", 5)]);
+        data.take_items(&[pos], "iron", 5);
+        assert!(!data.storage_blocks[&pos].contains_key("iron"));
+    }
+
+    #[test]
+    fn take_items_spans_multiple_storages() {
+        let p1 = IVec3::new(0, 0, 0);
+        let p2 = IVec3::new(1, 0, 0);
+        let mut data = LogisticsData::default();
+        let mut s1 = HashMap::new();
+        s1.insert("iron".to_owned(), 3u32);
+        let mut s2 = HashMap::new();
+        s2.insert("iron".to_owned(), 5u32);
+        data.storage_blocks.insert(p1, s1);
+        data.storage_blocks.insert(p2, s2);
+        data.take_items(&[p1, p2], "iron", 6);
+        let remaining: u32 = data
+            .storage_blocks
+            .values()
+            .filter_map(|s| s.get("iron"))
+            .sum();
+        assert_eq!(remaining, 2);
+    }
+
+    #[test]
+    fn give_items_adds_to_first_storage() {
+        let pos = IVec3::ZERO;
+        let mut data = storage_at(pos, &[]);
+        data.give_items(&[pos], "copper", 3);
+        assert_eq!(*data.storage_blocks[&pos].get("copper").unwrap(), 3);
     }
 }

@@ -5,8 +5,8 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use bevy_voxel_world::prelude::*;
 
-use crate::inventory::InventoryOpen;
 use crate::GameState;
+use crate::inventory::InventoryOpen;
 
 use super::generation::WorldConfig;
 
@@ -81,7 +81,7 @@ pub(super) fn toggle_pause(
     mut next_state: ResMut<NextState<GameState>>,
     inv_open: Option<Res<InventoryOpen>>,
 ) {
-    let blocked = inv_open.map(|o| o.0).unwrap_or(false);
+    let blocked = inv_open.is_some_and(|o| o.0);
     if keyboard.just_pressed(KeyCode::Escape) && !blocked {
         next_state.set(GameState::Paused);
     }
@@ -93,8 +93,8 @@ pub(super) fn toggle_inventory(
     mut cursor_q: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
     let Some(mut open) = inv_open else { return };
-    let should_toggle = keyboard.just_pressed(KeyCode::Tab)
-        || (keyboard.just_pressed(KeyCode::Escape) && open.0);
+    let should_toggle =
+        keyboard.just_pressed(KeyCode::Tab) || (keyboard.just_pressed(KeyCode::Escape) && open.0);
     if !should_toggle {
         return;
     }
@@ -159,9 +159,7 @@ pub(super) fn camera_input(
     let delta = direction.normalize() * 50.0 * time.delta_secs();
     let current = transform.translation;
 
-    if !is_blocked(&voxel_world, current + delta, R) {
-        transform.translation += delta;
-    } else {
+    if is_blocked(&voxel_world, current + delta, R) {
         let dx = Vec3::new(delta.x, 0.0, 0.0);
         let dy = Vec3::new(0.0, delta.y, 0.0);
         let dz = Vec3::new(0.0, 0.0, delta.z);
@@ -174,5 +172,7 @@ pub(super) fn camera_input(
         if !is_blocked(&voxel_world, current + dz, R) {
             transform.translation.z += dz.z;
         }
+    } else {
+        transform.translation += delta;
     }
 }

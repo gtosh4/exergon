@@ -27,3 +27,13 @@ opt-level = 1
 
 [profile.dev.package."*"]
 opt-level = 3
+
+[lints.rust]
+dead_code = "allow" # TEMP until MVP
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+indexing_slicing = "warn"
+panic = "warn"
+todo = "warn"
