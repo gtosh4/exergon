@@ -477,9 +477,9 @@ The nature of the escape scales with difficulty tier, reflecting the player's gr
 | Difficulty | Escape type | Description |
 |---|---|---|
 | Initiation | Alien gateway activation | Discover and power an alien gateway left by a prior civilisation. Requires mastering early-tier science to generate sufficient power and produce the activation components. |
-| Standard | Alien gateway + intra-system ship | Gateway requires deeper mastery; alternatively, build a basic intra-system spacecraft from manufactured components. |
-| Advanced | Intra-system spacecraft | Full spacecraft construction from alien-world materials. No gateway shortcut. |
-| Pinnacle | Inter-system spacecraft | Build a vessel capable of leaving the solar system. Requires mastery of the entire run's production graph. |
+| Standard | Alien derelict ship | There is an alien ship located within the solar system. Requires rudimentary spacecraft construction to reach the ship and repair. |
+| Advanced | Outer-system relay | Alien megastructure located in the outer reaches of the solar system. Requires advanced spacecraft construction to reach. Requires powering and research for learning how to use it. |
+| Pinnacle | Interstellar spacecraft | Build a vessel capable of leaving the solar system (FLT). Requires mastery of the entire run's production graph. |
 
 Escape types are content-defined — modders can create new escape scenarios.
 
