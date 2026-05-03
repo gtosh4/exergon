@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use avian3d::prelude::{Collider, RigidBody};
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 use serde::Deserialize;
@@ -40,7 +41,12 @@ impl Plugin for MachinePlugin {
             .add_systems(Startup, (load_machines, setup_machine_visuals))
             .add_systems(
                 Update,
-                (place_machine_system, remove_machine_system).in_set(MachineScanSet),
+                (
+                    place_machine_system,
+                    place_platform_system,
+                    remove_machine_system,
+                )
+                    .in_set(MachineScanSet),
             );
     }
 }
@@ -99,6 +105,16 @@ pub struct Machine {
 /// Marker: machine entity exists but is not fully operational (e.g. during removal).
 #[derive(Component)]
 pub struct MachineUnformed;
+
+/// Spawned at each IO port position when a machine is placed. Despawned with the machine.
+#[derive(Component)]
+pub struct IoPortMarker {
+    pub owner: Entity,
+}
+
+/// Flat static platform entity placed on terrain.
+#[derive(Component)]
+pub struct Platform;
 
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineState {
@@ -194,6 +210,11 @@ struct MachineVisualAssets {
     mesh: Handle<Mesh>,
     materials: HashMap<String, Handle<StandardMaterial>>,
     fallback: Handle<StandardMaterial>,
+    port_mesh: Handle<Mesh>,
+    energy_port_mat: Handle<StandardMaterial>,
+    logistics_port_mat: Handle<StandardMaterial>,
+    platform_mesh: Handle<Mesh>,
+    platform_mat: Handle<StandardMaterial>,
 }
 
 fn setup_machine_visuals(
@@ -228,10 +249,31 @@ fn setup_machine_visuals(
         base_color: Color::srgb(0.65, 0.65, 0.65),
         ..default()
     });
+    let port_mesh = meshes.add(Sphere::new(0.15));
+    let energy_port_mat = materials.add(StandardMaterial {
+        base_color: Color::srgb(1.0, 0.85, 0.0),
+        unlit: true,
+        ..default()
+    });
+    let logistics_port_mat = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.1, 0.9, 0.2),
+        unlit: true,
+        ..default()
+    });
+    let platform_mesh = meshes.add(Cuboid::new(2.0, 0.25, 2.0));
+    let platform_mat = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.5, 0.5, 0.55),
+        ..default()
+    });
     commands.insert_resource(MachineVisualAssets {
         mesh,
         materials: mats,
         fallback,
+        port_mesh,
+        energy_port_mat,
+        logistics_port_mat,
+        platform_mesh,
+        platform_mat,
     });
 }
 
@@ -281,32 +323,68 @@ fn place_machine_system(
             .iter()
             .map(|&o| ev.pos + orientation.transform(o).as_vec3())
             .collect();
-
         let logistics_ports: Vec<Vec3> = tier_def
             .logistics_io_offsets
             .iter()
             .map(|&o| ev.pos + orientation.transform(o).as_vec3())
             .collect();
 
-        let mut entity = commands.spawn((
-            Machine {
-                machine_type: def.id.clone(),
-                tier: tier_def.tier,
-                orientation,
-                energy_ports,
-                logistics_ports,
-            },
-            MachineState::Idle,
-            Transform::from_translation(ev.pos),
-        ));
+        let machine_entity = commands
+            .spawn((
+                Machine {
+                    machine_type: def.id.clone(),
+                    tier: tier_def.tier,
+                    orientation,
+                    energy_ports: energy_ports.clone(),
+                    logistics_ports: logistics_ports.clone(),
+                },
+                MachineState::Idle,
+                Transform::from_translation(ev.pos),
+                RigidBody::Static,
+                Collider::cuboid(0.5, 0.5, 0.5),
+            ))
+            .id();
+
         if let Some(ref v) = visuals {
             let mat = v
                 .materials
                 .get(&def.id)
                 .cloned()
                 .unwrap_or_else(|| v.fallback.clone());
-            entity.insert((Mesh3d(v.mesh.clone()), MeshMaterial3d(mat)));
+            commands
+                .entity(machine_entity)
+                .insert((Mesh3d(v.mesh.clone()), MeshMaterial3d(mat)));
         }
+
+        for &port_pos in &energy_ports {
+            let mut marker_cmd = commands.spawn((
+                IoPortMarker {
+                    owner: machine_entity,
+                },
+                Transform::from_translation(port_pos),
+            ));
+            if let Some(ref v) = visuals {
+                marker_cmd.insert((
+                    Mesh3d(v.port_mesh.clone()),
+                    MeshMaterial3d(v.energy_port_mat.clone()),
+                ));
+            }
+        }
+        for &port_pos in &logistics_ports {
+            let mut marker_cmd = commands.spawn((
+                IoPortMarker {
+                    owner: machine_entity,
+                },
+                Transform::from_translation(port_pos),
+            ));
+            if let Some(ref v) = visuals {
+                marker_cmd.insert((
+                    Mesh3d(v.port_mesh.clone()),
+                    MeshMaterial3d(v.logistics_port_mat.clone()),
+                ));
+            }
+        }
+
         network_changed.write(MachineNetworkChanged);
         info!(
             "Machine '{}' tier {} placed at {:?}",
@@ -315,10 +393,36 @@ fn place_machine_system(
     }
 }
 
+fn place_platform_system(
+    mut commands: Commands,
+    mut events: MessageReader<WorldObjectEvent>,
+    visuals: Option<Res<MachineVisualAssets>>,
+) {
+    for ev in events.read() {
+        if ev.kind != WorldObjectKind::Placed || ev.item_id != "platform" {
+            continue;
+        }
+        let mut entity_cmd = commands.spawn((
+            Platform,
+            Transform::from_translation(ev.pos),
+            RigidBody::Static,
+            Collider::cuboid(1.0, 0.125, 1.0),
+        ));
+        if let Some(ref v) = visuals {
+            entity_cmd.insert((
+                Mesh3d(v.platform_mesh.clone()),
+                MeshMaterial3d(v.platform_mat.clone()),
+            ));
+        }
+        info!("Platform placed at {:?}", ev.pos);
+    }
+}
+
 fn remove_machine_system(
     mut commands: Commands,
     mut events: MessageReader<WorldObjectEvent>,
     machine_q: Query<(Entity, &Machine, &Transform)>,
+    port_marker_q: Query<(Entity, &IoPortMarker)>,
     mut network_changed: MessageWriter<MachineNetworkChanged>,
 ) {
     for ev in events.read() {
@@ -330,6 +434,11 @@ fn remove_machine_system(
             .find(|(_, _, t)| t.translation.distance(ev.pos) < 1.5)
         {
             let machine_type = machine.machine_type.clone();
+            for (marker_entity, marker) in port_marker_q.iter() {
+                if marker.owner == entity {
+                    commands.entity(marker_entity).despawn();
+                }
+            }
             commands.entity(entity).despawn();
             network_changed.write(MachineNetworkChanged);
             info!("Machine '{}' removed near {:?}", machine_type, ev.pos);
@@ -505,5 +614,84 @@ mod tests {
                 .iter()
                 .any(|p| p.round().as_ivec3() == IVec3::new(6, 0, 5))
         );
+    }
+
+    #[test]
+    fn place_machine_spawns_port_markers() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_message::<WorldObjectEvent>()
+            .add_message::<MachineNetworkChanged>()
+            .insert_resource(MachineRegistry::new(vec![simple_machine("smelter")]));
+
+        app.add_systems(Update, place_machine_system);
+
+        app.world_mut().write_message(WorldObjectEvent {
+            pos: Vec3::ZERO,
+            item_id: "smelter".to_string(),
+            kind: WorldObjectKind::Placed,
+        });
+        app.update();
+
+        let world = app.world_mut();
+        // simple_machine: 1 energy port + 1 logistics port = 2 markers
+        let count = world.query::<&IoPortMarker>().iter(world).count();
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn remove_machine_despawns_port_markers() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_message::<WorldObjectEvent>()
+            .add_message::<MachineNetworkChanged>()
+            .insert_resource(MachineRegistry::new(vec![simple_machine("smelter")]));
+
+        app.add_systems(Update, (place_machine_system, remove_machine_system));
+
+        app.world_mut().write_message(WorldObjectEvent {
+            pos: Vec3::ZERO,
+            item_id: "smelter".to_string(),
+            kind: WorldObjectKind::Placed,
+        });
+        app.update();
+
+        {
+            let world = app.world_mut();
+            assert_eq!(world.query::<&Machine>().iter(world).count(), 1);
+            assert_eq!(world.query::<&IoPortMarker>().iter(world).count(), 2);
+        }
+
+        app.world_mut().write_message(WorldObjectEvent {
+            pos: Vec3::ZERO,
+            item_id: String::new(),
+            kind: WorldObjectKind::Removed,
+        });
+        app.update();
+
+        {
+            let world = app.world_mut();
+            assert_eq!(world.query::<&Machine>().iter(world).count(), 0);
+            assert_eq!(world.query::<&IoPortMarker>().iter(world).count(), 0);
+        }
+    }
+
+    #[test]
+    fn place_platform_creates_entity() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_message::<WorldObjectEvent>();
+
+        app.add_systems(Update, place_platform_system);
+
+        app.world_mut().write_message(WorldObjectEvent {
+            pos: Vec3::new(1.0, 0.0, 1.0),
+            item_id: "platform".to_string(),
+            kind: WorldObjectKind::Placed,
+        });
+        app.update();
+
+        let world = app.world_mut();
+        assert_eq!(world.query::<&Platform>().iter(world).count(), 1);
     }
 }

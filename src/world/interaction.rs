@@ -1,4 +1,4 @@
-use avian3d::prelude::SpatialQuery;
+use avian3d::prelude::{Collider, SpatialQuery, SpatialQueryFilter};
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
@@ -131,6 +131,7 @@ pub(super) fn object_interaction(
     mut world_events: MessageWriter<WorldObjectEvent>,
     mut cable_events: MessageWriter<CableConnectionEvent>,
     mut pending_cable: ResMut<PendingCablePort>,
+    spatial_query: SpatialQuery,
 ) {
     for ev in scroll.read() {
         let delta = if ev.y > 0.0 { 1i32 } else { -1i32 };
@@ -195,13 +196,25 @@ pub(super) fn object_interaction(
                     }
                 }
             } else {
-                hotbar.consume_active();
-                inventory.add(item_id.clone(), 0);
-                world_events.write(WorldObjectEvent {
-                    pos: pos + normal * 0.5,
-                    item_id,
-                    kind: WorldObjectKind::Placed,
-                });
+                let place_pos = pos + normal * 0.5;
+                let check = Collider::cuboid(0.45, 0.45, 0.45);
+                let blocked = !spatial_query
+                    .shape_intersections(
+                        &check,
+                        place_pos,
+                        Quat::IDENTITY,
+                        &SpatialQueryFilter::default(),
+                    )
+                    .is_empty();
+                if !blocked {
+                    hotbar.consume_active();
+                    inventory.add(item_id.clone(), 0);
+                    world_events.write(WorldObjectEvent {
+                        pos: place_pos,
+                        item_id,
+                        kind: WorldObjectKind::Placed,
+                    });
+                }
             }
         }
     }

@@ -166,7 +166,14 @@ fn give_test_items(mut inventory: ResMut<Inventory>, mut hotbar: ResMut<Hotbar>)
         item_id: "power_cable".into(),
         count: 64,
     });
-    info!("Test mode: gave prefab machines and cables");
+    hotbar.slots[7] = Some(HotbarSlot {
+        item_id: "platform".into(),
+        count: 8,
+    });
+    inventory.add("platform", 8);
+    inventory.add("iron_ore", 20);
+    inventory.add("copper_ore", 20);
+    info!("Test mode: gave prefab machines, cables, platforms, and starting ores");
 }
 
 #[cfg(debug_assertions)]

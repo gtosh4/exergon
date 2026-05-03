@@ -96,20 +96,22 @@ Migrate from flat material→recipe model to the material/form/item hierarchy de
 - [x] Research output: recipes producing `"research_points"` → `ResearchPool`
 - [x] `--test` flag: fills hotbar with machines + cables for quick testing
 
-**In-progress (IVec3 → Vec3 migration):**
-- [ ] `WorldObjectEvent.pos` → `Vec3`; `CableConnectionEvent.from/to` → `Vec3`; `HasEndpoints` → `[Vec3; 2]`
-- [ ] `src/power/mod.rs`: migrate `NetworkKind` impl to `CableSegment`/`new_cable_segment`; fix type mismatches
-- [ ] `src/logistics/mod.rs`: same migration
-- [ ] `src/machine/mod.rs`: `origin_pos: IVec3` → `Vec3`; port sets `HashSet<IVec3>` → `HashSet<Vec3>`
-- [ ] Remove `snap_to_grid` from `src/world/interaction.rs`; ghost preview tracks raw surface hit
+**In-progress (IVec3 → Vec3 migration):** ✅
+- [x] `WorldObjectEvent.pos` → `Vec3`; `CableConnectionEvent.from/to` → `Vec3`; `HasEndpoints` → `[Vec3; 2]`
+- [x] `src/power/mod.rs`: migrate `NetworkKind` impl to `CableSegment`/`new_cable_segment`; fix type mismatches
+- [x] `src/logistics/mod.rs`: same migration
+- [x] `src/machine/mod.rs`: `origin_pos: IVec3` → `Vec3`; port sets `HashSet<IVec3>` → `Vec<Vec3>`
+- [x] Remove `snap_to_grid` from `src/world/interaction.rs`; ghost preview tracks raw surface hit
 
 **Needed (free placement + collision):**
-- [ ] `placement_collision_check`: before placing, `SpatialQuery::intersections_with_shape(AABB)` — reject if overlap
-- [ ] IO port markers: spawn small sphere mesh at each port position when machine is placed (cable two-click target)
-- [ ] Platforms: new item `"platform"` (flat 2×0.25×2 box) — placed at surface hit; `RigidBody::Static + Collider::cuboid`
+- [x] `placement_collision_check`: before placing, `SpatialQuery::intersections_with_shape(AABB)` — reject if overlap
+- [x] IO port markers: spawn small sphere mesh at each port position when machine is placed (cable two-click target)
+- [x] Platforms: new item `"platform"` (flat 2×0.25×2 box) — placed at surface hit; `RigidBody::Static + Collider::cuboid`
   - Asset: `assets/items/platform.ron`
   - System: `place_platform_system` in `src/machine/mod.rs`
-- [ ] `--test` flag: also give starting ore (`20 iron_ore`, `20 copper_ore`) + a few platforms
+- [x] `--test` flag: also give starting ore (`20 iron_ore`, `20 copper_ore`) + a few platforms
+- [ ] shift-click to remove: machines & cables
+  - [ ] hold shift: highlight what would be removed if clicked
 
 ---
 
@@ -193,7 +195,7 @@ Migrate from flat material→recipe model to the material/form/item hierarchy de
 ```
 cargo test
 ```
-Baseline: **106 tests, 0 failures**.
+Baseline: **112 tests, 0 failures**.
 
 New tests required per phase:
 - Phase 2b: ≥5 new tests (template expansion, item derivation, deposit weights, registry population, graph validity)
