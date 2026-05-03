@@ -52,6 +52,8 @@ impl Plugin for WorldPlugin {
                     generation::spawn_chunks,
                     generation::despawn_chunks,
                     generation::add_chunk_colliders,
+                    generation::spawn_deposit_markers.after(generation::add_chunk_colliders),
+                    generation::despawn_deposit_markers.after(generation::despawn_chunks),
                 )
                     .run_if(resource_exists::<generation::WorldConfig>),
             )

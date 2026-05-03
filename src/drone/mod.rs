@@ -7,9 +7,16 @@ use bevy_tnua::TnuaUserControlsSystems;
 use bevy_tnua::builtins::{TnuaBuiltinWalk, TnuaBuiltinWalkConfig};
 use bevy_tnua::prelude::*;
 use bevy_tnua_avian3d::prelude::*;
+use rand::Rng;
+use rand::SeedableRng;
+use rand_pcg::Pcg64;
 
+use crate::inventory::Inventory;
 use crate::world::MainCamera;
+use crate::world::generation::OreDeposit;
 use crate::{GameState, PlayMode};
+
+const MINE_REACH: f32 = 4.0;
 
 pub struct DronePlugin;
 
@@ -35,6 +42,7 @@ impl Plugin for DronePlugin {
                 drone_pilot_input
                     .in_set(TnuaUserControlsSystems)
                     .run_if(in_state(PlayMode::DronePilot)),
+                drone_mine_system.run_if(in_state(PlayMode::DronePilot)),
             )
                 .run_if(in_state(GameState::Playing)),
         );
@@ -130,6 +138,60 @@ fn drone_pilot_input(
     };
 }
 
+/// Asymptotic yield factor: starts near 1.0, decays toward a floor > 0.
+/// Floor and decay rate vary per deposit via `depletion_seed`.
+pub(crate) fn yield_factor(total_extracted: f32, depletion_seed: u64) -> f32 {
+    let floor = 0.1 + (depletion_seed % 100) as f32 * 0.001;
+    let k = 0.02 + (depletion_seed % 50) as f32 * 0.001;
+    floor + (1.0 - floor) * (-k * total_extracted).exp()
+}
+
+fn sample_ore<R: Rng>(ores: &[(String, f32)], rng: &mut R) -> Option<String> {
+    let total: f32 = ores.iter().map(|(_, w)| w).sum();
+    if total <= 0.0 {
+        return None;
+    }
+    let roll = rng.gen_range(0.0f32..total);
+    let mut acc = 0.0;
+    for (id, w) in ores {
+        acc += w;
+        if roll < acc {
+            return Some(id.clone());
+        }
+    }
+    ores.last().map(|(id, _)| id.clone())
+}
+
+fn drone_mine_system(
+    mouse: Res<ButtonInput<MouseButton>>,
+    camera_q: Query<&Transform, With<MainCamera>>,
+    spatial_query: SpatialQuery,
+    mut deposit_q: Query<&mut OreDeposit>,
+    mut inventory: ResMut<Inventory>,
+) {
+    if !mouse.just_pressed(MouseButton::Right) {
+        return;
+    }
+    let Ok(cam) = camera_q.single() else {
+        return;
+    };
+    let dir = Dir3::new(*cam.forward()).unwrap_or(Dir3::NEG_Z);
+    let Some(hit) =
+        spatial_query.cast_ray(cam.translation, dir, MINE_REACH, true, &Default::default())
+    else {
+        return;
+    };
+    let Ok(mut deposit) = deposit_q.get_mut(hit.entity) else {
+        return;
+    };
+    let rng_seed = deposit.depletion_seed ^ deposit.total_extracted.to_bits() as u64;
+    let mut rng = Pcg64::seed_from_u64(rng_seed);
+    if let Some(ore_id) = sample_ore(&deposit.ores, &mut rng) {
+        inventory.add(ore_id, 1);
+        deposit.total_extracted += 1.0;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,5 +270,80 @@ mod tests {
             *app.world().resource::<State<PlayMode>>().get(),
             PlayMode::Exploring
         );
+    }
+
+    #[test]
+    fn yield_factor_decreases_monotonically() {
+        let seed = 12345u64;
+        let y: Vec<f32> = (0..5)
+            .map(|i| yield_factor(i as f32 * 20.0, seed))
+            .collect();
+        for w in y.windows(2) {
+            assert!(w[0] > w[1], "yield should decrease: {} > {}", w[0], w[1]);
+        }
+        assert!(y[4] > 0.0, "yield floor must be above zero");
+    }
+
+    #[test]
+    fn sample_ore_single_entry_always_returns_it() {
+        let ores = vec![("iron_ore".to_string(), 1.0f32)];
+        let mut rng = Pcg64::seed_from_u64(0);
+        assert_eq!(sample_ore(&ores, &mut rng), Some("iron_ore".to_string()));
+    }
+
+    #[test]
+    fn sample_ore_empty_returns_none() {
+        let ores: Vec<(String, f32)> = vec![];
+        let mut rng = Pcg64::seed_from_u64(0);
+        assert_eq!(sample_ore(&ores, &mut rng), None);
+    }
+
+    #[test]
+    fn mine_adds_ore_to_inventory_and_increments_extracted() {
+        use crate::inventory::Inventory;
+        use crate::world::generation::OreDeposit;
+
+        let mut deposit = OreDeposit {
+            chunk_pos: IVec2::ZERO,
+            ores: vec![("copper_ore".to_string(), 1.0)],
+            total_extracted: 0.0,
+            depletion_seed: 0,
+        };
+        let mut inventory = Inventory::default();
+
+        let rng_seed = deposit.depletion_seed ^ deposit.total_extracted.to_bits() as u64;
+        let mut rng = Pcg64::seed_from_u64(rng_seed);
+        if let Some(ore_id) = sample_ore(&deposit.ores, &mut rng) {
+            inventory.add(ore_id, 1);
+            deposit.total_extracted += 1.0;
+        }
+
+        assert_eq!(*inventory.0.get("copper_ore").unwrap_or(&0), 1);
+        assert_eq!(deposit.total_extracted, 1.0);
+        assert!(!deposit.ores.is_empty(), "deposit must persist");
+    }
+
+    #[test]
+    fn repeated_mining_degrades_yield() {
+        use crate::world::generation::OreDeposit;
+
+        let mut deposit = OreDeposit {
+            chunk_pos: IVec2::ZERO,
+            ores: vec![("iron_ore".to_string(), 1.0)],
+            total_extracted: 0.0,
+            depletion_seed: 42,
+        };
+        let y_before = yield_factor(deposit.total_extracted, deposit.depletion_seed);
+        for _ in 0..10 {
+            deposit.total_extracted += 1.0;
+        }
+        let y_after = yield_factor(deposit.total_extracted, deposit.depletion_seed);
+        assert!(
+            y_before > y_after,
+            "yield must degrade: {} > {}",
+            y_before,
+            y_after
+        );
+        assert!(y_after > 0.0, "yield floor must remain above zero");
     }
 }

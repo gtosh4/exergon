@@ -6,9 +6,10 @@ use bevy::asset::RenderAssetUsages;
 use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
 use noise::{HybridMulti, NoiseFn, Perlin};
+use xxhash_rust::xxh64::xxh64;
 
 use crate::GameState;
-use crate::content::VeinRegistry;
+use crate::content::{DepositRegistry, VeinRegistry};
 use crate::seed::DomainSeeds;
 
 use super::MainCamera;
@@ -207,6 +208,85 @@ pub(super) fn add_chunk_colliders(
     }
 }
 
+/// Surface ore deposit marker spawned at terrain height when a chunk loads.
+#[derive(Component)]
+pub(crate) struct OreDeposit {
+    pub(crate) chunk_pos: IVec2,
+    pub(crate) ores: Vec<(String, f32)>,
+    pub(crate) total_extracted: f32,
+    pub(crate) depletion_seed: u64,
+}
+
+/// Returns the ore list for the deposit cell that covers `chunk_pos`, or None.
+///
+/// Each 64×64 chunk maps to exactly one deposit cell; this checks that cell.
+pub(crate) fn chunk_deposit(
+    world_seed: u64,
+    chunk_pos: IVec2,
+    registry: &DepositRegistry,
+) -> Option<Vec<(String, f32)>> {
+    let wx = (chunk_pos.x * CHUNK_SIZE) as f32 + CHUNK_SIZE as f32 * 0.5;
+    let wz = (chunk_pos.y * CHUNK_SIZE) as f32 + CHUNK_SIZE as f32 * 0.5;
+    registry.ore_at(world_seed, wx, wz)
+}
+
+pub(super) fn spawn_deposit_markers(
+    mut commands: Commands,
+    registry: Res<DepositRegistry>,
+    world_config: Res<WorldConfig>,
+    new_chunks: Query<(Entity, &TerrainChunk), Added<TerrainChunk>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    if !world_config.active {
+        return;
+    }
+    let sampler = TerrainSampler::new(world_config.world_seed);
+    for (_chunk_entity, chunk) in &new_chunks {
+        let Some(ores) = chunk_deposit(world_config.world_seed, chunk.chunk_pos, &registry) else {
+            continue;
+        };
+        let wx = (chunk.chunk_pos.x * CHUNK_SIZE) as f32 + CHUNK_SIZE as f32 * 0.5;
+        let wz = (chunk.chunk_pos.y * CHUNK_SIZE) as f32 + CHUNK_SIZE as f32 * 0.5;
+        let surface_y = sampler.height_at(wx as f64, wz as f64);
+
+        let depletion_seed = {
+            let mut key = world_config.world_seed.to_le_bytes().to_vec();
+            key.extend_from_slice(b"depl");
+            key.extend_from_slice(&chunk.chunk_pos.x.to_le_bytes());
+            key.extend_from_slice(&chunk.chunk_pos.y.to_le_bytes());
+            xxh64(&key, 0)
+        };
+
+        commands.spawn((
+            OreDeposit {
+                chunk_pos: chunk.chunk_pos,
+                ores,
+                total_extracted: 0.0,
+                depletion_seed,
+            },
+            Mesh3d(meshes.add(Sphere::new(0.5).mesh())),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.9, 0.6, 0.1),
+                ..default()
+            })),
+            Transform::from_xyz(wx, surface_y + 0.75, wz),
+        ));
+    }
+}
+
+pub(super) fn despawn_deposit_markers(
+    mut commands: Commands,
+    deposit_q: Query<(Entity, &OreDeposit)>,
+    spawned: Res<SpawnedChunks>,
+) {
+    for (entity, deposit) in &deposit_q {
+        if !spawned.0.contains(&deposit.chunk_pos) {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
 pub(super) fn finish_loading(
     mut world_config: ResMut<WorldConfig>,
     domain_seeds: Option<Res<DomainSeeds>>,
@@ -230,6 +310,7 @@ mod tests {
 
     use super::*;
     use crate::GameState;
+    use crate::content::{DepositDef, DepositRegistry};
 
     #[test]
     fn generate_chunk_mesh_vertex_count() {
@@ -270,6 +351,39 @@ mod tests {
             format!("{pos2:?}"),
             "same seed+coords must produce identical mesh"
         );
+    }
+
+    fn iron_deposit_registry() -> DepositRegistry {
+        DepositRegistry::new(vec![DepositDef {
+            id: "iron".into(),
+            ores: vec![("iron".into(), 1.0)],
+        }])
+    }
+
+    #[test]
+    fn chunk_deposit_empty_registry_returns_none() {
+        let reg = DepositRegistry::new(vec![]);
+        assert!(chunk_deposit(0, IVec2::ZERO, &reg).is_none());
+    }
+
+    #[test]
+    fn chunk_deposit_is_deterministic() {
+        let reg = iron_deposit_registry();
+        let a = chunk_deposit(42, IVec2::new(1, 2), &reg);
+        let b = chunk_deposit(42, IVec2::new(1, 2), &reg);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn chunk_deposit_different_chunks_can_differ() {
+        let reg = iron_deposit_registry();
+        // With 33% probability per cell, two adjacent chunks are unlikely both Some or both None.
+        // Check that not every chunk returns the same result (statistical).
+        let results: Vec<bool> = (0..20)
+            .map(|i| chunk_deposit(99, IVec2::new(i, 0), &reg).is_some())
+            .collect();
+        let all_same = results.windows(2).all(|w| w[0] == w[1]);
+        assert!(!all_same, "expected variation across chunk deposit checks");
     }
 
     #[test]

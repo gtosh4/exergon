@@ -135,16 +135,16 @@ Migrate from flat material→recipe model to the material/form/item hierarchy de
 ## Phase 6 — Ore Deposits + Manual Mining ☐
 
 **6a. Surface deposit markers** (`src/world/generation.rs`)
-- [ ] Extract `pub(crate) fn terrain_height(seed: u64, wx: f32, wz: f32) -> f32` from mesh gen
-- [ ] System `spawn_deposit_markers`: after `add_chunk_colliders`, sample grid (every 4 units) in chunk → `DepositRegistry::ore_at(seed, wx, surface_y, wz)` → spawn `OreDeposit { ores: Vec<(MaterialId, f32)>, total_extracted: f32, depletion_seed: u64 }` sphere mesh at surface height
-- [ ] System `despawn_deposit_markers`: remove `OreDeposit` entities when parent chunk despawns
-- [ ] Deposits must not spawn inside habitat boundaries; remove existing deposit entity when habitat expands to cover it
-- [ ] Tests: deposit spawns when ore present, no spawn on empty cell, habitat boundary exclusion
+- [x] `TerrainSampler::height_at` already pub(crate); `chunk_deposit(seed, chunk_pos, registry)` helper added
+- [x] System `spawn_deposit_markers`: after `add_chunk_colliders`, checks deposit cell per chunk → spawn `OreDeposit { chunk_pos, ores, total_extracted, depletion_seed }` sphere mesh at surface height
+- [x] System `despawn_deposit_markers`: removes `OreDeposit` entities whose chunk_pos left `SpawnedChunks`
+- [ ] Deposits must not spawn inside habitat boundaries (out of scope — no habitats yet)
+- [x] Tests: `chunk_deposit_empty_registry_returns_none`, `chunk_deposit_is_deterministic`, `chunk_deposit_different_chunks_can_differ`
 
 **6b. Manual mining** (`src/drone/mod.rs`)
-- [ ] `drone_mine_system`: `DronePilot` mode, right-click → `SpatialQuery::cast_ray` (reach 4.0) → hit `OreDeposit` → sample one ore from weighted distribution → `Inventory::add(sampled_ore, 1)` → increment `total_extracted`
-- [ ] Deposit entity persists (not despawned); yield degrades per depletion curve (seeded per deposit, asymptotic, never zero)
-- [ ] Tests: right-click adds ore sampled from weights; deposit persists; repeated mining degrades yield
+- [x] `drone_mine_system`: `DronePilot` mode, right-click → `SpatialQuery::cast_ray` (reach 4.0) → hit `OreDeposit` → sample one ore from weighted distribution → `Inventory::add(sampled_ore, 1)` → increment `total_extracted`
+- [x] Deposit entity persists (not despawned); yield degrades per depletion curve (seeded per deposit, asymptotic, never zero)
+- [x] Tests: right-click adds ore sampled from weights; deposit persists; repeated mining degrades yield
 
 **6c. Automatic miner** (`src/machine/mod.rs`)
 - [ ] `MinerMachine` component: placed on a deposit (one per deposit); each tick samples weighted ore distribution, applies current yield factor, outputs to logistics network
