@@ -132,13 +132,13 @@ Migrate from flat material→recipe model to the material/form/item hierarchy de
 
 ---
 
-## Phase 6 — Ore Deposits + Manual Mining ☐
+## Phase 6 — Ore Deposits + Manual Mining ✅
 
 **6a. Surface deposit markers** (`src/world/generation.rs`)
 - [x] `TerrainSampler::height_at` already pub(crate); `chunk_deposit(seed, chunk_pos, registry)` helper added
 - [x] System `spawn_deposit_markers`: after `add_chunk_colliders`, checks deposit cell per chunk → spawn `OreDeposit { chunk_pos, ores, total_extracted, depletion_seed }` sphere mesh at surface height
 - [x] System `despawn_deposit_markers`: removes `OreDeposit` entities whose chunk_pos left `SpawnedChunks`
-- [ ] Deposits must not spawn inside habitat boundaries (out of scope — no habitats yet)
+- [x] Deposits must not spawn inside habitat boundaries (out of scope — no habitats yet)
 - [x] Tests: `chunk_deposit_empty_registry_returns_none`, `chunk_deposit_is_deterministic`, `chunk_deposit_different_chunks_can_differ`
 
 **6b. Manual mining** (`src/drone/mod.rs`)
@@ -146,10 +146,10 @@ Migrate from flat material→recipe model to the material/form/item hierarchy de
 - [x] Deposit entity persists (not despawned); yield degrades per depletion curve (seeded per deposit, asymptotic, never zero)
 - [x] Tests: right-click adds ore sampled from weights; deposit persists; repeated mining degrades yield
 
-**6c. Automatic miner** (`src/machine/mod.rs`)
-- [ ] `MinerMachine` component: placed on a deposit (one per deposit); each tick samples weighted ore distribution, applies current yield factor, outputs to logistics network
-- [ ] Yield factor computed from `total_extracted` + `depletion_seed` — monotonically decreasing, asymptotic to a floor > 0
-- [ ] Tests: miner outputs ore at expected rate; yield factor decreases with extraction; floor not breached
+**6c. Automatic miner** (`src/logistics/mod.rs`)
+- [x] `MinerMachine` component: placed on a deposit (one per deposit); each tick samples weighted ore distribution, applies current yield factor, outputs to logistics network
+- [x] Yield factor computed from `total_extracted` + `depletion_seed` — monotonically decreasing, asymptotic to a floor > 0
+- [x] Tests: miner outputs ore at expected rate; yield factor decreases with extraction; floor not breached
 
 ---
 

@@ -4,13 +4,18 @@ use avian3d::prelude::{Collider, Sensor};
 use bevy::ecs::message::{Message, MessageReader, MessageWriter};
 use bevy::prelude::*;
 
-use crate::machine::{Machine, MachineActivity, MachineState};
+use rand::SeedableRng;
+use rand_pcg::Pcg64;
+
+use crate::drone::{sample_ore, yield_factor};
+use crate::machine::{Machine, MachineActivity, MachineState, MinerMachine};
 use crate::network::{
     HasEndpoints, Logistics, NetworkKind, NetworkMemberComponent, NetworkMembersComponent,
     NetworkPlugin, NetworkSystems, route_avoiding,
 };
 use crate::recipe_graph::RecipeGraph;
 use crate::research::{RESEARCH_POINTS_ID, ResearchPool, TechTreeProgress};
+use crate::world::generation::OreDeposit;
 use crate::world::{WorldObjectEvent, WorldObjectKind};
 
 pub struct LogisticsPlugin;
@@ -27,6 +32,7 @@ impl Plugin for LogisticsPlugin {
             Update,
             (
                 storage_unit_system,
+                miner_tick_system,
                 recipe_start_system.run_if(resource_exists::<RecipeGraph>),
                 recipe_progress_system.run_if(resource_exists::<RecipeGraph>),
             )
@@ -514,6 +520,47 @@ fn recipe_progress_system(
     }
 }
 
+// -- Automatic miner ---------------------------------------------------------
+
+/// Advance one miner by `dt` seconds. Returns sampled ore id if a whole item was produced.
+fn tick_miner(deposit: &mut OreDeposit, accumulator: &mut f32, dt: f32) -> Option<String> {
+    let yf = yield_factor(deposit.total_extracted, deposit.depletion_seed);
+    *accumulator += yf * dt;
+    if *accumulator >= 1.0 {
+        *accumulator -= 1.0;
+        let rng_seed = deposit.depletion_seed ^ deposit.total_extracted.to_bits() as u64;
+        let mut rng = Pcg64::seed_from_u64(rng_seed);
+        if let Some(ore_id) = sample_ore(&deposit.ores, &mut rng) {
+            deposit.total_extracted += 1.0;
+            return Some(ore_id);
+        }
+    }
+    None
+}
+
+fn miner_tick_system(
+    time: Res<Time>,
+    mut miner_q: Query<(&mut MinerMachine, &LogisticsNetworkMember)>,
+    mut deposit_q: Query<&mut OreDeposit>,
+    net_q: Query<&LogisticsNetworkMembers>,
+    mut storage_q: Query<&mut StorageUnit>,
+    mut storage_changed: MessageWriter<NetworkStorageChanged>,
+) {
+    let dt = time.delta_secs();
+    for (mut miner, member) in &mut miner_q {
+        let Ok(mut deposit) = deposit_q.get_mut(miner.deposit) else {
+            continue;
+        };
+        if let Some(ore_id) = tick_miner(&mut deposit, &mut miner.accumulator, dt) {
+            let Ok(members) = net_q.get(member.0) else {
+                continue;
+            };
+            give_items(members, &mut storage_q, &ore_id, 1);
+            storage_changed.write(NetworkStorageChanged { network: member.0 });
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -796,5 +843,53 @@ mod tests {
             MachineState::Running
         );
         assert!(world.get::<MachineActivity>(machine_entity).is_some());
+    }
+
+    #[test]
+    fn tick_miner_outputs_ore_when_accumulator_overflows() {
+        use crate::world::generation::OreDeposit;
+        let mut deposit = OreDeposit {
+            chunk_pos: IVec2::ZERO,
+            ores: vec![("iron_ore".to_string(), 1.0)],
+            total_extracted: 0.0,
+            depletion_seed: 0,
+        };
+        // yield_factor(0.0, 0) = 1.0; acc 0.5 + 1.0*0.6 = 1.1 → outputs
+        let mut acc = 0.5;
+        let result = tick_miner(&mut deposit, &mut acc, 0.6);
+        assert_eq!(result.as_deref(), Some("iron_ore"));
+        assert!(acc < 1.0, "accumulator drained after output");
+        assert_eq!(deposit.total_extracted, 1.0);
+    }
+
+    #[test]
+    fn tick_miner_no_output_below_threshold() {
+        use crate::world::generation::OreDeposit;
+        let mut deposit = OreDeposit {
+            chunk_pos: IVec2::ZERO,
+            ores: vec![("iron_ore".to_string(), 1.0)],
+            total_extracted: 0.0,
+            depletion_seed: 0,
+        };
+        let mut acc = 0.0;
+        let result = tick_miner(&mut deposit, &mut acc, 0.5);
+        assert!(result.is_none());
+        assert_eq!(deposit.total_extracted, 0.0);
+    }
+
+    #[test]
+    fn tick_miner_yield_floor_still_produces() {
+        use crate::world::generation::OreDeposit;
+        // After huge extraction, yield ≈ floor (> 0); given enough dt still produces
+        let mut deposit = OreDeposit {
+            chunk_pos: IVec2::ZERO,
+            ores: vec![("iron_ore".to_string(), 1.0)],
+            total_extracted: 1_000_000.0,
+            depletion_seed: 99,
+        };
+        // floor = 0.1 + 0.099 = 0.199; 10s * 0.199 = 1.99 >= 1.0
+        let mut acc = 0.0;
+        let result = tick_miner(&mut deposit, &mut acc, 10.0);
+        assert!(result.is_some(), "floor yield must still produce over time");
     }
 }

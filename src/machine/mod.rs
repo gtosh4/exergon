@@ -122,6 +122,13 @@ pub enum MachineState {
     Running,
 }
 
+/// Automatic miner placed on an ore deposit. Continuously samples ore and outputs to logistics.
+#[derive(Component)]
+pub struct MinerMachine {
+    pub deposit: Entity,
+    pub accumulator: f32,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Rotation {
     North,

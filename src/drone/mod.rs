@@ -146,7 +146,7 @@ pub(crate) fn yield_factor(total_extracted: f32, depletion_seed: u64) -> f32 {
     floor + (1.0 - floor) * (-k * total_extracted).exp()
 }
 
-fn sample_ore<R: Rng>(ores: &[(String, f32)], rng: &mut R) -> Option<String> {
+pub(crate) fn sample_ore<R: Rng>(ores: &[(String, f32)], rng: &mut R) -> Option<String> {
     let total: f32 = ores.iter().map(|(_, w)| w).sum();
     if total <= 0.0 {
         return None;
