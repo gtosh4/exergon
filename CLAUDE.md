@@ -24,3 +24,4 @@ Docs and code diverge → reconcile explicitly. Never leave silent.
   - See [ecs.md](.claude/skills/bevy/ecs.md) for how to test systems
   - Don't test: what the compiler already proves. trivial getters, external/dependency crates (eg bevy)
 - Always add non-test code above `mod tests`
+- When writing code, make sure to run `cargo fmt`, `cargo clippy` and `cargo test`; make sure lints and tests pass

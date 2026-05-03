@@ -132,13 +132,28 @@ Rationale and context behind key decisions. The GDD contains the *what*; this do
 
 ---
 
-## Tech tree — tier count per difficulty, unlocked via meta-progression (resolves GDD Q#2)
+## Tech tree — goal-oriented tiers aligned with escape conditions (supersedes prior tier count decision, resolves GDD Q#2)
 
-**Decision:** Tier count is not a single number — it scales with difficulty tier, and difficulty tiers unlock through meta-progression. Tentative: Initiation=3, Standard=4, Advanced=5, Pinnacle=6. Exact counts need playtesting.
+**Decision:** Canonical 10-tier sequence. Each difficulty uses a prefix: Initiation=1–3, Standard=1–5, Advanced=1–7, Pinnacle=1–10. Tier names and gate conditions are goal-oriented — each tier is a narrative step toward its difficulty's escape condition, not a generic depth label.
 
-**Why:** Early runs are shallower and faster (teaches the loop, produces satisfying first completions). Depth unlocks as mastery grows. Aligns with GDD difficulty ladder which already listed "graph depth" as a tunable axis.
+**Tier names:** Landfall → Roots → Contact → Reach → Salvage → Traverse → Interface → Revelation → Forge → Transcendence.
 
-**Win condition interaction:** The escape artifact is the terminal node of the recipe graph. Deeper trees = more complex artifact naturally. No special logic needed.
+**Tiers 3, 5, 7 have two variants:**
+- *Terminal*: the escape objective for that difficulty (gateway, derelict ship, relay)
+- *Intermediary*: a different alien artifact class that yields materials/knowledge but cannot itself be used to escape (automated probe, knowledge archive)
+- Immersion preserved by roguelite logic: each run is a different world with a different precursor remnant. Same civilization, different artifact.
+
+**Why goal-oriented tiers:** Generic tier names (Foundation/Expansion/Mastery) don't communicate the run's narrative arc. Goal-oriented tiers make the escape feel like a conclusion the entire run was building toward, not a bolt-on win condition. Each tier gate is a milestone in the specific escape arc.
+
+**Why larger tier gaps:** Prior design used 3/4/5/6 tiers — a 1-tier increment per difficulty, producing minimal run-length differentiation. New design (3/5/7/10) creates meaningful depth gaps and adds two entirely new tier phases (Revelation, Forge) that only exist in Pinnacle, making the hardest difficulty genuinely distinct rather than just "more of the same."
+
+**Escape condition redesign:** Replaced sustained throughput requirement with multi-step construction + activation per escape type:
+- T3 (Initiation): craft activation key + sustain gateway power + activate
+- T5 (Standard): construct ship systems (hull, nav, engines, life support) + produce alien fuel + launch
+- T7 (Advanced): collect seeded relay fragments + construct repair components + sustain power + activate; fragment count fixed, locations seeded per run
+- T10 (Pinnacle): construct four major systems (engines, FTL drive, reactor, shielding) + assemble + launch
+
+**Why multi-step escape:** Sustained throughput was too mechanically thin — proved factory works but didn't create a dramatic final act. Multi-step construction gives the escape a shape: parallel build tracks, a field-collection phase (T7 fragments), and a moment of activation. Scales appropriately with difficulty.
 
 **Node visibility in shadow:** Locked nodes show category + rarity (e.g. "Power — Tier 2, Rare"), not blank slots. Gives enough information to plan without removing discovery reward.
 
@@ -156,8 +171,25 @@ Rationale and context behind key decisions. The GDD contains the *what*; this do
 
 ---
 
+## QoL tool progression — knowledge gates, not friction gates
+
+**Decision:** Factory QoL tools (ratio calculator, auto-crafting network, recipe-chain auto-resolution, blueprint deployment) are in-run Engineering research unlocks, not available from run start. Default unlock windows are calibrated so each tool arrives after the player has encountered and worked through the problem it solves. Earlier access is purchasable as a boon in the run modifier point-buy system.
+
+**Why — knowledge gates:** Tools arriving before players understand what they solve remove learning, not friction. A ratio calculator on day one prevents players from building recipe-graph intuition. Auto-crafting before tracing multi-step chains manually produces a factory the player doesn't understand. Each tool should feel like relief — "finally I don't have to do this by hand" — not like a feature on a checklist. That relief requires having done it by hand first.
+
+**Why — boons for earlier access:** Veterans who have learned the systems in prior runs don't need to re-learn them. Earlier access boons let experienced players trade challenge-point cost (earned only through completed runs) for reduced rote re-tread. By definition, a player spending challenge points has already done the runs — they understand what they're bypassing.
+
+**Boon cost principle:** Cost must reflect depth of challenge removed. Early ratio calculator = minor convenience, low cost. Early auto-crafting = skips a significant architectural learning phase, higher cost. Early full recipe-chain resolution = highest cost. No tool access boon should be an obvious always-buy for experienced players.
+
+**Point-buy net:** Players can compose a modifier set with any net balance. Positive = net harder run (more challenge points than boon costs). Negative = net easier. No forced configuration. This is a voluntary challenge dial, not a gatekeeping mechanism.
+
+**What tools don't do:** Earlier access shifts *when* tools arrive, not *what* they do. Ratio calculator shows numbers; player still decides what to build. Auto-crafting handles execution; player still designs the crafting graph. Tools surface the problem more clearly — they don't eliminate it.
+
+---
+
 ## Power transition drama — post-MVP
 
 **Decision:** Dramatic in-world power transition events (factory going dark, world reacting to energy signature change) are a post-MVP enhancement, not core.
 
 **Why:** Power transitions are already meaningful as economic decisions (when is the pain of staying on this source worse than rebuilding?). The drama layer adds narrative texture but is not required for the core gameplay loop to function.
+

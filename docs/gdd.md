@@ -194,16 +194,29 @@ At any point in a run, the player has three tiers of knowledge about any given r
 The tech tree is the skeleton of the run. It is the one structure that is always partially visible — players can always see its shape, even when its contents are hidden.
 
 ### Tier structure
-The tech tree is organized into **tiers**. Tier count scales with difficulty tier and is unlocked via meta-progression — early runs are shallower and faster, deeper trees unlock as mastery grows:
+The tech tree is organized into **tiers** that follow a canonical 10-tier sequence. Each difficulty uses a prefix of this sequence, producing meaningfully different run lengths:
 
-| Difficulty | Tech tiers (tentative) | Unlocked by |
+| # | Tier name | Terminal for | Gate condition |
+|---|---|---|---|
+| 1 | Landfall | — | Analyze first alien sample + deploy surface drone |
+| 2 | Roots | — | Reach Layer 2 + sustain stable second power source |
+| 3 | Contact | **Initiation** | Activate alien structure (terminal: gateway; intermediary: ruin/cache unlocking alien material or machine) |
+| 4 | Reach | — | Achieve first orbital flight |
+| 5 | Salvage | **Standard** | Interact with alien vessel (terminal: repair + launch; intermediary: extract fabrication data) |
+| 6 | Traverse | — | Reach outer-system zone |
+| 7 | Interface | **Advanced** | Interact with alien megastructure (terminal: operate relay; intermediary: extract FTL theory fragments) |
+| 8 | Revelation | — | Synthesize first exotic material |
+| 9 | Forge | — | Produce all FTL drive component types + sustain FTL-grade power |
+| 10 | Transcendence | **Pinnacle** | — (escape condition is the terminal) |
+
+| Difficulty | Tiers | Unlocked by |
 |---|---|---|
-| Initiation | 3 | Available from start |
-| Standard | 4 | Complete an Initiation run |
-| Advanced | 5 | Complete a Standard run |
-| Pinnacle | 6 | Complete an Advanced run |
+| Initiation | 1–3 | Available from start |
+| Standard | 1–5 | Complete an Initiation run |
+| Advanced | 1–7 | Complete a Standard run |
+| Pinnacle | 1–10 | Complete an Advanced run |
 
-Exact counts are subject to playtesting (see open question #10). The escape artifact is the terminal node of the recipe graph — deeper tech trees produce more complex artifacts naturally, no special win condition logic required.
+**Tiers 3, 5, and 7 have two variants** — terminal and intermediary. When a tier is terminal for the current difficulty, the alien structure at that tier is the escape objective (gateway, derelict ship, relay node). When the same tier appears as an intermediary in a harder difficulty, a different artifact class is present: an automated probe, a knowledge archive. These are intact but not usable for escape — their value is what they teach or produce. This preserves immersion across runs: each run is a different world with a different precursor remnant.
 
 Each tier has:
 - A visible unlock condition (what production milestone, research threshold, or exploration achievement opens this tier)
@@ -406,6 +419,13 @@ Several design decisions exist specifically to reduce passive observation and in
 - **Automation of routine fixes.** Where possible, the game handles routine maintenance automatically; the player's attention is reserved for genuine decisions
 - **Photo mode.** A dedicated screenshot/photo mode for capturing and sharing builds. Base sharing is an intended community loop.
 
+### QoL tool progression
+Factory tools — ratio calculator, auto-crafting network, full recipe-chain resolution, blueprint deployment — are not available from run start. They unlock progressively via Engineering research during the run. Each tool unlocks after the player has already encountered the problem it solves: the ratio calculator after wrestling with machine counts manually, auto-crafting after tracing multi-step chains by hand.
+
+This is not a friction gate. It is a knowledge gate: tools arrive as relief, not as features. The challenge shifts when the tool arrives — from "figure out the solution" to "optimize the solution" — rather than disappearing.
+
+Earlier access to any tool is available as a boon in the run modifier system (see §14). This means veterans can trade challenge points for reduced rote re-tread without bypassing the underlying learning, since boons require challenge points earned from completed runs.
+
 ---
 
 ## 11. The World & Environment
@@ -490,7 +510,7 @@ The world's reactivity profile is seeded — some worlds react quickly and drama
 
 ## 12. The Escape Condition
 
-Each run has a single escape objective — a complex final achievement that requires the player to have mastered the run's full production graph.
+Each run has a single escape objective — a multi-step construction and activation challenge that requires mastering the run's full production graph.
 
 ### Design intent
 The escape condition is the run's thesis statement. Completing it means the player understood this alien world's science well enough to leave it. It is not a checklist — it is proof of mastery.
@@ -501,24 +521,23 @@ The nature of the escape scales with difficulty tier, reflecting the player's gr
 
 | Difficulty | Escape type | Description |
 |---|---|---|
-| Initiation | Alien gateway activation | Discover and power an alien gateway left by a prior civilisation. Requires mastering early-tier science to generate sufficient power and produce the activation components. |
-| Standard | Alien derelict ship | There is an alien ship located within the solar system. Requires rudimentary spacecraft construction to reach the ship and repair. |
-| Advanced | Outer-system relay | Alien megastructure located in the outer reaches of the solar system. Requires advanced spacecraft construction to reach. Requires powering and research for learning how to use it. |
-| Pinnacle | Interstellar spacecraft | Build a vessel capable of leaving the solar system (FLT). Requires mastery of the entire run's production graph. |
+| Initiation | Alien gateway activation | Discover an alien gateway left by a prior civilisation. Construct the activation key (a complex alien-spec artifact). Sustain sufficient power. Insert key and hold power to activate. |
+| Standard | Alien derelict ship | Locate a derelict alien ship within the solar system. Construct several ship system components (hull section, navigation, engines, life support). Produce alien-spec fuel. Install all components and launch. |
+| Advanced | Outer-system relay | Locate scattered relay fragments across the solar system (count fixed, locations seeded per run). Construct relay repair components. Collect all fragments, install repairs, sustain power to activate. |
+| Pinnacle | Interstellar spacecraft | Construct four major ship systems from scratch — engines, FTL drive, reactor, shielding — each requiring deep production chains. Assemble and launch. |
 
 Escape types are content-defined — modders can create new escape scenarios.
 
 ### Structure
-The escape condition is a terminal node in the recipe graph. Its prerequisites cascade through the entire graph, meaning a player cannot shortcut to it — every major production chain must be solved. The specific escape type is determined by the run's difficulty tier and scenario (see meta-progression).
+The escape condition is the terminal tier of the run. Its construction prerequisites cascade through the entire production graph — no major chain can be skipped. The specific escape type is determined by the run's difficulty tier (see meta-progression).
 
-### Throughput requirement
-The escape condition is not completed by producing the artifact once. It requires **sustained factory output** at a target throughput for a defined duration. This means:
-- The factory must be genuinely functional, not a one-off craft
-- Bottlenecks are punished even at the run's end
-- The player must judge when their factory is ready to attempt the escape, not just when they have the ingredients
+Each escape has three phases:
+1. **Construction** — produce all required components (multiple distinct items, each with its own production chain)
+2. **Field requirement** — a non-production prerequisite: sustained power, fuel stockpile, or fragment collection via exploration
+3. **Activation** — final trigger that ends the run once all conditions are met simultaneously
 
 ### Player-initiated
-The player chooses when to attempt the escape. There is no forced end condition. A player who wants to optimize their factory further before attempting can do so. A player who is satisfied with a functional solution can attempt immediately. This respects the "variable length" run philosophy.
+The player chooses when to attempt the escape. No forced end condition. A player who wants to optimize further can do so; a player satisfied with a functional solution can attempt immediately. This respects the "variable length" run philosophy.
 
 ---
 
@@ -560,6 +579,10 @@ Meta-progression persists across runs and expands the game's possibility space w
 **Biomes.** New biome types added to the world generation pool. Each new biome brings new planet modifier combinations, new sample types, and new visual environments. Biomes expand the variety of runs, not their tractability.
 
 **Run modifiers & scenarios.** New run modifier types unlock — additional axes of seeded variance, special scenario conditions, unique escape artifact types. These expand what a run can be, not how easy it is to complete one.
+
+Run modifiers use a **point-buy system** at run start. Challenges (harder planet modifiers, tighter research budgets, disabled tools, higher reactivity rates) award points. Boons (starting resource cache, pre-researched node, *earlier access to a QoL tool*) cost points. Players compose a modifier set that sums to zero or any positive/negative balance they choose — positive balance means net-harder, negative means net-easier. No forced configuration; this is a player-controlled challenge dial.
+
+The tool-access boons specifically shift the in-run Engineering research unlock window for a given tool to an earlier tier, not to run start. Boon cost scales with the depth of challenge the tool removes — early ratio calculator costs less than early auto-crafting network. No tool access boon should be an obvious always-buy.
 
 **Narrative.** Completing runs at various difficulty tiers unlocks story content — lore about the world(s), the character's history, the reason for the escape conditions. Narrative is delivered through the field computer, discovered artifacts, and run completion screens. The story emerges across many runs, rewarding long-term play.
 
@@ -657,7 +680,7 @@ Collected here for easy tracking. Each item links back to the section where it f
 | # | Question | Section | Priority |
 |---|---|---|---|
 | 1 | ~~Should "building blind" be a supported mechanic?~~ **Resolved: post-MVP optional challenge mode** | §6 | ~~Medium~~ |
-| 2 | ~~Exact tier count for tech trees across difficulty levels~~ **Resolved: 3/4/5/6 tiers for Initiation/Standard/Advanced/Pinnacle (tentative, needs playtesting)** | §7 | ~~High~~ |
+| 2 | ~~Exact tier count for tech trees across difficulty levels~~ **Resolved: canonical 10-tier sequence, difficulties use prefix 1–3/1–5/1–7/1–10** | §7 | ~~High~~ |
 | 3 | ~~Visual perspective and movement model (2D, isometric, other)~~ **Resolved: 3D with building-scale prefab machines, heightmap terrain, graph-based underground tunnels** | §10 | ~~High~~ |
 | 4 | ~~Should world reactivity also create opportunities?~~ **Resolved: yes, post-MVP — considered core to the game's reactivity design, not optional** | §11 | ~~Medium~~ |
 | 5 | ~~Should power transitions have a dramatic in-world expression?~~ **Resolved: post-MVP enhancement, not core** | §9 | ~~Low~~ |
