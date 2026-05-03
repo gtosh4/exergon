@@ -1,35 +1,38 @@
+use avian3d::prelude::SpatialQuery;
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
-use bevy_voxel_world::prelude::*;
 
-use crate::inventory::{Hotbar, Inventory, InventoryOpen, ItemRegistry};
+use crate::inventory::{Hotbar, Inventory, InventoryOpen};
 
-use super::generation::WorldConfig;
 use super::player::MainCamera;
-use super::{BlockChangeKind, BlockChangedMessage};
+use super::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
 const MAX_REACH: f32 = 8.0;
 
 #[derive(Component)]
-pub struct GhostBlock;
+pub struct PlacementGhost;
+
+/// Holds the first-selected IO port position when the player is mid-way through
+/// a two-click cable connection.
+#[derive(Resource, Default)]
+pub struct PendingCablePort {
+    pub pos: Option<IVec3>,
+    pub item_id: Option<String>,
+}
 
 #[derive(Resource)]
 pub struct GhostPreview {
     entity: Entity,
 }
 
-#[derive(Resource)]
-pub struct GhostMaterials(Vec<Handle<StandardMaterial>>);
-
 #[derive(Resource, Default)]
 pub enum LookTarget {
     #[default]
     Nothing,
-    Voxel {
-        material: u8,
-        pos: IVec3,
-        normal: IVec3,
+    Surface {
+        pos: Vec3,
+        normal: Vec3,
     },
 }
 
@@ -38,101 +41,47 @@ pub(super) fn setup_ghost_preview(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // Distinct tint per material slot so placed-block type is visually distinguishable.
-    // Do NOT use the atlas texture — bevy_voxel_world loads it as D2Array which is
-    // incompatible with the D2 binding expected by StandardMaterial.
-    let tints = [
-        Color::srgba(0.75, 0.75, 0.75, 0.5), // 1
-        Color::srgba(0.35, 0.75, 0.35, 0.5), // 2
-        Color::srgba(0.80, 0.55, 0.25, 0.5), // 3
-        Color::srgba(0.30, 0.55, 0.90, 0.5), // 4
-        Color::srgba(0.90, 0.85, 0.25, 0.5), // 5
-        Color::srgba(0.80, 0.30, 0.80, 0.5), // 6
-    ];
-
-    let ghost_mats: Vec<Handle<StandardMaterial>> = tints
-        .iter()
-        .map(|&color| {
-            materials.add(StandardMaterial {
-                base_color: color,
+    let entity = commands
+        .spawn((
+            PlacementGhost,
+            Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgba(0.75, 0.75, 0.75, 0.5),
                 alpha_mode: AlphaMode::Blend,
                 unlit: true,
                 double_sided: true,
                 cull_mode: None,
                 ..default()
-            })
-        })
-        .collect();
-
-    let initial_mat = ghost_mats.first().cloned().unwrap_or_default();
-
-    let entity = commands
-        .spawn((
-            GhostBlock,
-            Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-            MeshMaterial3d(initial_mat),
+            })),
             Transform::IDENTITY,
             Visibility::Hidden,
         ))
         .id();
 
     commands.insert_resource(GhostPreview { entity });
-    commands.insert_resource(GhostMaterials(ghost_mats));
+    commands.init_resource::<PendingCablePort>();
 }
 
 pub(super) fn update_ghost_preview(
     look_target: Res<LookTarget>,
-    keyboard: Res<ButtonInput<KeyCode>>,
     hotbar: Res<Hotbar>,
-    item_registry: Option<Res<ItemRegistry>>,
     inventory_open: Option<Res<InventoryOpen>>,
     ghost: Option<Res<GhostPreview>>,
-    ghost_mats: Option<Res<GhostMaterials>>,
-    mut ghost_q: Query<
-        (
-            &mut Transform,
-            &mut Visibility,
-            &mut MeshMaterial3d<StandardMaterial>,
-        ),
-        With<GhostBlock>,
-    >,
-    mut gizmos: Gizmos,
+    mut ghost_q: Query<(&mut Transform, &mut Visibility), With<PlacementGhost>>,
 ) {
     let Some(ghost) = ghost else { return };
-    let Ok((mut transform, mut vis, mut mat)) = ghost_q.get_mut(ghost.entity) else {
+    let Ok((mut transform, mut vis)) = ghost_q.get_mut(ghost.entity) else {
         return;
     };
 
-    let shift = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
     let inv_open = inventory_open.is_some_and(|o| o.0);
-    let active_voxel = hotbar
-        .active_item_id()
-        .and_then(|id| item_registry.as_ref().and_then(|r| r.voxel_id(id)));
-    let show_ghost = active_voxel.is_some() && !inv_open && !shift;
-
-    if hotbar.is_changed()
-        && let (Some(m), Some(mats)) = (active_voxel, &ghost_mats)
-    {
-        let idx = (m as usize)
-            .saturating_sub(1)
-            .min(mats.0.len().saturating_sub(1));
-        if let Some(h) = mats.0.get(idx) {
-            *mat = MeshMaterial3d(h.clone());
-        }
-    }
+    let has_item = hotbar.active_item_id().is_some();
+    let show_ghost = has_item && !inv_open;
 
     match *look_target {
-        LookTarget::Voxel { pos, normal, .. } if show_ghost => {
-            transform.translation = (pos + normal).as_vec3() + Vec3::splat(0.5);
+        LookTarget::Surface { pos, normal } if show_ghost => {
+            transform.translation = pos + normal * 0.5;
             *vis = Visibility::Visible;
-        }
-        LookTarget::Voxel { pos, .. } if shift && !inv_open => {
-            *vis = Visibility::Hidden;
-            gizmos.cube(
-                Transform::from_translation(pos.as_vec3() + Vec3::splat(0.5))
-                    .with_scale(Vec3::splat(1.01)),
-                Color::srgba(1.0, 0.35, 0.2, 1.0),
-            );
         }
         _ => {
             *vis = Visibility::Hidden;
@@ -142,7 +91,7 @@ pub(super) fn update_ghost_preview(
 
 pub(super) fn hide_ghost_preview(
     ghost: Option<Res<GhostPreview>>,
-    mut ghost_q: Query<&mut Visibility, With<GhostBlock>>,
+    mut ghost_q: Query<&mut Visibility, With<PlacementGhost>>,
 ) {
     let Some(ghost) = ghost else { return };
     if let Ok(mut vis) = ghost_q.get_mut(ghost.entity) {
@@ -152,7 +101,7 @@ pub(super) fn hide_ghost_preview(
 
 pub(super) fn update_look_target(
     camera_q: Query<&Transform, With<MainCamera>>,
-    voxel_world: VoxelWorld<WorldConfig>,
+    spatial_query: SpatialQuery,
     mut look_target: ResMut<LookTarget>,
 ) {
     let Ok(cam) = camera_q.single() else {
@@ -160,36 +109,29 @@ pub(super) fn update_look_target(
         return;
     };
 
-    let ray = Ray3d::new(cam.translation, cam.forward());
-    let hit = voxel_world
-        .raycast(ray, &|(_pos, voxel)| matches!(voxel, WorldVoxel::Solid(_)))
-        .filter(|hit| hit.position.distance(cam.translation) <= MAX_REACH);
+    let dir = Dir3::new(*cam.forward()).unwrap_or(Dir3::NEG_Z);
+    let hit = spatial_query.cast_ray(cam.translation, dir, MAX_REACH, true, &Default::default());
 
     *look_target = match hit {
         None => LookTarget::Nothing,
-        Some(hit) => match hit.voxel {
-            WorldVoxel::Solid(mat) => LookTarget::Voxel {
-                material: mat,
-                pos: hit.voxel_pos(),
-                normal: hit.voxel_normal().unwrap_or(IVec3::Y),
-            },
-            _ => LookTarget::Nothing,
+        Some(h) => LookTarget::Surface {
+            pos: cam.translation + *dir * h.distance,
+            normal: h.normal,
         },
     };
 }
 
-pub(super) fn block_interaction(
+pub(super) fn object_interaction(
     mouse: Res<ButtonInput<MouseButton>>,
     keyboard: Res<ButtonInput<KeyCode>>,
     mut scroll: MessageReader<MouseWheel>,
     look_target: Res<LookTarget>,
     mut hotbar: ResMut<Hotbar>,
     mut inventory: ResMut<Inventory>,
-    item_registry: Option<Res<ItemRegistry>>,
-    mut voxel_world: VoxelWorld<WorldConfig>,
-    mut block_changed: MessageWriter<BlockChangedMessage>,
+    mut world_events: MessageWriter<WorldObjectEvent>,
+    mut cable_events: MessageWriter<CableConnectionEvent>,
+    mut pending_cable: ResMut<PendingCablePort>,
 ) {
-    // Scroll wheel or number keys to select hotbar slot
     for ev in scroll.read() {
         let delta = if ev.y > 0.0 { 1i32 } else { -1i32 };
         hotbar.selected = (hotbar.selected as i32 + delta).rem_euclid(9) as usize;
@@ -213,13 +155,7 @@ pub(super) fn block_interaction(
         }
     }
 
-    let LookTarget::Voxel {
-        pos,
-        normal,
-        material: hit_voxel,
-        ..
-    } = *look_target
-    else {
+    let LookTarget::Surface { pos, normal } = *look_target else {
         return;
     };
 
@@ -227,30 +163,62 @@ pub(super) fn block_interaction(
 
     if mouse.just_pressed(MouseButton::Left) {
         if shift {
-            voxel_world.set_voxel(pos, WorldVoxel::Air);
-            block_changed.write(BlockChangedMessage {
+            world_events.write(WorldObjectEvent {
                 pos,
-                kind: BlockChangeKind::Removed {
-                    voxel_id: hit_voxel,
-                },
+                item_id: String::new(),
+                kind: WorldObjectKind::Removed,
             });
-            if let Some(item) = item_registry
-                .as_ref()
-                .and_then(|r| r.item_for_voxel(hit_voxel))
-            {
-                inventory.add(item.id.clone(), 1);
+            pending_cable.pos = None;
+            pending_cable.item_id = None;
+        } else if let Some(item_id) = hotbar.active_item_id().map(str::to_owned) {
+            if item_id.ends_with("_cable") {
+                // Two-click cable connection: endpoints snap to grid (must match IO port IVec3 positions)
+                let place_pos = snap_to_grid(pos, normal);
+                match pending_cable.pos {
+                    Some(from)
+                        if pending_cable.item_id.as_deref() == Some(&item_id)
+                            && from != place_pos =>
+                    {
+                        hotbar.consume_active();
+                        inventory.add(item_id.clone(), 0);
+                        cable_events.write(CableConnectionEvent {
+                            from,
+                            to: place_pos,
+                            item_id,
+                            kind: WorldObjectKind::Placed,
+                        });
+                        pending_cable.pos = None;
+                        pending_cable.item_id = None;
+                    }
+                    _ => {
+                        pending_cable.pos = Some(place_pos);
+                        pending_cable.item_id = Some(item_id);
+                    }
+                }
+            } else {
+                hotbar.consume_active();
+                inventory.add(item_id.clone(), 0);
+                world_events.write(WorldObjectEvent {
+                    pos: pos + normal * 0.5,
+                    item_id,
+                    kind: WorldObjectKind::Placed,
+                });
             }
-        } else if let Some(voxel_id) = hotbar
-            .active_item_id()
-            .and_then(|id| item_registry.as_ref().and_then(|r| r.voxel_id(id)))
-        {
-            hotbar.consume_active();
-            let place_pos = pos + normal;
-            voxel_world.set_voxel(place_pos, WorldVoxel::Solid(voxel_id));
-            block_changed.write(BlockChangedMessage {
-                pos: place_pos,
-                kind: BlockChangeKind::Placed { voxel_id },
-            });
         }
     }
+}
+
+/// Snaps a hit surface position to a grid cell.
+/// When `normal` is non-zero, offsets into the adjacent cell in the normal direction.
+fn snap_to_grid(pos: Vec3, normal: Vec3) -> IVec3 {
+    let base = pos.floor().as_ivec3();
+    if normal == Vec3::ZERO {
+        return base;
+    }
+    let snapped_normal = IVec3::new(
+        normal.x.round() as i32,
+        normal.y.round() as i32,
+        normal.z.round() as i32,
+    );
+    base + snapped_normal
 }

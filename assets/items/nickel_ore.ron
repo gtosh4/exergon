@@ -1,1 +1,1 @@
-(id: "nickel_ore", name: "Nickel Ore", block: Some((voxel_id: 5, hardness: 2.0)))
+(id: "nickel_ore", name: "Nickel Ore")

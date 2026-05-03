@@ -31,7 +31,7 @@ pub struct OreSpec {
 #[derive(Deserialize, Clone, Debug)]
 pub struct VeinDef {
     pub id: String,
-    /// Fraction of blocks within the vein volume that are replaced with ore (0–1).
+    /// Fraction of voxels within the vein volume that are replaced with ore (0–1).
     pub density: f32,
     pub primary: OreSpec,
     pub secondary: OreSpec,
@@ -63,7 +63,7 @@ impl VeinDef {
 pub struct LayerDef {
     pub id: String,
     pub name: String,
-    /// Inclusive cell-Y range this layer covers (1 cell = `CHUNK_VOXELS` × `CELL_CHUNKS` voxels tall).
+    /// Inclusive cell-Y range this layer covers (1 cell = `CHUNK_VOXELS` × `CELL_CHUNKS_Y` voxels tall).
     pub y_cell_range: (i32, i32),
 }
 
@@ -81,7 +81,8 @@ pub struct BiomeDef {
 // ---------------------------------------------------------------------------
 
 pub const CHUNK_VOXELS: i32 = 32;
-pub const CELL_CHUNKS: i32 = 3; // 3×3×3 chunks per vein cell
+pub const CELL_CHUNKS_XZ: i32 = 5; // XZ cell span in chunks (5×32 = 160 voxels wide)
+pub const CELL_CHUNKS_Y: i32 = 2; // Y cell span in chunks  (2×32 = 64 voxels tall)
 
 /// Snapshot returned by biome queries — borrows from `VeinRegistry`.
 pub struct BiomeInfo<'a> {
@@ -223,11 +224,31 @@ impl VeinRegistry {
     /// Returns the ore material index for a solid stone voxel at (wx, wy, wz),
     /// or None if no vein covers this position.
     pub fn ore_at(&self, world_seed: u64, wx: i32, wy: i32, wz: i32) -> Option<u8> {
-        let cell_size = CHUNK_VOXELS * CELL_CHUNKS;
-        let cell_x = wx.div_euclid(cell_size);
-        let cell_y = wy.div_euclid(cell_size);
-        let cell_z = wz.div_euclid(cell_size);
+        let cell_size_xz = CHUNK_VOXELS * CELL_CHUNKS_XZ;
+        let cell_size_y = CHUNK_VOXELS * CELL_CHUNKS_Y;
+        let cell_x = wx.div_euclid(cell_size_xz);
+        let cell_y = wy.div_euclid(cell_size_y);
+        let cell_z = wz.div_euclid(cell_size_xz);
         let vein = self.cell_vein(world_seed, cell_x, cell_y, cell_z)?;
+
+        // Normalized position within the cell in [-1, 1] per axis
+        let nx = (wx.rem_euclid(cell_size_xz) as f32 + 0.5) / cell_size_xz as f32 * 2.0 - 1.0;
+        let ny = (wy.rem_euclid(cell_size_y) as f32 + 0.5) / cell_size_y as f32 * 2.0 - 1.0;
+        let nz = (wz.rem_euclid(cell_size_xz) as f32 + 0.5) / cell_size_xz as f32 * 2.0 - 1.0;
+        // Ellipsoidal distance from cell center (0 at center, 1 at surface)
+        let dist = (nx * nx + ny * ny + nz * nz).sqrt();
+
+        // Per-voxel hash jitter gives organic, non-cubic vein boundaries
+        let jitter_seed = {
+            let mut key = world_seed.to_le_bytes().to_vec();
+            key.extend_from_slice(b"jit");
+            key.extend_from_slice(&wx.to_le_bytes());
+            key.extend_from_slice(&wy.to_le_bytes());
+            key.extend_from_slice(&wz.to_le_bytes());
+            xxh64(&key, 0)
+        };
+        let jitter = jitter_seed as f32 / u64::MAX as f32 * 0.5 - 0.25;
+        let density_scale = (1.0 - (dist + jitter)).clamp(0.0, 1.0);
 
         let pos_seed = {
             let mut key = world_seed.to_le_bytes().to_vec();
@@ -239,7 +260,9 @@ impl VeinRegistry {
         };
         let mut pos_rng = Pcg64::seed_from_u64(pos_seed);
 
-        if !pos_rng.gen_bool(f64::from(vein.density)) {
+        // 1.5× factor so average density across the ellipsoid matches vein.density
+        let effective_density = (vein.density * density_scale * 1.5_f32).min(1.0);
+        if !pos_rng.gen_bool(f64::from(effective_density)) {
             return None;
         }
 
@@ -499,5 +522,29 @@ mod tests {
         let r1 = reg.ore_at(999, 10, 10, 10);
         let r2 = reg.ore_at(999, 10, 10, 10);
         assert_eq!(r1, r2);
+    }
+
+    #[test]
+    fn ore_at_center_of_cell_reliably_present() {
+        let l = layer("l", (0, 10));
+        let v = VeinDef {
+            id: "iron".into(),
+            density: 1.0,
+            primary: ore("Iron", 10, 100),
+            secondary: ore("Copper", 11, 0),
+            sporadic: None,
+        };
+        let b = biome("b", "l", vec![("iron", 1)]);
+        let reg = VeinRegistry::new(vec![v], vec![l], vec![b]);
+        let cx = CHUNK_VOXELS * CELL_CHUNKS_XZ / 2;
+        let cy = CHUNK_VOXELS * CELL_CHUNKS_Y / 2;
+        let cz = CHUNK_VOXELS * CELL_CHUNKS_XZ / 2;
+        let count = (0u64..50)
+            .filter(|&seed| reg.ore_at(seed, cx, cy, cz).is_some())
+            .count();
+        assert!(
+            count > 10,
+            "center of vein cell should produce ore for most active-vein seeds, got {count}"
+        );
     }
 }

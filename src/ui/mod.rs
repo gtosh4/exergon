@@ -52,20 +52,16 @@ fn crosshair(mut contexts: EguiContexts, inv_open: Option<Res<InventoryOpen>>) -
     Ok(())
 }
 
-fn look_tooltip(
-    mut contexts: EguiContexts,
-    look_target: Option<Res<LookTarget>>,
-    item_registry: Option<Res<ItemRegistry>>,
-) -> Result {
+fn look_tooltip(mut contexts: EguiContexts, look_target: Option<Res<LookTarget>>) -> Result {
     let Some(target) = look_target else {
         return Ok(());
     };
     let label: String = match *target {
         LookTarget::Nothing => return Ok(()),
-        LookTarget::Voxel { material, .. } => item_registry
-            .as_ref()
-            .and_then(|r| r.item_for_voxel(material))
-            .map_or_else(|| "Unknown".into(), |i| i.name.clone()),
+        LookTarget::Surface { pos, .. } => {
+            let snapped = pos.floor().as_ivec3();
+            format!("{}, {}, {}", snapped.x, snapped.y, snapped.z)
+        }
     };
     let ctx = contexts.ctx_mut()?;
     egui::Area::new(egui::Id::new("waila"))

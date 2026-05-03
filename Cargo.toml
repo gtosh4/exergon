@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 bevy = { version = "0.18", features = ["dynamic_linking"] }
-bevy_voxel_world = "0.15"
 bevy_egui = "0.39"
 avian3d = "0.6"
 bevy-tnua = "0.31"
@@ -19,7 +18,6 @@ noise = "0.9"
 xxhash-rust = { version = "0.8", features = ["xxh64"] }
 anyhow = "1"
 thiserror = "2"
-image = { version = "0.25", default-features = false, features = ["png"] }
 clap = { version = "4.6.1", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 

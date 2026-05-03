@@ -3,14 +3,13 @@ use std::collections::{HashMap, HashSet};
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
-use crate::inventory::ItemRegistry;
 use crate::machine::{Machine, MachineActivity, MachineState};
 use crate::network::{
-    DIRS, HasPos, NetworkChanged, NetworkKind, NetworkMemberComponent, NetworkMembersComponent,
-    NetworkPlugin, NetworkSystems, Power,
+    HasEndpoints, NetworkChanged, NetworkKind, NetworkMemberComponent, NetworkMembersComponent,
+    NetworkPlugin, NetworkSystems, Power, route_avoiding,
 };
 use crate::recipe_graph::RecipeGraph;
-use crate::world::{BlockChangeKind, BlockChangedMessage};
+use crate::world::{WorldObjectEvent, WorldObjectKind};
 
 pub struct PowerPlugin;
 
@@ -21,10 +20,11 @@ impl Plugin for PowerPlugin {
             Update,
             NetworkSystems::of::<Power>().run_if(in_state(crate::GameState::Playing)),
         );
+        app.add_systems(Startup, setup_power_visuals);
         app.add_systems(
             Update,
             (
-                generator_system.run_if(resource_exists::<ItemRegistry>),
+                generator_system,
                 recalc_capacity_system,
                 brownout_system.run_if(resource_exists::<RecipeGraph>),
             )
@@ -33,23 +33,144 @@ impl Plugin for PowerPlugin {
                 .in_set(crate::GameSystems::Simulation)
                 .run_if(in_state(crate::GameState::Playing)),
         );
+        app.add_systems(
+            Update,
+            (add_power_cable_visuals, add_generator_visuals)
+                .in_set(crate::GameSystems::Rendering)
+                .run_if(in_state(crate::GameState::Playing)),
+        );
     }
 }
 
 const POWER_CABLE_ID: &str = "power_cable";
 const GENERATOR_ID: &str = "generator";
 const GENERATOR_DEFAULT_WATTS: f32 = 50.0;
+const CABLE_RADIUS: f32 = 0.04;
+
+// -- Visual assets -----------------------------------------------------------
+
+#[derive(Resource)]
+struct PowerVisualAssets {
+    tube: Handle<Mesh>,
+    joint: Handle<Mesh>,
+    cable_material: Handle<StandardMaterial>,
+    gen_mesh: Handle<Mesh>,
+    gen_material: Handle<StandardMaterial>,
+}
+
+fn setup_power_visuals(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    commands.insert_resource(PowerVisualAssets {
+        tube: meshes.add(Cylinder::new(CABLE_RADIUS, 1.0)),
+        joint: meshes.add(Sphere::new(CABLE_RADIUS)),
+        cable_material: materials.add(StandardMaterial {
+            base_color: Color::srgb(0.9, 0.8, 0.1),
+            ..default()
+        }),
+        gen_mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
+        gen_material: materials.add(StandardMaterial {
+            base_color: Color::srgb(0.9, 0.8, 0.1),
+            ..default()
+        }),
+    });
+}
+
+fn add_power_cable_visuals(
+    mut commands: Commands,
+    added: Query<(Entity, &PowerCableSegment), Added<PowerCableSegment>>,
+    assets: Option<Res<PowerVisualAssets>>,
+    machine_q: Query<(&Machine, &Transform)>,
+) {
+    let Some(assets) = assets else { return };
+    for (entity, seg) in &added {
+        commands
+            .entity(entity)
+            .insert(Transform::default())
+            .with_children(|parent| {
+                for window in seg.path.windows(2) {
+                    let a = window[0].as_vec3() + Vec3::splat(0.5);
+                    let b = window[1].as_vec3() + Vec3::splat(0.5);
+                    let dir = b - a;
+                    let rotation = if dir.x.abs() > 0.5 {
+                        Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)
+                    } else if dir.z.abs() > 0.5 {
+                        Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)
+                    } else {
+                        Quat::IDENTITY
+                    };
+                    parent.spawn((
+                        Mesh3d(assets.tube.clone()),
+                        MeshMaterial3d(assets.cable_material.clone()),
+                        Transform::from_translation((a + b) * 0.5).with_rotation(rotation),
+                    ));
+                }
+                for i in 1..seg.path.len().saturating_sub(1) {
+                    let prev_dir = seg.path[i] - seg.path[i - 1];
+                    let next_dir = seg.path[i + 1] - seg.path[i];
+                    if prev_dir != next_dir {
+                        parent.spawn((
+                            Mesh3d(assets.joint.clone()),
+                            MeshMaterial3d(assets.cable_material.clone()),
+                            Transform::from_translation(seg.path[i].as_vec3() + Vec3::splat(0.5)),
+                        ));
+                    }
+                }
+                // Connector tubes from each machine body to its port voxel
+                for port in [seg.from, seg.to] {
+                    let port_center = port.as_vec3() + Vec3::splat(0.5);
+                    if let Some(mpos) = machine_q
+                        .iter()
+                        .find(|(m, _)| m.energy_ports.contains(&port))
+                        .map(|(_, t)| t.translation)
+                    {
+                        let diff = port_center - mpos;
+                        let length = diff.length();
+                        if length > 1e-4 {
+                            let rotation = Quat::from_rotation_arc(Vec3::Y, diff / length);
+                            parent.spawn((
+                                Mesh3d(assets.tube.clone()),
+                                MeshMaterial3d(assets.cable_material.clone()),
+                                Transform::from_translation((mpos + port_center) * 0.5)
+                                    .with_rotation(rotation)
+                                    .with_scale(Vec3::new(1.0, length, 1.0)),
+                            ));
+                        }
+                    }
+                }
+            });
+    }
+}
+
+fn add_generator_visuals(
+    mut commands: Commands,
+    added: Query<(Entity, &GeneratorUnit), Added<GeneratorUnit>>,
+    assets: Option<Res<PowerVisualAssets>>,
+) {
+    let Some(assets) = assets else { return };
+    for (entity, unit) in &added {
+        commands.entity(entity).insert((
+            Mesh3d(assets.gen_mesh.clone()),
+            MeshMaterial3d(assets.gen_material.clone()),
+            Transform::from_translation(unit.pos.as_vec3() + Vec3::splat(0.5)),
+        ));
+    }
+}
 
 // -- Components --------------------------------------------------------------
 
 #[derive(Component)]
-pub struct PowerCableBlock {
-    pub pos: IVec3,
+pub struct PowerCableSegment {
+    pub from: IVec3,
+    pub to: IVec3,
+    pub path: Vec<IVec3>,
 }
 
-impl HasPos for PowerCableBlock {
-    fn pos(&self) -> IVec3 {
-        self.pos
+impl HasEndpoints for PowerCableSegment {
+    fn endpoints(&self) -> [IVec3; 2] {
+        [self.from, self.to]
     }
 }
 
@@ -77,7 +198,7 @@ impl NetworkMembersComponent for PowerNetworkMembers {
 }
 
 #[derive(Component)]
-pub struct GeneratorBlock {
+pub struct GeneratorUnit {
     pub pos: IVec3,
     pub watts: f32,
 }
@@ -92,16 +213,20 @@ pub struct PowerNetwork {
 impl NetworkKind for Power {
     const CABLE_ITEM_ID: &'static str = POWER_CABLE_ID;
 
-    type CableBlock = PowerCableBlock;
+    type CableSegment = PowerCableSegment;
     type Member = PowerNetworkMember;
     type Members = PowerNetworkMembers;
 
-    fn io_blocks(machine: &Machine) -> &HashSet<IVec3> {
-        &machine.energy_io_blocks
+    fn io_ports(machine: &Machine) -> &HashSet<IVec3> {
+        &machine.energy_ports
     }
 
-    fn new_cable_block(pos: IVec3) -> PowerCableBlock {
-        PowerCableBlock { pos }
+    fn new_cable_segment(from: IVec3, to: IVec3, blocked: &HashSet<IVec3>) -> PowerCableSegment {
+        PowerCableSegment {
+            from,
+            to,
+            path: route_avoiding(from, to, blocked),
+        }
     }
 
     fn spawn_network(commands: &mut Commands) -> Entity {
@@ -117,36 +242,31 @@ impl NetworkKind for Power {
 
 fn generator_system(
     mut commands: Commands,
-    mut block_events: MessageReader<BlockChangedMessage>,
-    item_registry: Res<ItemRegistry>,
-    cable_q: Query<(&PowerCableBlock, &PowerNetworkMember)>,
-    gen_q: Query<(Entity, &GeneratorBlock)>,
+    mut world_events: MessageReader<WorldObjectEvent>,
+    cable_q: Query<(&PowerCableSegment, &PowerNetworkMember)>,
+    gen_q: Query<(Entity, &GeneratorUnit)>,
     mut changed: MessageWriter<NetworkChanged<Power>>,
 ) {
-    let Some(generator_vox) = item_registry.voxel_id(GENERATOR_ID) else {
-        return;
-    };
-
-    let cable_pos_to_net: HashMap<IVec3, Entity> =
-        cable_q.iter().map(|(c, m)| (c.pos, m.0)).collect();
+    // endpoint → network
+    let endpoint_to_net: HashMap<IVec3, Entity> = cable_q
+        .iter()
+        .flat_map(|(seg, m)| seg.endpoints().map(|ep| (ep, m.0)))
+        .collect();
 
     let mut affected_nets: HashSet<Entity> = HashSet::new();
 
-    for ev in block_events.read() {
-        let (removed, added) = match ev.kind {
-            BlockChangeKind::Placed { voxel_id } => (None, Some(voxel_id)),
-            BlockChangeKind::Removed { voxel_id } => (Some(voxel_id), None),
-            BlockChangeKind::Replaced {
-                old_voxel_id,
-                new_voxel_id,
-            } => (Some(old_voxel_id), Some(new_voxel_id)),
-        };
+    for ev in world_events.read() {
+        if ev.item_id != GENERATOR_ID {
+            continue;
+        }
 
-        if removed.is_some_and(|v| v == generator_vox)
-            && let Some((gen_e, _)) = gen_q.iter().find(|(_, g)| g.pos == ev.pos)
+        let grid_pos = ev.pos.round().as_ivec3();
+
+        if ev.kind == WorldObjectKind::Removed
+            && let Some((gen_e, _)) = gen_q.iter().find(|(_, g)| g.pos == grid_pos)
         {
-            for &dir in &DIRS {
-                if let Some(&net) = cable_pos_to_net.get(&(ev.pos + dir)) {
+            for &dir in &crate::network::DIRS {
+                if let Some(&net) = endpoint_to_net.get(&(grid_pos + dir)) {
                     affected_nets.insert(net);
                     break;
                 }
@@ -154,15 +274,15 @@ fn generator_system(
             commands.entity(gen_e).despawn();
         }
 
-        if added.is_some_and(|v| v == generator_vox) {
+        if ev.kind == WorldObjectKind::Placed {
             let gen_e = commands
-                .spawn(GeneratorBlock {
-                    pos: ev.pos,
+                .spawn(GeneratorUnit {
+                    pos: grid_pos,
                     watts: GENERATOR_DEFAULT_WATTS,
                 })
                 .id();
-            for &dir in &DIRS {
-                if let Some(&net) = cable_pos_to_net.get(&(ev.pos + dir)) {
+            for &dir in &crate::network::DIRS {
+                if let Some(&net) = endpoint_to_net.get(&(grid_pos + dir)) {
                     commands.entity(gen_e).insert(PowerNetworkMember(net));
                     affected_nets.insert(net);
                     break;
@@ -179,7 +299,7 @@ fn generator_system(
 fn recalc_capacity_system(
     mut events: MessageReader<NetworkChanged<Power>>,
     mut net_q: Query<(Entity, &mut PowerNetwork, &PowerNetworkMembers)>,
-    gen_q: Query<&GeneratorBlock>,
+    gen_q: Query<&GeneratorUnit>,
 ) {
     let affected: HashSet<Entity> = events.read().map(|e| e.network).collect();
     if affected.is_empty() {
@@ -262,20 +382,19 @@ mod tests {
     use bevy::prelude::*;
 
     use super::*;
-    use crate::inventory::{BlockProps, ItemDef, ItemRegistry};
     use crate::machine::{
         Machine, MachineNetworkChanged, MachineState, Mirror, Orientation, Rotation,
     };
     use crate::network::{NetworkChanged, NetworkPlugin, NetworkSystems};
     use crate::recipe_graph::{RecipeDef, RecipeGraph};
-    use crate::world::{BlockChangeKind, BlockChangedMessage};
+    use crate::world::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
     fn power_app() -> App {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
-            .add_message::<BlockChangedMessage>()
+            .add_message::<WorldObjectEvent>()
+            .add_message::<CableConnectionEvent>()
             .add_message::<MachineNetworkChanged>()
-            .insert_resource(ItemRegistry::default())
             .add_plugins(NetworkPlugin::<Power>::default())
             .add_systems(
                 Update,
@@ -283,30 +402,6 @@ mod tests {
                     .chain()
                     .after(NetworkSystems::of::<Power>()),
             );
-        app
-    }
-
-    fn registered_power_app() -> App {
-        let mut app = power_app();
-        {
-            let mut reg = app.world_mut().resource_mut::<ItemRegistry>();
-            reg.register(ItemDef {
-                id: POWER_CABLE_ID.to_string(),
-                name: POWER_CABLE_ID.to_string(),
-                block: Some(BlockProps {
-                    voxel_id: 20,
-                    hardness: 1.0,
-                }),
-            });
-            reg.register(ItemDef {
-                id: GENERATOR_ID.to_string(),
-                name: GENERATOR_ID.to_string(),
-                block: Some(BlockProps {
-                    voxel_id: 21,
-                    hardness: 1.0,
-                }),
-            });
-        }
         app
     }
 
@@ -334,17 +429,20 @@ mod tests {
         }
     }
 
-    fn write_cable_placed(app: &mut App, pos: IVec3) {
-        app.world_mut().write_message(BlockChangedMessage {
-            pos,
-            kind: BlockChangeKind::Placed { voxel_id: 20 },
+    fn connect_cable(app: &mut App, from: IVec3, to: IVec3) {
+        app.world_mut().write_message(CableConnectionEvent {
+            from,
+            to,
+            item_id: POWER_CABLE_ID.to_string(),
+            kind: WorldObjectKind::Placed,
         });
     }
 
-    fn write_cable_removed(app: &mut App, pos: IVec3) {
-        app.world_mut().write_message(BlockChangedMessage {
-            pos,
-            kind: BlockChangeKind::Removed { voxel_id: 20 },
+    fn disconnect_at(app: &mut App, pos: IVec3) {
+        app.world_mut().write_message(WorldObjectEvent {
+            pos: pos.as_vec3(),
+            item_id: POWER_CABLE_ID.to_string(),
+            kind: WorldObjectKind::Removed,
         });
     }
 
@@ -357,13 +455,14 @@ mod tests {
     }
 
     #[test]
-    fn generator_adjacent_to_cable_adds_capacity() {
-        let mut app = registered_power_app();
-        write_cable_placed(&mut app, IVec3::ZERO);
+    fn generator_adjacent_to_cable_endpoint_adds_capacity() {
+        let mut app = power_app();
+        connect_cable(&mut app, IVec3::ZERO, IVec3::new(0, 0, 5));
         app.update();
-        app.world_mut().write_message(BlockChangedMessage {
-            pos: IVec3::new(1, 0, 0),
-            kind: BlockChangeKind::Placed { voxel_id: 21 },
+        app.world_mut().write_message(WorldObjectEvent {
+            pos: Vec3::new(1.0, 0.0, 0.0),
+            item_id: GENERATOR_ID.to_string(),
+            kind: WorldObjectKind::Placed,
         });
         app.update();
         let world = app.world_mut();
@@ -378,17 +477,19 @@ mod tests {
 
     #[test]
     fn generator_removed_clears_capacity() {
-        let mut app = registered_power_app();
-        write_cable_placed(&mut app, IVec3::ZERO);
+        let mut app = power_app();
+        connect_cable(&mut app, IVec3::ZERO, IVec3::new(0, 0, 5));
         app.update();
-        app.world_mut().write_message(BlockChangedMessage {
-            pos: IVec3::new(1, 0, 0),
-            kind: BlockChangeKind::Placed { voxel_id: 21 },
+        app.world_mut().write_message(WorldObjectEvent {
+            pos: Vec3::new(1.0, 0.0, 0.0),
+            item_id: GENERATOR_ID.to_string(),
+            kind: WorldObjectKind::Placed,
         });
         app.update();
-        app.world_mut().write_message(BlockChangedMessage {
-            pos: IVec3::new(1, 0, 0),
-            kind: BlockChangeKind::Removed { voxel_id: 21 },
+        app.world_mut().write_message(WorldObjectEvent {
+            pos: Vec3::new(1.0, 0.0, 0.0),
+            item_id: GENERATOR_ID.to_string(),
+            kind: WorldObjectKind::Removed,
         });
         app.update();
         let world = app.world_mut();
@@ -402,11 +503,10 @@ mod tests {
     }
 
     #[test]
-    fn machine_with_energy_io_adjacent_to_cable_gets_member() {
-        let mut app = registered_power_app();
-        let cable_pos = IVec3::ZERO;
+    fn machine_with_energy_port_matching_cable_endpoint_gets_member() {
+        let mut app = power_app();
         let io_pos = IVec3::new(1, 0, 0);
-        write_cable_placed(&mut app, cable_pos);
+        connect_cable(&mut app, io_pos, IVec3::new(5, 0, 0));
         let machine_entity = app
             .world_mut()
             .spawn((
@@ -417,10 +517,8 @@ mod tests {
                         rotation: Rotation::North,
                         mirror: Mirror::Normal,
                     },
-                    origin_pos: IVec3::ZERO,
-                    blocks: HashSet::new(),
-                    energy_io_blocks: [io_pos].into_iter().collect(),
-                    logistics_io_blocks: HashSet::new(),
+                    energy_ports: [io_pos].into_iter().collect(),
+                    logistics_ports: HashSet::new(),
                 },
                 MachineState::Idle,
             ))

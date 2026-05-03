@@ -3,15 +3,14 @@ use std::collections::{HashMap, HashSet};
 use bevy::ecs::message::{Message, MessageReader, MessageWriter};
 use bevy::prelude::*;
 
-use crate::inventory::ItemRegistry;
 use crate::machine::{Machine, MachineActivity, MachineState};
 use crate::network::{
-    DIRS, HasPos, Logistics, NetworkKind, NetworkMemberComponent, NetworkMembersComponent,
-    NetworkPlugin, NetworkSystems,
+    HasEndpoints, Logistics, NetworkKind, NetworkMemberComponent, NetworkMembersComponent,
+    NetworkPlugin, NetworkSystems, route_avoiding,
 };
 use crate::recipe_graph::RecipeGraph;
 use crate::research::{RESEARCH_POINTS_ID, ResearchPool, TechTreeProgress};
-use crate::world::{BlockChangeKind, BlockChangedMessage};
+use crate::world::{WorldObjectEvent, WorldObjectKind};
 
 pub struct LogisticsPlugin;
 
@@ -22,10 +21,11 @@ impl Plugin for LogisticsPlugin {
             Update,
             NetworkSystems::of::<Logistics>().run_if(in_state(crate::GameState::Playing)),
         );
+        app.add_systems(Startup, setup_logistics_visuals);
         app.add_message::<NetworkStorageChanged>().add_systems(
             Update,
             (
-                storage_block_system.run_if(resource_exists::<ItemRegistry>),
+                storage_unit_system,
                 recipe_start_system.run_if(resource_exists::<RecipeGraph>),
                 recipe_progress_system.run_if(resource_exists::<RecipeGraph>),
             )
@@ -34,11 +34,130 @@ impl Plugin for LogisticsPlugin {
                 .in_set(crate::GameSystems::Simulation)
                 .run_if(in_state(crate::GameState::Playing)),
         );
+        app.add_systems(
+            Update,
+            (add_cable_visuals, add_storage_visuals)
+                .in_set(crate::GameSystems::Rendering)
+                .run_if(in_state(crate::GameState::Playing)),
+        );
     }
 }
 
 const LOGISTICS_CABLE_ID: &str = "logistics_cable";
 const STORAGE_CRATE_ID: &str = "storage_crate";
+const CABLE_RADIUS: f32 = 0.05;
+
+// -- Visual assets -----------------------------------------------------------
+
+#[derive(Resource)]
+struct LogisticsVisualAssets {
+    tube: Handle<Mesh>,
+    joint: Handle<Mesh>,
+    cable_material: Handle<StandardMaterial>,
+    storage_mesh: Handle<Mesh>,
+    storage_material: Handle<StandardMaterial>,
+}
+
+fn setup_logistics_visuals(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    commands.insert_resource(LogisticsVisualAssets {
+        tube: meshes.add(Cylinder::new(CABLE_RADIUS, 1.0)),
+        joint: meshes.add(Sphere::new(CABLE_RADIUS)),
+        cable_material: materials.add(StandardMaterial {
+            base_color: Color::srgb(0.3, 0.7, 0.3),
+            ..default()
+        }),
+        storage_mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
+        storage_material: materials.add(StandardMaterial {
+            base_color: Color::srgb(0.55, 0.6, 0.65),
+            ..default()
+        }),
+    });
+}
+
+fn add_cable_visuals(
+    mut commands: Commands,
+    added: Query<(Entity, &LogisticsCableSegment), Added<LogisticsCableSegment>>,
+    assets: Option<Res<LogisticsVisualAssets>>,
+    machine_q: Query<(&Machine, &Transform)>,
+) {
+    let Some(assets) = assets else { return };
+    for (entity, seg) in &added {
+        commands
+            .entity(entity)
+            .insert(Transform::default())
+            .with_children(|parent| {
+                for window in seg.path.windows(2) {
+                    let a = window[0].as_vec3() + Vec3::splat(0.5);
+                    let b = window[1].as_vec3() + Vec3::splat(0.5);
+                    let dir = b - a;
+                    let rotation = if dir.x.abs() > 0.5 {
+                        Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)
+                    } else if dir.z.abs() > 0.5 {
+                        Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)
+                    } else {
+                        Quat::IDENTITY
+                    };
+                    parent.spawn((
+                        Mesh3d(assets.tube.clone()),
+                        MeshMaterial3d(assets.cable_material.clone()),
+                        Transform::from_translation((a + b) * 0.5).with_rotation(rotation),
+                    ));
+                }
+                for i in 1..seg.path.len().saturating_sub(1) {
+                    let prev_dir = seg.path[i] - seg.path[i - 1];
+                    let next_dir = seg.path[i + 1] - seg.path[i];
+                    if prev_dir != next_dir {
+                        parent.spawn((
+                            Mesh3d(assets.joint.clone()),
+                            MeshMaterial3d(assets.cable_material.clone()),
+                            Transform::from_translation(seg.path[i].as_vec3() + Vec3::splat(0.5)),
+                        ));
+                    }
+                }
+                // Connector tubes from each machine body to its port voxel
+                for port in [seg.from, seg.to] {
+                    let port_center = port.as_vec3() + Vec3::splat(0.5);
+                    if let Some(mpos) = machine_q
+                        .iter()
+                        .find(|(m, _)| m.logistics_ports.contains(&port))
+                        .map(|(_, t)| t.translation)
+                    {
+                        let diff = port_center - mpos;
+                        let length = diff.length();
+                        if length > 1e-4 {
+                            let rotation = Quat::from_rotation_arc(Vec3::Y, diff / length);
+                            parent.spawn((
+                                Mesh3d(assets.tube.clone()),
+                                MeshMaterial3d(assets.cable_material.clone()),
+                                Transform::from_translation((mpos + port_center) * 0.5)
+                                    .with_rotation(rotation)
+                                    .with_scale(Vec3::new(1.0, length, 1.0)),
+                            ));
+                        }
+                    }
+                }
+            });
+    }
+}
+
+fn add_storage_visuals(
+    mut commands: Commands,
+    added: Query<(Entity, &StorageUnit), Added<StorageUnit>>,
+    assets: Option<Res<LogisticsVisualAssets>>,
+) {
+    let Some(assets) = assets else { return };
+    for (entity, unit) in &added {
+        commands.entity(entity).insert((
+            Mesh3d(assets.storage_mesh.clone()),
+            MeshMaterial3d(assets.storage_material.clone()),
+            Transform::from_translation(unit.pos.as_vec3() + Vec3::splat(0.5)),
+        ));
+    }
+}
 
 // -- Messages ----------------------------------------------------------------
 
@@ -52,13 +171,15 @@ impl Message for NetworkStorageChanged {}
 // -- Components --------------------------------------------------------------
 
 #[derive(Component)]
-pub struct LogisticsCableBlock {
-    pub pos: IVec3,
+pub struct LogisticsCableSegment {
+    pub from: IVec3,
+    pub to: IVec3,
+    pub path: Vec<IVec3>,
 }
 
-impl HasPos for LogisticsCableBlock {
-    fn pos(&self) -> IVec3 {
-        self.pos
+impl HasEndpoints for LogisticsCableSegment {
+    fn endpoints(&self) -> [IVec3; 2] {
+        [self.from, self.to]
     }
 }
 
@@ -86,7 +207,7 @@ impl NetworkMembersComponent for LogisticsNetworkMembers {
 }
 
 #[derive(Component)]
-pub struct StorageBlock {
+pub struct StorageUnit {
     pub pos: IVec3,
     pub items: HashMap<String, u32>,
 }
@@ -99,16 +220,24 @@ pub struct LogisticsNetwork;
 impl NetworkKind for Logistics {
     const CABLE_ITEM_ID: &'static str = LOGISTICS_CABLE_ID;
 
-    type CableBlock = LogisticsCableBlock;
+    type CableSegment = LogisticsCableSegment;
     type Member = LogisticsNetworkMember;
     type Members = LogisticsNetworkMembers;
 
-    fn io_blocks(machine: &Machine) -> &HashSet<IVec3> {
-        &machine.logistics_io_blocks
+    fn io_ports(machine: &Machine) -> &HashSet<IVec3> {
+        &machine.logistics_ports
     }
 
-    fn new_cable_block(pos: IVec3) -> LogisticsCableBlock {
-        LogisticsCableBlock { pos }
+    fn new_cable_segment(
+        from: IVec3,
+        to: IVec3,
+        blocked: &HashSet<IVec3>,
+    ) -> LogisticsCableSegment {
+        LogisticsCableSegment {
+            from,
+            to,
+            path: route_avoiding(from, to, blocked),
+        }
     }
 
     fn spawn_network(commands: &mut Commands) -> Entity {
@@ -120,7 +249,7 @@ impl NetworkKind for Logistics {
 
 pub fn has_items(
     members: &LogisticsNetworkMembers,
-    storage_q: &Query<&StorageBlock>,
+    storage_q: &Query<&StorageUnit>,
     item_id: &str,
     count: u32,
 ) -> bool {
@@ -135,7 +264,7 @@ pub fn has_items(
 
 pub fn take_items(
     members: &LogisticsNetworkMembers,
-    storage_q: &mut Query<&mut StorageBlock>,
+    storage_q: &mut Query<&mut StorageUnit>,
     item_id: &str,
     count: u32,
 ) {
@@ -161,7 +290,7 @@ pub fn take_items(
 
 pub fn give_items(
     members: &LogisticsNetworkMembers,
-    storage_q: &mut Query<&mut StorageBlock>,
+    storage_q: &mut Query<&mut StorageUnit>,
     item_id: &str,
     count: u32,
 ) {
@@ -176,38 +305,33 @@ pub fn give_items(
 
 // -- Systems -----------------------------------------------------------------
 
-fn storage_block_system(
+fn storage_unit_system(
     mut commands: Commands,
-    mut block_events: MessageReader<BlockChangedMessage>,
-    item_registry: Res<ItemRegistry>,
-    cable_q: Query<(&LogisticsCableBlock, &LogisticsNetworkMember)>,
-    storage_q: Query<(Entity, &StorageBlock)>,
+    mut world_events: MessageReader<WorldObjectEvent>,
+    cable_q: Query<(&LogisticsCableSegment, &LogisticsNetworkMember)>,
+    storage_q: Query<(Entity, &StorageUnit)>,
     mut changed: MessageWriter<NetworkStorageChanged>,
 ) {
-    let Some(storage_vox) = item_registry.voxel_id(STORAGE_CRATE_ID) else {
-        return;
-    };
-
-    let cable_pos_to_net: HashMap<IVec3, Entity> =
-        cable_q.iter().map(|(c, m)| (c.pos, m.0)).collect();
+    // endpoint → network (from cables already in world)
+    let endpoint_to_net: HashMap<IVec3, Entity> = cable_q
+        .iter()
+        .flat_map(|(seg, m)| seg.endpoints().map(|ep| (ep, m.0)))
+        .collect();
 
     let mut affected_nets: HashSet<Entity> = HashSet::new();
 
-    for ev in block_events.read() {
-        let (removed, added) = match ev.kind {
-            BlockChangeKind::Placed { voxel_id } => (None, Some(voxel_id)),
-            BlockChangeKind::Removed { voxel_id } => (Some(voxel_id), None),
-            BlockChangeKind::Replaced {
-                old_voxel_id,
-                new_voxel_id,
-            } => (Some(old_voxel_id), Some(new_voxel_id)),
-        };
+    for ev in world_events.read() {
+        if ev.item_id != STORAGE_CRATE_ID {
+            continue;
+        }
 
-        if removed.is_some_and(|v| v == storage_vox)
-            && let Some((storage_e, _)) = storage_q.iter().find(|(_, s)| s.pos == ev.pos)
+        let grid_pos = ev.pos.round().as_ivec3();
+
+        if ev.kind == WorldObjectKind::Removed
+            && let Some((storage_e, _)) = storage_q.iter().find(|(_, s)| s.pos == grid_pos)
         {
-            for &dir in &DIRS {
-                if let Some(&net) = cable_pos_to_net.get(&(ev.pos + dir)) {
+            for &dir in &crate::network::DIRS {
+                if let Some(&net) = endpoint_to_net.get(&(grid_pos + dir)) {
                     affected_nets.insert(net);
                     break;
                 }
@@ -215,15 +339,15 @@ fn storage_block_system(
             commands.entity(storage_e).despawn();
         }
 
-        if added.is_some_and(|v| v == storage_vox) {
+        if ev.kind == WorldObjectKind::Placed {
             let storage_e = commands
-                .spawn(StorageBlock {
-                    pos: ev.pos,
+                .spawn(StorageUnit {
+                    pos: grid_pos,
                     items: HashMap::new(),
                 })
                 .id();
-            for &dir in &DIRS {
-                if let Some(&net) = cable_pos_to_net.get(&(ev.pos + dir)) {
+            for &dir in &crate::network::DIRS {
+                if let Some(&net) = endpoint_to_net.get(&(grid_pos + dir)) {
                     commands
                         .entity(storage_e)
                         .insert(LogisticsNetworkMember(net));
@@ -249,14 +373,13 @@ fn recipe_start_system(
     >,
     recipe_graph: Res<RecipeGraph>,
     progress: Option<Res<TechTreeProgress>>,
-    mut storage_params: ParamSet<(Query<&StorageBlock>, Query<&mut StorageBlock>)>,
+    mut storage_params: ParamSet<(Query<&StorageUnit>, Query<&mut StorageUnit>)>,
 ) {
     let affected: HashSet<Entity> = storage_changed.read().map(|e| e.network).collect();
     if affected.is_empty() {
         return;
     }
 
-    // Collect starts with immutable storage borrow
     let mut to_start: Vec<(Entity, String, Entity)> = Vec::new();
     {
         let storage_q = storage_params.p0();
@@ -291,7 +414,6 @@ fn recipe_start_system(
         }
     }
 
-    // Consume inputs with mutable storage borrow
     {
         let mut storage_q = storage_params.p1();
         for (machine_e, recipe_id, net_entity) in to_start {
@@ -332,14 +454,13 @@ fn recipe_progress_system(
         &MachineState,
         &LogisticsNetworkMember,
     )>,
-    mut storage_q: Query<&mut StorageBlock>,
+    mut storage_q: Query<&mut StorageUnit>,
     mut storage_changed: MessageWriter<NetworkStorageChanged>,
     mut research_pool: Option<ResMut<ResearchPool>>,
 ) {
     let dt = time.delta_secs();
 
     let mut to_finish: Vec<(Entity, Vec<(String, u32)>, Entity)> = Vec::new();
-    let mut progress_updates: Vec<(Entity, f32)> = Vec::new();
 
     for (machine_e, mut activity, state, member) in &mut machine_q {
         if *state != MachineState::Running {
@@ -359,10 +480,8 @@ fn recipe_progress_system(
             to_finish.push((machine_e, outputs, member.0));
         } else {
             activity.progress = new_progress;
-            progress_updates.push((machine_e, new_progress));
         }
     }
-    let _ = progress_updates; // already applied above via &mut activity
 
     for (machine_e, outputs, net_entity) in to_finish {
         if let Ok((_, members)) = net_q.get(net_entity) {
@@ -396,85 +515,64 @@ mod tests {
     use bevy::prelude::*;
 
     use super::*;
-    use crate::inventory::{BlockProps, ItemDef, ItemRegistry};
     use crate::machine::{
         Machine, MachineActivity, MachineNetworkChanged, MachineState, Mirror, Orientation,
         Rotation,
     };
     use crate::network::{NetworkChanged, NetworkPlugin, NetworkSystems};
     use crate::recipe_graph::{ItemStack, RecipeDef, RecipeGraph};
-    use crate::world::{BlockChangeKind, BlockChangedMessage};
+    use crate::world::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
     fn logistics_app() -> App {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
-            .add_message::<BlockChangedMessage>()
+            .add_message::<WorldObjectEvent>()
+            .add_message::<CableConnectionEvent>()
             .add_message::<MachineNetworkChanged>()
             .add_message::<NetworkStorageChanged>()
-            .insert_resource(ItemRegistry::default())
             .add_plugins(NetworkPlugin::<Logistics>::default())
             .add_systems(
                 Update,
-                storage_block_system.after(NetworkSystems::of::<Logistics>()),
+                storage_unit_system.after(NetworkSystems::of::<Logistics>()),
             );
         app
     }
 
-    fn registered_logistics_app() -> App {
-        let mut app = logistics_app();
-        {
-            let mut reg = app.world_mut().resource_mut::<ItemRegistry>();
-            reg.register(ItemDef {
-                id: LOGISTICS_CABLE_ID.to_string(),
-                name: LOGISTICS_CABLE_ID.to_string(),
-                block: Some(BlockProps {
-                    voxel_id: 10,
-                    hardness: 1.0,
-                }),
-            });
-            reg.register(ItemDef {
-                id: STORAGE_CRATE_ID.to_string(),
-                name: STORAGE_CRATE_ID.to_string(),
-                block: Some(BlockProps {
-                    voxel_id: 11,
-                    hardness: 1.0,
-                }),
-            });
-        }
-        app
-    }
-
-    fn write_cable_placed(app: &mut App, pos: IVec3) {
-        app.world_mut().write_message(BlockChangedMessage {
-            pos,
-            kind: BlockChangeKind::Placed { voxel_id: 10 },
+    fn connect_cable(app: &mut App, from: IVec3, to: IVec3) {
+        app.world_mut().write_message(CableConnectionEvent {
+            from,
+            to,
+            item_id: LOGISTICS_CABLE_ID.to_string(),
+            kind: WorldObjectKind::Placed,
         });
     }
 
     #[test]
-    fn storage_adjacent_to_cable_becomes_member() {
-        let mut app = registered_logistics_app();
-        write_cable_placed(&mut app, IVec3::ZERO);
+    fn storage_adjacent_to_cable_endpoint_becomes_member() {
+        let mut app = logistics_app();
+        // Cable endpoint at (0,0,0) — storage at (1,0,0) is adjacent
+        connect_cable(&mut app, IVec3::ZERO, IVec3::new(0, 0, 5));
         app.update();
-        app.world_mut().write_message(BlockChangedMessage {
-            pos: IVec3::new(1, 0, 0),
-            kind: BlockChangeKind::Placed { voxel_id: 11 },
+        app.world_mut().write_message(WorldObjectEvent {
+            pos: Vec3::new(1.0, 0.0, 0.0),
+            item_id: STORAGE_CRATE_ID.to_string(),
+            kind: WorldObjectKind::Placed,
         });
         app.update();
         let world = app.world_mut();
         let count = world
-            .query_filtered::<(), With<StorageBlock>>()
+            .query_filtered::<(), With<StorageUnit>>()
             .iter(world)
             .count();
         assert_eq!(count, 1);
     }
 
     #[test]
-    fn machine_with_logistics_io_adjacent_to_cable_gets_member() {
-        let mut app = registered_logistics_app();
-        let cable_pos = IVec3::ZERO;
+    fn machine_with_logistics_port_matching_cable_endpoint_gets_member() {
+        let mut app = logistics_app();
         let io_pos = IVec3::new(1, 0, 0);
-        write_cable_placed(&mut app, cable_pos);
+        // Cable endpoint at io_pos — machine with port there should join
+        connect_cable(&mut app, io_pos, IVec3::new(5, 0, 0));
         let machine_entity = app
             .world_mut()
             .spawn((
@@ -485,10 +583,8 @@ mod tests {
                         rotation: Rotation::North,
                         mirror: Mirror::Normal,
                     },
-                    origin_pos: IVec3::ZERO,
-                    blocks: HashSet::new(),
-                    energy_io_blocks: HashSet::new(),
-                    logistics_io_blocks: [io_pos].into_iter().collect(),
+                    energy_ports: HashSet::new(),
+                    logistics_ports: [io_pos].into_iter().collect(),
                 },
                 MachineState::Idle,
             ))
@@ -552,10 +648,8 @@ mod tests {
                 rotation: Rotation::North,
                 mirror: Mirror::Normal,
             },
-            origin_pos: IVec3::ZERO,
-            blocks: HashSet::new(),
-            energy_io_blocks: HashSet::new(),
-            logistics_io_blocks: HashSet::new(),
+            energy_ports: HashSet::new(),
+            logistics_ports: HashSet::new(),
         }
     }
 
@@ -585,7 +679,7 @@ mod tests {
         let storage_e = app
             .world_mut()
             .spawn((
-                StorageBlock {
+                StorageUnit {
                     pos: IVec3::ZERO,
                     items: [("iron".to_owned(), 10u32)].into_iter().collect(),
                 },
@@ -612,7 +706,7 @@ mod tests {
             MachineState::Running
         );
         assert!(world.get::<MachineActivity>(machine_entity).is_some());
-        let storage = world.get::<StorageBlock>(storage_e).unwrap();
+        let storage = world.get::<StorageUnit>(storage_e).unwrap();
         assert_eq!(storage.items.get("iron").copied().unwrap_or(0), 9);
     }
 
@@ -625,7 +719,7 @@ mod tests {
         let storage_e = app
             .world_mut()
             .spawn((
-                StorageBlock {
+                StorageUnit {
                     pos: IVec3::ZERO,
                     items: HashMap::new(),
                 },
@@ -654,7 +748,7 @@ mod tests {
             MachineState::Idle
         );
         assert!(world.get::<MachineActivity>(machine_entity).is_none());
-        let storage = world.get::<StorageBlock>(storage_e).unwrap();
+        let storage = world.get::<StorageUnit>(storage_e).unwrap();
         assert_eq!(storage.items.get("copper").copied().unwrap_or(0), 2);
     }
 
@@ -665,7 +759,7 @@ mod tests {
 
         let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
         app.world_mut().spawn((
-            StorageBlock {
+            StorageUnit {
                 pos: IVec3::ZERO,
                 items: HashMap::new(),
             },

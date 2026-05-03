@@ -221,6 +221,18 @@ Nodes are drawn from a content pool at run generation. Not every node exists in 
 
 The seed selects which nodes appear and assigns each node's active unlock vector(s) for this run.
 
+### Node types
+
+Three distinct node types exist in the tech tree:
+
+**Material nodes** unlock a material, granting access to all of that material's derived items and all concrete recipes for it (for any already-unlocked machine types). Unlocking copper gives copper ore, copper ingot, copper wire, etc., plus all recipes to process them in already-known machines.
+
+**Machine/process nodes** unlock a machine type (wiremill, crusher, smelter, etc.), enabling all recipe templates that use that machine — for all already-unlocked materials. Combined with material nodes, standard processing chains flow automatically without per-recipe unlocks.
+
+**Special recipe nodes** unlock a specific recipe that doesn't arise from template expansion — a unique item recipe, a cross-material process, an alien reaction, or an unusually efficient shortcut. These always require explicit tech tree unlock.
+
+Standard recipes (template instantiations) need no tech node — they are available automatically once both the material and the machine are known.
+
 ### Unlock vectors
 Each node supports one or more unlock methods. The seed determines which are active in a given run. Supported vectors:
 
@@ -243,20 +255,35 @@ Because nodes are drawn from a known pool, experienced players develop expertise
 
 ## 8. Production & The Recipe Graph
 
-The recipe graph is the intellectual heart of the run. It defines what this world's alien science looks like — which materials exist, how they process into other materials, and what the critical path to the escape artifact requires.
+The recipe graph is the intellectual heart of the run. It defines what this world's alien science looks like — which materials exist, what items they can be formed into, and what the critical path to the escape artifact requires.
 
 ### Fictional science grounding
 The recipe graph is grounded in a **consistent fictional science** — not real-world chemistry, but an internally logical system with its own rules and properties. Players cannot import real-world knowledge directly, but they can develop genuine expertise in the fictional system's structure across runs.
 
 The system has partial real-world inspiration — materials behave in ways that feel physically motivated even if they don't match actual chemistry. This gives the world texture and makes the planet's physical properties feel connected to its production chains, without requiring chemistry knowledge to play.
 
+### Materials, forms, and items
+
+Three concepts form the production vocabulary:
+
+**Materials** are abstract substance identities — *copper*, *tin*, *resonite* (alien). A material is not itself a recipe node; it is the identity that items inherit. Each material has a **kind**: base (real-world inspired, consistent across runs) or alien (seeded per run, unique to this run's science). The ratio shifts across tiers: early tiers are mostly base materials; the final tier and escape artifact are primarily alien.
+
+**Form groups** are content-defined categories of physical states a material can take, declared per material. Example groups: `metal` (ore, crushed_ore, dust, ingot, plate, wire, rotor…), `combustible` (ore, chunk, dust), `exotic` (shard, crystal, lens…). A material may belong to multiple groups and gets the union of their forms.
+
+**Items** are the actual recipe nodes — three kinds:
+- **Derived items** — a (material, form) pair, generated automatically from a material's group membership. *copper_wire* = copper + wire form. No asset file required; exist whenever the material is present in the run.
+- **Composite items** — defined in assets. May follow a template pattern (e.g. `[X]_cable = [X]_wire + rubber`, instantiated for every material with a wire form) or be fully unique (e.g. *resonite_circuit*).
+- **Unique items** — one-off asset-defined items with no material-form derivation.
+
 ### Graph structure
-The recipe graph is a directed acyclic graph (DAG) with the escape artifact as its terminal node. Every recipe in the graph is a path toward that terminal, either directly or as a prerequisite.
+The recipe graph is a directed acyclic graph (DAG) of **items** with the escape artifact as its terminal node. Every recipe transforms one set of items into another; every path through the graph leads toward the terminal.
+
+**Recipe templates** define item transformations at the form level: `[M]_ingot → [M]_wire (wiremill)`. Templates apply automatically to every material whose groups include both involved forms. Concrete recipes are generated at run start by expanding templates over all present materials — adding a new material with the `metal` group automatically gives it all metal processing recipes.
 
 Graph properties that vary by seed:
-- **Which nodes exist** (drawn from the node pool, as above)
-- **Recipe parameters** — input quantities, output quantities, processing time, energy cost — vary within bounded ranges per node
-- **Byproduct generation** — some recipes produce secondary outputs; which byproducts and at what rates is seeded
+- **Which alien materials exist** — determines which derived items and concrete recipes appear this run
+- **Recipe parameters** — input quantities, output quantities, processing time, energy cost — vary within bounded ranges per concrete recipe
+- **Byproduct generation** — some recipes produce secondary item outputs; which byproducts and at what rates is seeded
 - **Processing requirements** — which machine tier is required, whether special conditions (temperature, pressure, catalysts) apply
 
 ### Bounded variance
@@ -314,13 +341,13 @@ Transitioning power tiers is potentially the most disruptive event in a run — 
 
 ## 10. The Factory Layer
 
-The factory is the physical consequence of good planning. The world is fully three-dimensional and voxel-based — machines are multi-block structures built from individual blocks in a free-form 3D environment. Spatial optimization is not the primary challenge; the complexity comes from the logistics network, recipe graph, and machine configuration.
+The factory is the physical consequence of good planning. The world is fully three-dimensional — machines are building-scale prefab structures placed in the environment. Spatial optimization is not the primary challenge; the complexity comes from the logistics network, recipe graph, and machine configuration.
 
 ### Design intent
 Factory layout should feel satisfying and consequential without being the game's central puzzle. A player who makes good planning decisions should be able to build a functional factory without needing spatial optimization expertise. A player who is also a strong spatial thinker gets additional satisfaction from elegant, impressive-looking layouts — and base aesthetics are a first-class feature, not an afterthought. Sharing well-built bases is an intended community behavior.
 
 ### Visual model
-The game is fully 3D with free-form voxel block placement. Players build in all three dimensions; verticality is a meaningful tool for both routing and aesthetics. There are no forced grid-snap constraints — machines and infrastructure can be arranged to look impressive, not just functional. Late-game bases should visually dwarf early-game ones, making progression legible from screenshots.
+The game is fully 3D. Machines are building-scale prefab structures; players place them freely in three dimensions and verticality is a meaningful routing and layout tool. Late-game bases visually dwarf early-game ones as larger, more complex machines accumulate — progression is legible from screenshots.
 
 ### Logistics network
 Item and fluid transport uses a logistics network model (ME-style) rather than physical belt routing. The network is physical infrastructure — cables and conduits are visible blocks that must be placed and routed — but the challenge is network design rather than belt-path puzzles. Network cables as visible infrastructure contribute to base aesthetics.
@@ -337,17 +364,15 @@ The network **resolves recipe chains automatically**: given machines capable of 
 All significant machines are multi-block structures: a fixed core footprint plus flexible modular attachments.
 
 **Core structure:**
-- Each machine type has a canonical fixed-shape core (a defined 3D block arrangement)
-- The core's shape is recognizable — a player viewing a screenshot can identify the machine type
-- Tier is expressed physically: higher-tier machines have larger core structures, requiring more blocks. Size is the tier indicator — no separate UI element needed
+- Each machine type is a distinct prefab object with a recognizable visual form — a player viewing a screenshot can identify the machine type
+- Tier is expressed through visually distinct model variants. Higher-tier machines look more impressive and complex; size may increase to accommodate more module slots but is not required
 
 **Tier progression:**
-- Upgrading a machine to a higher tier means expanding its physical structure outward
-- The smaller (lower-tier) structure is tentatively a valid sub-structure of the larger one — place new blocks around the existing core and it remains operational during upgrade. This may be relaxed per-machine or globally if it unduly limits design space
-- Players must plan for expansion room around machines, or rebuild elsewhere
+- Upgrading a machine replaces its model with the higher-tier variant — either in-place or by placing the new tier as a whole unit
+- Machine state (current modules, IO configuration) transfers to the upgraded machine where compatible
 
 **Module slots:**
-- Modules attach to the core structure at defined attachment zones
+- Modules snap to defined attachment points on the machine
 - The number of available module slots is determined by the core's tier — upgrading the core earns more slots
 - Modules carry meaningful functional tradeoffs: speed vs. efficiency, parallel processing slots, buffer capacity, etc. — not purely cosmetic
 - Which modules exist in a given run is a valid seed variance axis
@@ -455,7 +480,7 @@ The world is not hostile in the traditional sense — there are no enemies that 
 - A source of pressure and interesting tradeoffs, not a run-ender
 - Legible — the player can see reactivity building and understand what's causing it
 - Responsive to player choices — a smaller, more efficient factory generates less reactivity than a sprawling one
-- **Two-sided (post-MVP):** Reactivity events should also create opportunities — a disturbed deposit reveals a deeper vein, an atmospheric change enables a new reaction, an ecosystem shift produces a harvestable byproduct. This makes reactivity a system to manage strategically rather than a meter to minimize. Considered core to the full reactivity design, not an optional enhancement.
+- **Two-sided (post-MVP):** Reactivity events should also create opportunities — a disturbed deposit reveals a richer seam beneath, an atmospheric change enables a new reaction, an ecosystem shift produces a harvestable byproduct. This makes reactivity a system to manage strategically rather than a meter to minimize. Considered core to the full reactivity design, not an optional enhancement.
 
 The world's reactivity profile is seeded — some worlds react quickly and dramatically, others are resilient. This is a meaningful run modifier that affects pacing and strategy.
 
@@ -633,7 +658,7 @@ Collected here for easy tracking. Each item links back to the section where it f
 |---|---|---|---|
 | 1 | ~~Should "building blind" be a supported mechanic?~~ **Resolved: post-MVP optional challenge mode** | §6 | ~~Medium~~ |
 | 2 | ~~Exact tier count for tech trees across difficulty levels~~ **Resolved: 3/4/5/6 tiers for Initiation/Standard/Advanced/Pinnacle (tentative, needs playtesting)** | §7 | ~~High~~ |
-| 3 | ~~Visual perspective and movement model (2D, isometric, other)~~ **Resolved: 3D voxel, free-form block placement** | §10 | ~~High~~ |
+| 3 | ~~Visual perspective and movement model (2D, isometric, other)~~ **Resolved: 3D with building-scale prefab machines, heightmap terrain, graph-based underground tunnels** | §10 | ~~High~~ |
 | 4 | ~~Should world reactivity also create opportunities?~~ **Resolved: yes, post-MVP — considered core to the game's reactivity design, not optional** | §11 | ~~Medium~~ |
 | 5 | ~~Should power transitions have a dramatic in-world expression?~~ **Resolved: post-MVP enhancement, not core** | §9 | ~~Low~~ |
 | 6 | ~~Exact failure conditions for permadeath runs~~ **Resolved: no forced failure conditions; runs always completable; permadeath modes post-MVP** | §16 | ~~High~~ |

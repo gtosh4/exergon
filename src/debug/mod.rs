@@ -6,7 +6,8 @@ use xxhash_rust::xxh64::xxh64;
 use crate::{GameState, content::VeinRegistry, seed::DomainSeeds};
 
 const CHUNK_SIZE: f32 = 32.0;
-const CELL_SIZE: f32 = 96.0; // 3 × 32
+const CELL_XZ: f32 = 160.0; // 5 × 32 voxels wide
+const CELL_Y: f32 = 64.0; // 2 × 32 voxels tall
 
 #[derive(Resource, Default, PartialEq, Clone, Copy, Debug)]
 enum DebugOverlay {
@@ -70,23 +71,23 @@ fn draw_gizmos(
     }
     let Ok(cam) = camera_q.single() else { return };
     let pos = cam.translation;
-    let cell_y = pos.y.div_euclid(CELL_SIZE) as i32;
+    let cell_y = pos.y.div_euclid(CELL_Y) as i32;
 
     match *overlay {
         DebugOverlay::None => {}
         DebugOverlay::Chunks => {
-            draw_grid(&mut gizmos, pos, CHUNK_SIZE, 5, |_, _| {
+            draw_grid(&mut gizmos, pos, CHUNK_SIZE, CHUNK_SIZE, 5, |_, _| {
                 Color::srgba(0.8, 0.8, 0.8, 0.5)
             });
         }
         DebugOverlay::Veins => {
             let world_seed = seeds.as_deref().map_or(0, |s| s.world);
-            draw_grid(&mut gizmos, pos, CELL_SIZE, 3, |cx, cz| {
+            draw_grid(&mut gizmos, pos, CELL_XZ, CELL_Y, 3, |cx, cz| {
                 vein_cell_color(registry.as_deref(), world_seed, cx, cell_y, cz)
             });
         }
         DebugOverlay::Biomes => {
-            draw_grid(&mut gizmos, pos, CELL_SIZE, 3, |_, _| {
+            draw_grid(&mut gizmos, pos, CELL_XZ, CELL_Y, 3, |_, _| {
                 biome_color(registry.as_deref(), cell_y)
             });
         }
@@ -96,22 +97,23 @@ fn draw_gizmos(
 fn draw_grid(
     gizmos: &mut Gizmos,
     cam_pos: Vec3,
-    cell_size: f32,
+    cell_xz: f32,
+    cell_y: f32,
     radius: i32,
     color_fn: impl Fn(i32, i32) -> Color,
 ) {
-    let origin_cx = cam_pos.x.div_euclid(cell_size) as i32;
-    let origin_cy = cam_pos.y.div_euclid(cell_size) as i32;
-    let origin_cz = cam_pos.z.div_euclid(cell_size) as i32;
-    let y_lo = origin_cy as f32 * cell_size;
-    let y_hi = y_lo + cell_size;
+    let origin_cx = cam_pos.x.div_euclid(cell_xz) as i32;
+    let origin_cy = cam_pos.y.div_euclid(cell_y) as i32;
+    let origin_cz = cam_pos.z.div_euclid(cell_xz) as i32;
+    let y_lo = origin_cy as f32 * cell_y;
+    let y_hi = y_lo + cell_y;
 
     for cx in (origin_cx - radius)..=(origin_cx + radius) {
         for cz in (origin_cz - radius)..=(origin_cz + radius) {
-            let x0 = cx as f32 * cell_size;
-            let z0 = cz as f32 * cell_size;
-            let x1 = x0 + cell_size;
-            let z1 = z0 + cell_size;
+            let x0 = cx as f32 * cell_xz;
+            let z0 = cz as f32 * cell_xz;
+            let x1 = x0 + cell_xz;
+            let z1 = z0 + cell_xz;
             let color = color_fn(cx, cz);
             box_xz(gizmos, x0, z0, x1, z1, y_lo, y_hi, color);
         }
@@ -191,7 +193,7 @@ fn draw_ui(
         return Ok(());
     };
     let pos = cam.translation;
-    let cell_y = pos.y.div_euclid(CELL_SIZE) as i32;
+    let cell_y = pos.y.div_euclid(CELL_Y) as i32;
     let ctx = contexts.ctx_mut()?;
 
     egui::Area::new(egui::Id::new("debug_hud"))
@@ -205,8 +207,8 @@ fn draw_ui(
                     match *overlay {
                         DebugOverlay::Veins => {
                             let world_seed = seeds.as_deref().map_or(0, |s| s.world);
-                            let cx = pos.x.div_euclid(CELL_SIZE) as i32;
-                            let cz = pos.z.div_euclid(CELL_SIZE) as i32;
+                            let cx = pos.x.div_euclid(CELL_XZ) as i32;
+                            let cz = pos.z.div_euclid(CELL_XZ) as i32;
                             let label = registry
                                 .as_deref()
                                 .and_then(|r| r.cell_vein(world_seed, cx, cell_y, cz))

@@ -34,3 +34,4 @@ assets/textures/blocks.png
 
 # Large binary assets
 assets/**/*.png
+assets/**/*.glb

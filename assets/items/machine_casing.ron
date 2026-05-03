@@ -1,1 +1,0 @@
-(id: "machine_casing", name: "Machine Casing", block: Some((voxel_id: 8, hardness: 3.0)))

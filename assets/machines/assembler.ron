@@ -3,23 +3,8 @@
     tiers: [
         (
             tier: 1,
-            // 3×2×3: bottom layer has core, top layer is all casing
-            pattern: [
-                [
-                    "AAA",
-                    "ABA",
-                    "AAA",
-                ],
-                [
-                    "AAA",
-                    "AAA",
-                    "AAA",
-                ],
-            ],
-            pattern_elements: {
-                "A": AnyOf(["machine_casing", "energy_io", "logistics_io"]),
-                "B": BlockMatcher("assembler_core"),
-            },
+            energy_io_offsets: [(0, 0, 1)],
+            logistics_io_offsets: [(0, 0, -1)],
         ),
     ],
 )

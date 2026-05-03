@@ -1,61 +1,58 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use bevy::prelude::*;
 
-use super::DIRS;
+fn build_endpoint_adjacency(segments: &HashMap<Entity, [IVec3; 2]>) -> HashMap<IVec3, Vec<Entity>> {
+    let mut map: HashMap<IVec3, Vec<Entity>> = HashMap::new();
+    for (&e, &eps) in segments {
+        for ep in eps {
+            map.entry(ep).or_default().push(e);
+        }
+    }
+    map
+}
 
-/// BFS from `seed`; removes visited nodes from `unvisited`. Returns the component.
-pub fn bfs_component(
-    seed: IVec3,
-    unvisited: &mut HashMap<IVec3, bevy::prelude::Entity>,
-) -> HashMap<IVec3, bevy::prelude::Entity> {
-    let Some(seed_entity) = unvisited.remove(&seed) else {
+fn bfs_component(
+    seed: Entity,
+    unvisited: &mut HashMap<Entity, [IVec3; 2]>,
+    adj: &HashMap<IVec3, Vec<Entity>>,
+) -> HashMap<Entity, [IVec3; 2]> {
+    let Some(eps) = unvisited.remove(&seed) else {
         return HashMap::new();
     };
     let mut component = HashMap::new();
-    component.insert(seed, seed_entity);
-    let mut queue = vec![seed];
+    component.insert(seed, eps);
+    let mut queue = VecDeque::from([eps]);
 
-    while let Some(pos) = queue.pop() {
-        for &dir in &DIRS {
-            let n = pos + dir;
-            if let Some(&e) = unvisited.get(&n) {
-                unvisited.remove(&n);
-                component.insert(n, e);
-                queue.push(n);
+    while let Some(eps) = queue.pop_front() {
+        for ep in eps {
+            for &neighbor in adj.get(&ep).into_iter().flatten() {
+                if let Some(n_eps) = unvisited.remove(&neighbor) {
+                    component.insert(neighbor, n_eps);
+                    queue.push_back(n_eps);
+                }
             }
         }
     }
     component
 }
 
-/// Returns connected components of `remaining` after removing `removed_pos`.
-pub fn find_components(
-    remaining: HashMap<IVec3, bevy::prelude::Entity>,
-    removed_pos: IVec3,
-) -> Vec<HashMap<IVec3, bevy::prelude::Entity>> {
-    let seeds: Vec<IVec3> = DIRS
-        .iter()
-        .map(|&d| removed_pos + d)
-        .filter(|n| remaining.contains_key(n))
-        .collect();
-
-    if seeds.is_empty() {
-        return vec![remaining];
+/// Partitions `remaining` cable segments into connected components.
+/// Two segments are connected when they share an endpoint.
+pub fn find_segment_components(
+    remaining: HashMap<Entity, [IVec3; 2]>,
+) -> Vec<HashMap<Entity, [IVec3; 2]>> {
+    if remaining.is_empty() {
+        return vec![];
     }
 
+    let adj = build_endpoint_adjacency(&remaining);
     let mut unvisited = remaining;
     let mut components = Vec::new();
 
-    for seed in seeds {
-        if !unvisited.contains_key(&seed) {
-            continue;
-        }
-        components.push(bfs_component(seed, &mut unvisited));
-    }
-
-    if !unvisited.is_empty() {
-        components.push(unvisited);
+    while !unvisited.is_empty() {
+        let seed = *unvisited.keys().next().unwrap();
+        components.push(bfs_component(seed, &mut unvisited, &adj));
     }
 
     components
@@ -65,54 +62,54 @@ pub fn find_components(
 mod tests {
     use super::*;
 
-    fn entity(id: u32) -> Entity {
+    fn e(id: u32) -> Entity {
         Entity::from_raw_u32(id).unwrap()
     }
 
-    fn make_map(pairs: &[(IVec3, u32)]) -> HashMap<IVec3, Entity> {
-        pairs.iter().map(|&(p, id)| (p, entity(id))).collect()
+    #[test]
+    fn empty_remaining_returns_empty() {
+        let components = find_segment_components(HashMap::new());
+        assert!(components.is_empty());
     }
 
     #[test]
-    fn find_components_single_cable_returns_empty_after_removal() {
-        let remaining = HashMap::new();
-        let components = find_components(remaining, IVec3::ZERO);
-        assert_eq!(components.len(), 1);
-        assert!(components[0].is_empty());
+    fn single_segment_one_component() {
+        let mut map = HashMap::new();
+        map.insert(e(1), [IVec3::new(0, 0, 0), IVec3::new(5, 0, 0)]);
+        let comps = find_segment_components(map);
+        assert_eq!(comps.len(), 1);
+        assert_eq!(comps[0].len(), 1);
     }
 
     #[test]
-    fn find_components_line_removal_splits_into_two() {
-        // Line: (0,0,0) - (1,0,0) - (2,0,0); remove middle
-        let remaining = make_map(&[(IVec3::new(0, 0, 0), 1), (IVec3::new(2, 0, 0), 2)]);
-        let components = find_components(remaining, IVec3::new(1, 0, 0));
-        assert_eq!(components.len(), 2);
+    fn chain_of_three_one_component() {
+        // A-B, B-C share endpoint B
+        let mut map = HashMap::new();
+        map.insert(e(1), [IVec3::new(0, 0, 0), IVec3::new(1, 0, 0)]);
+        map.insert(e(2), [IVec3::new(1, 0, 0), IVec3::new(2, 0, 0)]);
+        map.insert(e(3), [IVec3::new(2, 0, 0), IVec3::new(3, 0, 0)]);
+        let comps = find_segment_components(map);
+        assert_eq!(comps.len(), 1);
+        assert_eq!(comps[0].len(), 3);
     }
 
     #[test]
-    fn find_components_no_split_ring() {
-        // Square ring: (0,0,0)-(1,0,0)-(1,0,1)-(0,0,1)-(0,0,0); remove (0,0,0)
-        let remaining = make_map(&[
-            (IVec3::new(1, 0, 0), 1),
-            (IVec3::new(1, 0, 1), 2),
-            (IVec3::new(0, 0, 1), 3),
-        ]);
-        let components = find_components(remaining, IVec3::ZERO);
-        assert_eq!(components.len(), 1);
-        assert_eq!(components[0].len(), 3);
+    fn two_disconnected_segments_two_components() {
+        let mut map = HashMap::new();
+        map.insert(e(1), [IVec3::new(0, 0, 0), IVec3::new(1, 0, 0)]);
+        map.insert(e(2), [IVec3::new(10, 0, 0), IVec3::new(11, 0, 0)]);
+        let comps = find_segment_components(map);
+        assert_eq!(comps.len(), 2);
     }
 
     #[test]
-    fn bfs_component_visits_connected() {
-        let mut unvisited = make_map(&[
-            (IVec3::new(0, 0, 0), 1),
-            (IVec3::new(1, 0, 0), 2),
-            (IVec3::new(5, 0, 0), 3),
-        ]);
-        let comp = bfs_component(IVec3::ZERO, &mut unvisited);
-        assert_eq!(comp.len(), 2);
-        assert!(comp.contains_key(&IVec3::ZERO));
-        assert!(comp.contains_key(&IVec3::new(1, 0, 0)));
-        assert_eq!(unvisited.len(), 1);
+    fn bridge_removed_splits_into_two() {
+        // A-B, B-C, C-D: remove B-C → A-B and C-D separate
+        let mut map = HashMap::new();
+        map.insert(e(1), [IVec3::new(0, 0, 0), IVec3::new(1, 0, 0)]);
+        // e(2) = B-C is the "removed" cable — omitted from remaining
+        map.insert(e(3), [IVec3::new(2, 0, 0), IVec3::new(3, 0, 0)]);
+        let comps = find_segment_components(map);
+        assert_eq!(comps.len(), 2);
     }
 }

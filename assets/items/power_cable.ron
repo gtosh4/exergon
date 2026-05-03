@@ -1,1 +1,1 @@
-(id: "power_cable", name: "Power Cable", block: Some((voxel_id: 13, hardness: 1.5)))
+(id: "power_cable", name: "Power Cable")

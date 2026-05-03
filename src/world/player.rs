@@ -3,41 +3,18 @@ use std::f32::consts::FRAC_PI_2;
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
-use bevy_voxel_world::prelude::*;
 
 use crate::GameState;
 use crate::inventory::InventoryOpen;
 
-use super::generation::WorldConfig;
-
 #[derive(Component)]
 pub struct MainCamera;
-
-pub(super) fn is_blocked(voxel_world: &VoxelWorld<'_, WorldConfig>, center: Vec3, r: f32) -> bool {
-    let offsets = [
-        Vec3::new(-r, -r, -r),
-        Vec3::new(-r, -r, r),
-        Vec3::new(-r, r, -r),
-        Vec3::new(-r, r, r),
-        Vec3::new(r, -r, -r),
-        Vec3::new(r, -r, r),
-        Vec3::new(r, r, -r),
-        Vec3::new(r, r, r),
-    ];
-    offsets.iter().any(|&o| {
-        matches!(
-            voxel_world.get_voxel((center + o).floor().as_ivec3()),
-            WorldVoxel::Solid(_)
-        )
-    })
-}
 
 pub(super) fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(0.0, 80.0, 0.0),
         MainCamera,
-        VoxelWorldCamera::<WorldConfig>::default(),
     ));
 }
 
@@ -115,7 +92,6 @@ pub(super) fn camera_input(
     mouse_motion: Res<AccumulatedMouseMotion>,
     mut camera_q: Query<&mut Transform, With<MainCamera>>,
     time: Res<Time>,
-    voxel_world: VoxelWorld<WorldConfig>,
 ) {
     let Ok(mut transform) = camera_q.single_mut() else {
         return;
@@ -151,29 +127,8 @@ pub(super) fn camera_input(
         direction -= Vec3::Y;
     }
 
-    if direction == Vec3::ZERO {
-        return;
-    }
-
-    const R: f32 = 0.35;
-    let delta = direction.normalize() * 50.0 * time.delta_secs();
-    let current = transform.translation;
-
-    if is_blocked(&voxel_world, current + delta, R) {
-        let dx = Vec3::new(delta.x, 0.0, 0.0);
-        let dy = Vec3::new(0.0, delta.y, 0.0);
-        let dz = Vec3::new(0.0, 0.0, delta.z);
-        if !is_blocked(&voxel_world, current + dx, R) {
-            transform.translation.x += dx.x;
-        }
-        if !is_blocked(&voxel_world, current + dy, R) {
-            transform.translation.y += dy.y;
-        }
-        if !is_blocked(&voxel_world, current + dz, R) {
-            transform.translation.z += dz.z;
-        }
-    } else {
-        transform.translation += delta;
+    if direction != Vec3::ZERO {
+        transform.translation += direction.normalize() * 50.0 * time.delta_secs();
     }
 }
 

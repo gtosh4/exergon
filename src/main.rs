@@ -22,7 +22,6 @@ mod recipe_graph;
 mod research;
 mod seed;
 mod tech_tree;
-mod textures;
 mod ui;
 mod world;
 
@@ -64,10 +63,6 @@ pub enum GameSystems {
 fn main() {
     let cli = Cli::parse();
 
-    let atlas_layers = textures::build_block_atlas().unwrap_or_else(|e| {
-        eprintln!("fatal: {e}");
-        std::process::exit(1)
-    });
     #[cfg(debug_assertions)]
     let log_plugin = LogPlugin {
         level: bevy::log::Level::DEBUG,
@@ -83,45 +78,44 @@ fn main() {
 
     let mut app = App::new();
 
-    app.insert_resource(textures::BlockAtlasLayers(atlas_layers))
-        .add_plugins(
-            DefaultPlugins
-                .set(WindowPlugin {
-                    primary_window: Some(Window {
-                        title: "Exergon".into(),
-                        ..default()
-                    }),
+    app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Exergon".into(),
                     ..default()
-                })
-                .set(log_plugin),
-        )
-        .init_state::<GameState>()
-        .add_sub_state::<PlayMode>()
-        .configure_sets(
-            Update,
-            (
-                GameSystems::Input,
-                GameSystems::Simulation.after(GameSystems::Input),
-                GameSystems::Rendering.after(GameSystems::Simulation),
-            ),
-        )
-        .add_plugins((
-            seed::SeedPlugin,
-            content::ContentPlugin,
-            inventory::InventoryPlugin,
-            world::WorldPlugin,
-            debug::DebugPlugin,
-            recipe_graph::RecipeGraphPlugin,
-            tech_tree::TechTreePlugin,
-            machine::MachinePlugin,
-            logistics::LogisticsPlugin,
-            power::PowerPlugin,
-            drone::DronePlugin,
-            research::ResearchPlugin,
-            reactivity::ReactivityPlugin,
-            meta::MetaPlugin,
-            ui::UiPlugin,
-        ));
+                }),
+                ..default()
+            })
+            .set(log_plugin),
+    )
+    .init_state::<GameState>()
+    .add_sub_state::<PlayMode>()
+    .configure_sets(
+        Update,
+        (
+            GameSystems::Input,
+            GameSystems::Simulation.after(GameSystems::Input),
+            GameSystems::Rendering.after(GameSystems::Simulation),
+        ),
+    )
+    .add_plugins((
+        seed::SeedPlugin,
+        content::ContentPlugin,
+        inventory::InventoryPlugin,
+        world::WorldPlugin,
+        debug::DebugPlugin,
+        recipe_graph::RecipeGraphPlugin,
+        tech_tree::TechTreePlugin,
+        machine::MachinePlugin,
+        logistics::LogisticsPlugin,
+        power::PowerPlugin,
+        drone::DronePlugin,
+        research::ResearchPlugin,
+        reactivity::ReactivityPlugin,
+        meta::MetaPlugin,
+        ui::UiPlugin,
+    ));
 
     #[cfg(debug_assertions)]
     if cli.test {
@@ -130,62 +124,49 @@ fn main() {
                 exited: GameState::Loading,
                 entered: GameState::Playing,
             },
-            (give_test_blocks, give_test_research).chain(),
+            (give_test_items, give_test_research).chain(),
         );
     }
     app.run();
 }
 
-fn give_test_blocks(mut inventory: ResMut<Inventory>, mut hotbar: ResMut<Hotbar>) {
-    inventory.add("machine_casing", 128);
-    inventory.add("smelter_core", 8);
-    inventory.add("assembler_core", 8);
-    inventory.add("refinery_core", 8);
-    inventory.add("gateway_core", 8);
-    inventory.add("analysis_station_core", 8);
+fn give_test_items(mut inventory: ResMut<Inventory>, mut hotbar: ResMut<Hotbar>) {
+    inventory.add("smelter", 4);
+    inventory.add("assembler", 4);
+    inventory.add("analysis_station", 4);
+    inventory.add("generator", 4);
+    inventory.add("storage_crate", 8);
     inventory.add("logistics_cable", 64);
     inventory.add("power_cable", 64);
-    inventory.add("storage_crate", 8);
-    inventory.add("generator", 4);
-    inventory.add("energy_io", 16);
-    inventory.add("logistics_io", 16);
     hotbar.slots[0] = Some(HotbarSlot {
-        item_id: "machine_casing".into(),
-        count: 128,
+        item_id: "smelter".into(),
+        count: 4,
     });
     hotbar.slots[1] = Some(HotbarSlot {
-        item_id: "smelter_core".into(),
-        count: 8,
+        item_id: "assembler".into(),
+        count: 4,
     });
     hotbar.slots[2] = Some(HotbarSlot {
-        item_id: "assembler_core".into(),
-        count: 8,
+        item_id: "analysis_station".into(),
+        count: 4,
     });
     hotbar.slots[3] = Some(HotbarSlot {
-        item_id: "refinery_core".into(),
-        count: 8,
-    });
-    hotbar.slots[4] = Some(HotbarSlot {
-        item_id: "gateway_core".into(),
-        count: 8,
-    });
-    hotbar.slots[5] = Some(HotbarSlot {
-        item_id: "analysis_station_core".into(),
-        count: 8,
-    });
-    hotbar.slots[6] = Some(HotbarSlot {
-        item_id: "logistics_cable".into(),
-        count: 64,
-    });
-    hotbar.slots[7] = Some(HotbarSlot {
-        item_id: "storage_crate".into(),
-        count: 8,
-    });
-    hotbar.slots[8] = Some(HotbarSlot {
         item_id: "generator".into(),
         count: 4,
     });
-    info!("Test mode: gave blocks including analysis_station_core ×8");
+    hotbar.slots[4] = Some(HotbarSlot {
+        item_id: "storage_crate".into(),
+        count: 8,
+    });
+    hotbar.slots[5] = Some(HotbarSlot {
+        item_id: "logistics_cable".into(),
+        count: 64,
+    });
+    hotbar.slots[6] = Some(HotbarSlot {
+        item_id: "power_cable".into(),
+        count: 64,
+    });
+    info!("Test mode: gave prefab machines and cables");
 }
 
 #[cfg(debug_assertions)]

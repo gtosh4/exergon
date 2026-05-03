@@ -14,44 +14,23 @@ impl Plugin for InventoryPlugin {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-pub struct BlockProps {
-    pub voxel_id: u8,
-    pub hardness: f32,
-}
-
-#[derive(Deserialize, Clone, Debug)]
 pub struct ItemDef {
     pub id: String,
     pub name: String,
-    #[serde(default)]
-    pub block: Option<BlockProps>,
 }
 
 #[derive(Resource, Default)]
 pub struct ItemRegistry {
     items: HashMap<String, ItemDef>,
-    voxel_to_item: HashMap<u8, String>,
 }
 
 impl ItemRegistry {
     pub fn register(&mut self, def: ItemDef) {
-        if let Some(bp) = &def.block {
-            self.voxel_to_item.insert(bp.voxel_id, def.id.clone());
-        }
         self.items.insert(def.id.clone(), def);
     }
 
     pub fn get(&self, id: &str) -> Option<&ItemDef> {
         self.items.get(id)
-    }
-
-    pub fn item_for_voxel(&self, voxel_id: u8) -> Option<&ItemDef> {
-        let id = self.voxel_to_item.get(&voxel_id)?;
-        self.items.get(id)
-    }
-
-    pub fn voxel_id(&self, item_id: &str) -> Option<u8> {
-        self.items.get(item_id)?.block.as_ref().map(|b| b.voxel_id)
     }
 }
 
@@ -112,31 +91,19 @@ pub struct InventoryOpen(pub bool);
 mod tests {
     use super::*;
 
-    fn item(id: &str, voxel_id: u8) -> ItemDef {
+    fn item(id: &str) -> ItemDef {
         ItemDef {
             id: id.to_string(),
             name: id.to_string(),
-            block: Some(BlockProps {
-                voxel_id,
-                hardness: 1.0,
-            }),
         }
     }
 
     #[test]
     fn registry_register_and_get() {
         let mut reg = ItemRegistry::default();
-        reg.register(item("iron", 1));
+        reg.register(item("iron"));
         assert!(reg.get("iron").is_some());
         assert!(reg.get("gold").is_none());
-    }
-
-    #[test]
-    fn registry_voxel_id_roundtrip() {
-        let mut reg = ItemRegistry::default();
-        reg.register(item("iron", 5));
-        assert_eq!(reg.voxel_id("iron"), Some(5));
-        assert_eq!(reg.item_for_voxel(5).map(|i| i.id.as_str()), Some("iron"));
     }
 
     #[test]

@@ -1,21 +1,10 @@
 (
-    id: "electric_furnace",
+    id: "smelter",
     tiers: [
         (
             tier: 1,
-            // pattern[y][z] = row string; each char maps to pattern_elements
-            // 3×1×3 single-layer: 8 casing + 1 core
-            pattern: [
-                [
-                    "AAA",
-                    "ABA",
-                    "AAA",
-                ],
-            ],
-            pattern_elements: {
-                "A": AnyOf(["machine_casing", "energy_io", "logistics_io"]),
-                "B": BlockMatcher("smelter_core"),
-            },
+            energy_io_offsets: [(0, 0, 1)],
+            logistics_io_offsets: [(0, 0, -1)],
         ),
     ],
 )
