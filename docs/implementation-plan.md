@@ -1,4 +1,5 @@
 # Implementation Plan — Vertical Slice (Heightmap World)
+Always check off items as they are completed.
 
 ## Context
 
@@ -40,46 +41,45 @@ World is **heightmap mesh chunks** — terrain is a continuous procedural mesh, 
 
 ---
 
-## Phase 2b — Material System Redesign ☐
+## Phase 2b — Material System Redesign ✅
 
 Migrate from flat material→recipe model to the material/form/item hierarchy described in tech-design §2 and GDD §8. This is a content-layer change; machine/network code is unaffected.
 
 **2b-1. Core types** (`src/recipe_graph/mod.rs`)
-- [ ] Add `FormGroupId = String`, `FormId = String`
-- [ ] Add `FormGroup { id: FormGroupId, forms: Vec<FormId> }` — content-defined
-- [ ] Update `MaterialDef`: add `form_groups: Vec<FormGroupId>`; remove `is_terminal` (terminal is a `RecipeGraph`-level flag, not per-material)
-- [ ] Add `ItemId = String` (replaces bare `MaterialId` as recipe node identifier)
-- [ ] Add `ItemKind` enum: `Derived { material: MaterialId, form: FormId }`, `Composite { template: Option<TemplateId> }`, `Unique`
-- [ ] Add `ItemDef { id: ItemId, name: String, kind: ItemKind }`
-- [ ] Add `RecipeTemplate { id, input_forms: Vec<(FormId, f32)>, output_form: FormId, group: FormGroupId, machine_type: MachineTypeId, base_time: f32, base_energy: f32 }`
-- [ ] Rename `RecipeDef` → `ConcreteRecipe`; change `ItemStack.material: MaterialId` → `item: ItemId`
-- [ ] Update `RecipeGraph`: add `form_groups`, `templates`, `items` maps; `producers`/`consumers` key on `ItemId` not `MaterialId`; `terminal` becomes `ItemId`
-- [ ] Tests: `RecipeGraph::from_vecs` still satisfies validity invariants with new types
+- [x] Add `FormGroupId = String`, `FormId = String`
+- [x] Add `FormGroup { id: FormGroupId, forms: Vec<FormId> }` — content-defined
+- [x] Update `MaterialDef`: add `form_groups: Vec<FormGroupId>`; remove `is_terminal` (terminal is a `RecipeGraph`-level flag, not per-material)
+- [x] Add `ItemId = String` (replaces bare `MaterialId` as recipe node identifier)
+- [x] Add `ItemKind` enum: `Derived { material: MaterialId, form: FormId }`, `Composite { template: Option<TemplateId> }`, `Unique`
+- [x] Add `ItemDef { id: ItemId, name: String, kind: ItemKind }`
+- [x] Add `RecipeTemplate { id, input_forms: Vec<(FormId, f32)>, output_form: FormId, group: FormGroupId, machine_type: MachineTypeId, base_time: f32, base_energy: f32 }`
+- [x] Rename `RecipeDef` → `ConcreteRecipe`; change `ItemStack.material: MaterialId` → `item: ItemId`
+- [x] Update `RecipeGraph`: add `form_groups`, `templates`, `items` maps; `producers`/`consumers` key on `ItemId` not `MaterialId`; `terminal` becomes `ItemId`
+- [x] Tests: `RecipeGraph::from_vecs` still satisfies validity invariants with new types
 
 **2b-2. Template expansion** (`src/recipe_graph/mod.rs`)
-- [ ] `fn expand_templates(materials, form_groups, templates) -> Vec<ConcreteRecipe>` — for each template, find all materials whose groups include both input and output forms, instantiate one `ConcreteRecipe` per material
-- [ ] `fn derive_items(materials, form_groups) -> Vec<ItemDef>` — generate all `DerivedItem` entries
-- [ ] Both called inside `RecipeGraph::from_vecs`
-- [ ] Tests: `expand_templates` produces correct concrete recipes; no recipe for material missing a required form
+- [x] `fn expand_templates(materials, form_groups, templates) -> Vec<ConcreteRecipe>` — for each template, find all materials whose groups include both input and output forms, instantiate one `ConcreteRecipe` per material
+- [x] `fn derive_items(materials, form_groups) -> Vec<ItemDef>` — generate all `DerivedItem` entries
+- [x] Both called inside `RecipeGraph::from_vecs`
+- [x] Tests: `expand_templates` produces correct concrete recipes; no recipe for material missing a required form
 
 **2b-3. Asset files**
-- [ ] Add `assets/form_groups/` dir with RON files: `metal.ron`, `combustible.ron`, `exotic.ron` (etc.) listing their forms
-- [ ] Update `assets/materials/*.ron`: add `form_groups` field; remove `is_terminal` where present
-- [ ] Rename `assets/recipes/*.ron` to recipe templates where applicable; add `input_form`/`output_form`/`group` fields
-- [ ] Keep `assets/items/` for composite and unique items only; remove derived-item RON files (copper_ore, copper_wire, etc.)
-- [ ] Update `DepositDef` asset format: replace single `ore_material` with `ores: Vec<(MaterialId, f32)>` weighted list
+- [x] Add `assets/form_groups/` dir with RON files: `metal.ron`, `exotic.ron` listing their forms
+- [x] Update `assets/materials/*.ron`: add `form_groups` field; remove `is_terminal` where present
+- [x] Add `assets/recipe_templates/` with `smelt_metal.ron`, `draw_metal.ron`; concrete recipes updated to use `item:` field
+- [x] Keep `assets/items/` for composite and unique items only; remove derived-item RON files (copper_ore, copper_wire, etc.)
+- [x] Update `DepositDef` asset format: replace single `ore_material` with `ores: Vec<(MaterialId, f32)>` weighted list
 
-**2b-4. Deposit weighted ores** (`src/content/mod.rs`, `src/world/generation.rs`)
-- [ ] Update `DepositDef`: `ores: Vec<(MaterialId, f32)>` (weights, not required to sum to 1 — normalised at load)
-- [ ] Update `DepositRegistry::ore_at` return type: `Option<Vec<(MaterialId, f32)>>` — caller samples weighted distribution
-- [ ] Update deposit spawn (Phase 6 placeholder) to use weighted pick
-- [ ] Tests: `ore_at` returns weighted list; weights normalise correctly
+**2b-4. Deposit weighted ores** (`src/content/mod.rs`)
+- [x] Add `DepositDef`: `ores: Vec<(MaterialId, f32)>` (weights normalised at load)
+- [x] Add `DepositRegistry::ore_at` return type: `Option<Vec<(MaterialId, f32)>>` — caller samples weighted distribution
+- [x] Tests: `ore_at` returns weighted list; weights normalise correctly
 
-**2b-5. Unify item registry** (`src/inventory/mod.rs`, `src/content/mod.rs`)
-- [ ] `ItemRegistry` populated from `RecipeGraph::items` (derived + composite + unique) instead of separate `assets/items/` load
-- [ ] Remove `ItemDef` from `inventory/mod.rs`; use `recipe_graph::ItemDef`
-- [ ] Update `content/mod.rs` loader: load form_groups + materials + templates + unique/composite items → build `RecipeGraph` → register all items into `ItemRegistry`
-- [ ] Tests: registry contains derived items after graph construction
+**2b-5. Unify item registry** (`src/inventory/mod.rs`, `src/recipe_graph/mod.rs`)
+- [x] `ItemRegistry` populated from `RecipeGraph::items` (derived + composite + unique) instead of separate `assets/items/` load
+- [x] Remove `ItemDef` from `inventory/mod.rs`; use `recipe_graph::ItemDef`
+- [x] `load_recipe_graph` loads form_groups + materials + templates + unique/composite items → builds `RecipeGraph` → registers all items into `ItemRegistry`
+- [x] Tests: registry contains derived items after graph construction
 
 ---
 
@@ -110,8 +110,8 @@ Migrate from flat material→recipe model to the material/form/item hierarchy de
   - Asset: `assets/items/platform.ron`
   - System: `place_platform_system` in `src/machine/mod.rs`
 - [x] `--test` flag: also give starting ore (`20 iron_ore`, `20 copper_ore`) + a few platforms
-- [ ] shift-click to remove: machines & cables
-  - [ ] hold shift: highlight what would be removed if clicked
+- [x] shift-click to remove: machines, platforms, & cables
+  - [x] hold shift: highlight what would be removed if clicked
 
 ---
 
@@ -179,6 +179,12 @@ Migrate from flat material→recipe model to the material/form/item hierarchy de
 
 ---
 
+## Bugs
+ - [ ] Power (and logistics?) cables don't attach properly to machine ports
+ - [ ] Cables can clip through terrain
+
+---
+
 ## Post-VS / MVP — Win Condition ☐
 
 *(Out of scope for vertical slice)*
@@ -189,20 +195,6 @@ Migrate from flat material→recipe model to the material/form/item hierarchy de
 - [ ] Tests: terminal material triggers Won; non-terminal no-op
 
 ---
-
-## Verification
-
-```
-cargo test
-```
-Baseline: **112 tests, 0 failures**.
-
-New tests required per phase:
-- Phase 2b: ≥5 new tests (template expansion, item derivation, deposit weights, registry population, graph validity)
-- Phase 3 (migration): existing network/power/logistics tests must still pass after Vec3 migration
-- Phase 6: ≥6 new tests (deposit spawn, habitat exclusion, manual mining sampling, deposit persistence, yield degradation, miner output)
-- Phase 7: no unit tests (egui)
-- Post-VS: ≥2 new tests (escape condition)
 
 ### Manual vertical slice run
 1. `cargo run` → enter seed → terrain visible

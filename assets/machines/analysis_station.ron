@@ -3,8 +3,8 @@
     tiers: [
         (
             tier: 1,
-            energy_io_offsets: [(0, 0, 1)],
-            logistics_io_offsets: [(0, 0, -1)],
+            energy_io_offsets: [(3, 0, 0)],
+            logistics_io_offsets: [(0, 0, 3), (0, 0, -3), (-3, 0, 0)],
         ),
     ],
 )

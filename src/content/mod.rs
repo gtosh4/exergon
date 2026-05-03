@@ -339,7 +339,7 @@ impl DepositRegistry {
             return None;
         }
         let idx = rng.gen_range(0..self.deposits.len());
-        Some(self.deposits[idx].ores.clone())
+        self.deposits.get(idx).map(|d| d.ores.clone())
     }
 }
 

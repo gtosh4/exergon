@@ -4,6 +4,7 @@ use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
 use crate::machine::{Machine, MachineNetworkChanged, MachineUnformed};
+use crate::world::generation::{TerrainSampler, WorldConfig};
 use crate::world::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
 use super::bfs::find_segment_components;
@@ -13,6 +14,16 @@ use super::{
 
 fn key(v: Vec3) -> IVec3 {
     v.round().as_ivec3()
+}
+
+fn pt_seg_dist_sq(p: Vec3, a: Vec3, b: Vec3) -> f32 {
+    let ab = b - a;
+    let len_sq = ab.dot(ab);
+    if len_sq < 1e-10 {
+        return p.distance_squared(a);
+    }
+    let t = ((p - a).dot(ab) / len_sq).clamp(0.0, 1.0);
+    p.distance_squared(a + t * ab)
 }
 
 fn port_matches_key(ports: &[Vec3], k: IVec3) -> bool {
@@ -27,6 +38,7 @@ pub fn cable_placed_system<N: NetworkKind>(
     net_members_q: Query<&N::Members>,
     machine_q: Query<(Entity, &Machine, &Transform), Without<MachineUnformed>>,
     mut changed: MessageWriter<NetworkChanged<N>>,
+    world_config: Option<Res<WorldConfig>>,
 ) {
     let new_connections: Vec<(Vec3, Vec3)> = cable_events
         .read()
@@ -44,10 +56,21 @@ pub fn cable_placed_system<N: NetworkKind>(
         .flat_map(|(_, seg, m)| seg.endpoints().map(|ep| (key(ep), m.network())))
         .collect();
 
-    let blocked: HashSet<IVec3> = machine_q
+    let machine_positions: HashSet<IVec3> = machine_q
         .iter()
         .map(|(_, _, t)| t.translation.round().as_ivec3())
         .collect();
+
+    let sampler = world_config
+        .as_ref()
+        .map(|cfg| TerrainSampler::new(cfg.world_seed));
+    let is_blocked = |pos: IVec3| {
+        machine_positions.contains(&pos)
+            || sampler.as_ref().is_some_and(|s| {
+                // block voxels whose center (pos.y + 0.5) is at or below terrain
+                (pos.y as f32 + 0.5) <= s.height_at(pos.x as f64 + 0.5, pos.z as f64 + 0.5)
+            })
+    };
 
     for (from, to) in new_connections {
         if from.distance(to) < 0.01 {
@@ -86,7 +109,7 @@ pub fn cable_placed_system<N: NetworkKind>(
         };
 
         commands.spawn((
-            N::new_cable_segment(from, to, &blocked),
+            N::new_cable_segment(from, to, &is_blocked),
             N::Member::new(target_net),
         ));
 
@@ -119,11 +142,34 @@ pub fn cable_removed_system<N: NetworkKind>(
         commands.entity(e).remove::<N::Member>();
     }
 
-    let removed_positions: Vec<IVec3> = world_events
+    let all_removals: Vec<WorldObjectEvent> = world_events
         .read()
-        .filter(|ev| ev.kind == WorldObjectKind::Removed && ev.item_id == N::CABLE_ITEM_ID)
+        .filter(|ev| ev.kind == WorldObjectKind::Removed)
+        .cloned()
+        .collect();
+
+    let mut removed_positions: Vec<IVec3> = all_removals
+        .iter()
+        .filter(|ev| ev.item_id == N::CABLE_ITEM_ID)
         .map(|ev| ev.pos.round().as_ivec3())
         .collect();
+
+    // Generic shift-click: find nearest cable segment to the click position
+    for ev in all_removals.iter().filter(|ev| ev.item_id.is_empty()) {
+        let nearest = cable_q.iter().min_by(|(_, sa, _), (_, sb, _)| {
+            let [a0, a1] = sa.endpoints();
+            let [b0, b1] = sb.endpoints();
+            pt_seg_dist_sq(ev.pos, a0, a1)
+                .partial_cmp(&pt_seg_dist_sq(ev.pos, b0, b1))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        if let Some((_, seg, _)) = nearest {
+            let [p0, p1] = seg.endpoints();
+            if pt_seg_dist_sq(ev.pos, p0, p1) < 2.0f32 * 2.0 {
+                removed_positions.push(key(p0));
+            }
+        }
+    }
 
     if removed_positions.is_empty() {
         return;

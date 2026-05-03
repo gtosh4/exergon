@@ -36,13 +36,15 @@ Everything not listed above, including: underground layer, digger drone, reactiv
 
 **Recipe graph**
 - Full procedural generation from seed
-- All tier counts (3–6 by difficulty)
+- All tier counts (3/5/7/10 by difficulty — Initiation/Standard/Advanced/Pinnacle)
 - Hybrid base + alien materials
 - Bounded parameter variance
 - Byproduct routing
 
 **Tech tree**
 - Full procedural generation
+- Canonical 10-tier sequence (Landfall → Roots → Contact → Reach → Salvage → Traverse → Interface → Revelation → Forge → Transcendence); difficulty uses prefix 1–3/1–5/1–7/1–10
+- Tiers 3, 5, 7 have terminal and intermediary variants (escape objective vs. knowledge artifact)
 - All 5 unlock vectors active
 - Alternative prerequisites per node
 - Partial reveal earned through gameplay
@@ -92,10 +94,11 @@ Everything not listed above, including: underground layer, digger drone, reactiv
 - Outposts
 
 **Escape conditions**
-- All escape types by difficulty
-  - Easy = find artifact (gateway)
-  - Mid = build an intra-system ship ("mass effect relay")
-  - Hard = build an inter-system ship
+- All escape types by difficulty (each has construction + field requirement + activation phases)
+  - Initiation = Alien gateway: craft activation key → sustain power → activate
+  - Standard = Alien derelict ship: construct hull/nav/engines/life-support + produce alien fuel → launch
+  - Advanced = Outer-system relay: collect seeded relay fragments + construct repair components → sustain power → activate
+  - Pinnacle = Interstellar spacecraft: construct engines + FTL drive + reactor + shielding → assemble → launch
 
 **Save system**
 - Run save (full resume, run history, completed runs persist)

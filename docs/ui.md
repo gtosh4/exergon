@@ -13,3 +13,6 @@
 
 ## Tech Tree
 ![](tech_tree_mock_v0.1.png)
+
+## Machine UI
+![](machine_ui_mock_v0.1.png)

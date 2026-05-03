@@ -580,7 +580,7 @@ Meta-progression persists across runs and expands the game's possibility space w
 
 **Run modifiers & scenarios.** New run modifier types unlock — additional axes of seeded variance, special scenario conditions, unique escape artifact types. These expand what a run can be, not how easy it is to complete one.
 
-Run modifiers use a **point-buy system** at run start. Challenges (harder planet modifiers, tighter research budgets, disabled tools, higher reactivity rates) award points. Boons (starting resource cache, pre-researched node, *earlier access to a QoL tool*) cost points. Players compose a modifier set that sums to zero or any positive/negative balance they choose — positive balance means net-harder, negative means net-easier. No forced configuration; this is a player-controlled challenge dial.
+Run modifiers use a **point-buy system** at run start. Challenges (harder planet modifiers, tighter research budgets, disabled tools, higher reactivity rates) award points. Boons (starting resource cache, pre-researched node, *earlier access to a QoL tool*) cost points. The net must be **zero or positive** — players can customize how the run is hard and can push harder than the tier baseline, but cannot soften a tier below its baseline. Boons require equal or greater challenge point backing.
 
 The tool-access boons specifically shift the in-run Engineering research unlock window for a given tool to an earlier tier, not to run start. Boon cost scales with the depth of challenge the tool removes — early ratio calculator costs less than early auto-crafting network. No tool access boon should be an obvious always-buy.
 

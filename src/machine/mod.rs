@@ -44,7 +44,7 @@ impl Plugin for MachinePlugin {
                 (
                     place_machine_system,
                     place_platform_system,
-                    remove_machine_system,
+                    remove_placed_objects_system,
                 )
                     .in_set(MachineScanSet),
             );
@@ -222,7 +222,7 @@ fn setup_machine_visuals(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let mesh = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
+    let mesh = meshes.add(Cuboid::new(4.0, 4.0, 4.0));
     let mut mats: HashMap<String, Handle<StandardMaterial>> = HashMap::new();
     mats.insert(
         "smelter".into(),
@@ -245,11 +245,18 @@ fn setup_machine_visuals(
             ..default()
         }),
     );
+    mats.insert(
+        "generator".into(),
+        materials.add(StandardMaterial {
+            base_color: Color::srgb(0.9, 0.8, 0.1),
+            ..default()
+        }),
+    );
     let fallback = materials.add(StandardMaterial {
         base_color: Color::srgb(0.65, 0.65, 0.65),
         ..default()
     });
-    let port_mesh = meshes.add(Sphere::new(0.15));
+    let port_mesh = meshes.add(Sphere::new(0.4));
     let energy_port_mat = materials.add(StandardMaterial {
         base_color: Color::srgb(1.0, 0.85, 0.0),
         unlit: true,
@@ -341,7 +348,7 @@ fn place_machine_system(
                 MachineState::Idle,
                 Transform::from_translation(ev.pos),
                 RigidBody::Static,
-                Collider::cuboid(0.5, 0.5, 0.5),
+                Collider::cuboid(2.0, 2.0, 2.0),
             ))
             .id();
 
@@ -418,11 +425,12 @@ fn place_platform_system(
     }
 }
 
-fn remove_machine_system(
+fn remove_placed_objects_system(
     mut commands: Commands,
     mut events: MessageReader<WorldObjectEvent>,
     machine_q: Query<(Entity, &Machine, &Transform)>,
     port_marker_q: Query<(Entity, &IoPortMarker)>,
+    platform_q: Query<(Entity, &Transform), With<Platform>>,
     mut network_changed: MessageWriter<MachineNetworkChanged>,
 ) {
     for ev in events.read() {
@@ -442,6 +450,12 @@ fn remove_machine_system(
             commands.entity(entity).despawn();
             network_changed.write(MachineNetworkChanged);
             info!("Machine '{}' removed near {:?}", machine_type, ev.pos);
+        } else if let Some((entity, _)) = platform_q
+            .iter()
+            .find(|(_, t)| t.translation.distance(ev.pos) < 1.5)
+        {
+            commands.entity(entity).despawn();
+            info!("Platform removed near {:?}", ev.pos);
         }
     }
 }
@@ -647,7 +661,7 @@ mod tests {
             .add_message::<MachineNetworkChanged>()
             .insert_resource(MachineRegistry::new(vec![simple_machine("smelter")]));
 
-        app.add_systems(Update, (place_machine_system, remove_machine_system));
+        app.add_systems(Update, (place_machine_system, remove_placed_objects_system));
 
         app.world_mut().write_message(WorldObjectEvent {
             pos: Vec3::ZERO,
@@ -692,6 +706,81 @@ mod tests {
         app.update();
 
         let world = app.world_mut();
+        assert_eq!(world.query::<&Platform>().iter(world).count(), 1);
+    }
+
+    #[test]
+    fn remove_platform_despawns_entity() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_message::<WorldObjectEvent>()
+            .add_message::<MachineNetworkChanged>();
+
+        app.add_systems(
+            Update,
+            (place_platform_system, remove_placed_objects_system),
+        );
+
+        app.world_mut().write_message(WorldObjectEvent {
+            pos: Vec3::new(1.0, 0.0, 1.0),
+            item_id: "platform".to_string(),
+            kind: WorldObjectKind::Placed,
+        });
+        app.update();
+        {
+            let world = app.world_mut();
+            assert_eq!(world.query::<&Platform>().iter(world).count(), 1);
+        }
+
+        app.world_mut().write_message(WorldObjectEvent {
+            pos: Vec3::new(1.0, 0.0, 1.0),
+            item_id: String::new(),
+            kind: WorldObjectKind::Removed,
+        });
+        app.update();
+
+        let world = app.world_mut();
+        assert_eq!(world.query::<&Platform>().iter(world).count(), 0);
+    }
+
+    #[test]
+    fn remove_does_not_remove_platform_when_machine_present() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_message::<WorldObjectEvent>()
+            .add_message::<MachineNetworkChanged>()
+            .insert_resource(MachineRegistry::new(vec![simple_machine("smelter")]));
+
+        app.add_systems(
+            Update,
+            (
+                place_machine_system,
+                place_platform_system,
+                remove_placed_objects_system,
+            ),
+        );
+
+        app.world_mut().write_message(WorldObjectEvent {
+            pos: Vec3::new(1.0, 0.5, 1.0),
+            item_id: "smelter".to_string(),
+            kind: WorldObjectKind::Placed,
+        });
+        app.world_mut().write_message(WorldObjectEvent {
+            pos: Vec3::new(1.0, 0.0, 1.0),
+            item_id: "platform".to_string(),
+            kind: WorldObjectKind::Placed,
+        });
+        app.update();
+
+        app.world_mut().write_message(WorldObjectEvent {
+            pos: Vec3::new(1.0, 0.5, 1.0),
+            item_id: String::new(),
+            kind: WorldObjectKind::Removed,
+        });
+        app.update();
+
+        let world = app.world_mut();
+        assert_eq!(world.query::<&Machine>().iter(world).count(), 0);
         assert_eq!(world.query::<&Platform>().iter(world).count(), 1);
     }
 }

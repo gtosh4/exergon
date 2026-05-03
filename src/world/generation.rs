@@ -32,20 +32,35 @@ pub(crate) struct TerrainChunk {
 #[derive(Resource, Default)]
 pub(crate) struct SpawnedChunks(pub(crate) HashSet<IVec2>);
 
+/// Reusable terrain height sampler — create once per operation, call `height_at` many times.
+pub(crate) struct TerrainSampler {
+    noise: HybridMulti<Perlin>,
+}
+
+impl TerrainSampler {
+    pub(crate) fn new(seed: u64) -> Self {
+        let mut noise = HybridMulti::<Perlin>::new((seed ^ (seed >> 32)) as u32);
+        noise.octaves = 5;
+        noise.frequency = 1.1;
+        noise.lacunarity = 2.8;
+        noise.persistence = 0.4;
+        Self { noise }
+    }
+
+    pub(crate) fn height_at(&self, wx: f64, wz: f64) -> f32 {
+        (self.noise.get([wx / 1000.0, wz / 1000.0]) * 50.0) as f32
+    }
+}
+
 pub(super) fn generate_chunk_mesh(seed: u64, cx: i32, cz: i32) -> Mesh {
     let n = CHUNK_SIZE as usize;
     let verts = n + 1;
 
-    let mut noise = HybridMulti::<Perlin>::new((seed ^ (seed >> 32)) as u32);
-    noise.octaves = 5;
-    noise.frequency = 1.1;
-    noise.lacunarity = 2.8;
-    noise.persistence = 0.4;
-
+    let sampler = TerrainSampler::new(seed);
     let height = |lx: usize, lz: usize| -> f32 {
         let wx = (cx * CHUNK_SIZE + lx as i32) as f64;
         let wz = (cz * CHUNK_SIZE + lz as i32) as f64;
-        (noise.get([wx / 1000.0, wz / 1000.0]) * 50.0) as f32
+        sampler.height_at(wx, wz)
     };
 
     let mut positions: Vec<[f32; 3]> = Vec::with_capacity(verts * verts);

@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::{BinaryHeap, HashMap};
 use std::marker::PhantomData;
 
 use bevy::ecs::message::Message;
@@ -58,7 +58,11 @@ pub trait NetworkKind: Send + Sync + 'static {
     type Members: NetworkMembersComponent;
 
     fn io_ports(machine: &Machine) -> &[Vec3];
-    fn new_cable_segment(from: Vec3, to: Vec3, blocked: &HashSet<IVec3>) -> Self::CableSegment;
+    fn new_cable_segment(
+        from: Vec3,
+        to: Vec3,
+        is_blocked: &dyn Fn(IVec3) -> bool,
+    ) -> Self::CableSegment;
     fn spawn_network(commands: &mut Commands) -> Entity;
 }
 
@@ -111,9 +115,9 @@ pub fn auto_route(from: IVec3, to: IVec3) -> Vec<IVec3> {
     path
 }
 
-/// A* path from `from` to `to` avoiding `blocked` voxels, preferring straight runs.
+/// A* path from `from` to `to` avoiding blocked voxels, preferring straight runs.
 /// Falls back to [`auto_route`] when no path is found.
-pub fn route_avoiding(from: IVec3, to: IVec3, blocked: &HashSet<IVec3>) -> Vec<IVec3> {
+pub fn route_avoiding(from: IVec3, to: IVec3, is_blocked: impl Fn(IVec3) -> bool) -> Vec<IVec3> {
     if from == to {
         return vec![from];
     }
@@ -183,7 +187,7 @@ pub fn route_avoiding(from: IVec3, to: IVec3, blocked: &HashSet<IVec3>) -> Vec<I
 
         for &d in &DIRS {
             let next = pos + d;
-            if blocked.contains(&next) && next != to {
+            if is_blocked(next) && next != to {
                 continue;
             }
             let turn_cost = if dir != IVec3::ZERO && d != dir {
@@ -254,8 +258,6 @@ impl<N: NetworkKind> Plugin for NetworkPlugin<N> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use bevy::prelude::*;
 
     use super::*;
@@ -315,7 +317,11 @@ mod tests {
             &machine.energy_ports
         }
 
-        fn new_cable_segment(from: Vec3, to: Vec3, _blocked: &HashSet<IVec3>) -> TestCableSegment {
+        fn new_cable_segment(
+            from: Vec3,
+            to: Vec3,
+            _is_blocked: &dyn Fn(IVec3) -> bool,
+        ) -> TestCableSegment {
             TestCableSegment {
                 from,
                 to,
@@ -359,6 +365,14 @@ mod tests {
         app.world_mut().write_message(WorldObjectEvent {
             pos,
             item_id: TEST_CABLE_ID.to_string(),
+            kind: WorldObjectKind::Removed,
+        });
+    }
+
+    fn generic_remove_at(app: &mut App, pos: Vec3) {
+        app.world_mut().write_message(WorldObjectEvent {
+            pos,
+            item_id: String::new(),
             kind: WorldObjectKind::Removed,
         });
     }
@@ -436,6 +450,28 @@ mod tests {
     }
 
     #[test]
+    fn generic_remove_clears_nearest_cable() {
+        let mut app = test_app();
+        connect(&mut app, Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0));
+        app.update();
+        // Click at midpoint — within proximity threshold
+        generic_remove_at(&mut app, Vec3::new(2.5, 0.0, 0.0));
+        app.update();
+        assert_eq!(network_count(&mut app), 0);
+    }
+
+    #[test]
+    fn generic_remove_far_away_does_nothing() {
+        let mut app = test_app();
+        connect(&mut app, Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0));
+        app.update();
+        // Click far from cable — beyond 2u threshold
+        generic_remove_at(&mut app, Vec3::new(20.0, 0.0, 0.0));
+        app.update();
+        assert_eq!(network_count(&mut app), 1);
+    }
+
+    #[test]
     fn placing_cable_between_two_networks_merges_them() {
         let mut app = test_app();
         connect(&mut app, Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0));
@@ -500,15 +536,13 @@ mod auto_route_tests {
 
 #[cfg(test)]
 mod route_avoiding_tests {
-    use std::collections::HashSet;
-
     use bevy::prelude::IVec3;
 
     use super::{DIRS, route_avoiding};
 
     #[test]
     fn straight_line_no_obstacles() {
-        let path = route_avoiding(IVec3::ZERO, IVec3::new(4, 0, 0), &HashSet::new());
+        let path = route_avoiding(IVec3::ZERO, IVec3::new(4, 0, 0), |_| false);
         assert_eq!(path.first(), Some(&IVec3::ZERO));
         assert_eq!(path.last(), Some(&IVec3::new(4, 0, 0)));
         assert_eq!(path.len(), 5);
@@ -518,9 +552,9 @@ mod route_avoiding_tests {
 
     #[test]
     fn routes_around_single_obstacle() {
-        let mut blocked = HashSet::new();
-        blocked.insert(IVec3::new(1, 0, 0));
-        let path = route_avoiding(IVec3::ZERO, IVec3::new(2, 0, 0), &blocked);
+        let path = route_avoiding(IVec3::ZERO, IVec3::new(2, 0, 0), |p| {
+            p == IVec3::new(1, 0, 0)
+        });
         assert_eq!(*path.first().unwrap(), IVec3::ZERO);
         assert_eq!(*path.last().unwrap(), IVec3::new(2, 0, 0));
         assert!(!path.contains(&IVec3::new(1, 0, 0)));
@@ -528,9 +562,8 @@ mod route_avoiding_tests {
 
     #[test]
     fn fallback_when_all_neighbors_blocked() {
-        let blocked: HashSet<IVec3> = DIRS.iter().map(|&d| IVec3::ZERO + d).collect();
         let to = IVec3::new(3, 0, 0);
-        let path = route_avoiding(IVec3::ZERO, to, &blocked);
+        let path = route_avoiding(IVec3::ZERO, to, |p| DIRS.contains(&p));
         assert_eq!(*path.first().unwrap(), IVec3::ZERO);
         assert_eq!(*path.last().unwrap(), to);
     }

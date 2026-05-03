@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use avian3d::prelude::{Collider, Sensor};
 use bevy::ecs::message::{Message, MessageReader, MessageWriter};
 use bevy::prelude::*;
 
@@ -106,6 +107,8 @@ fn add_cable_visuals(
                         Mesh3d(assets.tube.clone()),
                         MeshMaterial3d(assets.cable_material.clone()),
                         Transform::from_translation((a + b) * 0.5).with_rotation(rotation),
+                        Collider::cylinder(CABLE_RADIUS, 1.0),
+                        Sensor,
                     ));
                 }
                 for window in seg.path.windows(3) {
@@ -235,11 +238,15 @@ impl NetworkKind for Logistics {
         &machine.logistics_ports
     }
 
-    fn new_cable_segment(from: Vec3, to: Vec3, blocked: &HashSet<IVec3>) -> LogisticsCableSegment {
+    fn new_cable_segment(
+        from: Vec3,
+        to: Vec3,
+        is_blocked: &dyn Fn(IVec3) -> bool,
+    ) -> LogisticsCableSegment {
         LogisticsCableSegment {
             from,
             to,
-            path: route_avoiding(from.round().as_ivec3(), to.round().as_ivec3(), blocked),
+            path: route_avoiding(from.round().as_ivec3(), to.round().as_ivec3(), is_blocked),
         }
     }
 

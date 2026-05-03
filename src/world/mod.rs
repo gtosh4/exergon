@@ -77,6 +77,7 @@ impl Plugin for WorldPlugin {
                         .in_set(crate::GameSystems::Input)
                         .run_if(|o: Option<Res<InventoryOpen>>| !o.is_some_and(|r| r.0)),
                     interaction::update_ghost_preview.after(interaction::update_look_target),
+                    interaction::update_removal_ghost.after(interaction::update_look_target),
                 )
                     .run_if(in_state(GameState::Playing)),
             );

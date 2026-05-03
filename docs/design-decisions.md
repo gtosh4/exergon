@@ -181,7 +181,13 @@ Rationale and context behind key decisions. The GDD contains the *what*; this do
 
 **Boon cost principle:** Cost must reflect depth of challenge removed. Early ratio calculator = minor convenience, low cost. Early auto-crafting = skips a significant architectural learning phase, higher cost. Early full recipe-chain resolution = highest cost. No tool access boon should be an obvious always-buy for experienced players.
 
-**Point-buy net:** Players can compose a modifier set with any net balance. Positive = net harder run (more challenge points than boon costs). Negative = net easier. No forced configuration. This is a voluntary challenge dial, not a gatekeeping mechanism.
+**Point-buy net — minimum-zero:** Net must be ≥ 0. Players can run at exactly net-zero (pure difficulty customization — different challenges offset by matching boons) or net-positive (harder than tier baseline). Net-negative is not allowed — no run can be softer than its difficulty tier's baseline.
+
+**Why minimum-zero over fixed-zero:** Fixed-zero prevents voluntary self-challenge within a tier. A veteran who has mastered Standard but isn't ready for Advanced has no headroom to push without jumping tiers. Minimum-zero preserves that axis.
+
+**Why not scaling minimum per tier:** The difficulty tier already sets a harder baseline. Requiring Advanced players to also net-positive on top of harder base content double-counts difficulty and reads as punishing. Plain Advanced (no modifiers) should be a valid and clean run.
+
+**Community comparability:** Within a difficulty tier, every player is at baseline or above. Leaderboards and seed sharing categorize by tier first, net modifier value second — same pattern as Hades Heat or Slay the Spire Ascension level.
 
 **What tools don't do:** Earlier access shifts *when* tools arrive, not *what* they do. Ratio calculator shows numbers; player still decides what to build. Auto-crafting handles execution; player still designs the crafting graph. Tools surface the problem more clearly — they don't eliminate it.
 

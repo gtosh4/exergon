@@ -1,9 +1,10 @@
-use avian3d::prelude::{Collider, SpatialQuery, SpatialQueryFilter};
+use avian3d::prelude::{Collider, Sensor, SpatialQuery, SpatialQueryFilter};
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 
 use crate::inventory::{Hotbar, Inventory, InventoryOpen};
+use crate::machine::{Machine, Platform};
 
 use super::player::MainCamera;
 use super::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
@@ -33,7 +34,17 @@ pub enum LookTarget {
     Surface {
         pos: Vec3,
         normal: Vec3,
+        entity: Entity,
     },
+}
+
+/// Marker for the red removal-preview ghost entity.
+#[derive(Component)]
+pub struct RemovalGhost;
+
+#[derive(Resource)]
+pub struct RemovalGhostPreview {
+    entity: Entity,
 }
 
 pub(super) fn setup_ghost_preview(
@@ -60,12 +71,33 @@ pub(super) fn setup_ghost_preview(
 
     commands.insert_resource(GhostPreview { entity });
     commands.init_resource::<PendingCablePort>();
+
+    let removal_entity = commands
+        .spawn((
+            RemovalGhost,
+            Mesh3d(meshes.add(Cuboid::new(1.1, 1.1, 1.1))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgba(1.0, 0.15, 0.15, 0.5),
+                alpha_mode: AlphaMode::Blend,
+                unlit: true,
+                double_sided: true,
+                cull_mode: None,
+                ..default()
+            })),
+            Transform::IDENTITY,
+            Visibility::Hidden,
+        ))
+        .id();
+    commands.insert_resource(RemovalGhostPreview {
+        entity: removal_entity,
+    });
 }
 
 pub(super) fn update_ghost_preview(
     look_target: Res<LookTarget>,
     hotbar: Res<Hotbar>,
     inventory_open: Option<Res<InventoryOpen>>,
+    keyboard: Res<ButtonInput<KeyCode>>,
     ghost: Option<Res<GhostPreview>>,
     mut ghost_q: Query<(&mut Transform, &mut Visibility), With<PlacementGhost>>,
 ) {
@@ -76,10 +108,11 @@ pub(super) fn update_ghost_preview(
 
     let inv_open = inventory_open.is_some_and(|o| o.0);
     let has_item = hotbar.active_item_id().is_some();
-    let show_ghost = has_item && !inv_open;
+    let shift = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
+    let show_ghost = has_item && !inv_open && !shift;
 
     match *look_target {
-        LookTarget::Surface { pos, normal } if show_ghost => {
+        LookTarget::Surface { pos, normal, .. } if show_ghost => {
             transform.translation = pos + normal * 0.5;
             *vis = Visibility::Visible;
         }
@@ -91,11 +124,59 @@ pub(super) fn update_ghost_preview(
 
 pub(super) fn hide_ghost_preview(
     ghost: Option<Res<GhostPreview>>,
+    removal_ghost: Option<Res<RemovalGhostPreview>>,
     mut ghost_q: Query<&mut Visibility, With<PlacementGhost>>,
+    mut removal_ghost_q: Query<&mut Visibility, (With<RemovalGhost>, Without<PlacementGhost>)>,
 ) {
-    let Some(ghost) = ghost else { return };
-    if let Ok(mut vis) = ghost_q.get_mut(ghost.entity) {
+    if let Some(ghost) = ghost
+        && let Ok(mut vis) = ghost_q.get_mut(ghost.entity)
+    {
         *vis = Visibility::Hidden;
+    }
+    if let Some(rg) = removal_ghost
+        && let Ok(mut vis) = removal_ghost_q.get_mut(rg.entity)
+    {
+        *vis = Visibility::Hidden;
+    }
+}
+
+pub(super) fn update_removal_ghost(
+    look_target: Res<LookTarget>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    removal_ghost: Option<Res<RemovalGhostPreview>>,
+    machine_q: Query<&Transform, (With<Machine>, Without<RemovalGhost>)>,
+    platform_q: Query<&Transform, (With<Platform>, Without<RemovalGhost>)>,
+    mut ghost_q: Query<(&mut Transform, &mut Visibility), With<RemovalGhost>>,
+) {
+    let Some(rg) = removal_ghost else { return };
+    let Ok((mut transform, mut vis)) = ghost_q.get_mut(rg.entity) else {
+        return;
+    };
+
+    let shift = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
+
+    let target_pos = if shift {
+        if let LookTarget::Surface { entity, .. } = *look_target {
+            machine_q
+                .get(entity)
+                .map(|t| t.translation)
+                .or_else(|_| platform_q.get(entity).map(|t| t.translation))
+                .ok()
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    match target_pos {
+        Some(pos) => {
+            transform.translation = pos;
+            *vis = Visibility::Visible;
+        }
+        None => {
+            *vis = Visibility::Hidden;
+        }
     }
 }
 
@@ -117,6 +198,7 @@ pub(super) fn update_look_target(
         Some(h) => LookTarget::Surface {
             pos: cam.translation + *dir * h.distance,
             normal: h.normal,
+            entity: h.entity,
         },
     };
 }
@@ -132,6 +214,7 @@ pub(super) fn object_interaction(
     mut cable_events: MessageWriter<CableConnectionEvent>,
     mut pending_cable: ResMut<PendingCablePort>,
     spatial_query: SpatialQuery,
+    sensor_q: Query<(), With<Sensor>>,
 ) {
     for ev in scroll.read() {
         let delta = if ev.y > 0.0 { 1i32 } else { -1i32 };
@@ -156,7 +239,7 @@ pub(super) fn object_interaction(
         }
     }
 
-    let LookTarget::Surface { pos, normal } = *look_target else {
+    let LookTarget::Surface { pos, normal, .. } = *look_target else {
         return;
     };
 
@@ -198,14 +281,15 @@ pub(super) fn object_interaction(
             } else {
                 let place_pos = pos + normal * 0.5;
                 let check = Collider::cuboid(0.45, 0.45, 0.45);
-                let blocked = !spatial_query
+                let blocked = spatial_query
                     .shape_intersections(
                         &check,
                         place_pos,
                         Quat::IDENTITY,
                         &SpatialQueryFilter::default(),
                     )
-                    .is_empty();
+                    .iter()
+                    .any(|&e| !sensor_q.contains(e));
                 if !blocked {
                     hotbar.consume_active();
                     inventory.add(item_id.clone(), 0);
