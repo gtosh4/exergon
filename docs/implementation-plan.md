@@ -153,19 +153,19 @@ Migrate from flat material→recipe model to the material/form/item hierarchy de
 
 ---
 
-## Phase 7 — Factory UI ☐
+## Phase 7 — Factory UI ✅
 
 **7a. Machine status panel** (`src/ui/mod.rs`)
-- [ ] `MachineStatusPanel` resource: `Option<Entity>`
-- [ ] Right-click machine in `Exploring` mode → `SpatialQuery::cast_ray` → hit machine → set `MachineStatusPanel`
-- [ ] `machine_status_ui`: egui side panel showing: machine type, `MachineState`, recipe in progress, inputs needed vs available, progress %, `speed_factor`
+- [x] `MachineStatusPanel` resource: `Option<Entity>`
+- [x] Right-click machine in `Exploring` mode → `SpatialQuery::cast_ray` → hit machine → set `MachineStatusPanel`
+- [x] `machine_status_ui`: egui side panel showing: machine type, `MachineState`, recipe in progress, progress %, `speed_factor`
 
 **7b. Tech tree + research panel** (`src/ui/mod.rs`)
-- [ ] T key toggles `TechTreePanelOpen`
-- [ ] `tech_tree_ui`: egui window with `ResearchPool` points, node grid colored by unlock status, hover shows cost + prereqs + effects
+- [x] T key toggles `TechTreePanelOpen`
+- [x] `tech_tree_ui`: egui window with `ResearchPool` points, node grid colored by unlock status, hover shows cost + prereqs + effects
 
 **7c. Power HUD** (`src/ui/mod.rs`)
-- [ ] Persistent line: `⚡ {produced}W / {demanded}W ({pct}%)` aggregated across all power networks
+- [x] Persistent line: `⚡ {produced}W / {demanded}W ({pct}%)` aggregated across all power networks
 
 ---
 
