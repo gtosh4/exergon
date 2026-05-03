@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
@@ -92,9 +92,8 @@ pub struct Machine {
     pub machine_type: String,
     pub tier: u8,
     pub orientation: Orientation,
-    /// Voxel-grid positions of IO port connection points (for cable network connectivity).
-    pub energy_ports: HashSet<IVec3>,
-    pub logistics_ports: HashSet<IVec3>,
+    pub energy_ports: Vec<Vec3>,
+    pub logistics_ports: Vec<Vec3>,
 }
 
 /// Marker: machine entity exists but is not fully operational (e.g. during removal).
@@ -277,20 +276,16 @@ fn place_machine_system(
             mirror: Mirror::Normal,
         };
 
-        // Port connectivity uses voxel-grid IVec3 positions (cable endpoints are always grid-snapped).
-        // ev.pos is the machine center (Vec3); floor it to get the base grid cell.
-        let origin_ivec = ev.pos.floor().as_ivec3();
-
-        let energy_ports: HashSet<IVec3> = tier_def
+        let energy_ports: Vec<Vec3> = tier_def
             .energy_io_offsets
             .iter()
-            .map(|&o| origin_ivec + orientation.transform(o))
+            .map(|&o| ev.pos + orientation.transform(o).as_vec3())
             .collect();
 
-        let logistics_ports: HashSet<IVec3> = tier_def
+        let logistics_ports: Vec<Vec3> = tier_def
             .logistics_io_offsets
             .iter()
-            .map(|&o| origin_ivec + orientation.transform(o))
+            .map(|&o| ev.pos + orientation.transform(o).as_vec3())
             .collect();
 
         let mut entity = commands.spawn((
@@ -500,7 +495,15 @@ mod tests {
         let machines: Vec<&Machine> = world.query::<&Machine>().iter(world).collect();
         assert_eq!(machines.len(), 1);
         let m = machines[0];
-        assert!(m.energy_ports.contains(&IVec3::new(5, 0, 6)));
-        assert!(m.logistics_ports.contains(&IVec3::new(6, 0, 5)));
+        assert!(
+            m.energy_ports
+                .iter()
+                .any(|p| p.round().as_ivec3() == IVec3::new(5, 0, 6))
+        );
+        assert!(
+            m.logistics_ports
+                .iter()
+                .any(|p| p.round().as_ivec3() == IVec3::new(6, 0, 5))
+        );
     }
 }

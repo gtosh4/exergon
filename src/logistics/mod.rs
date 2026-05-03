@@ -91,8 +91,9 @@ fn add_cable_visuals(
             .insert(Transform::default())
             .with_children(|parent| {
                 for window in seg.path.windows(2) {
-                    let a = window[0].as_vec3() + Vec3::splat(0.5);
-                    let b = window[1].as_vec3() + Vec3::splat(0.5);
+                    let [a_pos, b_pos] = window else { continue };
+                    let a = a_pos.as_vec3() + Vec3::splat(0.5);
+                    let b = b_pos.as_vec3() + Vec3::splat(0.5);
                     let dir = b - a;
                     let rotation = if dir.x.abs() > 0.5 {
                         Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)
@@ -107,23 +108,29 @@ fn add_cable_visuals(
                         Transform::from_translation((a + b) * 0.5).with_rotation(rotation),
                     ));
                 }
-                for i in 1..seg.path.len().saturating_sub(1) {
-                    let prev_dir = seg.path[i] - seg.path[i - 1];
-                    let next_dir = seg.path[i + 1] - seg.path[i];
+                for window in seg.path.windows(3) {
+                    let [prev, curr, next] = window else { continue };
+                    let prev_dir = *curr - *prev;
+                    let next_dir = *next - *curr;
                     if prev_dir != next_dir {
                         parent.spawn((
                             Mesh3d(assets.joint.clone()),
                             MeshMaterial3d(assets.cable_material.clone()),
-                            Transform::from_translation(seg.path[i].as_vec3() + Vec3::splat(0.5)),
+                            Transform::from_translation(curr.as_vec3() + Vec3::splat(0.5)),
                         ));
                     }
                 }
-                // Connector tubes from each machine body to its port voxel
+                // Connector tubes from each machine body to its port
                 for port in [seg.from, seg.to] {
-                    let port_center = port.as_vec3() + Vec3::splat(0.5);
+                    let port_center = port + Vec3::splat(0.5);
+                    let port_key = port.round().as_ivec3();
                     if let Some(mpos) = machine_q
                         .iter()
-                        .find(|(m, _)| m.logistics_ports.contains(&port))
+                        .find(|(m, _)| {
+                            m.logistics_ports
+                                .iter()
+                                .any(|p| p.round().as_ivec3() == port_key)
+                        })
                         .map(|(_, t)| t.translation)
                     {
                         let diff = port_center - mpos;
@@ -154,7 +161,7 @@ fn add_storage_visuals(
         commands.entity(entity).insert((
             Mesh3d(assets.storage_mesh.clone()),
             MeshMaterial3d(assets.storage_material.clone()),
-            Transform::from_translation(unit.pos.as_vec3() + Vec3::splat(0.5)),
+            Transform::from_translation(unit.pos + Vec3::splat(0.5)),
         ));
     }
 }
@@ -172,13 +179,13 @@ impl Message for NetworkStorageChanged {}
 
 #[derive(Component)]
 pub struct LogisticsCableSegment {
-    pub from: IVec3,
-    pub to: IVec3,
+    pub from: Vec3,
+    pub to: Vec3,
     pub path: Vec<IVec3>,
 }
 
 impl HasEndpoints for LogisticsCableSegment {
-    fn endpoints(&self) -> [IVec3; 2] {
+    fn endpoints(&self) -> [Vec3; 2] {
         [self.from, self.to]
     }
 }
@@ -208,7 +215,7 @@ impl NetworkMembersComponent for LogisticsNetworkMembers {
 
 #[derive(Component)]
 pub struct StorageUnit {
-    pub pos: IVec3,
+    pub pos: Vec3,
     pub items: HashMap<String, u32>,
 }
 
@@ -224,19 +231,15 @@ impl NetworkKind for Logistics {
     type Member = LogisticsNetworkMember;
     type Members = LogisticsNetworkMembers;
 
-    fn io_ports(machine: &Machine) -> &HashSet<IVec3> {
+    fn io_ports(machine: &Machine) -> &[Vec3] {
         &machine.logistics_ports
     }
 
-    fn new_cable_segment(
-        from: IVec3,
-        to: IVec3,
-        blocked: &HashSet<IVec3>,
-    ) -> LogisticsCableSegment {
+    fn new_cable_segment(from: Vec3, to: Vec3, blocked: &HashSet<IVec3>) -> LogisticsCableSegment {
         LogisticsCableSegment {
             from,
             to,
-            path: route_avoiding(from, to, blocked),
+            path: route_avoiding(from.round().as_ivec3(), to.round().as_ivec3(), blocked),
         }
     }
 
@@ -312,10 +315,10 @@ fn storage_unit_system(
     storage_q: Query<(Entity, &StorageUnit)>,
     mut changed: MessageWriter<NetworkStorageChanged>,
 ) {
-    // endpoint → network (from cables already in world)
+    // endpoint → network (keys are rounded IVec3)
     let endpoint_to_net: HashMap<IVec3, Entity> = cable_q
         .iter()
-        .flat_map(|(seg, m)| seg.endpoints().map(|ep| (ep, m.0)))
+        .flat_map(|(seg, m)| seg.endpoints().map(|ep| (ep.round().as_ivec3(), m.0)))
         .collect();
 
     let mut affected_nets: HashSet<Entity> = HashSet::new();
@@ -328,7 +331,9 @@ fn storage_unit_system(
         let grid_pos = ev.pos.round().as_ivec3();
 
         if ev.kind == WorldObjectKind::Removed
-            && let Some((storage_e, _)) = storage_q.iter().find(|(_, s)| s.pos == grid_pos)
+            && let Some((storage_e, _)) = storage_q
+                .iter()
+                .find(|(_, s)| s.pos.round().as_ivec3() == grid_pos)
         {
             for &dir in &crate::network::DIRS {
                 if let Some(&net) = endpoint_to_net.get(&(grid_pos + dir)) {
@@ -342,7 +347,7 @@ fn storage_unit_system(
         if ev.kind == WorldObjectKind::Placed {
             let storage_e = commands
                 .spawn(StorageUnit {
-                    pos: grid_pos,
+                    pos: ev.pos,
                     items: HashMap::new(),
                 })
                 .id();
@@ -510,7 +515,6 @@ fn recipe_progress_system(
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use std::collections::HashSet;
 
     use bevy::prelude::*;
 
@@ -538,7 +542,7 @@ mod tests {
         app
     }
 
-    fn connect_cable(app: &mut App, from: IVec3, to: IVec3) {
+    fn connect_cable(app: &mut App, from: Vec3, to: Vec3) {
         app.world_mut().write_message(CableConnectionEvent {
             from,
             to,
@@ -551,7 +555,7 @@ mod tests {
     fn storage_adjacent_to_cable_endpoint_becomes_member() {
         let mut app = logistics_app();
         // Cable endpoint at (0,0,0) — storage at (1,0,0) is adjacent
-        connect_cable(&mut app, IVec3::ZERO, IVec3::new(0, 0, 5));
+        connect_cable(&mut app, Vec3::ZERO, Vec3::new(0.0, 0.0, 5.0));
         app.update();
         app.world_mut().write_message(WorldObjectEvent {
             pos: Vec3::new(1.0, 0.0, 0.0),
@@ -570,9 +574,9 @@ mod tests {
     #[test]
     fn machine_with_logistics_port_matching_cable_endpoint_gets_member() {
         let mut app = logistics_app();
-        let io_pos = IVec3::new(1, 0, 0);
+        let io_pos = Vec3::new(1.0, 0.0, 0.0);
         // Cable endpoint at io_pos — machine with port there should join
-        connect_cable(&mut app, io_pos, IVec3::new(5, 0, 0));
+        connect_cable(&mut app, io_pos, Vec3::new(5.0, 0.0, 0.0));
         let machine_entity = app
             .world_mut()
             .spawn((
@@ -583,8 +587,8 @@ mod tests {
                         rotation: Rotation::North,
                         mirror: Mirror::Normal,
                     },
-                    energy_ports: HashSet::new(),
-                    logistics_ports: [io_pos].into_iter().collect(),
+                    energy_ports: vec![],
+                    logistics_ports: vec![io_pos],
                 },
                 MachineState::Idle,
             ))
@@ -648,8 +652,8 @@ mod tests {
                 rotation: Rotation::North,
                 mirror: Mirror::Normal,
             },
-            energy_ports: HashSet::new(),
-            logistics_ports: HashSet::new(),
+            energy_ports: vec![],
+            logistics_ports: vec![],
         }
     }
 
@@ -680,7 +684,7 @@ mod tests {
             .world_mut()
             .spawn((
                 StorageUnit {
-                    pos: IVec3::ZERO,
+                    pos: Vec3::ZERO,
                     items: [("iron".to_owned(), 10u32)].into_iter().collect(),
                 },
                 LogisticsNetworkMember(net_entity),
@@ -720,7 +724,7 @@ mod tests {
             .world_mut()
             .spawn((
                 StorageUnit {
-                    pos: IVec3::ZERO,
+                    pos: Vec3::ZERO,
                     items: HashMap::new(),
                 },
                 LogisticsNetworkMember(net_entity),
@@ -760,7 +764,7 @@ mod tests {
         let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
         app.world_mut().spawn((
             StorageUnit {
-                pos: IVec3::ZERO,
+                pos: Vec3::ZERO,
                 items: HashMap::new(),
             },
             LogisticsNetworkMember(net_entity),

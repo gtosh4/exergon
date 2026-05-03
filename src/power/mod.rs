@@ -91,8 +91,9 @@ fn add_power_cable_visuals(
             .insert(Transform::default())
             .with_children(|parent| {
                 for window in seg.path.windows(2) {
-                    let a = window[0].as_vec3() + Vec3::splat(0.5);
-                    let b = window[1].as_vec3() + Vec3::splat(0.5);
+                    let [a_pos, b_pos] = window else { continue };
+                    let a = a_pos.as_vec3() + Vec3::splat(0.5);
+                    let b = b_pos.as_vec3() + Vec3::splat(0.5);
                     let dir = b - a;
                     let rotation = if dir.x.abs() > 0.5 {
                         Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)
@@ -107,23 +108,29 @@ fn add_power_cable_visuals(
                         Transform::from_translation((a + b) * 0.5).with_rotation(rotation),
                     ));
                 }
-                for i in 1..seg.path.len().saturating_sub(1) {
-                    let prev_dir = seg.path[i] - seg.path[i - 1];
-                    let next_dir = seg.path[i + 1] - seg.path[i];
+                for window in seg.path.windows(3) {
+                    let [prev, curr, next] = window else { continue };
+                    let prev_dir = *curr - *prev;
+                    let next_dir = *next - *curr;
                     if prev_dir != next_dir {
                         parent.spawn((
                             Mesh3d(assets.joint.clone()),
                             MeshMaterial3d(assets.cable_material.clone()),
-                            Transform::from_translation(seg.path[i].as_vec3() + Vec3::splat(0.5)),
+                            Transform::from_translation(curr.as_vec3() + Vec3::splat(0.5)),
                         ));
                     }
                 }
-                // Connector tubes from each machine body to its port voxel
+                // Connector tubes from each machine body to its port
                 for port in [seg.from, seg.to] {
-                    let port_center = port.as_vec3() + Vec3::splat(0.5);
+                    let port_center = port + Vec3::splat(0.5);
+                    let port_key = port.round().as_ivec3();
                     if let Some(mpos) = machine_q
                         .iter()
-                        .find(|(m, _)| m.energy_ports.contains(&port))
+                        .find(|(m, _)| {
+                            m.energy_ports
+                                .iter()
+                                .any(|p| p.round().as_ivec3() == port_key)
+                        })
                         .map(|(_, t)| t.translation)
                     {
                         let diff = port_center - mpos;
@@ -154,7 +161,7 @@ fn add_generator_visuals(
         commands.entity(entity).insert((
             Mesh3d(assets.gen_mesh.clone()),
             MeshMaterial3d(assets.gen_material.clone()),
-            Transform::from_translation(unit.pos.as_vec3() + Vec3::splat(0.5)),
+            Transform::from_translation(unit.pos + Vec3::splat(0.5)),
         ));
     }
 }
@@ -163,13 +170,13 @@ fn add_generator_visuals(
 
 #[derive(Component)]
 pub struct PowerCableSegment {
-    pub from: IVec3,
-    pub to: IVec3,
+    pub from: Vec3,
+    pub to: Vec3,
     pub path: Vec<IVec3>,
 }
 
 impl HasEndpoints for PowerCableSegment {
-    fn endpoints(&self) -> [IVec3; 2] {
+    fn endpoints(&self) -> [Vec3; 2] {
         [self.from, self.to]
     }
 }
@@ -199,7 +206,7 @@ impl NetworkMembersComponent for PowerNetworkMembers {
 
 #[derive(Component)]
 pub struct GeneratorUnit {
-    pub pos: IVec3,
+    pub pos: Vec3,
     pub watts: f32,
 }
 
@@ -217,15 +224,15 @@ impl NetworkKind for Power {
     type Member = PowerNetworkMember;
     type Members = PowerNetworkMembers;
 
-    fn io_ports(machine: &Machine) -> &HashSet<IVec3> {
+    fn io_ports(machine: &Machine) -> &[Vec3] {
         &machine.energy_ports
     }
 
-    fn new_cable_segment(from: IVec3, to: IVec3, blocked: &HashSet<IVec3>) -> PowerCableSegment {
+    fn new_cable_segment(from: Vec3, to: Vec3, blocked: &HashSet<IVec3>) -> PowerCableSegment {
         PowerCableSegment {
             from,
             to,
-            path: route_avoiding(from, to, blocked),
+            path: route_avoiding(from.round().as_ivec3(), to.round().as_ivec3(), blocked),
         }
     }
 
@@ -247,10 +254,10 @@ fn generator_system(
     gen_q: Query<(Entity, &GeneratorUnit)>,
     mut changed: MessageWriter<NetworkChanged<Power>>,
 ) {
-    // endpoint → network
+    // endpoint → network (keys are rounded IVec3)
     let endpoint_to_net: HashMap<IVec3, Entity> = cable_q
         .iter()
-        .flat_map(|(seg, m)| seg.endpoints().map(|ep| (ep, m.0)))
+        .flat_map(|(seg, m)| seg.endpoints().map(|ep| (ep.round().as_ivec3(), m.0)))
         .collect();
 
     let mut affected_nets: HashSet<Entity> = HashSet::new();
@@ -263,7 +270,9 @@ fn generator_system(
         let grid_pos = ev.pos.round().as_ivec3();
 
         if ev.kind == WorldObjectKind::Removed
-            && let Some((gen_e, _)) = gen_q.iter().find(|(_, g)| g.pos == grid_pos)
+            && let Some((gen_e, _)) = gen_q
+                .iter()
+                .find(|(_, g)| g.pos.round().as_ivec3() == grid_pos)
         {
             for &dir in &crate::network::DIRS {
                 if let Some(&net) = endpoint_to_net.get(&(grid_pos + dir)) {
@@ -277,7 +286,7 @@ fn generator_system(
         if ev.kind == WorldObjectKind::Placed {
             let gen_e = commands
                 .spawn(GeneratorUnit {
-                    pos: grid_pos,
+                    pos: ev.pos,
                     watts: GENERATOR_DEFAULT_WATTS,
                 })
                 .id();
@@ -377,8 +386,6 @@ fn brownout_system(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use bevy::prelude::*;
 
     use super::*;
@@ -429,7 +436,7 @@ mod tests {
         }
     }
 
-    fn connect_cable(app: &mut App, from: IVec3, to: IVec3) {
+    fn connect_cable(app: &mut App, from: Vec3, to: Vec3) {
         app.world_mut().write_message(CableConnectionEvent {
             from,
             to,
@@ -438,9 +445,9 @@ mod tests {
         });
     }
 
-    fn disconnect_at(app: &mut App, pos: IVec3) {
+    fn disconnect_at(app: &mut App, pos: Vec3) {
         app.world_mut().write_message(WorldObjectEvent {
-            pos: pos.as_vec3(),
+            pos,
             item_id: POWER_CABLE_ID.to_string(),
             kind: WorldObjectKind::Removed,
         });
@@ -457,7 +464,7 @@ mod tests {
     #[test]
     fn generator_adjacent_to_cable_endpoint_adds_capacity() {
         let mut app = power_app();
-        connect_cable(&mut app, IVec3::ZERO, IVec3::new(0, 0, 5));
+        connect_cable(&mut app, Vec3::ZERO, Vec3::new(0.0, 0.0, 5.0));
         app.update();
         app.world_mut().write_message(WorldObjectEvent {
             pos: Vec3::new(1.0, 0.0, 0.0),
@@ -478,7 +485,7 @@ mod tests {
     #[test]
     fn generator_removed_clears_capacity() {
         let mut app = power_app();
-        connect_cable(&mut app, IVec3::ZERO, IVec3::new(0, 0, 5));
+        connect_cable(&mut app, Vec3::ZERO, Vec3::new(0.0, 0.0, 5.0));
         app.update();
         app.world_mut().write_message(WorldObjectEvent {
             pos: Vec3::new(1.0, 0.0, 0.0),
@@ -505,8 +512,8 @@ mod tests {
     #[test]
     fn machine_with_energy_port_matching_cable_endpoint_gets_member() {
         let mut app = power_app();
-        let io_pos = IVec3::new(1, 0, 0);
-        connect_cable(&mut app, io_pos, IVec3::new(5, 0, 0));
+        let io_pos = Vec3::new(1.0, 0.0, 0.0);
+        connect_cable(&mut app, io_pos, Vec3::new(5.0, 0.0, 0.0));
         let machine_entity = app
             .world_mut()
             .spawn((
@@ -517,8 +524,8 @@ mod tests {
                         rotation: Rotation::North,
                         mirror: Mirror::Normal,
                     },
-                    energy_ports: [io_pos].into_iter().collect(),
-                    logistics_ports: HashSet::new(),
+                    energy_ports: vec![io_pos],
+                    logistics_ports: vec![],
                 },
                 MachineState::Idle,
             ))

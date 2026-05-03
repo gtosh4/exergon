@@ -32,7 +32,7 @@ pub struct Logistics;
 
 /// Exposes the two IO-port endpoints of a cable segment component.
 pub trait HasEndpoints {
-    fn endpoints(&self) -> [IVec3; 2];
+    fn endpoints(&self) -> [Vec3; 2];
 }
 
 /// Marks an entity as belonging to a single network of kind `N`.
@@ -57,8 +57,8 @@ pub trait NetworkKind: Send + Sync + 'static {
     type Member: NetworkMemberComponent;
     type Members: NetworkMembersComponent;
 
-    fn io_ports(machine: &Machine) -> &HashSet<IVec3>;
-    fn new_cable_segment(from: IVec3, to: IVec3, blocked: &HashSet<IVec3>) -> Self::CableSegment;
+    fn io_ports(machine: &Machine) -> &[Vec3];
+    fn new_cable_segment(from: Vec3, to: Vec3, blocked: &HashSet<IVec3>) -> Self::CableSegment;
     fn spawn_network(commands: &mut Commands) -> Entity;
 }
 
@@ -268,13 +268,13 @@ mod tests {
 
     #[derive(Component)]
     struct TestCableSegment {
-        from: IVec3,
-        to: IVec3,
+        from: Vec3,
+        to: Vec3,
         path: Vec<IVec3>,
     }
 
     impl HasEndpoints for TestCableSegment {
-        fn endpoints(&self) -> [IVec3; 2] {
+        fn endpoints(&self) -> [Vec3; 2] {
             [self.from, self.to]
         }
     }
@@ -311,19 +311,15 @@ mod tests {
         type Member = TestNetworkMember;
         type Members = TestNetworkMembers;
 
-        fn io_ports(machine: &Machine) -> &HashSet<IVec3> {
+        fn io_ports(machine: &Machine) -> &[Vec3] {
             &machine.energy_ports
         }
 
-        fn new_cable_segment(
-            from: IVec3,
-            to: IVec3,
-            _blocked: &HashSet<IVec3>,
-        ) -> TestCableSegment {
+        fn new_cable_segment(from: Vec3, to: Vec3, _blocked: &HashSet<IVec3>) -> TestCableSegment {
             TestCableSegment {
                 from,
                 to,
-                path: auto_route(from, to),
+                path: auto_route(from.round().as_ivec3(), to.round().as_ivec3()),
             }
         }
 
@@ -350,7 +346,7 @@ mod tests {
             .count()
     }
 
-    fn connect(app: &mut App, from: IVec3, to: IVec3) {
+    fn connect(app: &mut App, from: Vec3, to: Vec3) {
         app.world_mut().write_message(CableConnectionEvent {
             from,
             to,
@@ -359,9 +355,9 @@ mod tests {
         });
     }
 
-    fn disconnect_at(app: &mut App, pos: IVec3) {
+    fn disconnect_at(app: &mut App, pos: Vec3) {
         app.world_mut().write_message(WorldObjectEvent {
-            pos: pos.as_vec3(),
+            pos,
             item_id: TEST_CABLE_ID.to_string(),
             kind: WorldObjectKind::Removed,
         });
@@ -377,7 +373,7 @@ mod tests {
     #[test]
     fn single_cable_creates_one_network() {
         let mut app = test_app();
-        connect(&mut app, IVec3::new(0, 0, 0), IVec3::new(5, 0, 0));
+        connect(&mut app, Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0));
         app.update();
         assert_eq!(network_count(&mut app), 1);
     }
@@ -385,9 +381,13 @@ mod tests {
     #[test]
     fn two_cables_sharing_endpoint_one_network() {
         let mut app = test_app();
-        connect(&mut app, IVec3::new(0, 0, 0), IVec3::new(5, 0, 0));
+        connect(&mut app, Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0));
         app.update();
-        connect(&mut app, IVec3::new(5, 0, 0), IVec3::new(10, 0, 0));
+        connect(
+            &mut app,
+            Vec3::new(5.0, 0.0, 0.0),
+            Vec3::new(10.0, 0.0, 0.0),
+        );
         app.update();
         assert_eq!(network_count(&mut app), 1);
     }
@@ -395,9 +395,13 @@ mod tests {
     #[test]
     fn two_cables_no_shared_endpoint_two_networks() {
         let mut app = test_app();
-        connect(&mut app, IVec3::new(0, 0, 0), IVec3::new(5, 0, 0));
+        connect(&mut app, Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0));
         app.update();
-        connect(&mut app, IVec3::new(20, 0, 0), IVec3::new(25, 0, 0));
+        connect(
+            &mut app,
+            Vec3::new(20.0, 0.0, 0.0),
+            Vec3::new(25.0, 0.0, 0.0),
+        );
         app.update();
         assert_eq!(network_count(&mut app), 2);
     }
@@ -405,9 +409,9 @@ mod tests {
     #[test]
     fn cable_removed_clears_network() {
         let mut app = test_app();
-        connect(&mut app, IVec3::new(0, 0, 0), IVec3::new(5, 0, 0));
+        connect(&mut app, Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0));
         app.update();
-        disconnect_at(&mut app, IVec3::new(0, 0, 0));
+        disconnect_at(&mut app, Vec3::new(0.0, 0.0, 0.0));
         app.update();
         assert_eq!(network_count(&mut app), 0);
     }
@@ -416,13 +420,17 @@ mod tests {
     fn removing_bridge_cable_splits_network() {
         let mut app = test_app();
         // A-B and B-C: B is the shared endpoint
-        connect(&mut app, IVec3::new(0, 0, 0), IVec3::new(5, 0, 0));
+        connect(&mut app, Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0));
         app.update();
-        connect(&mut app, IVec3::new(5, 0, 0), IVec3::new(10, 0, 0));
+        connect(
+            &mut app,
+            Vec3::new(5.0, 0.0, 0.0),
+            Vec3::new(10.0, 0.0, 0.0),
+        );
         app.update();
         assert_eq!(network_count(&mut app), 1);
         // Remove cable whose endpoint is B=(5,0,0)
-        disconnect_at(&mut app, IVec3::new(5, 0, 0));
+        disconnect_at(&mut app, Vec3::new(5.0, 0.0, 0.0));
         app.update();
         assert_eq!(network_count(&mut app), 0); // both removed since both had B as endpoint
     }
@@ -430,13 +438,21 @@ mod tests {
     #[test]
     fn placing_cable_between_two_networks_merges_them() {
         let mut app = test_app();
-        connect(&mut app, IVec3::new(0, 0, 0), IVec3::new(5, 0, 0));
+        connect(&mut app, Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0));
         app.update();
-        connect(&mut app, IVec3::new(20, 0, 0), IVec3::new(25, 0, 0));
+        connect(
+            &mut app,
+            Vec3::new(20.0, 0.0, 0.0),
+            Vec3::new(25.0, 0.0, 0.0),
+        );
         app.update();
         assert_eq!(network_count(&mut app), 2);
         // Connect the two networks via a shared endpoint
-        connect(&mut app, IVec3::new(5, 0, 0), IVec3::new(20, 0, 0));
+        connect(
+            &mut app,
+            Vec3::new(5.0, 0.0, 0.0),
+            Vec3::new(20.0, 0.0, 0.0),
+        );
         app.update();
         assert_eq!(network_count(&mut app), 1);
     }

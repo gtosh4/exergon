@@ -11,6 +11,14 @@ use super::{
     HasEndpoints, NetworkChanged, NetworkKind, NetworkMemberComponent, NetworkMembersComponent,
 };
 
+fn key(v: Vec3) -> IVec3 {
+    v.round().as_ivec3()
+}
+
+fn port_matches_key(ports: &[Vec3], k: IVec3) -> bool {
+    ports.iter().any(|p| key(*p) == k)
+}
+
 /// Spawns cable segment entities and merges/assigns networks when cable connections are made.
 pub fn cable_placed_system<N: NetworkKind>(
     mut commands: Commands,
@@ -20,7 +28,7 @@ pub fn cable_placed_system<N: NetworkKind>(
     machine_q: Query<(Entity, &Machine, &Transform), Without<MachineUnformed>>,
     mut changed: MessageWriter<NetworkChanged<N>>,
 ) {
-    let new_connections: Vec<(IVec3, IVec3)> = cable_events
+    let new_connections: Vec<(Vec3, Vec3)> = cable_events
         .read()
         .filter(|ev| ev.kind == WorldObjectKind::Placed && ev.item_id == N::CABLE_ITEM_ID)
         .map(|ev| (ev.from, ev.to))
@@ -30,10 +38,10 @@ pub fn cable_placed_system<N: NetworkKind>(
         return;
     }
 
-    // endpoint → network, updated as we process cables this frame
+    // endpoint → network, keys are rounded IVec3 for fast lookup
     let mut endpoint_to_net: HashMap<IVec3, Entity> = cable_q
         .iter()
-        .flat_map(|(_, seg, m)| seg.endpoints().map(|ep| (ep, m.network())))
+        .flat_map(|(_, seg, m)| seg.endpoints().map(|ep| (key(ep), m.network())))
         .collect();
 
     let blocked: HashSet<IVec3> = machine_q
@@ -42,27 +50,29 @@ pub fn cable_placed_system<N: NetworkKind>(
         .collect();
 
     for (from, to) in new_connections {
-        if from == to {
+        if from.distance(to) < 0.01 {
             continue;
         }
 
-        let adjacent_nets: HashSet<Entity> = [from, to]
+        let from_k = key(from);
+        let to_k = key(to);
+
+        let adjacent_nets: HashSet<Entity> = [from_k, to_k]
             .iter()
-            .filter_map(|ep| endpoint_to_net.get(ep).copied())
+            .filter_map(|k| endpoint_to_net.get(k).copied())
             .collect();
 
         let target_net = if adjacent_nets.is_empty() {
             N::spawn_network(&mut commands)
         } else {
-            let &survivor = adjacent_nets
-                .iter()
-                .max_by_key(|&&net| {
-                    net_members_q
-                        .get(net)
-                        .map(|m| m.members().len())
-                        .unwrap_or(0)
-                })
-                .unwrap();
+            let Some(&survivor) = adjacent_nets.iter().max_by_key(|&&net| {
+                net_members_q
+                    .get(net)
+                    .map(|m| m.members().len())
+                    .unwrap_or(0)
+            }) else {
+                continue;
+            };
 
             for &absorbed in adjacent_nets.iter().filter(|&&n| n != survivor) {
                 if let Ok(members) = net_members_q.get(absorbed) {
@@ -81,15 +91,16 @@ pub fn cable_placed_system<N: NetworkKind>(
         ));
 
         for (machine_e, machine, _) in &machine_q {
-            if N::io_ports(machine).contains(&from) || N::io_ports(machine).contains(&to) {
+            let ports = N::io_ports(machine);
+            if port_matches_key(ports, from_k) || port_matches_key(ports, to_k) {
                 commands
                     .entity(machine_e)
                     .insert(N::Member::new(target_net));
             }
         }
 
-        endpoint_to_net.insert(from, target_net);
-        endpoint_to_net.insert(to, target_net);
+        endpoint_to_net.insert(from_k, target_net);
+        endpoint_to_net.insert(to_k, target_net);
 
         changed.write(NetworkChanged::new(target_net));
     }
@@ -118,15 +129,16 @@ pub fn cable_removed_system<N: NetworkKind>(
         return;
     }
 
-    let all_cables: Vec<(Entity, [IVec3; 2], Entity)> = cable_q
+    // Store Vec3 endpoints for new_cable_segment, IVec3 keys for BFS/HashMap
+    let all_cables: Vec<(Entity, [Vec3; 2], Entity)> = cable_q
         .iter()
         .map(|(e, seg, m)| (e, seg.endpoints(), m.network()))
         .collect();
 
     for removed_pos in removed_positions {
-        let to_remove: Vec<(Entity, [IVec3; 2], Entity)> = all_cables
+        let to_remove: Vec<(Entity, [Vec3; 2], Entity)> = all_cables
             .iter()
-            .filter(|(_, eps, _)| eps[0] == removed_pos || eps[1] == removed_pos)
+            .filter(|(_, eps, _)| key(eps[0]) == removed_pos || key(eps[1]) == removed_pos)
             .cloned()
             .collect();
 
@@ -134,17 +146,21 @@ pub fn cable_removed_system<N: NetworkKind>(
             continue;
         }
 
-        let net = to_remove[0].2;
+        let Some(first) = to_remove.first() else {
+            continue;
+        };
+        let net = first.2;
         let removed_entities: HashSet<Entity> = to_remove.iter().map(|(e, _, _)| *e).collect();
 
         for &cable_e in &removed_entities {
             commands.entity(cable_e).despawn();
         }
 
+        // Convert Vec3 endpoints to IVec3 for BFS
         let remaining: HashMap<Entity, [IVec3; 2]> = all_cables
             .iter()
             .filter(|(e, _, _)| !removed_entities.contains(e))
-            .map(|(e, eps, _)| (*e, *eps))
+            .map(|(e, eps, _)| (*e, [key(eps[0]), key(eps[1])]))
             .collect();
 
         if remaining.is_empty() {
@@ -160,13 +176,16 @@ pub fn cable_removed_system<N: NetworkKind>(
         let components = find_segment_components(remaining);
 
         if components.len() == 1 {
-            let remaining_endpoints: HashSet<IVec3> =
-                components[0].values().flat_map(|&eps| eps).collect();
+            let remaining_endpoints: HashSet<IVec3> = components
+                .first()
+                .into_iter()
+                .flat_map(|c| c.values().flat_map(|&eps| eps))
+                .collect();
             for (machine_e, machine, maybe_member) in &machine_q {
                 if maybe_member.is_some_and(|m| m.network() == net)
                     && !N::io_ports(machine)
                         .iter()
-                        .any(|p| remaining_endpoints.contains(p))
+                        .any(|p| remaining_endpoints.contains(&key(*p)))
                 {
                     commands.entity(machine_e).remove::<N::Member>();
                 }
@@ -217,7 +236,7 @@ pub fn machine_membership_system<N: NetworkKind>(
 
     let endpoint_to_net: HashMap<IVec3, Entity> = cable_q
         .iter()
-        .flat_map(|(_, seg, m)| seg.endpoints().map(|ep| (ep, m.network())))
+        .flat_map(|(_, seg, m)| seg.endpoints().map(|ep| (key(ep), m.network())))
         .collect();
 
     let mut affected_nets: HashSet<Entity> = HashSet::new();
@@ -225,7 +244,7 @@ pub fn machine_membership_system<N: NetworkKind>(
     for (machine_e, machine) in &machine_q {
         let new_net = N::io_ports(machine)
             .iter()
-            .find_map(|port| endpoint_to_net.get(port).copied());
+            .find_map(|port| endpoint_to_net.get(&key(*port)).copied());
 
         match new_net {
             Some(net) => {
@@ -260,7 +279,7 @@ fn reassign_machines<N: NetworkKind>(
         }
         let new_net = N::io_ports(machine)
             .iter()
-            .find_map(|port| endpoint_to_net.get(port).copied());
+            .find_map(|port| endpoint_to_net.get(&key(*port)).copied());
 
         match new_net {
             Some(n) => {

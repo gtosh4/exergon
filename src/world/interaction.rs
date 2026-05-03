@@ -17,7 +17,7 @@ pub struct PlacementGhost;
 /// a two-click cable connection.
 #[derive(Resource, Default)]
 pub struct PendingCablePort {
-    pub pos: Option<IVec3>,
+    pub pos: Option<Vec3>,
     pub item_id: Option<String>,
 }
 
@@ -172,12 +172,11 @@ pub(super) fn object_interaction(
             pending_cable.item_id = None;
         } else if let Some(item_id) = hotbar.active_item_id().map(str::to_owned) {
             if item_id.ends_with("_cable") {
-                // Two-click cable connection: endpoints snap to grid (must match IO port IVec3 positions)
-                let place_pos = snap_to_grid(pos, normal);
+                let place_pos = pos;
                 match pending_cable.pos {
                     Some(from)
                         if pending_cable.item_id.as_deref() == Some(&item_id)
-                            && from != place_pos =>
+                            && from.distance(place_pos) > 0.1 =>
                     {
                         hotbar.consume_active();
                         inventory.add(item_id.clone(), 0);
@@ -206,19 +205,4 @@ pub(super) fn object_interaction(
             }
         }
     }
-}
-
-/// Snaps a hit surface position to a grid cell.
-/// When `normal` is non-zero, offsets into the adjacent cell in the normal direction.
-fn snap_to_grid(pos: Vec3, normal: Vec3) -> IVec3 {
-    let base = pos.floor().as_ivec3();
-    if normal == Vec3::ZERO {
-        return base;
-    }
-    let snapped_normal = IVec3::new(
-        normal.x.round() as i32,
-        normal.y.round() as i32,
-        normal.z.round() as i32,
-    );
-    base + snapped_normal
 }

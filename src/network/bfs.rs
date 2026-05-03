@@ -50,8 +50,7 @@ pub fn find_segment_components(
     let mut unvisited = remaining;
     let mut components = Vec::new();
 
-    while !unvisited.is_empty() {
-        let seed = *unvisited.keys().next().unwrap();
+    while let Some(&seed) = unvisited.keys().next() {
         components.push(bfs_component(seed, &mut unvisited, &adj));
     }
 

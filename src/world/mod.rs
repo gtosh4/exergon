@@ -21,8 +21,8 @@ pub struct WorldObjectEvent {
 /// Fired when the player connects or disconnects two IO ports with a cable.
 #[derive(bevy::ecs::message::Message, Debug, Clone)]
 pub struct CableConnectionEvent {
-    pub from: IVec3,
-    pub to: IVec3,
+    pub from: Vec3,
+    pub to: Vec3,
     pub item_id: String,
     pub kind: WorldObjectKind,
 }
