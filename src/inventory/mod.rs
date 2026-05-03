@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-use serde::Deserialize;
+
+use crate::recipe_graph::ItemDef;
 
 pub struct InventoryPlugin;
 
@@ -11,12 +12,6 @@ impl Plugin for InventoryPlugin {
             .init_resource::<Inventory>()
             .init_resource::<InventoryOpen>();
     }
-}
-
-#[derive(Deserialize, Clone, Debug)]
-pub struct ItemDef {
-    pub id: String,
-    pub name: String,
 }
 
 #[derive(Resource, Default)]
@@ -92,9 +87,12 @@ mod tests {
     use super::*;
 
     fn item(id: &str) -> ItemDef {
+        use crate::recipe_graph::ItemKind;
         ItemDef {
             id: id.to_string(),
             name: id.to_string(),
+            kind: ItemKind::Unique,
+            is_terminal: false,
         }
     }
 

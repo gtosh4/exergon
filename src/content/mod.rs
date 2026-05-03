@@ -7,8 +7,6 @@ use rand_pcg::Pcg64;
 use serde::Deserialize;
 use xxhash_rust::xxh64::xxh64;
 
-use crate::inventory::{ItemDef, ItemRegistry};
-
 pub struct ContentPlugin;
 
 impl Plugin for ContentPlugin {
@@ -286,42 +284,91 @@ fn validate_layers(layers: &[LayerDef]) {
 }
 
 // ---------------------------------------------------------------------------
+// Surface deposit registry
+// ---------------------------------------------------------------------------
+
+const DEPOSIT_CELL_SIZE: f32 = 64.0;
+
+/// Surface-level ore deposit definition loaded from `assets/deposits/`.
+#[derive(Deserialize, Clone, Debug)]
+pub struct DepositDef {
+    pub id: String,
+    /// (material_id, weight) pairs. Weights are normalised to sum to 1.0 at load.
+    pub ores: Vec<(String, f32)>,
+}
+
+/// Registry of surface deposit types used to place and query ore deposits.
+#[derive(Resource, Clone)]
+pub struct DepositRegistry {
+    deposits: Vec<DepositDef>,
+}
+
+impl DepositRegistry {
+    pub fn new(defs: Vec<DepositDef>) -> Self {
+        let deposits = defs
+            .into_iter()
+            .map(|mut d| {
+                let total: f32 = d.ores.iter().map(|(_, w)| w).sum();
+                if total > 0.0 && (total - 1.0).abs() > f32::EPSILON {
+                    for (_, w) in &mut d.ores {
+                        *w /= total;
+                    }
+                }
+                d
+            })
+            .collect();
+        Self { deposits }
+    }
+
+    /// Returns the weighted ore distribution for the surface deposit at (wx, wz), or None.
+    pub fn ore_at(&self, seed: u64, wx: f32, wz: f32) -> Option<Vec<(String, f32)>> {
+        if self.deposits.is_empty() {
+            return None;
+        }
+        let cell_x = wx.div_euclid(DEPOSIT_CELL_SIZE) as i64;
+        let cell_z = wz.div_euclid(DEPOSIT_CELL_SIZE) as i64;
+        let cell_seed = {
+            let mut key = seed.to_le_bytes().to_vec();
+            key.extend_from_slice(b"dep");
+            key.extend_from_slice(&cell_x.to_le_bytes());
+            key.extend_from_slice(&cell_z.to_le_bytes());
+            xxh64(&key, 0)
+        };
+        let mut rng = Pcg64::seed_from_u64(cell_seed);
+        if !rng.gen_bool(0.33) {
+            return None;
+        }
+        let idx = rng.gen_range(0..self.deposits.len());
+        Some(self.deposits[idx].ores.clone())
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Loading
 // ---------------------------------------------------------------------------
 
 fn load_content(mut commands: Commands) {
-    let veins = load_ron_dir::<VeinDef>("assets/deposits", "deposit");
+    let veins = load_ron_dir::<VeinDef>("assets/veins", "vein");
     let layers = load_ron_dir::<LayerDef>("assets/layers", "layer");
     let biomes = load_ron_dir::<BiomeDef>("assets/biomes", "biome");
-    let item_defs = load_ron_dir::<ItemDef>("assets/items", "item");
+    let deposits = load_ron_dir::<DepositDef>("assets/deposits", "deposit");
 
     info!(
-        "Loaded content: {} deposits, {} layers, {} biomes, {} items",
+        "Loaded content: {} veins, {} layers, {} biomes, {} surface deposits",
         veins.len(),
         layers.len(),
         biomes.len(),
-        item_defs.len(),
+        deposits.len(),
     );
 
-    if veins.is_empty() {
-        warn!("No vein definitions found in assets/deposits/");
-    }
     if layers.is_empty() {
         warn!("No layer definitions found in assets/layers/");
     }
     if biomes.is_empty() {
         warn!("No biome definitions found in assets/biomes/");
     }
-    if item_defs.is_empty() {
-        warn!("No item definitions found in assets/items/");
-    }
 
-    let mut item_registry = ItemRegistry::default();
-    for item in item_defs {
-        item_registry.register(item);
-    }
-
-    commands.insert_resource(item_registry);
+    commands.insert_resource(DepositRegistry::new(deposits));
     commands.insert_resource(VeinRegistry::new(veins, layers, biomes));
 }
 
@@ -546,5 +593,52 @@ mod tests {
             count > 10,
             "center of vein cell should produce ore for most active-vein seeds, got {count}"
         );
+    }
+
+    // DepositRegistry tests
+
+    fn deposit(id: &str, ores: Vec<(&str, f32)>) -> DepositDef {
+        DepositDef {
+            id: id.to_string(),
+            ores: ores.into_iter().map(|(m, w)| (m.to_string(), w)).collect(),
+        }
+    }
+
+    #[test]
+    fn ore_at_no_deposits_returns_none() {
+        let reg = DepositRegistry::new(vec![]);
+        assert!(reg.ore_at(0, 0.0, 0.0).is_none());
+    }
+
+    #[test]
+    fn ore_at_is_deterministic() {
+        let reg = DepositRegistry::new(vec![deposit("iron", vec![("iron", 1.0)])]);
+        let a = reg.ore_at(42, 100.0, 100.0);
+        let b = reg.ore_at(42, 100.0, 100.0);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn ore_at_normalizes_weights() {
+        let reg =
+            DepositRegistry::new(vec![deposit("mix", vec![("iron", 30.0), ("copper", 70.0)])]);
+        // Find a position that returns Some
+        let result = (0u64..200).find_map(|seed| reg.ore_at(seed, 0.0, 0.0));
+        let Some(ores) = result else { return };
+        let total: f32 = ores.iter().map(|(_, w)| w).sum();
+        assert!(
+            (total - 1.0).abs() < 1e-5,
+            "weights should sum to 1.0, got {total}"
+        );
+    }
+
+    #[test]
+    fn ore_at_returns_weighted_list() {
+        let reg = DepositRegistry::new(vec![deposit("iron", vec![("iron", 0.6), ("copper", 0.4)])]);
+        let result = (0u64..200).find_map(|seed| reg.ore_at(seed, 0.0, 0.0));
+        let ores = result.expect("should find a deposit in 200 seeds");
+        assert_eq!(ores.len(), 2);
+        assert!(ores.iter().any(|(m, _)| m == "iron"));
+        assert!(ores.iter().any(|(m, _)| m == "copper"));
     }
 }

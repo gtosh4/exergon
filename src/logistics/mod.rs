@@ -408,7 +408,7 @@ fn recipe_start_system(
                         continue;
                     }
                     let all_ok = recipe.inputs.iter().all(|input| {
-                        has_items(members, &storage_q, &input.material, input.quantity as u32)
+                        has_items(members, &storage_q, &input.item, input.quantity as u32)
                     });
                     if all_ok {
                         to_start.push((machine_e, recipe.id.clone(), net_entity));
@@ -427,12 +427,7 @@ fn recipe_start_system(
             };
             if let Ok((_, members)) = net_q.get(net_entity) {
                 for input in &recipe.inputs {
-                    take_items(
-                        members,
-                        &mut storage_q,
-                        &input.material,
-                        input.quantity as u32,
-                    );
+                    take_items(members, &mut storage_q, &input.item, input.quantity as u32);
                 }
             }
             commands.entity(machine_e).insert((
@@ -480,7 +475,7 @@ fn recipe_progress_system(
                 .outputs
                 .iter()
                 .chain(recipe.byproducts.iter())
-                .map(|o| (o.material.clone(), o.quantity as u32))
+                .map(|o| (o.item.clone(), o.quantity as u32))
                 .collect();
             to_finish.push((machine_e, outputs, member.0));
         } else {
@@ -524,7 +519,7 @@ mod tests {
         Rotation,
     };
     use crate::network::{NetworkChanged, NetworkPlugin, NetworkSystems};
-    use crate::recipe_graph::{ItemStack, RecipeDef, RecipeGraph};
+    use crate::recipe_graph::{ConcreteRecipe, ItemStack, RecipeGraph};
     use crate::world::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
     fn logistics_app() -> App {
@@ -606,20 +601,20 @@ mod tests {
         machine_type: &str,
         inputs: &[(&str, f32)],
         outputs: &[(&str, f32)],
-    ) -> RecipeDef {
-        RecipeDef {
+    ) -> ConcreteRecipe {
+        ConcreteRecipe {
             id: "test_recipe".to_string(),
             inputs: inputs
                 .iter()
                 .map(|(m, q)| ItemStack {
-                    material: m.to_string(),
+                    item: m.to_string(),
                     quantity: *q,
                 })
                 .collect(),
             outputs: outputs
                 .iter()
                 .map(|(m, q)| ItemStack {
-                    material: m.to_string(),
+                    item: m.to_string(),
                     quantity: *q,
                 })
                 .collect(),
@@ -631,12 +626,15 @@ mod tests {
         }
     }
 
-    fn single_recipe_graph(recipe: RecipeDef) -> RecipeGraph {
+    fn single_recipe_graph(recipe: ConcreteRecipe) -> RecipeGraph {
         let recipe_id = recipe.id.clone();
         let mut recipes = HashMap::new();
         recipes.insert(recipe_id, recipe);
         RecipeGraph {
             materials: HashMap::new(),
+            form_groups: HashMap::new(),
+            templates: HashMap::new(),
+            items: HashMap::new(),
             recipes,
             terminal: String::new(),
             producers: HashMap::new(),

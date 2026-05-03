@@ -393,7 +393,7 @@ mod tests {
         Machine, MachineNetworkChanged, MachineState, Mirror, Orientation, Rotation,
     };
     use crate::network::{NetworkChanged, NetworkPlugin, NetworkSystems};
-    use crate::recipe_graph::{RecipeDef, RecipeGraph};
+    use crate::recipe_graph::{ConcreteRecipe, RecipeGraph};
     use crate::world::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
     fn power_app() -> App {
@@ -416,7 +416,7 @@ mod tests {
         let mut recipes = std::collections::HashMap::new();
         recipes.insert(
             "r1".to_string(),
-            RecipeDef {
+            ConcreteRecipe {
                 id: "r1".to_string(),
                 inputs: vec![],
                 outputs: vec![],
@@ -429,6 +429,9 @@ mod tests {
         );
         RecipeGraph {
             materials: std::collections::HashMap::new(),
+            form_groups: std::collections::HashMap::new(),
+            templates: std::collections::HashMap::new(),
+            items: std::collections::HashMap::new(),
             recipes,
             terminal: String::new(),
             producers: std::collections::HashMap::new(),

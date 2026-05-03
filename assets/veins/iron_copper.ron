@@ -1,0 +1,19 @@
+(
+    id: "iron_copper",
+    density: 0.4,
+    primary: (
+        name: "Iron Ore",
+        material: 2,
+        weight: 60,
+    ),
+    secondary: (
+        name: "Copper Ore",
+        material: 3,
+        weight: 30,
+    ),
+    sporadic: Some((
+        name: "Nickel Ore",
+        material: 5,
+        weight: 10,
+    )),
+)

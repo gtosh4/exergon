@@ -1,1 +1,1 @@
-(id: "logistics_cable", name: "Logistics Cable")
+(id: "logistics_cable", name: "Logistics Cable", kind: Unique)

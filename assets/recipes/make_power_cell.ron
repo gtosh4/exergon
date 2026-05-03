@@ -1,10 +1,10 @@
 (
     id: "make_power_cell",
     inputs: [
-        (material: "iron_ingot",   quantity: 2.0),
-        (material: "copper_ingot", quantity: 1.0),
+        (item: "iron_ingot",   quantity: 2.0),
+        (item: "copper_ingot", quantity: 1.0),
     ],
-    outputs:    [(material: "power_cell", quantity: 1.0)],
+    outputs:    [(item: "power_cell", quantity: 1.0)],
     byproducts: [],
     machine_type: "assembler",
     machine_tier: 2,

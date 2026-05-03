@@ -1,1 +1,1 @@
-(id: "power_cell", name: "Power Cell")
+(id: "power_cell", name: "Power Cell", kind: Composite(template: None))

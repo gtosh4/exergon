@@ -1,0 +1,4 @@
+(
+    id: "xalite",
+    ores: [("xalite", 70.0), ("resonite", 30.0)],
+)

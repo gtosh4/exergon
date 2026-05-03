@@ -1,1 +1,1 @@
-(id: "refinery", name: "Refinery")
+(id: "refinery", name: "Refinery", kind: Unique)

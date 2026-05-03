@@ -1,0 +1,9 @@
+(
+    id: "draw_metal",
+    input_forms: [("ingot", 1.0)],
+    output_form: "wire",
+    group: "metal",
+    machine_type: "wire_drawing_machine",
+    base_time: 8.0,
+    base_energy: 15.0,
+)

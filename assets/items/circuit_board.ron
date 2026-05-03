@@ -1,1 +1,1 @@
-(id: "circuit_board", name: "Circuit Board")
+(id: "circuit_board", name: "Circuit Board", kind: Composite(template: None))

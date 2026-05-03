@@ -1,1 +1,1 @@
-(id: "platform", name: "Platform")
+(id: "platform", name: "Platform", kind: Unique)

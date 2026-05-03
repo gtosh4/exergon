@@ -1,1 +1,1 @@
-(id: "generator", name: "Generator")
+(id: "generator", name: "Generator", kind: Unique)

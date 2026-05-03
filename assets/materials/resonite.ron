@@ -1,1 +1,1 @@
-(id: "resonite", name: "Resonite", kind: Alien)
+(id: "resonite", name: "Resonite", kind: Alien, form_groups: ["exotic"])

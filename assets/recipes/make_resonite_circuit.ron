@@ -1,10 +1,10 @@
 (
     id: "make_resonite_circuit",
     inputs: [
-        (material: "resonite",      quantity: 1.0),
-        (material: "circuit_board", quantity: 1.0),
+        (item: "resonite_shard", quantity: 1.0),
+        (item: "circuit_board",  quantity: 1.0),
     ],
-    outputs:    [(material: "resonite_circuit", quantity: 1.0)],
+    outputs:    [(item: "resonite_circuit", quantity: 1.0)],
     byproducts: [],
     machine_type: "assembler",
     machine_tier: 2,

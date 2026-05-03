@@ -1,1 +1,1 @@
-(id: "gateway_key", name: "Gateway Key")
+(id: "gateway_key", name: "Gateway Key", kind: Unique, is_terminal: true)

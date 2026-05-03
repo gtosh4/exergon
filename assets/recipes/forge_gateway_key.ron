@@ -1,10 +1,10 @@
 (
     id: "forge_gateway_key",
     inputs: [
-        (material: "resonite_circuit", quantity: 1.0),
-        (material: "power_cell",       quantity: 2.0),
+        (item: "resonite_circuit", quantity: 1.0),
+        (item: "power_cell",       quantity: 2.0),
     ],
-    outputs:    [(material: "gateway_key", quantity: 1.0)],
+    outputs:    [(item: "gateway_key", quantity: 1.0)],
     byproducts: [],
     machine_type: "assembler",
     machine_tier: 2,
