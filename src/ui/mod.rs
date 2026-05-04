@@ -93,15 +93,15 @@ fn inspect_input(
         storage_panel.0 = None;
 
         if let Some(h) = hit {
-            if machine_q.contains(h.entity) {
-                panel.0 = Some(h.entity);
-            } else if storage_q.contains(h.entity) {
+            if storage_q.contains(h.entity) {
                 storage_panel.0 = Some(h.entity);
+            } else if machine_q.contains(h.entity) {
+                panel.0 = Some(h.entity);
             } else if let Ok(m) = port_q.get(h.entity) {
-                if machine_q.contains(m.owner) {
-                    panel.0 = Some(m.owner);
-                } else if storage_q.contains(m.owner) {
+                if storage_q.contains(m.owner) {
                     storage_panel.0 = Some(m.owner);
+                } else if machine_q.contains(m.owner) {
+                    panel.0 = Some(m.owner);
                 }
             }
         }

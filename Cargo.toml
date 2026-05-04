@@ -20,6 +20,7 @@ anyhow = "1"
 thiserror = "2"
 clap = { version = "4.6.1", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
 
 [profile.dev]
 opt-level = 1

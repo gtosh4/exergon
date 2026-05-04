@@ -12,7 +12,7 @@ pub mod bfs;
 pub mod membership;
 pub mod visuals;
 
-pub use membership::{cable_placed_system, cable_removed_system, machine_membership_system};
+use membership::{cable_placed_system, cable_removed_system, machine_membership_system};
 
 /// The six axis-aligned directions in 3D voxel space.
 pub const DIRS: [IVec3; 6] = [

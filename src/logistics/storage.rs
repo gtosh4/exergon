@@ -21,14 +21,23 @@ pub(super) fn storage_unit_system(
         if machine.machine_type != STORAGE_CRATE_ID {
             continue;
         }
+        debug!("storage_unit: spawning StorageUnit for {:?}", entity);
         commands.entity(entity).insert(StorageUnit {
             items: HashMap::new(),
         });
         if let Ok(member) = member_q.get(entity) {
+            debug!(
+                "storage_unit: firing NetworkStorageChanged for network {:?} (new storage crate)",
+                member.0
+            );
             changed.write(NetworkStorageChanged { network: member.0 });
         }
     }
-    for (_, member) in &added_members {
+    for (entity, member) in &added_members {
+        debug!(
+            "storage_unit: storage {:?} joined network {:?}, firing NetworkStorageChanged",
+            entity, member.0
+        );
         changed.write(NetworkStorageChanged { network: member.0 });
     }
 }

@@ -14,6 +14,17 @@ pub struct MachineVisualAssets {
     pub(super) platform_mat: Handle<StandardMaterial>,
 }
 
+impl MachineVisualAssets {
+    pub fn machine_visual(&self, id: &str) -> (Handle<Mesh>, Handle<StandardMaterial>) {
+        let mat = self
+            .materials
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| self.fallback.clone());
+        (self.mesh.clone(), mat)
+    }
+}
+
 #[derive(Resource)]
 pub(crate) struct GhostAssets {
     pub(crate) machine_mesh: Handle<Mesh>,

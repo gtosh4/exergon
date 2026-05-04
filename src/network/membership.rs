@@ -39,7 +39,7 @@ fn port_near_point(ports: &[Vec3], p: Vec3) -> bool {
 }
 
 /// Spawns cable segment entities and merges/assigns networks when cable connections are made.
-pub fn cable_placed_system<N: NetworkKind>(
+pub(super) fn cable_placed_system<N: NetworkKind>(
     mut commands: Commands,
     mut cable_events: MessageReader<CableConnectionEvent>,
     cable_q: Query<(Entity, &N::CableSegment, &N::Member)>,
@@ -94,7 +94,12 @@ pub fn cable_placed_system<N: NetworkKind>(
             .collect();
 
         let target_net = if adjacent_nets.is_empty() {
-            N::spawn_network(&mut commands)
+            let net = N::spawn_network(&mut commands);
+            debug!(
+                "cable_placed: new network {:?} for cable {from:?}->{to:?}",
+                net
+            );
+            net
         } else {
             let Some(&survivor) = adjacent_nets.iter().max_by_key(|&&net| {
                 net_members_q
@@ -106,6 +111,10 @@ pub fn cable_placed_system<N: NetworkKind>(
             };
 
             for &absorbed in adjacent_nets.iter().filter(|&&n| n != survivor) {
+                debug!(
+                    "cable_placed: merging network {:?} into {:?}",
+                    absorbed, survivor
+                );
                 if let Ok(members) = net_members_q.get(absorbed) {
                     for &member_e in members.members() {
                         commands.entity(member_e).insert(N::Member::new(survivor));
@@ -124,6 +133,10 @@ pub fn cable_placed_system<N: NetworkKind>(
         for (machine_e, machine, _) in &machine_q {
             let ports = N::io_ports(machine);
             if port_near_point(ports, from) || port_near_point(ports, to) {
+                debug!(
+                    "cable_placed: machine {:?} ({}) joined network {:?}",
+                    machine_e, machine.machine_type, target_net
+                );
                 commands
                     .entity(machine_e)
                     .insert(N::Member::new(target_net));
@@ -302,10 +315,20 @@ pub fn machine_membership_system<N: NetworkKind>(
 
         match new_net {
             Some(net) => {
+                debug!(
+                    "machine_membership: machine {:?} ({}) joined network {:?}",
+                    machine_e, machine.machine_type, net
+                );
                 commands.entity(machine_e).insert(N::Member::new(net));
                 affected_nets.insert(net);
             }
             None => {
+                debug!(
+                    "machine_membership: machine {:?} ({}) has no network (ports: {:?})",
+                    machine_e,
+                    machine.machine_type,
+                    N::io_ports(machine)
+                );
                 commands.entity(machine_e).remove::<N::Member>();
             }
         }

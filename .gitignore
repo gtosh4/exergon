@@ -35,3 +35,7 @@ assets/textures/blocks.png
 # Large binary assets
 assets/**/*.png
 assets/**/*.glb
+
+
+# Other ignored files
+game.log

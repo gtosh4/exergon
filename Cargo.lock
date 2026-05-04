@@ -2897,6 +2897,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "thiserror 2.0.18",
+ "tracing-subscriber",
  "xxhash-rust",
 ]
 

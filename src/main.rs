@@ -1,7 +1,8 @@
 use bevy::ecs::message::MessageWriter;
-use bevy::log::LogPlugin;
+use bevy::log::{BoxedLayer, LogPlugin};
 use bevy::prelude::*;
 use clap::Parser;
+use tracing_subscriber::Layer;
 
 use exergon::inventory::{Hotbar, HotbarSlot, Inventory};
 use exergon::logistics::StorageUnit;
@@ -20,6 +21,16 @@ struct Cli {
     test: bool,
 }
 
+fn file_log_layer(_app: &mut App) -> Option<BoxedLayer> {
+    let file = std::fs::File::create("game.log").ok()?;
+    let layer = tracing_subscriber::fmt::layer()
+        .with_ansi(false)
+        .without_time()
+        .with_writer(file)
+        .boxed();
+    Some(layer)
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -27,12 +38,14 @@ fn main() {
     let log_plugin = LogPlugin {
         level: bevy::log::Level::DEBUG,
         filter: "info,exergon=debug,wgpu_core=warn,wgpu_hal=warn".into(),
+        custom_layer: file_log_layer,
         ..default()
     };
     #[cfg(not(debug_assertions))]
     let log_plugin = LogPlugin {
         level: bevy::log::Level::INFO,
         filter: "info,wgpu_core=warn,wgpu_hal=warn".into(),
+        custom_layer: file_log_layer,
         ..default()
     };
 
@@ -146,6 +159,12 @@ fn give_test_items(
         let energy_ports = bundle.machine.energy_ports.clone();
         let logistics_ports = bundle.machine.logistics_ports.clone();
         let crate_e = commands.spawn(bundle).id();
+        if let Some(ref v) = visuals {
+            let (mesh, mat) = v.machine_visual(&def.id);
+            commands
+                .entity(crate_e)
+                .insert((Mesh3d(mesh), MeshMaterial3d(mat)));
+        }
         commands.entity(crate_e).insert(StorageUnit {
             items: [
                 ("iron_ore".to_owned(), 20u32),
@@ -174,5 +193,12 @@ fn give_test_research(mut pool: ResMut<ResearchPool>, mut progress: ResMut<TechT
     progress
         .unlocked_recipes
         .insert("basic_analysis".to_string());
-    info!("Test mode: +50 research points, basic_analysis unlocked");
+    progress.unlocked_recipes.insert("power_basics".to_string());
+    progress
+        .unlocked_recipes
+        .insert("basic_smelting".to_string());
+    info!(
+        "Test mode: +50 research points, {0:?} unlocked",
+        progress.unlocked_recipes
+    );
 }
