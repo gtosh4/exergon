@@ -19,9 +19,9 @@ const SPAWN_DIST: i32 = 4;
 const DESPAWN_DIST: i32 = 6;
 
 #[derive(Resource, Clone, Default)]
-pub(crate) struct WorldConfig {
-    pub(crate) world_seed: u64,
-    pub(crate) active: bool,
+pub struct WorldConfig {
+    pub world_seed: u64,
+    pub active: bool,
     pub(crate) vein_registry: Option<Arc<VeinRegistry>>,
 }
 

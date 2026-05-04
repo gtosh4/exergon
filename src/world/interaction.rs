@@ -136,19 +136,18 @@ pub(super) fn update_ghost_preview(
         LookTarget::Surface { pos, normal, .. } if show_ghost => {
             let item_id = hotbar.active_item_id().unwrap_or("");
             if ghost.last_item_id != item_id {
-                let (new_mesh, new_mat) = match item_id {
-                    "platform" => (
+                let (new_mesh, new_mat) = if item_id == "platform" {
+                    (
                         ghost_assets.platform_mesh.clone(),
                         ghost_assets.platform_material.clone(),
-                    ),
-                    id if ghost_assets.materials.contains_key(id) => (
-                        ghost_assets.machine_mesh.clone(),
-                        ghost_assets.materials[id].clone(),
-                    ),
-                    _ => (
+                    )
+                } else if let Some(mat) = ghost_assets.materials.get(item_id) {
+                    (ghost_assets.machine_mesh.clone(), mat.clone())
+                } else {
+                    (
                         ghost_assets.fallback_mesh.clone(),
                         ghost_assets.fallback_material.clone(),
-                    ),
+                    )
                 };
                 *mesh = Mesh3d(new_mesh);
                 *mat = MeshMaterial3d(new_mat);

@@ -1,11 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-use avian3d::prelude::{Collider, Sensor};
-
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
 use crate::machine::{Machine, MachineActivity, MachineState};
+use crate::network::visuals::spawn_cable_children;
 use crate::network::{
     HasEndpoints, NetworkChanged, NetworkKind, NetworkMemberComponent, NetworkMembersComponent,
     NetworkPlugin, NetworkSystems, Power, route_avoiding,
@@ -88,69 +87,35 @@ fn add_power_cable_visuals(
 ) {
     let Some(assets) = assets else { return };
     for (entity, seg) in &added {
+        let port_machine_positions: Vec<(Vec3, Vec3)> = [seg.from, seg.to]
+            .into_iter()
+            .filter_map(|port| {
+                let port_center = port + Vec3::splat(0.5);
+                let port_key = port.round().as_ivec3();
+                machine_q
+                    .iter()
+                    .find(|(m, _)| {
+                        m.energy_ports
+                            .iter()
+                            .any(|p| p.round().as_ivec3() == port_key)
+                    })
+                    .map(|(_, t)| (port_center, t.translation))
+            })
+            .collect();
+
         commands
             .entity(entity)
             .insert((Transform::default(), Visibility::default()))
             .with_children(|parent| {
-                for window in seg.path.windows(2) {
-                    let [a_pos, b_pos] = window else { continue };
-                    let a = a_pos.as_vec3() + Vec3::splat(0.5);
-                    let b = b_pos.as_vec3() + Vec3::splat(0.5);
-                    let dir = b - a;
-                    let rotation = if dir.x.abs() > 0.5 {
-                        Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)
-                    } else if dir.z.abs() > 0.5 {
-                        Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)
-                    } else {
-                        Quat::IDENTITY
-                    };
-                    parent.spawn((
-                        Mesh3d(assets.tube.clone()),
-                        MeshMaterial3d(assets.cable_material.clone()),
-                        Transform::from_translation((a + b) * 0.5).with_rotation(rotation),
-                        Collider::cylinder(CABLE_RADIUS, 1.0),
-                        Sensor,
-                    ));
-                }
-                for window in seg.path.windows(3) {
-                    let [prev, curr, next] = window else { continue };
-                    let prev_dir = *curr - *prev;
-                    let next_dir = *next - *curr;
-                    if prev_dir != next_dir {
-                        parent.spawn((
-                            Mesh3d(assets.joint.clone()),
-                            MeshMaterial3d(assets.cable_material.clone()),
-                            Transform::from_translation(curr.as_vec3() + Vec3::splat(0.5)),
-                        ));
-                    }
-                }
-                // Connector tubes from each machine body to its port
-                for port in [seg.from, seg.to] {
-                    let port_center = port + Vec3::splat(0.5);
-                    let port_key = port.round().as_ivec3();
-                    if let Some(mpos) = machine_q
-                        .iter()
-                        .find(|(m, _)| {
-                            m.energy_ports
-                                .iter()
-                                .any(|p| p.round().as_ivec3() == port_key)
-                        })
-                        .map(|(_, t)| t.translation)
-                    {
-                        let diff = port_center - mpos;
-                        let length = diff.length();
-                        if length > 1e-4 {
-                            let rotation = Quat::from_rotation_arc(Vec3::Y, diff / length);
-                            parent.spawn((
-                                Mesh3d(assets.tube.clone()),
-                                MeshMaterial3d(assets.cable_material.clone()),
-                                Transform::from_translation((mpos + port_center) * 0.5)
-                                    .with_rotation(rotation)
-                                    .with_scale(Vec3::new(1.0, length, 1.0)),
-                            ));
-                        }
-                    }
-                }
+                spawn_cable_children(
+                    parent,
+                    &seg.path,
+                    &port_machine_positions,
+                    assets.tube.clone(),
+                    assets.joint.clone(),
+                    assets.cable_material.clone(),
+                    CABLE_RADIUS,
+                );
             });
     }
 }

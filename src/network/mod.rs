@@ -10,6 +10,7 @@ use crate::world::CableConnectionEvent;
 
 pub mod bfs;
 pub mod membership;
+pub mod visuals;
 
 pub use membership::{cable_placed_system, cable_removed_system, machine_membership_system};
 

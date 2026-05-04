@@ -1,0 +1,9 @@
+(
+    id: "storage_crate",
+    tiers: [
+        (
+            tier: 1,
+            logistics_io_offsets: [(3, 0, 0), (-3, 0, 0), (0, 0, 3), (0, 0, -3)],
+        ),
+    ],
+)

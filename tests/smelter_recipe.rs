@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 
-use exergon::logistics::{LogisticsNetworkMember, LogisticsSimPlugin, NetworkStorageChanged, StorageUnit};
+use exergon::logistics::{
+    LogisticsNetworkMember, LogisticsSimPlugin, NetworkStorageChanged, StorageUnit,
+};
 use exergon::machine::{
     Machine, MachineActivity, MachineNetworkChanged, MachineState, Mirror, Orientation, Rotation,
 };
@@ -69,6 +71,7 @@ fn placement_app(rg: RecipeGraph) -> App {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins)
         .add_message::<WorldObjectEvent>()
+        .add_message::<CableConnectionEvent>()
         .add_message::<MachineNetworkChanged>()
         .add_plugins(LogisticsSimPlugin)
         .insert_resource(rg);
@@ -77,36 +80,28 @@ fn placement_app(rg: RecipeGraph) -> App {
 
 #[test]
 fn storage_placed_before_cable_joins_network_when_cable_placed_adjacent() {
-    // Game flow: storage placed first (its own frame), cable placed later.
-    // storage_unit_system's cable-placed rescan must see the new cable entity,
-    // which requires ApplyDeferred before storage_unit_system runs.
-    // Without that ApplyDeferred (the production bug), cable_q is empty when
-    // the rescan runs → endpoint_to_net empty → storage never joins.
     let rg = make_graph(make_recipe(
         "smelter",
         &[("iron_ore", 1.0)],
         &[("iron_ingot", 1.0)],
     ));
 
+    let storage_port = Vec3::new(1.0, 0.0, 0.0);
     let smelter_port = Vec3::new(5.0, 0.0, 0.0);
-    let storage_pos = Vec3::ZERO;
 
     let mut app = placement_app(rg);
 
-    // Frame 1: place storage only — no cables yet
-    app.world_mut().write_message(WorldObjectEvent {
-        pos: storage_pos,
-        item_id: "storage_crate".to_string(),
-        kind: WorldObjectKind::Placed,
-    });
+    // Frame 1: spawn storage machine — no cables yet
+    let storage_e = app
+        .world_mut()
+        .spawn((
+            make_machine("storage_crate", vec![storage_port]),
+            MachineState::Idle,
+            Transform::default(),
+        ))
+        .id();
     app.update();
 
-    let storage_e = {
-        let mut q = app
-            .world_mut()
-            .query_filtered::<Entity, With<StorageUnit>>();
-        q.single(app.world()).unwrap()
-    };
     assert!(
         app.world()
             .get::<LogisticsNetworkMember>(storage_e)
@@ -114,9 +109,9 @@ fn storage_placed_before_cable_joins_network_when_cable_placed_adjacent() {
         "no cable yet: storage should not be in any network"
     );
 
-    // Frame 2: place cable adjacent to storage + smelter with matching port
+    // Frame 2: place cable adjacent to storage port + smelter with matching port
     app.world_mut().write_message(CableConnectionEvent {
-        from: Vec3::new(1.0, 0.0, 0.0), // adjacent to storage at (0,0,0)
+        from: storage_port,
         to: smelter_port,
         item_id: "logistics_cable".to_string(),
         kind: WorldObjectKind::Placed,
@@ -131,8 +126,6 @@ fn storage_placed_before_cable_joins_network_when_cable_placed_adjacent() {
     app.world_mut().write_message(MachineNetworkChanged);
     app.update();
 
-    // storage_unit_system's cable-placed rescan requires ApplyDeferred before it
-    // so that cable_q includes the newly spawned cable entity.
     assert!(
         app.world()
             .get::<LogisticsNetworkMember>(storage_e)
@@ -209,24 +202,26 @@ fn smelter_with_ore_storage_runs_smelt_recipe_and_outputs_ingot() {
         &[("iron_ingot", 1.0)],
     ));
 
-    // Cable runs from (1,0,0) — adjacent to storage at origin — to smelter port at (5,0,0)
+    let storage_port = Vec3::new(1.0, 0.0, 0.0);
     let smelter_port = Vec3::new(5.0, 0.0, 0.0);
-    let storage_pos = Vec3::ZERO;
 
     let mut app = placement_app(rg);
 
-    // Place cable and storage crate, spawn smelter with matching port
+    // Place cable, spawn storage and smelter machines with matching ports
     app.world_mut().write_message(CableConnectionEvent {
-        from: Vec3::new(1.0, 0.0, 0.0),
+        from: storage_port,
         to: smelter_port,
         item_id: "logistics_cable".to_string(),
         kind: WorldObjectKind::Placed,
     });
-    app.world_mut().write_message(WorldObjectEvent {
-        pos: storage_pos,
-        item_id: "storage_crate".to_string(),
-        kind: WorldObjectKind::Placed,
-    });
+    let storage_e = app
+        .world_mut()
+        .spawn((
+            make_machine("storage_crate", vec![storage_port]),
+            MachineState::Idle,
+            Transform::default(),
+        ))
+        .id();
     let smelter_e = app
         .world_mut()
         .spawn((
@@ -236,7 +231,7 @@ fn smelter_with_ore_storage_runs_smelt_recipe_and_outputs_ingot() {
         .id();
     app.world_mut().write_message(MachineNetworkChanged);
 
-    // Network joins: cable_placed_system assigns smelter; storage_unit_system assigns storage
+    // Network joins: cable_placed_system assigns smelter and storage
     app.update();
 
     assert!(
@@ -245,12 +240,10 @@ fn smelter_with_ore_storage_runs_smelt_recipe_and_outputs_ingot() {
             .is_some(),
         "smelter should have joined the logistics network"
     );
-    let storage_e = {
-        let mut q = app
-            .world_mut()
-            .query_filtered::<Entity, With<StorageUnit>>();
-        q.single(app.world()).unwrap()
-    };
+    assert!(
+        app.world().get::<StorageUnit>(storage_e).is_some(),
+        "storage machine should have StorageUnit component"
+    );
     assert!(
         app.world()
             .get::<LogisticsNetworkMember>(storage_e)
