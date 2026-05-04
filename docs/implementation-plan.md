@@ -188,11 +188,11 @@ Migrate from flat material→recipe model to the material/form/item hierarchy de
  ---
  
  ## Missing features
- - [ ] Storage crate need collision and logistics ports
- - [ ] Cables don't create networks. Examples: place smelter & storage crate, attach cables = smelter and storage crate on same logistic network; smelter & generator, attach cable = smelter and generator on same power network.
- - [ ] Test: smelter attached to storage crate with ore items should do the smelt_metal recipe and output ingots into the crate.
- - [ ] Player inventory UI should show items in all logistics networks.
- - [ ] Test mode starts with a storage crate in world nearby with ores inside (don't put ores in inventory)
+ - [x] Storage crate need collision and logistics ports
+ - [x] Cables don't create networks. Examples: place smelter & storage crate, attach cables = smelter and storage crate on same logistic network; smelter & generator, attach cable = smelter and generator on same power network.
+ - [x] Test: smelter attached to storage crate with ore items should do the smelt_metal recipe and output ingots into the crate.
+ - [x] Player inventory UI should show items in all logistics networks.
+ - [x] Test mode starts with a storage crate in world nearby with ores inside (don't put ores in inventory)
 
 ---
 

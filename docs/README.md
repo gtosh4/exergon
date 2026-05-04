@@ -21,6 +21,12 @@ Defines two pre-release milestones: **Vertical Slice** (core loop playable end-t
 ## [`implementation-plan.md`](implementation-plan.md) - Implementation Plan
 The current milestone's implementation plan steps/tasks. **Update this file when implementing features.**
 
+### [`tech-tree-design.md`](tech-tree-design.md) — Tech Tree Content Design
+Content design layer for the tech tree: node definitions, pacing targets, unlock structure. Sits between `gdd.md §7` (design intent) and implementation. Status: first draft, pacing unvalidated. **Update when tech tree nodes or unlock order changes.**
+
+### [`ui.md`](ui.md) — User Interface
+UI layout and mockups for inventory, machine panel, planner, and tech tree screens.
+
 ---
 
 ## How to keep docs current

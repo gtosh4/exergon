@@ -30,6 +30,14 @@ fn port_matches_key(ports: &[Vec3], k: IVec3) -> bool {
     ports.iter().any(|p| key(*p) == k)
 }
 
+const PORT_SNAP_RADIUS: f32 = 1.5;
+
+fn port_near_point(ports: &[Vec3], p: Vec3) -> bool {
+    ports
+        .iter()
+        .any(|port| port.distance_squared(p) <= PORT_SNAP_RADIUS * PORT_SNAP_RADIUS)
+}
+
 /// Spawns cable segment entities and merges/assigns networks when cable connections are made.
 pub fn cable_placed_system<N: NetworkKind>(
     mut commands: Commands,
@@ -115,7 +123,7 @@ pub fn cable_placed_system<N: NetworkKind>(
 
         for (machine_e, machine, _) in &machine_q {
             let ports = N::io_ports(machine);
-            if port_matches_key(ports, from_k) || port_matches_key(ports, to_k) {
+            if port_near_point(ports, from) || port_near_point(ports, to) {
                 commands
                     .entity(machine_e)
                     .insert(N::Member::new(target_net));

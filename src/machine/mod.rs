@@ -287,7 +287,7 @@ fn setup_machine_visuals(
         unlit: true,
         ..default()
     });
-    let platform_mesh = meshes.add(Cuboid::new(2.0, 0.25, 2.0));
+    let platform_mesh = meshes.add(Cuboid::new(8.0, 0.25, 8.0));
     let platform_mat = materials.add(StandardMaterial {
         base_color: Color::srgb(0.5, 0.5, 0.55),
         ..default()

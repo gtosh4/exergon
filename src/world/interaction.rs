@@ -9,7 +9,14 @@ use crate::machine::{GhostAssets, IoPortMarker, Machine, Platform};
 use super::player::MainCamera;
 use super::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
-const MAX_REACH: f32 = 8.0;
+const MAX_REACH: f32 = 16.0;
+
+fn placement_half_extent(item_id: &str) -> f32 {
+    match item_id {
+        "platform" => 0.125,
+        _ => 2.0,
+    }
+}
 
 #[derive(Component)]
 pub struct PlacementGhost;
@@ -147,7 +154,7 @@ pub(super) fn update_ghost_preview(
                 *mat = MeshMaterial3d(new_mat);
                 ghost.last_item_id = item_id.to_string();
             }
-            transform.translation = pos + normal * 0.5;
+            transform.translation = pos + normal * placement_half_extent(item_id);
             transform.scale = Vec3::ONE;
             *vis = Visibility::Visible;
         }
@@ -322,8 +329,10 @@ pub(super) fn object_interaction(
                     }
                 }
             } else {
-                let place_pos = pos + normal * 0.5;
-                let check = Collider::cuboid(0.45, 0.45, 0.45);
+                let half = placement_half_extent(&item_id);
+                let place_pos = pos + normal * half;
+                let check_half = (half - 0.05).max(0.05);
+                let check = Collider::cuboid(check_half, check_half, check_half);
                 let blocked = spatial_query
                     .shape_intersections(
                         &check,

@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use avian3d::prelude::{Collider, Sensor};
+use avian3d::prelude::{Collider, RigidBody, Sensor};
 use bevy::ecs::message::{Message, MessageReader, MessageWriter};
 use bevy::prelude::*;
 
@@ -8,7 +8,7 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
 use crate::drone::{sample_ore, yield_factor};
-use crate::machine::{Machine, MachineActivity, MachineState, MinerMachine};
+use crate::machine::{IoPortMarker, Machine, MachineActivity, MachineState, MinerMachine};
 use crate::network::{
     HasEndpoints, Logistics, NetworkKind, NetworkMemberComponent, NetworkMembersComponent,
     NetworkPlugin, NetworkSystems, route_avoiding,
@@ -16,34 +16,54 @@ use crate::network::{
 use crate::recipe_graph::RecipeGraph;
 use crate::research::{RESEARCH_POINTS_ID, ResearchPool, TechTreeProgress};
 use crate::world::generation::OreDeposit;
-use crate::world::{WorldObjectEvent, WorldObjectKind};
+use crate::world::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
-pub struct LogisticsPlugin;
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+struct LogisticsSimSystems;
 
-impl Plugin for LogisticsPlugin {
+/// Simulation-only plugin: no state gates, no visual assets.
+/// Suitable for integration tests with `MinimalPlugins`.
+pub struct LogisticsSimPlugin;
+
+impl Plugin for LogisticsSimPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(NetworkPlugin::<Logistics>::default());
-        app.configure_sets(
-            Update,
-            NetworkSystems::of::<Logistics>().run_if(in_state(crate::GameState::Playing)),
-        );
-        app.add_systems(Startup, setup_logistics_visuals);
         app.add_message::<NetworkStorageChanged>().add_systems(
             Update,
             (
+                ApplyDeferred, // flush cable entities spawned by NetworkPlugin
                 storage_unit_system,
+                ApplyDeferred, // flush storage membership inserts
                 miner_tick_system,
                 recipe_start_system.run_if(resource_exists::<RecipeGraph>),
                 recipe_progress_system.run_if(resource_exists::<RecipeGraph>),
             )
                 .chain()
                 .after(NetworkSystems::of::<Logistics>())
+                .in_set(LogisticsSimSystems),
+        );
+    }
+}
+
+pub struct LogisticsPlugin;
+
+impl Plugin for LogisticsPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(LogisticsSimPlugin);
+        app.configure_sets(
+            Update,
+            NetworkSystems::of::<Logistics>().run_if(in_state(crate::GameState::Playing)),
+        );
+        app.configure_sets(
+            Update,
+            LogisticsSimSystems
                 .in_set(crate::GameSystems::Simulation)
                 .run_if(in_state(crate::GameState::Playing)),
         );
+        app.add_systems(Startup, setup_logistics_visuals);
         app.add_systems(
             Update,
-            (add_cable_visuals, add_storage_visuals)
+            (add_cable_visuals, add_storage_visuals, add_storage_port_visuals)
                 .in_set(crate::GameSystems::Rendering)
                 .run_if(in_state(crate::GameState::Playing)),
         );
@@ -63,6 +83,8 @@ struct LogisticsVisualAssets {
     cable_material: Handle<StandardMaterial>,
     storage_mesh: Handle<Mesh>,
     storage_material: Handle<StandardMaterial>,
+    port_mesh: Handle<Mesh>,
+    port_material: Handle<StandardMaterial>,
 }
 
 fn setup_logistics_visuals(
@@ -80,6 +102,12 @@ fn setup_logistics_visuals(
         storage_mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
         storage_material: materials.add(StandardMaterial {
             base_color: Color::srgb(0.55, 0.6, 0.65),
+            ..default()
+        }),
+        port_mesh: meshes.add(Sphere::new(0.15)),
+        port_material: materials.add(StandardMaterial {
+            base_color: Color::srgb(0.2, 0.9, 0.2),
+            emissive: LinearRgba::new(0.0, 0.5, 0.0, 1.0),
             ..default()
         }),
     });
@@ -171,7 +199,27 @@ fn add_storage_visuals(
             Mesh3d(assets.storage_mesh.clone()),
             MeshMaterial3d(assets.storage_material.clone()),
             Transform::from_translation(unit.pos + Vec3::splat(0.5)),
+            RigidBody::Static,
+            Collider::cuboid(0.5, 0.5, 0.5),
         ));
+    }
+}
+
+fn add_storage_port_visuals(
+    mut commands: Commands,
+    added: Query<(Entity, &IoPortMarker), Added<IoPortMarker>>,
+    storage_q: Query<(), With<StorageUnit>>,
+    assets: Option<Res<LogisticsVisualAssets>>,
+) {
+    let Some(assets) = assets else { return };
+    for (port_e, marker) in &added {
+        if storage_q.contains(marker.owner) {
+            commands.entity(port_e).insert((
+                Mesh3d(assets.port_mesh.clone()),
+                MeshMaterial3d(assets.port_material.clone()),
+                Visibility::default(),
+            ));
+        }
     }
 }
 
@@ -321,14 +369,16 @@ pub fn give_items(
 
 // -- Systems -----------------------------------------------------------------
 
-fn storage_unit_system(
+pub fn storage_unit_system(
     mut commands: Commands,
     mut world_events: MessageReader<WorldObjectEvent>,
+    mut cable_events: MessageReader<CableConnectionEvent>,
     cable_q: Query<(&LogisticsCableSegment, &LogisticsNetworkMember)>,
     storage_q: Query<(Entity, &StorageUnit)>,
+    port_q: Query<(Entity, &IoPortMarker)>,
     mut changed: MessageWriter<NetworkStorageChanged>,
 ) {
-    // endpoint → network (keys are rounded IVec3)
+    // endpoint → network (keys are rounded IVec3); includes cables flushed by ApplyDeferred
     let endpoint_to_net: HashMap<IVec3, Entity> = cable_q
         .iter()
         .flat_map(|(seg, m)| seg.endpoints().map(|ep| (ep.round().as_ivec3(), m.0)))
@@ -354,16 +404,50 @@ fn storage_unit_system(
                     break;
                 }
             }
+            for (port_e, marker) in &port_q {
+                if marker.owner == storage_e {
+                    commands.entity(port_e).despawn();
+                }
+            }
             commands.entity(storage_e).despawn();
         }
 
         if ev.kind == WorldObjectKind::Placed {
-            let storage_e = commands
-                .spawn(StorageUnit {
-                    pos: ev.pos,
-                    items: HashMap::new(),
-                })
-                .id();
+            let storage_e = commands.spawn_empty().id();
+            // Spawn logistics port markers at each horizontal face for cable snapping
+            for offset in [IVec3::X, IVec3::NEG_X, IVec3::Z, IVec3::NEG_Z] {
+                commands.spawn((
+                    IoPortMarker { owner: storage_e },
+                    Transform::from_translation(ev.pos + offset.as_vec3()),
+                    Collider::sphere(0.4),
+                    Sensor,
+                ));
+            }
+            commands.entity(storage_e).insert(StorageUnit {
+                pos: ev.pos,
+                items: HashMap::new(),
+            });
+            for &dir in &crate::network::DIRS {
+                if let Some(&net) = endpoint_to_net.get(&(grid_pos + dir)) {
+                    commands
+                        .entity(storage_e)
+                        .insert(LogisticsNetworkMember(net));
+                    affected_nets.insert(net);
+                    break;
+                }
+            }
+        }
+    }
+
+    // When a logistics cable is placed, re-scan all existing storage units for adjacency.
+    // ApplyDeferred before this system ensures the new cable entity is visible in cable_q.
+    let cable_placed = cable_events
+        .read()
+        .any(|ev| ev.kind == WorldObjectKind::Placed && ev.item_id == LOGISTICS_CABLE_ID);
+
+    if cable_placed {
+        for (storage_e, unit) in &storage_q {
+            let grid_pos = unit.pos.round().as_ivec3();
             for &dir in &crate::network::DIRS {
                 if let Some(&net) = endpoint_to_net.get(&(grid_pos + dir)) {
                     commands
@@ -381,7 +465,7 @@ fn storage_unit_system(
     }
 }
 
-fn recipe_start_system(
+pub fn recipe_start_system(
     mut commands: Commands,
     mut storage_changed: MessageReader<NetworkStorageChanged>,
     net_q: Query<(Entity, &LogisticsNetworkMembers)>,
@@ -456,7 +540,7 @@ fn recipe_start_system(
     }
 }
 
-fn recipe_progress_system(
+pub fn recipe_progress_system(
     mut commands: Commands,
     time: Res<Time>,
     recipe_graph: Res<RecipeGraph>,

@@ -1,29 +1,13 @@
-// #![deny(clippy::pedantic)]
-#![allow(clippy::type_complexity, clippy::too_many_arguments)]
-
+use avian3d::prelude::{Collider, Sensor};
 use bevy::log::LogPlugin;
 use bevy::prelude::*;
 use clap::Parser;
 
-use crate::inventory::{Hotbar, HotbarSlot, Inventory};
-use crate::research::{ResearchPool, TechTreeProgress};
-
-mod content;
-mod debug;
-mod drone;
-mod inventory;
-mod logistics;
-mod machine;
-mod meta;
-mod network;
-mod power;
-mod reactivity;
-mod recipe_graph;
-mod research;
-mod seed;
-mod tech_tree;
-mod ui;
-mod world;
+use exergon::inventory::{Hotbar, HotbarSlot, Inventory};
+use exergon::logistics::StorageUnit;
+use exergon::machine::IoPortMarker;
+use exergon::research::{ResearchPool, TechTreeProgress};
+use exergon::{GameState, GameSystems, PlayMode};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -32,32 +16,6 @@ struct Cli {
     /// Start with test items in inventory
     #[arg(short, long)]
     test: bool,
-}
-
-#[derive(States, Default, Clone, Eq, PartialEq, Debug, Hash)]
-pub enum GameState {
-    #[default]
-    MainMenu,
-    Loading,
-    Playing,
-    Paused,
-}
-
-#[derive(SubStates, Default, Clone, Eq, PartialEq, Debug, Hash)]
-#[source(GameState = GameState::Playing)]
-pub enum PlayMode {
-    #[default]
-    Exploring,
-    Building,
-    DronePilot,
-    Research,
-}
-
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum GameSystems {
-    Input,
-    Simulation,
-    Rendering,
 }
 
 fn main() {
@@ -100,21 +58,21 @@ fn main() {
         ),
     )
     .add_plugins((
-        seed::SeedPlugin,
-        content::ContentPlugin,
-        inventory::InventoryPlugin,
-        world::WorldPlugin,
-        debug::DebugPlugin,
-        recipe_graph::RecipeGraphPlugin,
-        tech_tree::TechTreePlugin,
-        machine::MachinePlugin,
-        logistics::LogisticsPlugin,
-        power::PowerPlugin,
-        drone::DronePlugin,
-        research::ResearchPlugin,
-        reactivity::ReactivityPlugin,
-        meta::MetaPlugin,
-        ui::UiPlugin,
+        exergon::seed::SeedPlugin,
+        exergon::content::ContentPlugin,
+        exergon::inventory::InventoryPlugin,
+        exergon::world::WorldPlugin,
+        exergon::debug::DebugPlugin,
+        exergon::recipe_graph::RecipeGraphPlugin,
+        exergon::tech_tree::TechTreePlugin,
+        exergon::machine::MachinePlugin,
+        exergon::logistics::LogisticsPlugin,
+        exergon::power::PowerPlugin,
+        exergon::drone::DronePlugin,
+        exergon::research::ResearchPlugin,
+        exergon::reactivity::ReactivityPlugin,
+        exergon::meta::MetaPlugin,
+        exergon::ui::UiPlugin,
     ));
 
     #[cfg(debug_assertions)]
@@ -130,7 +88,11 @@ fn main() {
     app.run();
 }
 
-fn give_test_items(mut inventory: ResMut<Inventory>, mut hotbar: ResMut<Hotbar>) {
+fn give_test_items(
+    mut inventory: ResMut<Inventory>,
+    mut hotbar: ResMut<Hotbar>,
+    mut commands: Commands,
+) {
     inventory.add("smelter", 4);
     inventory.add("assembler", 4);
     inventory.add("analysis_station", 4);
@@ -171,15 +133,34 @@ fn give_test_items(mut inventory: ResMut<Inventory>, mut hotbar: ResMut<Hotbar>)
         count: 8,
     });
     inventory.add("platform", 8);
-    inventory.add("iron_ore", 20);
-    inventory.add("copper_ore", 20);
-    info!("Test mode: gave prefab machines, cables, platforms, and starting ores");
+
+    // Spawn starting storage crate with ores at a fixed world position
+    let crate_pos = Vec3::new(5.0, 15.0, 5.0);
+    let crate_e = commands.spawn_empty().id();
+    for offset in [IVec3::X, IVec3::NEG_X, IVec3::Z, IVec3::NEG_Z] {
+        commands.spawn((
+            IoPortMarker { owner: crate_e },
+            Transform::from_translation(crate_pos + offset.as_vec3()),
+            Collider::sphere(0.4),
+            Sensor,
+        ));
+    }
+    commands.entity(crate_e).insert(StorageUnit {
+        pos: crate_pos,
+        items: [
+            ("iron_ore".to_owned(), 20u32),
+            ("copper_ore".to_owned(), 20u32),
+        ]
+        .into_iter()
+        .collect(),
+    });
+    info!(
+        "Test mode: gave prefab machines, cables, platforms; spawned starting storage crate at {crate_pos}"
+    );
 }
 
 #[cfg(debug_assertions)]
 fn give_test_research(mut pool: ResMut<ResearchPool>, mut progress: ResMut<TechTreeProgress>) {
-    // Pre-unlock basic recipes so test mode has a working factory loop.
-    // basic_analysis stays locked — player must earn research points first.
     pool.points += 50.0;
     progress
         .unlocked_recipes

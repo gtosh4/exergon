@@ -5,6 +5,7 @@ use bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
 use crate::{
     GameState, PlayMode,
     inventory::{Hotbar, HotbarSlot, Inventory, InventoryOpen, ItemRegistry},
+    logistics::StorageUnit,
     machine::{IoPortMarker, Machine, MachineActivity, MachineState},
     power::PowerNetwork,
     recipe_graph::RecipeGraph,
@@ -23,6 +24,9 @@ pub struct UiPlugin;
 pub struct MachineStatusPanel(pub Option<Entity>);
 
 #[derive(Resource, Default)]
+pub struct StorageStatusPanel(pub Option<Entity>);
+
+#[derive(Resource, Default)]
 pub struct TechTreePanelOpen(pub bool);
 
 impl Plugin for UiPlugin {
@@ -30,6 +34,7 @@ impl Plugin for UiPlugin {
         app.add_plugins(EguiPlugin::default())
             .init_resource::<MainMenuState>()
             .init_resource::<MachineStatusPanel>()
+            .init_resource::<StorageStatusPanel>()
             .init_resource::<TechTreePanelOpen>()
             .add_systems(
                 Update,
@@ -48,6 +53,7 @@ impl Plugin for UiPlugin {
                         hotbar_ui,
                         inventory_ui,
                         machine_status_ui,
+                        storage_status_ui,
                         tech_tree_ui,
                         power_hud_ui,
                     )
@@ -68,8 +74,10 @@ fn inspect_input(
     camera_q: Query<&Transform, With<MainCamera>>,
     spatial_query: SpatialQuery,
     machine_q: Query<(), With<Machine>>,
+    storage_q: Query<(), With<StorageUnit>>,
     port_q: Query<&IoPortMarker>,
     mut panel: ResMut<MachineStatusPanel>,
+    mut storage_panel: ResMut<StorageStatusPanel>,
     mut tech_tree_open: ResMut<TechTreePanelOpen>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyT) || keyboard.just_pressed(KeyCode::F4) {
@@ -80,13 +88,23 @@ fn inspect_input(
         let Ok(cam) = camera_q.single() else { return };
         let dir = Dir3::new(*cam.forward()).unwrap_or(Dir3::NEG_Z);
         let hit = spatial_query.cast_ray(cam.translation, dir, 8.0, true, &Default::default());
-        panel.0 = hit.and_then(|h| {
+
+        panel.0 = None;
+        storage_panel.0 = None;
+
+        if let Some(h) = hit {
             if machine_q.contains(h.entity) {
-                Some(h.entity)
-            } else {
-                port_q.get(h.entity).ok().map(|m| m.owner)
+                panel.0 = Some(h.entity);
+            } else if storage_q.contains(h.entity) {
+                storage_panel.0 = Some(h.entity);
+            } else if let Ok(m) = port_q.get(h.entity) {
+                if machine_q.contains(m.owner) {
+                    panel.0 = Some(m.owner);
+                } else if storage_q.contains(m.owner) {
+                    storage_panel.0 = Some(m.owner);
+                }
             }
-        });
+        }
     }
 }
 
@@ -138,6 +156,65 @@ fn machine_status_ui(
                         .text(format!("{:.0}%", progress_pct * 100.0)),
                 );
                 ui.label(format!("Speed: {:.0}%", act.speed_factor * 100.0));
+            }
+        });
+
+    if !open {
+        panel.0 = None;
+    }
+    Ok(())
+}
+
+fn storage_status_ui(
+    mut contexts: EguiContexts,
+    mut panel: ResMut<StorageStatusPanel>,
+    storage_q: Query<&StorageUnit>,
+    item_registry: Option<Res<ItemRegistry>>,
+) -> Result {
+    let Some(entity) = panel.0 else { return Ok(()) };
+    let Ok(unit) = storage_q.get(entity) else {
+        panel.0 = None;
+        return Ok(());
+    };
+
+    let ctx = contexts.ctx_mut()?;
+    let mut open = true;
+    egui::SidePanel::right("storage_status")
+        .resizable(false)
+        .min_width(220.0)
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.heading("Storage Crate");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button("✕").clicked() {
+                        open = false;
+                    }
+                });
+            });
+            ui.separator();
+
+            if unit.items.is_empty() {
+                ui.colored_label(egui::Color32::DARK_GRAY, "(empty)");
+            } else {
+                let mut items: Vec<(&String, u32)> =
+                    unit.items.iter().map(|(k, &c)| (k, c)).collect();
+                items.sort_by_key(|(k, _)| k.as_str());
+
+                egui::Grid::new("storage_grid")
+                    .num_columns(2)
+                    .min_col_width(100.0)
+                    .spacing([8.0, 4.0])
+                    .show(ui, |ui| {
+                        for (item_id, count) in &items {
+                            let name = item_registry
+                                .as_ref()
+                                .and_then(|r| r.get(item_id))
+                                .map_or(item_id.as_str(), |d| d.name.as_str());
+                            ui.label(name);
+                            ui.label(format!("×{count}"));
+                            ui.end_row();
+                        }
+                    });
             }
         });
 
@@ -417,6 +494,7 @@ fn inventory_ui(
     mut inventory: Option<ResMut<Inventory>>,
     mut hotbar: Option<ResMut<Hotbar>>,
     item_registry: Option<Res<ItemRegistry>>,
+    storage_q: Query<&StorageUnit>,
 ) -> Result {
     if !inv_open.is_some_and(|o| o.0) {
         return Ok(());
@@ -458,6 +536,37 @@ fn inventory_ui(
                                 move_item = Some((*item_id).clone());
                             }
                             resp.on_hover_text("Move to active hotbar slot");
+                            if (idx + 1) % 5 == 0 {
+                                ui.end_row();
+                            }
+                        }
+                    });
+            }
+
+            // Aggregate items across all logistics network storage units
+            let mut net_items: std::collections::HashMap<&str, u32> =
+                std::collections::HashMap::new();
+            for unit in &storage_q {
+                for (id, &count) in &unit.items {
+                    *net_items.entry(id.as_str()).or_insert(0) += count;
+                }
+            }
+            if !net_items.is_empty() {
+                ui.separator();
+                ui.label("Network storage:");
+                let mut sorted: Vec<(&str, u32)> = net_items.into_iter().collect();
+                sorted.sort_by_key(|(k, _)| *k);
+                egui::Grid::new("net_grid")
+                    .num_columns(5)
+                    .min_col_width(72.0)
+                    .spacing([4.0, 4.0])
+                    .show(ui, |ui| {
+                        for (idx, (item_id, count)) in sorted.iter().enumerate() {
+                            let name = item_registry
+                                .as_ref()
+                                .and_then(|r| r.get(item_id))
+                                .map_or(*item_id, |d| d.name.as_str());
+                            ui.label(format!("{name}\n×{count}"));
                             if (idx + 1) % 5 == 0 {
                                 ui.end_row();
                             }
