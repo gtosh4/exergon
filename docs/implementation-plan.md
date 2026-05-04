@@ -121,6 +121,7 @@ Migrate from flat material→recipe model to the material/form/item hierarchy de
 - [x] `TechTreeProgress`: `unlocked_nodes`, `unlocked_recipes`, `unlocked_machines`
 - [x] `check_research_unlocks`: loops until no more unlocks possible per frame
 - [x] `ResearchSpend` unlock vector: deduct points, apply `NodeEffect`
+- [x] Basic Research UI. F4 (and T) to open/close tech tree panel
 
 ---
 
@@ -169,30 +170,29 @@ Migrate from flat material→recipe model to the material/form/item hierarchy de
 
 ---
 
-## Phase 8 — Polish (optional) ☐
+## Phase 8 — Polish (optional) ✅
 
 - [x] Cable tube rendering: `Cylinder` + `Sphere` joint meshes (yellow power, green logistics); `Cylinder::new(r, 1.0)` for correct 1-unit step height
 - [x] Collision-aware cable routing: A* with turn penalty (`route_avoiding`) avoids placed machine positions; falls back to Manhattan on no-path
 - [x] Cable endpoint snapping: connector tube from machine center → port voxel via `from_rotation_arc` + Y-scale
-- [ ] Ghost preview shows actual machine mesh (colored, 50% alpha) instead of grey cube
-- [ ] F10 cycles network debug overlay: none → power → logistics
+- [x] Ghost preview shows actual machine mesh (colored, 50% alpha) instead of grey cube
+- [x] F10 cycles network debug overlay: none → power → logistics
 
 ---
 
 ## Bugs
- - [ ] Power (and logistics?) cables don't attach properly to machine ports
- - [ ] Cables can clip through terrain
+ - [x] Power (and logistics?) cables don't attach properly to machine ports — port markers now have `Collider::sphere + Sensor`; look target snaps to port center
+ - [x] Cables can clip through terrain — routing already blocks terrain voxels via `TerrainSampler` in `membership.rs`
+ - [x] `Esc` on pause screen doesn't unpause — `resume_on_escape` system runs in `GameState::Paused`
 
----
-
-## Post-VS / MVP — Win Condition ☐
-
-*(Out of scope for vertical slice)*
-
-- [ ] Add `GameState::Won` to `src/main.rs`
-- [ ] `escape_condition_system`: scan `StorageUnit` maps → terminal material present → `NextState::set(Won)`
-- [ ] Win screen: egui panel with seed string + restart button
-- [ ] Tests: terminal material triggers Won; non-terminal no-op
+ ---
+ 
+ ## Missing features
+ - [ ] Storage crate need collision and logistics ports
+ - [ ] Cables don't create networks. Examples: place smelter & storage crate, attach cables = smelter and storage crate on same logistic network; smelter & generator, attach cable = smelter and generator on same power network.
+ - [ ] Test: smelter attached to storage crate with ore items should do the smelt_metal recipe and output ingots into the crate.
+ - [ ] Player inventory UI should show items in all logistics networks.
+ - [ ] Test mode starts with a storage crate in world nearby with ores inside (don't put ores in inventory)
 
 ---
 

@@ -90,7 +90,7 @@ fn add_power_cable_visuals(
     for (entity, seg) in &added {
         commands
             .entity(entity)
-            .insert(Transform::default())
+            .insert((Transform::default(), Visibility::default()))
             .with_children(|parent| {
                 for window in seg.path.windows(2) {
                     let [a_pos, b_pos] = window else { continue };

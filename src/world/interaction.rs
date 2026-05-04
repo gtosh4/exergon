@@ -4,7 +4,7 @@ use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 
 use crate::inventory::{Hotbar, Inventory, InventoryOpen};
-use crate::machine::{Machine, Platform};
+use crate::machine::{GhostAssets, IoPortMarker, Machine, Platform};
 
 use super::player::MainCamera;
 use super::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
@@ -25,6 +25,7 @@ pub struct PendingCablePort {
 #[derive(Resource)]
 pub struct GhostPreview {
     entity: Entity,
+    last_item_id: String,
 }
 
 #[derive(Resource, Default)]
@@ -52,24 +53,26 @@ pub(super) fn setup_ghost_preview(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    let placeholder_mat = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.65, 0.65, 0.65, 0.5),
+        alpha_mode: AlphaMode::Blend,
+        unlit: true,
+        ..default()
+    });
     let entity = commands
         .spawn((
             PlacementGhost,
             Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgba(0.75, 0.75, 0.75, 0.5),
-                alpha_mode: AlphaMode::Blend,
-                unlit: true,
-                double_sided: true,
-                cull_mode: None,
-                ..default()
-            })),
+            MeshMaterial3d(placeholder_mat),
             Transform::IDENTITY,
             Visibility::Hidden,
         ))
         .id();
 
-    commands.insert_resource(GhostPreview { entity });
+    commands.insert_resource(GhostPreview {
+        entity,
+        last_item_id: String::new(),
+    });
     commands.init_resource::<PendingCablePort>();
 
     let removal_entity = commands
@@ -98,11 +101,22 @@ pub(super) fn update_ghost_preview(
     hotbar: Res<Hotbar>,
     inventory_open: Option<Res<InventoryOpen>>,
     keyboard: Res<ButtonInput<KeyCode>>,
-    ghost: Option<Res<GhostPreview>>,
-    mut ghost_q: Query<(&mut Transform, &mut Visibility), With<PlacementGhost>>,
+    mut ghost: Option<ResMut<GhostPreview>>,
+    mut ghost_q: Query<
+        (
+            &mut Transform,
+            &mut Visibility,
+            &mut Mesh3d,
+            &mut MeshMaterial3d<StandardMaterial>,
+        ),
+        With<PlacementGhost>,
+    >,
+    ghost_assets: Option<Res<GhostAssets>>,
 ) {
-    let Some(ghost) = ghost else { return };
-    let Ok((mut transform, mut vis)) = ghost_q.get_mut(ghost.entity) else {
+    let (Some(ghost), Some(ghost_assets)) = (ghost.as_mut(), ghost_assets) else {
+        return;
+    };
+    let Ok((mut transform, mut vis, mut mesh, mut mat)) = ghost_q.get_mut(ghost.entity) else {
         return;
     };
 
@@ -113,7 +127,28 @@ pub(super) fn update_ghost_preview(
 
     match *look_target {
         LookTarget::Surface { pos, normal, .. } if show_ghost => {
+            let item_id = hotbar.active_item_id().unwrap_or("");
+            if ghost.last_item_id != item_id {
+                let (new_mesh, new_mat) = match item_id {
+                    "platform" => (
+                        ghost_assets.platform_mesh.clone(),
+                        ghost_assets.platform_material.clone(),
+                    ),
+                    id if ghost_assets.materials.contains_key(id) => (
+                        ghost_assets.machine_mesh.clone(),
+                        ghost_assets.materials[id].clone(),
+                    ),
+                    _ => (
+                        ghost_assets.fallback_mesh.clone(),
+                        ghost_assets.fallback_material.clone(),
+                    ),
+                };
+                *mesh = Mesh3d(new_mesh);
+                *mat = MeshMaterial3d(new_mat);
+                ghost.last_item_id = item_id.to_string();
+            }
             transform.translation = pos + normal * 0.5;
+            transform.scale = Vec3::ONE;
             *vis = Visibility::Visible;
         }
         _ => {
@@ -184,6 +219,7 @@ pub(super) fn update_look_target(
     camera_q: Query<&Transform, With<MainCamera>>,
     spatial_query: SpatialQuery,
     mut look_target: ResMut<LookTarget>,
+    port_q: Query<&GlobalTransform, With<IoPortMarker>>,
 ) {
     let Ok(cam) = camera_q.single() else {
         *look_target = LookTarget::Nothing;
@@ -195,11 +231,18 @@ pub(super) fn update_look_target(
 
     *look_target = match hit {
         None => LookTarget::Nothing,
-        Some(h) => LookTarget::Surface {
-            pos: cam.translation + *dir * h.distance,
-            normal: h.normal,
-            entity: h.entity,
-        },
+        Some(h) => {
+            let pos = if let Ok(gt) = port_q.get(h.entity) {
+                gt.translation()
+            } else {
+                cam.translation + *dir * h.distance
+            };
+            LookTarget::Surface {
+                pos,
+                normal: h.normal,
+                entity: h.entity,
+            }
+        }
     };
 }
 

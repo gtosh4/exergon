@@ -136,10 +136,13 @@ Everything not listed above, including: underground layer, digger drone, reactiv
   - see [mock](./inventory_ui_mock_v0.1.png)
   - Drag-drop with hotbar
   - Codex browser
+- Machine UI
+  - see [mock](./machine_ui_mock_v0.1.png)
 - Hotbar cycling
-- Tech tree with shadow view
-- Reactivity region display
+- Tech tree UI
+  - see [mock](./tech_tree_mock_v0.1.png)
 - World map
+  - Biomes/regions
 - Minimap
 
 ---

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use avian3d::prelude::{Collider, RigidBody};
+use avian3d::prelude::{Collider, RigidBody, Sensor};
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 use serde::Deserialize;
@@ -39,6 +39,7 @@ impl Plugin for MachinePlugin {
                     .run_if(in_state(crate::GameState::Playing)),
             )
             .add_systems(Startup, (load_machines, setup_machine_visuals))
+            .add_systems(Startup, setup_ghost_assets.after(setup_machine_visuals))
             .add_systems(
                 Update,
                 (
@@ -224,6 +225,18 @@ struct MachineVisualAssets {
     platform_mat: Handle<StandardMaterial>,
 }
 
+/// Ghost preview assets: transparent versions of each machine model, keyed by item_id.
+/// Built from `MachineVisualAssets` at startup; read by the interaction system.
+#[derive(Resource)]
+pub(crate) struct GhostAssets {
+    pub(crate) machine_mesh: Handle<Mesh>,
+    pub(crate) platform_mesh: Handle<Mesh>,
+    pub(crate) fallback_mesh: Handle<Mesh>,
+    pub(crate) materials: HashMap<String, Handle<StandardMaterial>>,
+    pub(crate) fallback_material: Handle<StandardMaterial>,
+    pub(crate) platform_material: Handle<StandardMaterial>,
+}
+
 fn setup_machine_visuals(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -288,6 +301,39 @@ fn setup_machine_visuals(
         logistics_port_mat,
         platform_mesh,
         platform_mat,
+    });
+}
+
+fn setup_ghost_assets(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    visuals: Res<MachineVisualAssets>,
+) {
+    let ghost_mat = |color: Color| StandardMaterial {
+        base_color: color,
+        alpha_mode: AlphaMode::Blend,
+        unlit: true,
+        double_sided: true,
+        cull_mode: None,
+        ..default()
+    };
+    let mut ghost_materials: HashMap<String, Handle<StandardMaterial>> = HashMap::new();
+    for (id, color) in [
+        ("smelter", Color::srgba(0.9, 0.45, 0.1, 0.5)),
+        ("assembler", Color::srgba(0.2, 0.45, 0.9, 0.5)),
+        ("analysis_station", Color::srgba(0.1, 0.75, 0.55, 0.5)),
+        ("generator", Color::srgba(0.9, 0.8, 0.1, 0.5)),
+    ] {
+        ghost_materials.insert(id.to_string(), materials.add(ghost_mat(color)));
+    }
+    commands.insert_resource(GhostAssets {
+        machine_mesh: visuals.mesh.clone(),
+        platform_mesh: visuals.platform_mesh.clone(),
+        fallback_mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
+        materials: ghost_materials,
+        fallback_material: materials.add(ghost_mat(Color::srgba(0.65, 0.65, 0.65, 0.5))),
+        platform_material: materials.add(ghost_mat(Color::srgba(0.5, 0.5, 0.55, 0.5))),
     });
 }
 
@@ -376,6 +422,8 @@ fn place_machine_system(
                     owner: machine_entity,
                 },
                 Transform::from_translation(port_pos),
+                Collider::sphere(0.4),
+                Sensor,
             ));
             if let Some(ref v) = visuals {
                 marker_cmd.insert((
@@ -390,6 +438,8 @@ fn place_machine_system(
                     owner: machine_entity,
                 },
                 Transform::from_translation(port_pos),
+                Collider::sphere(0.4),
+                Sensor,
             ));
             if let Some(ref v) = visuals {
                 marker_cmd.insert((

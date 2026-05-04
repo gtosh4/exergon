@@ -3,7 +3,10 @@ use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use xxhash_rust::xxh64::xxh64;
 
-use crate::{GameState, content::VeinRegistry, seed::DomainSeeds};
+use crate::{
+    GameState, content::VeinRegistry, logistics::LogisticsCableSegment, power::PowerCableSegment,
+    seed::DomainSeeds,
+};
 
 const CHUNK_SIZE: f32 = 32.0;
 const CELL_XZ: f32 = 160.0; // 5 × 32 voxels wide
@@ -38,17 +41,52 @@ impl DebugOverlay {
     }
 }
 
+#[derive(Resource, Default, PartialEq, Clone, Copy, Debug)]
+enum NetworkOverlay {
+    #[default]
+    None,
+    Power,
+    Logistics,
+}
+
+impl NetworkOverlay {
+    fn cycle(self) -> Self {
+        match self {
+            Self::None => Self::Power,
+            Self::Power => Self::Logistics,
+            Self::Logistics => Self::None,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::None => "Off",
+            Self::Power => "Power",
+            Self::Logistics => "Logistics",
+        }
+    }
+}
+
 pub struct DebugPlugin;
 
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DebugOverlay>()
+            .init_resource::<NetworkOverlay>()
             .add_systems(Update, toggle_overlay)
+            .add_systems(Update, toggle_network_overlay)
             .add_systems(Update, screenshot_on_f12)
             .add_systems(Update, draw_gizmos.run_if(in_state(GameState::Playing)))
             .add_systems(
+                Update,
+                draw_network_gizmos.run_if(in_state(GameState::Playing)),
+            )
+            .add_systems(
                 EguiPrimaryContextPass,
-                draw_ui.run_if(in_state(GameState::Playing)),
+                (
+                    draw_ui.run_if(in_state(GameState::Playing)),
+                    draw_network_ui.run_if(in_state(GameState::Playing)),
+                ),
             );
     }
 }
@@ -237,6 +275,70 @@ fn draw_ui(
     Ok(())
 }
 
+fn toggle_network_overlay(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut overlay: ResMut<NetworkOverlay>,
+) {
+    if keyboard.just_pressed(KeyCode::F10) {
+        *overlay = overlay.cycle();
+    }
+}
+
+fn draw_network_gizmos(
+    mut gizmos: Gizmos,
+    overlay: Res<NetworkOverlay>,
+    power_cables: Query<&PowerCableSegment>,
+    logistics_cables: Query<&LogisticsCableSegment>,
+) {
+    match *overlay {
+        NetworkOverlay::None => {}
+        NetworkOverlay::Power => {
+            for seg in &power_cables {
+                gizmos.line(seg.from, seg.to, Color::srgb(1.0, 0.85, 0.0));
+            }
+        }
+        NetworkOverlay::Logistics => {
+            for seg in &logistics_cables {
+                gizmos.line(seg.from, seg.to, Color::srgb(0.1, 0.9, 0.2));
+            }
+        }
+    }
+}
+
+fn draw_network_ui(
+    mut contexts: EguiContexts,
+    overlay: Res<NetworkOverlay>,
+    power_cables: Query<&PowerCableSegment>,
+    logistics_cables: Query<&LogisticsCableSegment>,
+) -> Result {
+    if *overlay == NetworkOverlay::None {
+        return Ok(());
+    }
+    let ctx = contexts.ctx_mut()?;
+    egui::Area::new(egui::Id::new("network_hud"))
+        .anchor(egui::Align2::RIGHT_TOP, [-8.0, 8.0])
+        .show(ctx, |ui| {
+            egui::Frame::popup(ui.style())
+                .fill(egui::Color32::from_black_alpha(160))
+                .show(ui, |ui| {
+                    ui.colored_label(
+                        egui::Color32::YELLOW,
+                        format!("[F10] Network: {}", overlay.label()),
+                    );
+                    let count = match *overlay {
+                        NetworkOverlay::Power => power_cables.iter().count(),
+                        NetworkOverlay::Logistics => logistics_cables.iter().count(),
+                        NetworkOverlay::None => 0,
+                    };
+                    ui.colored_label(
+                        egui::Color32::WHITE,
+                        format!("{} {} cable segments", count, overlay.label()),
+                    );
+                });
+        });
+    Ok(())
+}
+
 fn screenshot_on_f12(input: Res<ButtonInput<KeyCode>>, mut commands: Commands) {
     if input.just_pressed(KeyCode::F12) {
         let ts = chrono::Local::now().to_rfc3339();
@@ -371,6 +473,44 @@ mod tests {
         assert!(
             found.is_some(),
             "should find a colored cell within 200 tries"
+        );
+    }
+
+    #[test]
+    fn network_overlay_cycle_visits_all() {
+        let sequence = [
+            NetworkOverlay::None,
+            NetworkOverlay::Power,
+            NetworkOverlay::Logistics,
+        ];
+        for (i, &v) in sequence.iter().enumerate() {
+            assert_eq!(v.cycle(), sequence[(i + 1) % sequence.len()]);
+        }
+    }
+
+    #[test]
+    fn network_overlay_label_matches_variant() {
+        assert_eq!(NetworkOverlay::None.label(), "Off");
+        assert_eq!(NetworkOverlay::Power.label(), "Power");
+        assert_eq!(NetworkOverlay::Logistics.label(), "Logistics");
+    }
+
+    #[test]
+    fn toggle_network_overlay_f10_cycles_from_none_to_power() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<NetworkOverlay>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .add_systems(Update, toggle_network_overlay);
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::F10);
+        app.update();
+
+        assert_eq!(
+            *app.world().resource::<NetworkOverlay>(),
+            NetworkOverlay::Power
         );
     }
 }

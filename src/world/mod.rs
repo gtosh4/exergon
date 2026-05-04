@@ -67,6 +67,10 @@ impl Plugin for WorldPlugin {
             )
             .add_systems(
                 Update,
+                player::resume_on_escape.run_if(in_state(GameState::Paused)),
+            )
+            .add_systems(
+                Update,
                 (
                     player::toggle_pause,
                     player::toggle_inventory,

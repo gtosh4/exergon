@@ -64,6 +64,15 @@ pub(super) fn toggle_pause(
     }
 }
 
+pub(super) fn resume_on_escape(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    if keyboard.just_pressed(KeyCode::Escape) {
+        next_state.set(GameState::Playing);
+    }
+}
+
 pub(super) fn toggle_inventory(
     keyboard: Res<ButtonInput<KeyCode>>,
     inv_open: Option<ResMut<InventoryOpen>>,

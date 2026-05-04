@@ -5,7 +5,7 @@ use bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
 use crate::{
     GameState, PlayMode,
     inventory::{Hotbar, HotbarSlot, Inventory, InventoryOpen, ItemRegistry},
-    machine::{Machine, MachineActivity, MachineState},
+    machine::{IoPortMarker, Machine, MachineActivity, MachineState},
     power::PowerNetwork,
     recipe_graph::RecipeGraph,
     research::{ResearchPool, TechTreeProgress},
@@ -68,10 +68,11 @@ fn inspect_input(
     camera_q: Query<&Transform, With<MainCamera>>,
     spatial_query: SpatialQuery,
     machine_q: Query<(), With<Machine>>,
+    port_q: Query<&IoPortMarker>,
     mut panel: ResMut<MachineStatusPanel>,
     mut tech_tree_open: ResMut<TechTreePanelOpen>,
 ) {
-    if keyboard.just_pressed(KeyCode::KeyT) {
+    if keyboard.just_pressed(KeyCode::KeyT) || keyboard.just_pressed(KeyCode::F4) {
         tech_tree_open.0 = !tech_tree_open.0;
     }
 
@@ -79,9 +80,13 @@ fn inspect_input(
         let Ok(cam) = camera_q.single() else { return };
         let dir = Dir3::new(*cam.forward()).unwrap_or(Dir3::NEG_Z);
         let hit = spatial_query.cast_ray(cam.translation, dir, 8.0, true, &Default::default());
-        panel.0 = hit
-            .filter(|h| machine_q.contains(h.entity))
-            .map(|h| h.entity);
+        panel.0 = hit.and_then(|h| {
+            if machine_q.contains(h.entity) {
+                Some(h.entity)
+            } else {
+                port_q.get(h.entity).ok().map(|m| m.owner)
+            }
+        });
     }
 }
 
@@ -197,13 +202,13 @@ fn tech_tree_ui(
 
                             let unlocked = progress.unlocked_nodes.contains(node_id);
                             let resp = ui.add(
-                                egui::Button::new(
-                                    egui::RichText::new(&node.name).color(if unlocked {
+                                egui::Button::new(egui::RichText::new(&node.name).color(
+                                    if unlocked {
                                         egui::Color32::from_rgb(80, 200, 80)
                                     } else {
                                         egui::Color32::from_gray(160)
-                                    }),
-                                )
+                                    },
+                                ))
                                 .fill(if unlocked {
                                     egui::Color32::from_rgb(30, 60, 30)
                                 } else {
@@ -232,18 +237,12 @@ fn tech_tree_ui(
                                     }
                                 }
                                 if !node.prerequisites.is_empty() {
-                                    ui.label(format!(
-                                        "Prereqs: {}",
-                                        node.prerequisites.join(", ")
-                                    ));
+                                    ui.label(format!("Prereqs: {}", node.prerequisites.join(", ")));
                                 }
                                 for effect in &node.effects {
                                     match effect {
                                         NodeEffect::UnlockRecipes(recipes) => {
-                                            ui.label(format!(
-                                                "Unlocks: {}",
-                                                recipes.join(", ")
-                                            ));
+                                            ui.label(format!("Unlocks: {}", recipes.join(", ")));
                                         }
                                         NodeEffect::UnlockMachine(m) => {
                                             ui.label(format!("Unlocks machine: {}", m));
