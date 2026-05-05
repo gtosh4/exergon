@@ -1,4 +1,4 @@
-use avian3d::prelude::SpatialQuery;
+use avian3d::prelude::{SpatialQuery, SpatialQueryFilter};
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
 
@@ -12,7 +12,7 @@ use crate::{
     research::{ResearchPool, TechTreeProgress},
     seed::{DomainSeeds, RunSeed, hash_text},
     tech_tree::{NodeEffect, TechTree, UnlockVector},
-    world::{LookTarget, MainCamera},
+    world::{LookTarget, MainCamera, Player},
 };
 
 use bevy::app::AppExit;
@@ -76,6 +76,7 @@ fn inspect_input(
     machine_q: Query<(), With<Machine>>,
     storage_q: Query<(), With<StorageUnit>>,
     port_q: Query<&IoPortMarker>,
+    player_q: Query<Entity, With<Player>>,
     mut panel: ResMut<MachineStatusPanel>,
     mut storage_panel: ResMut<StorageStatusPanel>,
     mut tech_tree_open: ResMut<TechTreePanelOpen>,
@@ -87,7 +88,11 @@ fn inspect_input(
     if mouse.just_pressed(MouseButton::Right) {
         let Ok(cam) = camera_q.single() else { return };
         let dir = Dir3::new(*cam.forward()).unwrap_or(Dir3::NEG_Z);
-        let hit = spatial_query.cast_ray(cam.translation, dir, 8.0, true, &Default::default());
+        let mut filter = SpatialQueryFilter::default();
+        if let Ok(player) = player_q.single() {
+            filter.excluded_entities.insert(player);
+        }
+        let hit = spatial_query.cast_ray(cam.translation, dir, 8.0, true, &filter);
 
         panel.0 = None;
         storage_panel.0 = None;

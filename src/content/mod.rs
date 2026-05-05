@@ -29,7 +29,7 @@ pub struct OreSpec {
 #[derive(Deserialize, Clone, Debug)]
 pub struct VeinDef {
     pub id: String,
-    /// Fraction of voxels within the vein volume that are replaced with ore (0–1).
+    /// Fraction of positions within the vein volume that are replaced with ore (0–1).
     pub density: f32,
     pub primary: OreSpec,
     pub secondary: OreSpec,
@@ -61,7 +61,7 @@ impl VeinDef {
 pub struct LayerDef {
     pub id: String,
     pub name: String,
-    /// Inclusive cell-Y range this layer covers (1 cell = `CHUNK_VOXELS` × `CELL_CHUNKS_Y` voxels tall).
+    /// Inclusive cell-Y range this layer covers (1 cell = `CHUNK_SIZE` × `CELL_CHUNKS_Y` units tall).
     pub y_cell_range: (i32, i32),
 }
 
@@ -75,12 +75,12 @@ pub struct BiomeDef {
 }
 
 // ---------------------------------------------------------------------------
-// Registry — built once from loaded defs, shared via Arc into voxel threads
+// Registry — built once from loaded defs, shared via Arc into generation threads
 // ---------------------------------------------------------------------------
 
-pub const CHUNK_VOXELS: i32 = 32;
-pub const CELL_CHUNKS_XZ: i32 = 5; // XZ cell span in chunks (5×32 = 160 voxels wide)
-pub const CELL_CHUNKS_Y: i32 = 2; // Y cell span in chunks  (2×32 = 64 voxels tall)
+pub const CHUNK_SIZE: i32 = 32;
+pub const CELL_CHUNKS_XZ: i32 = 5; // XZ cell span in chunks (5×32 = 160 units wide)
+pub const CELL_CHUNKS_Y: i32 = 2; // Y cell span in chunks  (2×32 = 64 units tall)
 
 /// Snapshot returned by biome queries — borrows from `VeinRegistry`.
 pub struct BiomeInfo<'a> {
@@ -219,11 +219,11 @@ impl VeinRegistry {
         })
     }
 
-    /// Returns the ore material index for a solid stone voxel at (wx, wy, wz),
+    /// Returns the ore material index for position (wx, wy, wz),
     /// or None if no vein covers this position.
     pub fn ore_at(&self, world_seed: u64, wx: i32, wy: i32, wz: i32) -> Option<u8> {
-        let cell_size_xz = CHUNK_VOXELS * CELL_CHUNKS_XZ;
-        let cell_size_y = CHUNK_VOXELS * CELL_CHUNKS_Y;
+        let cell_size_xz = CHUNK_SIZE * CELL_CHUNKS_XZ;
+        let cell_size_y = CHUNK_SIZE * CELL_CHUNKS_Y;
         let cell_x = wx.div_euclid(cell_size_xz);
         let cell_y = wy.div_euclid(cell_size_y);
         let cell_z = wz.div_euclid(cell_size_xz);
@@ -236,7 +236,7 @@ impl VeinRegistry {
         // Ellipsoidal distance from cell center (0 at center, 1 at surface)
         let dist = (nx * nx + ny * ny + nz * nz).sqrt();
 
-        // Per-voxel hash jitter gives organic, non-cubic vein boundaries
+        // Per-position hash jitter gives organic, non-cubic vein boundaries
         let jitter_seed = {
             let mut key = world_seed.to_le_bytes().to_vec();
             key.extend_from_slice(b"jit");
@@ -583,9 +583,9 @@ mod tests {
         };
         let b = biome("b", "l", vec![("iron", 1)]);
         let reg = VeinRegistry::new(vec![v], vec![l], vec![b]);
-        let cx = CHUNK_VOXELS * CELL_CHUNKS_XZ / 2;
-        let cy = CHUNK_VOXELS * CELL_CHUNKS_Y / 2;
-        let cz = CHUNK_VOXELS * CELL_CHUNKS_XZ / 2;
+        let cx = CHUNK_SIZE * CELL_CHUNKS_XZ / 2;
+        let cy = CHUNK_SIZE * CELL_CHUNKS_Y / 2;
+        let cz = CHUNK_SIZE * CELL_CHUNKS_XZ / 2;
         let count = (0u64..50)
             .filter(|&seed| reg.ore_at(seed, cx, cy, cz).is_some())
             .count();

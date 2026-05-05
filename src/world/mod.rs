@@ -3,7 +3,7 @@ mod interaction;
 mod player;
 
 pub use interaction::LookTarget;
-pub use player::MainCamera;
+pub use player::{MainCamera, Player};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorldObjectKind {
@@ -59,7 +59,11 @@ impl Plugin for WorldPlugin {
             )
             .add_systems(
                 OnEnter(GameState::Playing),
-                (player::setup_world_once, player::lock_cursor),
+                (
+                    player::setup_world_once,
+                    player::lock_cursor,
+                    player::spawn_player,
+                ),
             )
             .add_systems(
                 OnEnter(GameState::Paused),

@@ -35,6 +35,7 @@ assets/textures/blocks.png
 # Large binary assets
 assets/**/*.png
 assets/**/*.glb
+assets/**/*.gltf
 
 
 # Other ignored files

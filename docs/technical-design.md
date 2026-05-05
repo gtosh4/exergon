@@ -306,7 +306,7 @@ A deposit produces a **weighted blend of ore items**: a copper-dominant deposit 
 
 ### Underground tunnel system
 
-Underground access is provided via a **tunnel graph** — a logical graph of nodes and edges representing excavated passages. There are no underground voxel blocks; the underground is uncharted until a tunnel is created.
+Underground access is provided via a **tunnel graph** — a logical graph of nodes and edges representing excavated passages.
 
 When a player pilots a digger drone through subsurface terrain, passage creates tunnel nodes (positions) and edges (passages with a defined radius) along the path. The resulting tunnel is rendered as a mesh passage. The graph persists across sessions.
 
@@ -365,7 +365,7 @@ Each port records: its ID, kind, world position, and the network channel assigne
 
 ### ECS structure
 
-Each machine entity carries: machine type and tier, orientation, IO port positions (as voxel-grid coordinates for cable connectivity), inventory, recipe processor state (current recipe + progress), power consumer state (current demand), and module slots. World position and rotation are stored in Bevy's standard `Transform` component — machines are placed freely at any world position, not constrained to voxel grid cells.
+Each machine entity carries: machine type and tier, orientation, IO port positions (as grid coordinates for cable connectivity), inventory, recipe processor state (current recipe + progress), power consumer state (current demand), and module slots. World position and rotation are stored in Bevy's standard `Transform` component — machines are placed freely at any world position.
 
 *Implementation: [`Machine`](../src/machine/mod.rs), [`MachineState`](../src/machine/mod.rs), [`Orientation`](../src/machine/mod.rs), [`Rotation`](../src/machine/mod.rs), [`Mirror`](../src/machine/mod.rs)*
 
@@ -379,7 +379,7 @@ Networks are formed by **cable connections**. The player connects machine IO por
 
 Network graphs are recomputed on structural change (connection added/removed, machine placed/removed). Between changes, network state is stable and does not require per-tick recomputation of topology.
 
-Each network tracks: its ID, the set of cable segment endpoints (voxel-grid coordinates), the set of connected device entities (machines, storage, interfaces), and current vs. maximum channel usage.
+Each network tracks: its ID, the set of cable segment endpoints (grid coordinates), the set of connected device entities (machines, storage, interfaces), and current vs. maximum channel usage.
 
 Each cable segment records which network it belongs to, its two endpoint positions, and its tier (which determines max devices). Each connected device records its network and how many channels it consumes.
 

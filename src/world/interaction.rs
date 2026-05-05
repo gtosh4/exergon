@@ -6,7 +6,7 @@ use bevy::prelude::*;
 use crate::inventory::{Hotbar, Inventory, InventoryOpen};
 use crate::machine::{GhostAssets, IoPortMarker, Machine, Platform};
 
-use super::player::MainCamera;
+use super::player::{MainCamera, Player};
 use super::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
 const MAX_REACH: f32 = 16.0;
@@ -226,14 +226,20 @@ pub(super) fn update_look_target(
     spatial_query: SpatialQuery,
     mut look_target: ResMut<LookTarget>,
     port_q: Query<&GlobalTransform, With<IoPortMarker>>,
+    player_q: Query<Entity, With<Player>>,
 ) {
     let Ok(cam) = camera_q.single() else {
         *look_target = LookTarget::Nothing;
         return;
     };
 
+    let mut filter = SpatialQueryFilter::default();
+    if let Ok(player) = player_q.single() {
+        filter.excluded_entities.insert(player);
+    }
+
     let dir = Dir3::new(*cam.forward()).unwrap_or(Dir3::NEG_Z);
-    let hit = spatial_query.cast_ray(cam.translation, dir, MAX_REACH, true, &Default::default());
+    let hit = spatial_query.cast_ray(cam.translation, dir, MAX_REACH, true, &filter);
 
     *look_target = match hit {
         None => LookTarget::Nothing,
@@ -259,6 +265,7 @@ pub(super) fn object_interaction(
     look_target: Res<LookTarget>,
     mut hotbar: ResMut<Hotbar>,
     mut inventory: ResMut<Inventory>,
+    player_q: Query<Entity, With<Player>>,
     mut world_events: MessageWriter<WorldObjectEvent>,
     mut cable_events: MessageWriter<CableConnectionEvent>,
     mut pending_cable: ResMut<PendingCablePort>,
@@ -332,13 +339,12 @@ pub(super) fn object_interaction(
                 let place_pos = pos + normal * half;
                 let check_half = (half - 0.05).max(0.05);
                 let check = Collider::cuboid(check_half, check_half, check_half);
+                let mut place_filter = SpatialQueryFilter::default();
+                if let Ok(player) = player_q.single() {
+                    place_filter.excluded_entities.insert(player);
+                }
                 let blocked = spatial_query
-                    .shape_intersections(
-                        &check,
-                        place_pos,
-                        Quat::IDENTITY,
-                        &SpatialQueryFilter::default(),
-                    )
+                    .shape_intersections(&check, place_pos, Quat::IDENTITY, &place_filter)
                     .iter()
                     .any(|&e| !sensor_q.contains(e));
                 if !blocked {

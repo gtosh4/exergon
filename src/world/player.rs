@@ -1,5 +1,6 @@
 use std::f32::consts::FRAC_PI_2;
 
+use avian3d::prelude::*;
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
@@ -10,11 +11,26 @@ use crate::inventory::InventoryOpen;
 #[derive(Component)]
 pub struct MainCamera;
 
+#[derive(Component)]
+pub struct Player;
+
 pub(super) fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(0.0, 80.0, 0.0),
         MainCamera,
+    ));
+}
+
+pub(super) fn spawn_player(mut commands: Commands) {
+    commands.spawn((
+        Transform::from_xyz(0.0, 100.0, 0.0),
+        RigidBody::Dynamic,
+        Collider::capsule(0.4, 0.8),
+        GravityScale(0.0),
+        LinearDamping(0.0),
+        LockedAxes::ROTATION_LOCKED,
+        Player,
     ));
 }
 
@@ -100,34 +116,43 @@ pub(super) fn camera_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mouse_motion: Res<AccumulatedMouseMotion>,
     mut camera_q: Query<&mut Transform, With<MainCamera>>,
-    time: Res<Time>,
+    player_q: Query<&Transform, (With<Player>, Without<MainCamera>)>,
+    mut velocity_q: Query<&mut LinearVelocity, With<Player>>,
 ) {
-    let Ok(mut transform) = camera_q.single_mut() else {
+    let Ok(mut camera) = camera_q.single_mut() else {
         return;
     };
 
     let yaw = -mouse_motion.delta.x * 0.003;
     let pitch = -mouse_motion.delta.y * 0.003;
-
     if yaw != 0.0 || pitch != 0.0 {
-        let (current_yaw, current_pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
+        let (current_yaw, current_pitch, _) = camera.rotation.to_euler(EulerRot::YXZ);
         let new_yaw = current_yaw + yaw;
         let new_pitch = (current_pitch + pitch).clamp(-FRAC_PI_2 + 0.01, FRAC_PI_2 - 0.01);
-        transform.rotation = Quat::from_euler(EulerRot::YXZ, new_yaw, new_pitch, 0.0);
+        camera.rotation = Quat::from_euler(EulerRot::YXZ, new_yaw, new_pitch, 0.0);
     }
+
+    let Ok(player_transform) = player_q.single() else {
+        return;
+    };
+    let Ok(mut velocity) = velocity_q.single_mut() else {
+        return;
+    };
+
+    camera.translation = player_transform.translation + Vec3::Y * 0.5;
 
     let mut direction = Vec3::ZERO;
     if keyboard.pressed(KeyCode::KeyW) {
-        direction += *transform.forward();
+        direction += *camera.forward();
     }
     if keyboard.pressed(KeyCode::KeyS) {
-        direction -= *transform.forward();
+        direction -= *camera.forward();
     }
     if keyboard.pressed(KeyCode::KeyA) {
-        direction -= *transform.right();
+        direction -= *camera.right();
     }
     if keyboard.pressed(KeyCode::KeyD) {
-        direction += *transform.right();
+        direction += *camera.right();
     }
     if keyboard.pressed(KeyCode::Space) {
         direction += Vec3::Y;
@@ -136,9 +161,11 @@ pub(super) fn camera_input(
         direction -= Vec3::Y;
     }
 
-    if direction != Vec3::ZERO {
-        transform.translation += direction.normalize() * 50.0 * time.delta_secs();
-    }
+    velocity.0 = if direction != Vec3::ZERO {
+        direction.normalize() * 15.0
+    } else {
+        Vec3::ZERO
+    };
 }
 
 #[cfg(test)]
@@ -329,7 +356,6 @@ mod tests {
             kb.press(KeyCode::KeyA);
             kb.press(KeyCode::KeyD);
             kb.press(KeyCode::Space);
-            kb.press(KeyCode::ControlLeft);
         }
         app.update();
     }

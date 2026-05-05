@@ -14,7 +14,7 @@ pub mod visuals;
 
 use membership::{cable_placed_system, cable_removed_system, machine_membership_system};
 
-/// The six axis-aligned directions in 3D voxel space.
+/// The six axis-aligned directions in 3D space.
 pub const DIRS: [IVec3; 6] = [
     IVec3::new(1, 0, 0),
     IVec3::new(-1, 0, 0),
@@ -116,7 +116,7 @@ pub fn auto_route(from: IVec3, to: IVec3) -> Vec<IVec3> {
     path
 }
 
-/// A* path from `from` to `to` avoiding blocked voxels, preferring straight runs.
+/// A* path from `from` to `to` avoiding blocked positions, preferring straight runs.
 /// Falls back to [`auto_route`] when no path is found.
 pub fn route_avoiding(from: IVec3, to: IVec3, is_blocked: impl Fn(IVec3) -> bool) -> Vec<IVec3> {
     if from == to {

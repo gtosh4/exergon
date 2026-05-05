@@ -75,7 +75,7 @@ pub(super) fn cable_placed_system<N: NetworkKind>(
     let is_blocked = |pos: IVec3| {
         machine_positions.contains(&pos)
             || sampler.as_ref().is_some_and(|s| {
-                // block voxels whose center (pos.y + 0.5) is at or below terrain
+                // block positions whose center (pos.y + 0.5) is at or below terrain
                 (pos.y as f32 + 0.5) <= s.height_at(pos.x as f64 + 0.5, pos.z as f64 + 0.5)
             })
     };

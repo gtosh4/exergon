@@ -12,13 +12,6 @@ Rationale and context behind key decisions. The GDD contains the *what*; this do
 
 **Alternatives considered:** 2D top-down (Factorio-style, space as primary constraint), 2D isometric. Both were rejected because spatial layout optimization is not the intended primary challenge.
 
----
-
-## Factory placement — voxel, free-form blocks
-
-**Decision:** Free-form voxel block placement, no grid-snap.
-
-**Why:** Aesthetic freedom. Players should be able to build bases worth photographing and sharing. Structured tile slots would produce uniform-looking factories.
 
 ---
 
@@ -198,4 +191,3 @@ Rationale and context behind key decisions. The GDD contains the *what*; this do
 **Decision:** Dramatic in-world power transition events (factory going dark, world reacting to energy signature change) are a post-MVP enhancement, not core.
 
 **Why:** Power transitions are already meaningful as economic decisions (when is the pain of staying on this source worse than rebuilding?). The drama layer adds narrative texture but is not required for the core gameplay loop to function.
-

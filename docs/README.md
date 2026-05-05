@@ -13,7 +13,7 @@ The canonical design reference. Covers vision, design pillars, all game systems 
 Rationale and context behind key decisions — the *why* behind what's in the GDD. Records alternatives considered and reasons they were rejected. Also captures decisions that were tentative or may be revisited. **Update this file whenever a significant design decision is made.**
 
 ### [`technical-design.md`](technical-design.md) — Technical Design Document
-Implementation architecture for all core systems. Covers: seed system, recipe graph, tech tree, voxel world & chunk system, multiblock machine system, logistics network, power system, drone system, science & research system, world reactivity, codex & meta-progression. Includes data structures and invariants. **Read the relevant section before implementing a system. Update when architecture decisions are made.**
+Implementation architecture for all core systems. Covers: seed system, recipe graph, tech tree, world & chunk system, multiblock machine system, logistics network, power system, drone system, science & research system, world reactivity, codex & meta-progression. Includes data structures and invariants. **Read the relevant section before implementing a system. Update when architecture decisions are made.**
 
 ### [`milestones.md`](milestones.md) — Milestones
 Defines two pre-release milestones: **Vertical Slice** (core loop playable end-to-end, systems simplified) and **MVP** (all systems at production depth). Includes explicit post-MVP backlog. **Reference when scoping work. Update as scope changes.**

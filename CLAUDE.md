@@ -2,7 +2,7 @@
 
 ## What Is Being Built
 
-**Exergon** = 3D voxel factory-building roguelite. Each run: procedurally generated alien world with unique physical laws. Core loop: decode world science → design factory exploiting those laws → build escape vehicle. Inspiration: GregTech: New Horizons depth + Factorio mechanics + Slay the Spire meta-progression.
+**Exergon** = 3D factory-building roguelite. Each run: procedurally generated alien world with unique physical laws. Core loop: decode world science → design factory exploiting those laws → build escape vehicle. Inspiration: GregTech: New Horizons depth + Factorio mechanics + Slay the Spire meta-progression.
 Built using `bevy` game engine and `clap` for CLI argument parsing.
 
 ## Before Implementing Any Feature
