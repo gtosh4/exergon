@@ -354,3 +354,19 @@ pub(super) fn object_interaction(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn placement_half_extent_platform() {
+        assert_eq!(placement_half_extent("platform"), 0.125);
+    }
+
+    #[test]
+    fn placement_half_extent_default() {
+        assert_eq!(placement_half_extent("smelter"), 2.0);
+        assert_eq!(placement_half_extent("anything_else"), 2.0);
+    }
+}

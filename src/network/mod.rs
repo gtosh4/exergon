@@ -262,7 +262,9 @@ mod tests {
     use bevy::prelude::*;
 
     use super::*;
-    use crate::machine::{Machine, MachineNetworkChanged};
+    use crate::machine::{
+        Machine, MachineNetworkChanged, MachineState, Mirror, Orientation, Rotation,
+    };
     use crate::world::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
     struct TestNetwork;
@@ -470,6 +472,117 @@ mod tests {
         generic_remove_at(&mut app, Vec3::new(20.0, 0.0, 0.0));
         app.update();
         assert_eq!(network_count(&mut app), 1);
+    }
+
+    #[test]
+    fn removing_middle_endpoint_of_chain_splits_into_two_networks() {
+        // Four cables: 0→5, 5→10, 10→15, 15→20
+        // Removing at (10,0,0) removes both cables touching that endpoint (5→10 and 10→15)
+        // leaving 0→5 and 15→20 disconnected → two networks
+        let mut app = test_app();
+        connect(&mut app, Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0));
+        connect(
+            &mut app,
+            Vec3::new(5.0, 0.0, 0.0),
+            Vec3::new(10.0, 0.0, 0.0),
+        );
+        connect(
+            &mut app,
+            Vec3::new(10.0, 0.0, 0.0),
+            Vec3::new(15.0, 0.0, 0.0),
+        );
+        connect(
+            &mut app,
+            Vec3::new(15.0, 0.0, 0.0),
+            Vec3::new(20.0, 0.0, 0.0),
+        );
+        app.update();
+        assert_eq!(network_count(&mut app), 1);
+
+        disconnect_at(&mut app, Vec3::new(10.0, 0.0, 0.0));
+        app.update();
+        assert_eq!(network_count(&mut app), 2);
+    }
+
+    #[test]
+    fn machines_reassigned_to_correct_network_after_split() {
+        let mut app = test_app();
+        let left_port = Vec3::new(0.0, 0.0, 0.0);
+        let right_port = Vec3::new(20.0, 0.0, 0.0);
+
+        connect(&mut app, left_port, Vec3::new(5.0, 0.0, 0.0));
+        connect(
+            &mut app,
+            Vec3::new(5.0, 0.0, 0.0),
+            Vec3::new(10.0, 0.0, 0.0),
+        );
+        connect(
+            &mut app,
+            Vec3::new(10.0, 0.0, 0.0),
+            Vec3::new(15.0, 0.0, 0.0),
+        );
+        connect(&mut app, Vec3::new(15.0, 0.0, 0.0), right_port);
+        app.update();
+
+        let orientation = Orientation {
+            rotation: Rotation::North,
+            mirror: Mirror::Normal,
+        };
+        let left_machine = app
+            .world_mut()
+            .spawn((
+                Machine {
+                    machine_type: "smelter".to_string(),
+                    tier: 1,
+                    orientation,
+                    energy_ports: vec![left_port],
+                    logistics_ports: vec![],
+                },
+                MachineState::Idle,
+            ))
+            .id();
+        let right_machine = app
+            .world_mut()
+            .spawn((
+                Machine {
+                    machine_type: "smelter".to_string(),
+                    tier: 1,
+                    orientation,
+                    energy_ports: vec![right_port],
+                    logistics_ports: vec![],
+                },
+                MachineState::Idle,
+            ))
+            .id();
+
+        app.world_mut().write_message(MachineNetworkChanged);
+        app.update();
+
+        let left_net = app
+            .world()
+            .get::<TestNetworkMember>(left_machine)
+            .map(|m| m.0);
+        let right_net = app
+            .world()
+            .get::<TestNetworkMember>(right_machine)
+            .map(|m| m.0);
+        assert_eq!(left_net, right_net, "both machines start in same network");
+
+        disconnect_at(&mut app, Vec3::new(10.0, 0.0, 0.0));
+        app.update();
+
+        let left_net = app
+            .world()
+            .get::<TestNetworkMember>(left_machine)
+            .map(|m| m.0);
+        let right_net = app
+            .world()
+            .get::<TestNetworkMember>(right_machine)
+            .map(|m| m.0);
+        assert_ne!(
+            left_net, right_net,
+            "machines should be in different networks after split"
+        );
     }
 
     #[test]

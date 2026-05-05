@@ -274,4 +274,101 @@ mod tests {
         app.update();
         // Just checking no panic when InventoryOpen resource absent
     }
+
+    #[test]
+    fn resume_on_escape_sets_playing() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, StatesPlugin))
+            .init_state::<GameState>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .add_systems(Update, resume_on_escape.run_if(in_state(GameState::Paused)));
+
+        app.world_mut()
+            .resource_mut::<NextState<GameState>>()
+            .set(GameState::Paused);
+        app.update();
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Escape);
+        app.update();
+        app.update();
+
+        assert_eq!(
+            *app.world().resource::<State<GameState>>().get(),
+            GameState::Playing
+        );
+    }
+
+    fn camera_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<ButtonInput<KeyCode>>()
+            .init_resource::<AccumulatedMouseMotion>()
+            .add_systems(Update, camera_input);
+        app
+    }
+
+    #[test]
+    fn camera_input_w_key_runs_without_panic() {
+        let mut app = camera_app();
+        app.world_mut().spawn((Transform::default(), MainCamera));
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyW);
+        app.update();
+    }
+
+    #[test]
+    fn camera_input_sad_ctrl_space_hit_branches() {
+        let mut app = camera_app();
+        app.world_mut().spawn((Transform::default(), MainCamera));
+        {
+            let mut kb = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            kb.press(KeyCode::KeyS);
+            kb.press(KeyCode::KeyA);
+            kb.press(KeyCode::KeyD);
+            kb.press(KeyCode::Space);
+            kb.press(KeyCode::ControlLeft);
+        }
+        app.update();
+    }
+
+    #[test]
+    fn camera_input_no_camera_does_not_panic() {
+        let mut app = camera_app();
+        // No MainCamera spawned — early return branch covered
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyW);
+        app.update();
+    }
+
+    #[test]
+    fn camera_input_mouse_rotation_updates_camera() {
+        use bevy::input::mouse::AccumulatedMouseMotion;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<ButtonInput<KeyCode>>()
+            .init_resource::<AccumulatedMouseMotion>()
+            .add_systems(Update, camera_input);
+
+        let cam = app
+            .world_mut()
+            .spawn((Transform::default(), MainCamera))
+            .id();
+
+        app.world_mut()
+            .resource_mut::<AccumulatedMouseMotion>()
+            .delta = bevy::math::Vec2::new(100.0, 50.0);
+        app.update();
+
+        let rot = app.world().get::<Transform>(cam).unwrap().rotation;
+        assert_ne!(
+            rot,
+            bevy::math::Quat::IDENTITY,
+            "mouse input should rotate camera"
+        );
+    }
 }

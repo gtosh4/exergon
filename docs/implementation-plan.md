@@ -1,207 +1,136 @@
-# Implementation Plan — Vertical Slice (Heightmap World)
+# Implementation Plan — MVP Sprint 1: First Escape
 Always check off items as they are completed.
 
-## Context
+## What You Can Test When This Is Done
 
-World is **heightmap mesh chunks** — terrain is a continuous procedural mesh, world objects are discrete prefab entities placed at free positions on terrain surfaces. This plan tracks the complete vertical slice.
+Boot the game (`cargo run -- --test` for fast setup or `cargo run` for full run). Build a factory. Research up the tech tree. Explore to find the xalite deposit and the alien gateway ruins site — both fire discovery events that unlock key tech nodes. Research through to `escape_synthesis`. Build an assembler tier 2, run the `forge_gateway_key` recipe to craft a Gateway Key. Run cables from your power and logistics networks to the pre-existing gateway structure at the ruins site. Put the key in the logistics network. Right-click the gateway to activate it. Win screen appears showing your seed and elapsed time.
 
-**Core loop**: seed → walk world → pilot drone to collect ore samples → build factory on platforms → run recipes → accumulate research → unlock machines → produce escape artifact.
-
-## World Model (non-voxel)
-
-| Concept | Implementation |
-|---------|----------------|
-| Terrain | Seeded HybridMulti noise → heightmap mesh, spawned as 64×64 chunks around camera |
-| Platforms | Flat prefab entities placed on terrain; machines sit on platforms |
-| Machines | Single-entity prefabs placed at free Vec3 positions (on platforms or terrain) |
-| IO ports | Vec3 world positions = machine center + orientation-transformed offset |
-| Cables | Two-click: player clicks IO port A → IO port B → segment entity connecting them |
-| Networks | BFS over cable endpoints; power + logistics share generic network system |
-| Ore deposits | Persistent surface marker entities at positions derived from DepositRegistry |
-| Underground | Out of scope for vertical slice |
+**Complete win-condition path:**
+1. Mine iron/copper → smelt ingots → accumulate research
+2. Drone explores → finds xalite deposit → `alien_materials` unlocked
+3. Research `science_basics → basic_processing → advanced_processing` (ResearchSpend)
+4. Research `resonite_engineering` (500 pts) → unlocks resonite circuit recipe
+5. Explore → find gateway ruins site → `gateway_theory` unlocked (also enables cabling the gateway)
+6. Research `escape_synthesis` (1000 pts) → unlocks `forge_gateway_key`
+7. Craft gateway key in tier-2 assembler → put in logistics network cabled to gateway
+8. Gateway powered + key present → right-click gateway → win
 
 ---
 
-## Phase 1 — Foundation ✅
+## Content layer (already in assets, verify on load)
 
-- [x] Main menu: seed text entry → `RunSeed` + `DomainSeeds` → `Loading → Playing`
-- [x] Heightmap terrain: seeded HybridMulti noise, 64×64 chunk mesh gen, trimesh colliders
-- [x] Fly camera: WASD + mouse-look, Space/Ctrl for Y-axis, 50 u/s
-- [x] Cursor lock/unlock, pause (Escape), inventory toggle (Tab)
-- [x] Content loader: `load_ron_dir()` → typed resources at startup
+The following content assets already exist and should just work — verify they load without errors on startup:
 
----
+- `assets/items/gateway_key.ron` — Unique terminal item ✓
+- `assets/machines/gateway.ron` — Machine type with power + logistics ports (world-spawned, not player-placed) ✓
+- `assets/recipes/forge_gateway_key.ron` — assembler tier 2, resonite_circuit + power_cell → gateway_key ✓
+- `assets/tech_nodes/escape_synthesis.ron` — ResearchSpend(1000) unlock ✓
+- `assets/tech_nodes/gateway_theory.ron` — ExplorationDiscovery("gateway_ruins") unlock ✓
+- `assets/tech_nodes/alien_materials.ron` — ExplorationDiscovery("xalite_deposit") unlock ✓
 
-## Phase 2 — Content Data ✅
-
-- [x] `DepositRegistry`: deterministic ore placement (ellipsoidal deposits, per-cell seeding, biome layers, `ore_at(seed, wx, wy, wz)`)
-- [x] `RecipeGraph`: 2-tier hand-authored graph (materials, producer/consumer index, `is_terminal` flag)
-- [x] `TechTree`: 2-tier hand-authored tree (prerequisites, unlock vectors, `NodeEffect`)
-- [x] Assets: items, machines, recipes, tech_nodes, biomes, layers RON files
+Note: `assets/items/gateway.ron` exists but the gateway is never placed from inventory — remove it from any hotbar/inventory give lists.
 
 ---
 
-## Phase 2b — Material System Redesign ✅
+## Phase 1 — Discovery System
 
-Migrate from flat material→recipe model to the material/form/item hierarchy described in tech-design §2 and GDD §8. This is a content-layer change; machine/network code is unaffected.
+The `ExplorationDiscovery(String)` unlock trigger exists in the type system but is never handled.
+Xalite deposit markers exist in the world. Gateway ruins does not exist yet.
 
-**2b-1. Core types** (`src/recipe_graph/mod.rs`)
-- [x] Add `FormGroupId = String`, `FormId = String`
-- [x] Add `FormGroup { id: FormGroupId, forms: Vec<FormId> }` — content-defined
-- [x] Update `MaterialDef`: add `form_groups: Vec<FormGroupId>`; remove `is_terminal` (terminal is a `RecipeGraph`-level flag, not per-material)
-- [x] Add `ItemId = String` (replaces bare `MaterialId` as recipe node identifier)
-- [x] Add `ItemKind` enum: `Derived { material: MaterialId, form: FormId }`, `Composite { template: Option<TemplateId> }`, `Unique`
-- [x] Add `ItemDef { id: ItemId, name: String, kind: ItemKind }`
-- [x] Add `RecipeTemplate { id, input_forms: Vec<(FormId, f32)>, output_form: FormId, group: FormGroupId, machine_type: MachineTypeId, base_time: f32, base_energy: f32 }`
-- [x] Rename `RecipeDef` → `ConcreteRecipe`; change `ItemStack.material: MaterialId` → `item: ItemId`
-- [x] Update `RecipeGraph`: add `form_groups`, `templates`, `items` maps; `producers`/`consumers` key on `ItemId` not `MaterialId`; `terminal` becomes `ItemId`
-- [x] Tests: `RecipeGraph::from_vecs` still satisfies validity invariants with new types
+**1-1. `DiscoveryEvent`** (`src/research/mod.rs`)
+- [ ] Add `DiscoveryEvent(pub String)` Bevy event
+- [ ] Register event in `ResearchPlugin`
+- [ ] In `check_research_unlocks`: match `UnlockVector::ExplorationDiscovery(ref key)` — unlock if `DiscoveryEvent` with matching key was fired this frame
+- [ ] Test: node with `ExplorationDiscovery("x")` unlocks when `DiscoveryEvent("x")` fires; does not unlock on wrong key
 
-**2b-2. Template expansion** (`src/recipe_graph/mod.rs`)
-- [x] `fn expand_templates(materials, form_groups, templates) -> Vec<ConcreteRecipe>` — for each template, find all materials whose groups include both input and output forms, instantiate one `ConcreteRecipe` per material
-- [x] `fn derive_items(materials, form_groups) -> Vec<ItemDef>` — generate all `DerivedItem` entries
-- [x] Both called inside `RecipeGraph::from_vecs`
-- [x] Tests: `expand_templates` produces correct concrete recipes; no recipe for material missing a required form
+**1-2. Xalite deposit proximity trigger** (`src/drone/mod.rs`)
+- [ ] `deposit_discovery_system`: in `DronePilot` state, check distance from drone to each `OreDeposit` entity whose ores contain xalite; within 8.0 units → fire `DiscoveryEvent("xalite_deposit")`; use a `Discovered` marker component to fire only once per deposit
+- [ ] Test: system fires event once, not repeatedly
 
-**2b-3. Asset files**
-- [x] Add `assets/form_groups/` dir with RON files: `metal.ron`, `exotic.ron` listing their forms
-- [x] Update `assets/materials/*.ron`: add `form_groups` field; remove `is_terminal` where present
-- [x] Add `assets/recipe_templates/` with `smelt_metal.ron`, `draw_metal.ron`; concrete recipes updated to use `item:` field
-- [x] Keep `assets/items/` for composite and unique items only; remove derived-item RON files (copper_ore, copper_wire, etc.)
-- [x] Update `DepositDef` asset format: replace single `ore_material` with `ores: Vec<(MaterialId, f32)>` weighted list
-
-**2b-4. Deposit weighted ores** (`src/content/mod.rs`)
-- [x] Add `DepositDef`: `ores: Vec<(MaterialId, f32)>` (weights normalised at load)
-- [x] Add `DepositRegistry::ore_at` return type: `Option<Vec<(MaterialId, f32)>>` — caller samples weighted distribution
-- [x] Tests: `ore_at` returns weighted list; weights normalise correctly
-
-**2b-5. Unify item registry** (`src/inventory/mod.rs`, `src/recipe_graph/mod.rs`)
-- [x] `ItemRegistry` populated from `RecipeGraph::items` (derived + composite + unique) instead of separate `assets/items/` load
-- [x] Remove `ItemDef` from `inventory/mod.rs`; use `recipe_graph::ItemDef`
-- [x] `load_recipe_graph` loads form_groups + materials + templates + unique/composite items → builds `RecipeGraph` → registers all items into `ItemRegistry`
-- [x] Tests: registry contains derived items after graph construction
+**1-3. Gateway ruins site** (`src/world/generation.rs` or new `src/world/ruins.rs`)
+- [ ] `spawn_gateway_ruins_system`: runs once after terrain loads; picks seeded position (use `DomainSeeds::world` + offset, ensure above terrain surface); spawns:
+  - Decorative ruins mesh (broken columns, rubble — or a simple distinctive shape for now)
+  - The gateway machine entity itself (`Machine { machine_type: "gateway", tier: 1 }`) with IO port markers, collidable, right-clickable — same as any placed machine but world-spawned
+  - `Collider::sphere(8.0)` sensor on ruins root for proximity detection
+- [ ] `ruins_discovery_system`: in `DronePilot` state, drone within sensor radius → fire `DiscoveryEvent("gateway_ruins")` once (same `Discovered` marker pattern)
+- [ ] Gateway machine cables/interaction locked until `gateway_theory` unlocked (check `TechTreeProgress::unlocked_machines` contains "gateway" before allowing cable snap or right-click)
+- [ ] Gateway ruins position must be reachable on foot — place within 200 units of spawn, above terrain
+- [ ] Test: ruins spawns at deterministic position for a given seed; `DiscoveryEvent` fires once on approach
 
 ---
 
-## Phase 3 — Machines + Networks ⚠ (in-progress migration)
+## Phase 2 — Assembler Tier 2
 
-**Done:**
-- [x] `Inventory`: HashMap-based, hotbar 9-slot, 1–9/scroll to select, Tab to open grid
-- [x] `Machine` component: type, tier, `Orientation` (8-way), footprint, IO offsets
-- [x] Ghost preview: translucent cube at look target
-- [x] Generic cable network: `NetworkPlugin<N>` with `CableSegment + HasEndpoints` (segments, not nodes)
-- [x] Two-click cable placement: `PendingCablePort` resource, `CableConnectionEvent{from, to}`
-- [x] Power network: `GeneratorUnit` capacity sum, per-machine demand, brownout `speed_factor`
-- [x] Logistics network: unified `StorageUnit` pool, recipe input-pull → progress → output-push
-- [x] Research output: recipes producing `"research_points"` → `ResearchPool`
-- [x] `--test` flag: fills hotbar with machines + cables for quick testing
+`forge_gateway_key` requires `machine_tier: 2` assembler. Assembler asset only defines tier 1.
 
-**In-progress (IVec3 → Vec3 migration):** ✅
-- [x] `WorldObjectEvent.pos` → `Vec3`; `CableConnectionEvent.from/to` → `Vec3`; `HasEndpoints` → `[Vec3; 2]`
-- [x] `src/power/mod.rs`: migrate `NetworkKind` impl to `CableSegment`/`new_cable_segment`; fix type mismatches
-- [x] `src/logistics/mod.rs`: same migration
-- [x] `src/machine/mod.rs`: `origin_pos: IVec3` → `Vec3`; port sets `HashSet<IVec3>` → `Vec<Vec3>`
-- [x] Remove `snap_to_grid` from `src/world/interaction.rs`; ghost preview tracks raw surface hit
+**2-1. Assembler tier 2 asset** (`assets/machines/assembler.ron`)
+- [ ] Add tier 2 entry: same footprint, same IO layout as tier 1 (recipe system uses `machine_tier <= machine.tier`, so tier 2 machine can run tier 1 and tier 2 recipes)
+- [ ] Add assembler tier 2 to `--test` hotbar so it's testable
 
-**Needed (free placement + collision):**
-- [x] `placement_collision_check`: before placing, `SpatialQuery::intersections_with_shape(AABB)` — reject if overlap
-- [x] IO port markers: spawn small sphere mesh at each port position when machine is placed (cable two-click target)
-- [x] Platforms: new item `"platform"` (flat 2×0.25×2 box) — placed at surface hit; `RigidBody::Static + Collider::cuboid`
-  - Asset: `assets/items/platform.ron`
-  - System: `place_platform_system` in `src/machine/mod.rs`
-- [x] `--test` flag: also give starting ore (`20 iron_ore`, `20 copper_ore`) + a few platforms
-- [x] shift-click to remove: machines, platforms, & cables
-  - [x] hold shift: highlight what would be removed if clicked
+**2-2. Verify recipe runs** (no new code needed if tier check already works)
+- [ ] Integration test: assembler tier 2 + forge_gateway_key recipe + required inputs → gateway_key output
+  - Pattern: same as smelter test in `tests/smelter_recipe.rs`
 
 ---
 
-## Phase 4 — Research ✅
+## Phase 3 — Gateway Activation
 
-- [x] `ResearchPool` resource (accumulated `f32`)
-- [x] `TechTreeProgress`: `unlocked_nodes`, `unlocked_recipes`, `unlocked_machines`
-- [x] `check_research_unlocks`: loops until no more unlocks possible per frame
-- [x] `ResearchSpend` unlock vector: deduct points, apply `NodeEffect`
-- [x] Basic Research UI. F4 (and T) to open/close tech tree panel
+The gateway is a world-spawned machine. Need activation logic when player right-clicks it.
 
----
+**3-1. Gateway activation interaction** (`src/machine/mod.rs` or `src/world/interaction.rs`)
+- [ ] Right-click gateway machine in `Exploring` mode → `GatewayInteractEvent { gateway: Entity }`
+- [ ] `gateway_activate_system`: on `GatewayInteractEvent` — check `gateway_theory` is unlocked (gating interaction on discovery) AND logistics network connected to gateway contains `gateway_key` (qty ≥ 1) AND gateway is on a powered network with `speed_factor >= 1.0` → fire `EscapeEvent`; else show diagnostic in machine status panel ("Undiscovered" / "Missing key" / "Insufficient power")
 
-## Phase 5 — Drone Movement ✅
-
-- [x] Land drone: capsule collider, Avian3D + TNUA character controller
-- [x] F-key toggle: `Exploring ↔ DronePilot` substates
-- [x] WASD + mouse-look drone piloting (horizontal plane, camera follows at eye height)
+**3-2. `EscapeEvent`** (`src/lib.rs` or `src/game/mod.rs`)
+- [ ] Add `EscapeEvent` Bevy event
+- [ ] Handler: on `EscapeEvent` → record escape time in `RunState` → transition to `GameState::Escaped`
 
 ---
 
-## Phase 6 — Ore Deposits + Manual Mining ✅
+## Phase 4 — Run State + Win Screen
 
-**6a. Surface deposit markers** (`src/world/generation.rs`)
-- [x] `TerrainSampler::height_at` already pub(crate); `chunk_deposit(seed, chunk_pos, registry)` helper added
-- [x] System `spawn_deposit_markers`: after `add_chunk_colliders`, checks deposit cell per chunk → spawn `OreDeposit { chunk_pos, ores, total_extracted, depletion_seed }` sphere mesh at surface height
-- [x] System `despawn_deposit_markers`: removes `OreDeposit` entities whose chunk_pos left `SpawnedChunks`
-- [x] Deposits must not spawn inside habitat boundaries (out of scope — no habitats yet)
-- [x] Tests: `chunk_deposit_empty_registry_returns_none`, `chunk_deposit_is_deterministic`, `chunk_deposit_different_chunks_can_differ`
+**4-1. `RunState` resource** (`src/game/mod.rs` or new `src/run_state.rs`)
+- [ ] `RunState { seed: u64, status: RunStatus, start_time: f32, escape_time: Option<f32> }`
+- [ ] `RunStatus` enum: `InProgress`, `Escaped`
+- [ ] Populated at game start from `RunSeed` resource; `escape_time` set on `EscapeEvent`
+- [ ] Test: RunState initializes with correct seed and InProgress status
 
-**6b. Manual mining** (`src/drone/mod.rs`)
-- [x] `drone_mine_system`: `DronePilot` mode, right-click → `SpatialQuery::cast_ray` (reach 4.0) → hit `OreDeposit` → sample one ore from weighted distribution → `Inventory::add(sampled_ore, 1)` → increment `total_extracted`
-- [x] Deposit entity persists (not despawned); yield degrades per depletion curve (seeded per deposit, asymptotic, never zero)
-- [x] Tests: right-click adds ore sampled from weights; deposit persists; repeated mining degrades yield
+**4-2. `GameState::Escaped`** (`src/game/mod.rs`)
+- [ ] Add `Escaped` variant to `GameState` enum
+- [ ] On enter: pause all simulation systems (same as `GameState::Paused`); show win screen
 
-**6c. Automatic miner** (`src/logistics/mod.rs`)
-- [x] `MinerMachine` component: placed on a deposit (one per deposit); each tick samples weighted ore distribution, applies current yield factor, outputs to logistics network
-- [x] Yield factor computed from `total_extracted` + `depletion_seed` — monotonically decreasing, asymptotic to a floor > 0
-- [x] Tests: miner outputs ore at expected rate; yield factor decreases with extraction; floor not breached
+**4-3. Win screen** (`src/ui/mod.rs`)
+- [ ] `win_screen_ui` system: runs in `GameState::Escaped`; full-screen egui `CentralPanel`
+- [ ] Shows: "Run Complete", seed (formatted as hex or decimal), elapsed time (minutes:seconds), "Press Esc or Enter to return to main menu" (→ `GameState::MainMenu`)
+- [ ] No new game / retry in this sprint — just main menu return
 
 ---
 
-## Phase 7 — Factory UI ✅
+## Phase 5 — Gateway Compass HUD
 
-**7a. Machine status panel** (`src/ui/mod.rs`)
-- [x] `MachineStatusPanel` resource: `Option<Entity>`
-- [x] Right-click machine in `Exploring` mode → `SpatialQuery::cast_ray` → hit machine → set `MachineStatusPanel`
-- [x] `machine_status_ui`: egui side panel showing: machine type, `MachineState`, recipe in progress, progress %, `speed_factor`
+Player needs to know where the ruins are without wandering randomly.
 
-**7b. Tech tree + research panel** (`src/ui/mod.rs`)
-- [x] T key toggles `TechTreePanelOpen`
-- [x] `tech_tree_ui`: egui window with `ResearchPool` points, node grid colored by unlock status, hover shows cost + prereqs + effects
-
-**7c. Power HUD** (`src/ui/mod.rs`)
-- [x] Persistent line: `⚡ {produced}W / {demanded}W ({pct}%)` aggregated across all power networks
+**5-1. Compass element** (`src/ui/mod.rs`)
+- [ ] In `Playing` state HUD: show "⬡ Gateway: {distance:.0}m {bearing}°" (bearing from player/camera forward)
+- [ ] Bearing: angle from camera forward projected onto XZ plane to ruins XZ position; display as 0–360°
+- [ ] Only show when ruins position is known (always known after spawn; hide if drone has not discovered it yet — show "?" for distance until `DiscoveryEvent("gateway_ruins")` fires)
+- [ ] Test: bearing calculation is correct (N/S/E/W sanity check)
 
 ---
 
-## Phase 8 — Polish (optional) ✅
+## Bugs / Gaps to Fix
 
-- [x] Cable tube rendering: `Cylinder` + `Sphere` joint meshes (yellow power, green logistics); `Cylinder::new(r, 1.0)` for correct 1-unit step height
-- [x] Collision-aware cable routing: A* with turn penalty (`route_avoiding`) avoids placed machine positions; falls back to Manhattan on no-path
-- [x] Cable endpoint snapping: connector tube from machine center → port voxel via `from_rotation_arc` + Y-scale
-- [x] Ghost preview shows actual machine mesh (colored, 50% alpha) instead of grey cube
-- [x] F10 cycles network debug overlay: none → power → logistics
-
----
-
-## Bugs
- - [x] Power (and logistics?) cables don't attach properly to machine ports — port markers now have `Collider::sphere + Sensor`; look target snaps to port center
- - [x] Cables can clip through terrain — routing already blocks terrain voxels via `TerrainSampler` in `membership.rs`
- - [x] `Esc` on pause screen doesn't unpause — `resume_on_escape` system runs in `GameState::Paused`
-
- ---
- 
- ## Missing features
- - [x] Storage crate need collision and logistics ports
- - [x] Cables don't create networks. Examples: place smelter & storage crate, attach cables = smelter and storage crate on same logistic network; smelter & generator, attach cable = smelter and generator on same power network.
- - [x] Test: smelter attached to storage crate with ore items should do the smelt_metal recipe and output ingots into the crate.
- - [x] Player inventory UI should show items in all logistics networks.
- - [x] Test mode starts with a storage crate in world nearby with ores inside (don't put ores in inventory)
+- [ ] `gateway_theory` primary_unlock is `ExplorationDiscovery("gateway_ruins")` — this will now work after Phase 1
+- [ ] `alien_materials` primary_unlock is `ExplorationDiscovery("xalite_deposit")` — this will now work after Phase 1
+- [ ] Assembler machine is in `assets/machines/` but not in `--test` hotbar — add it (with tier 2)
+- [ ] `assets/items/gateway.ron` exists — ensure it is never given to player inventory or `--test` hotbar
 
 ---
 
-### Manual vertical slice run
-1. `cargo run` → enter seed → terrain visible
-2. Place platforms on terrain
-3. Place machines on platforms: generator + cables + smelter + storage
-4. F → drone mode → find ore deposit (surface marker) → right-click (mining tool) → ore sampled into inventory → deposit persists
-5. F → back → Tab → drag ore to storage
-6. Watch factory run: smelter processes ore, research points accumulate
-7. T → tech tree panel → nodes unlock as points arrive
-8. Build chain to terminal material
+## Out of Scope (next sprint)
+
+- Underground layer + digger drone
+- Save / load (full run resume)
+- Procedural recipe graph generation
+- Procedural tech tree generation
+- Multiple escape types (Standard/Advanced/Pinnacle)

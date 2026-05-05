@@ -51,7 +51,13 @@ pub(super) fn miner_tick_system(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use bevy::prelude::*;
+
     use super::*;
+    use crate::logistics::{LogisticsNetworkMember, NetworkStorageChanged, StorageUnit};
+    use crate::machine::MinerMachine;
 
     #[test]
     fn tick_miner_outputs_ore_when_accumulator_overflows() {
@@ -93,5 +99,75 @@ mod tests {
         let mut acc = 0.0;
         let result = tick_miner(&mut deposit, &mut acc, 10.0);
         assert!(result.is_some(), "floor yield must still produce over time");
+    }
+
+    #[test]
+    fn miner_tick_system_produces_and_stores_ore() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_message::<NetworkStorageChanged>()
+            .add_systems(Update, miner_tick_system);
+
+        let net_entity = app.world_mut().spawn_empty().id();
+        let deposit_entity = app
+            .world_mut()
+            .spawn(OreDeposit {
+                chunk_pos: IVec2::ZERO,
+                ores: vec![("iron_ore".to_string(), 1.0)],
+                total_extracted: 0.0,
+                depletion_seed: 0,
+            })
+            .id();
+        let storage_entity = app
+            .world_mut()
+            .spawn((
+                StorageUnit {
+                    items: HashMap::new(),
+                },
+                LogisticsNetworkMember(net_entity),
+            ))
+            .id();
+        app.world_mut().spawn((
+            MinerMachine {
+                deposit: deposit_entity,
+                // accumulator >= 1.0 triggers immediately even at dt=0
+                accumulator: 1.0,
+            },
+            LogisticsNetworkMember(net_entity),
+        ));
+
+        app.update();
+
+        let world = app.world();
+        let storage = world.get::<StorageUnit>(storage_entity).unwrap();
+        assert_eq!(storage.items.get("iron_ore").copied().unwrap_or(0), 1);
+        assert_eq!(
+            world
+                .get::<OreDeposit>(deposit_entity)
+                .unwrap()
+                .total_extracted,
+            1.0
+        );
+    }
+
+    #[test]
+    fn miner_tick_system_skips_when_deposit_missing() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_message::<NetworkStorageChanged>()
+            .add_systems(Update, miner_tick_system);
+
+        let net_entity = app.world_mut().spawn_empty().id();
+        // deposit_entity has no OreDeposit component → continue branch
+        let deposit_entity = app.world_mut().spawn_empty().id();
+        app.world_mut().spawn((
+            MinerMachine {
+                deposit: deposit_entity,
+                accumulator: 1.0,
+            },
+            LogisticsNetworkMember(net_entity),
+        ));
+
+        app.update(); // should not panic
     }
 }

@@ -611,4 +611,130 @@ mod tests {
 
         assert_eq!(network_count(&mut app), 1);
     }
+
+    #[test]
+    fn cable_removal_clears_network() {
+        let mut app = power_app();
+        connect_cable(&mut app, Vec3::ZERO, Vec3::new(5.0, 0.0, 0.0));
+        app.update();
+        assert_eq!(network_count(&mut app), 1);
+
+        disconnect_at(&mut app, Vec3::ZERO);
+        app.update();
+        assert_eq!(network_count(&mut app), 0);
+    }
+
+    #[test]
+    fn cable_removal_splits_chain_into_two_networks() {
+        let mut app = power_app();
+        connect_cable(&mut app, Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0));
+        connect_cable(
+            &mut app,
+            Vec3::new(5.0, 0.0, 0.0),
+            Vec3::new(10.0, 0.0, 0.0),
+        );
+        connect_cable(
+            &mut app,
+            Vec3::new(10.0, 0.0, 0.0),
+            Vec3::new(15.0, 0.0, 0.0),
+        );
+        connect_cable(
+            &mut app,
+            Vec3::new(15.0, 0.0, 0.0),
+            Vec3::new(20.0, 0.0, 0.0),
+        );
+        app.update();
+        assert_eq!(network_count(&mut app), 1);
+
+        // Remove at shared endpoint (10,0,0) — cuts cables 5→10 and 10→15
+        // leaving 0→5 and 15→20 as two disconnected networks
+        disconnect_at(&mut app, Vec3::new(10.0, 0.0, 0.0));
+        app.update();
+        assert_eq!(network_count(&mut app), 2);
+    }
+
+    fn machine_with_port(port: Vec3) -> impl Bundle {
+        (
+            Machine {
+                machine_type: "smelter".to_string(),
+                tier: 1,
+                orientation: Orientation {
+                    rotation: Rotation::North,
+                    mirror: Mirror::Normal,
+                },
+                energy_ports: vec![port],
+                logistics_ports: vec![],
+            },
+            MachineState::Idle,
+            Transform::default(),
+        )
+    }
+
+    #[test]
+    fn cable_placed_near_machine_port_joins_machine_to_network() {
+        let mut app = power_app();
+        let machine = app.world_mut().spawn(machine_with_port(Vec3::ZERO)).id();
+        connect_cable(&mut app, Vec3::ZERO, Vec3::new(5.0, 0.0, 0.0));
+        app.update();
+        assert!(app.world().get::<PowerNetworkMember>(machine).is_some());
+    }
+
+    #[test]
+    fn cable_removal_destroys_network_and_clears_machine_membership() {
+        let mut app = power_app();
+        let machine = app.world_mut().spawn(machine_with_port(Vec3::ZERO)).id();
+        connect_cable(&mut app, Vec3::ZERO, Vec3::new(5.0, 0.0, 0.0));
+        app.update();
+        assert!(app.world().get::<PowerNetworkMember>(machine).is_some());
+
+        disconnect_at(&mut app, Vec3::ZERO);
+        app.update();
+        assert!(app.world().get::<PowerNetworkMember>(machine).is_none());
+    }
+
+    #[test]
+    fn cable_removal_leaves_one_component_removes_orphaned_machine() {
+        let mut app = power_app();
+        // Machine at (0,0,0). Two cables: 0→5 and 5→10.
+        // Remove 0→5 → remaining 5→10 (1 component).
+        // Machine port at (0,0,0) not in remaining endpoints → membership removed.
+        let machine = app.world_mut().spawn(machine_with_port(Vec3::ZERO)).id();
+        connect_cable(&mut app, Vec3::ZERO, Vec3::new(5.0, 0.0, 0.0));
+        connect_cable(
+            &mut app,
+            Vec3::new(5.0, 0.0, 0.0),
+            Vec3::new(10.0, 0.0, 0.0),
+        );
+        app.update();
+        assert!(app.world().get::<PowerNetworkMember>(machine).is_some());
+
+        disconnect_at(&mut app, Vec3::ZERO);
+        app.update();
+        assert!(app.world().get::<PowerNetworkMember>(machine).is_none());
+    }
+
+    #[test]
+    fn degenerate_cable_same_endpoints_is_noop() {
+        let mut app = power_app();
+        connect_cable(&mut app, Vec3::ZERO, Vec3::ZERO);
+        app.update();
+        assert_eq!(network_count(&mut app), 0);
+    }
+
+    #[test]
+    fn generic_removal_near_cable_segment_removes_it() {
+        let mut app = power_app();
+        connect_cable(&mut app, Vec3::ZERO, Vec3::new(5.0, 0.0, 0.0));
+        app.update();
+        assert_eq!(network_count(&mut app), 1);
+
+        // Generic removal: item_id="" → finds nearest cable by distance
+        app.world_mut().write_message(WorldObjectEvent {
+            pos: Vec3::new(2.5, 0.0, 0.0),
+            item_id: String::new(),
+            kind: WorldObjectKind::Removed,
+        });
+        app.update();
+        assert_eq!(network_count(&mut app), 0);
+    }
 }

@@ -182,6 +182,33 @@ mod tests {
     }
 
     #[test]
+    fn no_tech_tree_resource_is_noop() {
+        let mut app = App::new();
+        app.add_systems(Update, check_research_unlocks)
+            .insert_resource(ResearchPool { points: 999.0 })
+            .init_resource::<TechTreeProgress>();
+        // No TechTree resource — early return branch
+        app.update();
+        assert_eq!(app.world().resource::<ResearchPool>().points, 999.0);
+    }
+
+    #[test]
+    fn unlock_machine_effect_populates_unlocked_machines() {
+        let mut app = App::new();
+        app.add_systems(Update, check_research_unlocks);
+        let mut node = base_node("alpha", 10, vec![]);
+        node.effects = vec![NodeEffect::UnlockMachine("smelter".to_string())];
+        app.insert_resource(make_tree(vec![node]));
+        app.insert_resource(ResearchPool { points: 10.0 });
+        app.init_resource::<TechTreeProgress>();
+
+        app.update();
+
+        let progress = app.world().resource::<TechTreeProgress>();
+        assert!(progress.unlocked_machines.contains("smelter"));
+    }
+
+    #[test]
     fn skips_non_research_spend_unlock_vectors() {
         let mut app = App::new();
         app.add_systems(Update, check_research_unlocks);

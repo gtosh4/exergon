@@ -313,6 +313,25 @@ mod tests {
     use crate::content::{DepositDef, DepositRegistry};
 
     #[test]
+    fn terrain_sampler_new_does_not_panic() {
+        let _ = TerrainSampler::new(0);
+        let _ = TerrainSampler::new(u64::MAX);
+    }
+
+    #[test]
+    fn terrain_sampler_height_at_is_deterministic() {
+        let s = TerrainSampler::new(42);
+        assert_eq!(s.height_at(100.0, 200.0), s.height_at(100.0, 200.0));
+    }
+
+    #[test]
+    fn terrain_sampler_different_seeds_differ() {
+        let a = TerrainSampler::new(1).height_at(137.0, 251.0);
+        let b = TerrainSampler::new(2).height_at(137.0, 251.0);
+        assert_ne!(a, b, "different seeds should produce different heights");
+    }
+
+    #[test]
     fn generate_chunk_mesh_vertex_count() {
         let mesh = generate_chunk_mesh(0, 0, 0);
         let n = (CHUNK_SIZE + 1) as usize;
@@ -384,6 +403,131 @@ mod tests {
             .collect();
         let all_same = results.windows(2).all(|w| w[0] == w[1]);
         assert!(!all_same, "expected variation across chunk deposit checks");
+    }
+
+    #[test]
+    fn despawn_deposit_markers_removes_marker_for_unspawned_chunk() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(SpawnedChunks::default())
+            .add_systems(Update, despawn_deposit_markers);
+
+        let chunk_pos = IVec2::new(3, 5);
+        let marker = app
+            .world_mut()
+            .spawn(OreDeposit {
+                chunk_pos,
+                ores: vec![],
+                total_extracted: 0.0,
+                depletion_seed: 0,
+            })
+            .id();
+
+        app.update();
+
+        assert!(
+            app.world().get::<OreDeposit>(marker).is_none(),
+            "deposit not in SpawnedChunks should be despawned"
+        );
+    }
+
+    #[test]
+    fn despawn_deposit_markers_keeps_marker_for_spawned_chunk() {
+        let mut app = App::new();
+        let chunk_pos = IVec2::new(1, 2);
+        let mut spawned = SpawnedChunks::default();
+        spawned.0.insert(chunk_pos);
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(spawned)
+            .add_systems(Update, despawn_deposit_markers);
+
+        let marker = app
+            .world_mut()
+            .spawn(OreDeposit {
+                chunk_pos,
+                ores: vec![],
+                total_extracted: 0.0,
+                depletion_seed: 0,
+            })
+            .id();
+
+        app.update();
+
+        assert!(
+            app.world().get::<OreDeposit>(marker).is_some(),
+            "deposit in SpawnedChunks should be kept"
+        );
+    }
+
+    #[test]
+    fn despawn_chunks_removes_chunk_beyond_despawn_dist() {
+        use crate::world::MainCamera;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(WorldConfig {
+                world_seed: 0,
+                active: true,
+                vein_registry: None,
+            })
+            .insert_resource(SpawnedChunks::default())
+            .add_systems(Update, despawn_chunks);
+
+        app.world_mut().spawn((Transform::default(), MainCamera));
+
+        let far_pos = IVec2::new(DESPAWN_DIST + 2, 0);
+        let chunk = app
+            .world_mut()
+            .spawn(TerrainChunk { chunk_pos: far_pos })
+            .id();
+        app.world_mut()
+            .resource_mut::<SpawnedChunks>()
+            .0
+            .insert(far_pos);
+
+        app.update();
+
+        assert!(
+            app.world().get::<TerrainChunk>(chunk).is_none(),
+            "chunk beyond despawn dist should be removed"
+        );
+        assert!(!app.world().resource::<SpawnedChunks>().0.contains(&far_pos));
+    }
+
+    #[test]
+    fn despawn_chunks_keeps_chunk_within_despawn_dist() {
+        use crate::world::MainCamera;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(WorldConfig {
+                world_seed: 0,
+                active: true,
+                vein_registry: None,
+            })
+            .insert_resource(SpawnedChunks::default())
+            .add_systems(Update, despawn_chunks);
+
+        app.world_mut().spawn((Transform::default(), MainCamera));
+
+        let near_pos = IVec2::new(1, 0);
+        let chunk = app
+            .world_mut()
+            .spawn(TerrainChunk {
+                chunk_pos: near_pos,
+            })
+            .id();
+        app.world_mut()
+            .resource_mut::<SpawnedChunks>()
+            .0
+            .insert(near_pos);
+
+        app.update();
+
+        assert!(
+            app.world().get::<TerrainChunk>(chunk).is_some(),
+            "chunk within despawn dist should be kept"
+        );
     }
 
     #[test]

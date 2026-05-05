@@ -176,6 +176,7 @@ mod tests {
     };
     use crate::network::{NetworkChanged, NetworkPlugin, NetworkSystems};
     use crate::recipe_graph::{ConcreteRecipe, ItemStack, RecipeGraph};
+    use crate::research::{RESEARCH_POINTS_ID, ResearchPool, TechTreeProgress};
     use crate::world::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
     fn logistics_app() -> App {
@@ -200,6 +201,61 @@ mod tests {
             item_id: LOGISTICS_CABLE_ID.to_string(),
             kind: WorldObjectKind::Placed,
         });
+    }
+
+    fn disconnect_at(app: &mut App, pos: Vec3) {
+        app.world_mut().write_message(WorldObjectEvent {
+            pos,
+            item_id: LOGISTICS_CABLE_ID.to_string(),
+            kind: WorldObjectKind::Removed,
+        });
+    }
+
+    fn network_count(app: &mut App) -> usize {
+        let world = app.world_mut();
+        world
+            .query_filtered::<(), With<LogisticsNetwork>>()
+            .iter(world)
+            .count()
+    }
+
+    #[test]
+    fn cable_removal_clears_network() {
+        let mut app = logistics_app();
+        connect_cable(&mut app, Vec3::ZERO, Vec3::new(5.0, 0.0, 0.0));
+        app.update();
+        assert_eq!(network_count(&mut app), 1);
+
+        disconnect_at(&mut app, Vec3::ZERO);
+        app.update();
+        assert_eq!(network_count(&mut app), 0);
+    }
+
+    #[test]
+    fn cable_removal_splits_chain_into_two_networks() {
+        let mut app = logistics_app();
+        connect_cable(&mut app, Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0));
+        connect_cable(
+            &mut app,
+            Vec3::new(5.0, 0.0, 0.0),
+            Vec3::new(10.0, 0.0, 0.0),
+        );
+        connect_cable(
+            &mut app,
+            Vec3::new(10.0, 0.0, 0.0),
+            Vec3::new(15.0, 0.0, 0.0),
+        );
+        connect_cable(
+            &mut app,
+            Vec3::new(15.0, 0.0, 0.0),
+            Vec3::new(20.0, 0.0, 0.0),
+        );
+        app.update();
+        assert_eq!(network_count(&mut app), 1);
+
+        disconnect_at(&mut app, Vec3::new(10.0, 0.0, 0.0));
+        app.update();
+        assert_eq!(network_count(&mut app), 2);
     }
 
     #[test]
@@ -441,5 +497,76 @@ mod tests {
             MachineState::Running
         );
         assert!(world.get::<MachineActivity>(machine_entity).is_some());
+    }
+
+    #[test]
+    fn locked_recipe_not_started_with_progress_resource() {
+        let rg = single_recipe_graph(test_recipe_def(
+            "furnace",
+            &[("iron", 1.0)],
+            &[("copper", 1.0)],
+        ));
+        let mut app = recipe_io_app(rg);
+        // TechTreeProgress present but recipe not in unlocked_recipes → locked
+        app.insert_resource(TechTreeProgress::default());
+
+        let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
+        app.world_mut().spawn((
+            StorageUnit {
+                items: [("iron".to_owned(), 10u32)].into_iter().collect(),
+            },
+            LogisticsNetworkMember(net_entity),
+        ));
+        let machine_entity = app
+            .world_mut()
+            .spawn((
+                bare_machine("furnace"),
+                MachineState::Idle,
+                LogisticsNetworkMember(net_entity),
+            ))
+            .id();
+
+        app.world_mut().write_message(NetworkStorageChanged {
+            network: net_entity,
+        });
+        app.update();
+
+        assert_eq!(
+            *app.world().get::<MachineState>(machine_entity).unwrap(),
+            MachineState::Idle
+        );
+    }
+
+    #[test]
+    fn recipe_completion_adds_research_points() {
+        let rg = single_recipe_graph(test_recipe_def(
+            "furnace",
+            &[],
+            &[(RESEARCH_POINTS_ID, 5.0)],
+        ));
+        let mut app = recipe_io_app(rg);
+        app.insert_resource(ResearchPool::default());
+
+        let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
+        app.world_mut().spawn((
+            StorageUnit {
+                items: HashMap::new(),
+            },
+            LogisticsNetworkMember(net_entity),
+        ));
+        app.world_mut().spawn((
+            bare_machine("furnace"),
+            MachineState::Running,
+            MachineActivity {
+                recipe_id: "test_recipe".to_string(),
+                progress: 10.0,
+                speed_factor: 1.0,
+            },
+            LogisticsNetworkMember(net_entity),
+        ));
+
+        app.update();
+
+        assert_eq!(app.world().resource::<ResearchPool>().points, 5.0);
     }
 }

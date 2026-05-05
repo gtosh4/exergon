@@ -368,3 +368,74 @@ fn reassign_machines<N: NetworkKind>(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use bevy::prelude::*;
+
+    use super::*;
+
+    #[test]
+    fn pt_seg_dist_sq_on_segment_is_zero() {
+        let a = Vec3::ZERO;
+        let b = Vec3::new(10.0, 0.0, 0.0);
+        assert!(pt_seg_dist_sq(Vec3::new(5.0, 0.0, 0.0), a, b) < 1e-6);
+    }
+
+    #[test]
+    fn pt_seg_dist_sq_clamps_before_start() {
+        let a = Vec3::ZERO;
+        let b = Vec3::new(10.0, 0.0, 0.0);
+        assert!((pt_seg_dist_sq(Vec3::new(-3.0, 0.0, 0.0), a, b) - 9.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn pt_seg_dist_sq_clamps_past_end() {
+        let a = Vec3::ZERO;
+        let b = Vec3::new(10.0, 0.0, 0.0);
+        assert!((pt_seg_dist_sq(Vec3::new(13.0, 0.0, 0.0), a, b) - 9.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn pt_seg_dist_sq_degenerate_segment() {
+        let a = Vec3::new(5.0, 0.0, 0.0);
+        assert!((pt_seg_dist_sq(Vec3::new(8.0, 0.0, 0.0), a, a) - 9.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn port_near_point_within_snap_radius() {
+        let ports = vec![Vec3::ZERO];
+        assert!(port_near_point(&ports, Vec3::ZERO));
+        assert!(port_near_point(&ports, Vec3::new(1.0, 0.0, 0.0)));
+    }
+
+    #[test]
+    fn port_near_point_outside_snap_radius() {
+        let ports = vec![Vec3::ZERO];
+        assert!(!port_near_point(&ports, Vec3::new(10.0, 0.0, 0.0)));
+    }
+
+    #[test]
+    fn port_near_point_empty_ports() {
+        assert!(!port_near_point(&[], Vec3::ZERO));
+    }
+
+    #[test]
+    fn port_matches_key_exact_match() {
+        let ports = vec![Vec3::new(2.0, 0.0, 0.0)];
+        assert!(port_matches_key(&ports, IVec3::new(2, 0, 0)));
+    }
+
+    #[test]
+    fn port_matches_key_no_match() {
+        let ports = vec![Vec3::new(2.0, 0.0, 0.0)];
+        assert!(!port_matches_key(&ports, IVec3::new(5, 0, 0)));
+    }
+
+    #[test]
+    fn port_matches_key_rounds_fractional() {
+        let ports = vec![Vec3::new(2.4, 0.0, 0.0)];
+        assert!(port_matches_key(&ports, IVec3::new(2, 0, 0)));
+        assert!(!port_matches_key(&ports, IVec3::new(3, 0, 0)));
+    }
+}

@@ -191,3 +191,51 @@ pub(super) fn remove_placed_objects_system(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::machine::registry::{MachineDef, MachineTierDef};
+
+    fn def_with_tier(id: &str, tier: u8, energy: Vec<IVec3>, logistics: Vec<IVec3>) -> MachineDef {
+        MachineDef {
+            id: id.to_string(),
+            tiers: vec![MachineTierDef {
+                tier,
+                energy_io_offsets: energy,
+                logistics_io_offsets: logistics,
+            }],
+        }
+    }
+
+    #[test]
+    fn machine_bundle_new_uses_matching_tier() {
+        let def = def_with_tier(
+            "smelter",
+            1,
+            vec![IVec3::new(1, 0, 0)],
+            vec![IVec3::new(-1, 0, 0)],
+        );
+        let bundle = MachineBundle::new(Vec3::ZERO, &def, 1);
+        assert_eq!(bundle.machine.tier, 1);
+        assert_eq!(bundle.machine.energy_ports.len(), 1);
+        assert_eq!(bundle.machine.logistics_ports.len(), 1);
+        assert_eq!(bundle.machine.machine_type, "smelter");
+    }
+
+    #[test]
+    fn machine_bundle_new_falls_back_when_tier_missing() {
+        let def = def_with_tier("smelter", 1, vec![], vec![]);
+        let bundle = MachineBundle::new(Vec3::ZERO, &def, 9);
+        assert_eq!(bundle.machine.tier, 0); // MachineTierDef::default() has tier 0
+    }
+
+    #[test]
+    fn machine_bundle_new_offsets_ports_by_position() {
+        let def = def_with_tier("smelter", 1, vec![IVec3::new(2, 0, 0)], vec![]);
+        let pos = Vec3::new(10.0, 0.0, 0.0);
+        let bundle = MachineBundle::new(pos, &def, 1);
+        assert_eq!(bundle.machine.energy_ports[0], Vec3::new(12.0, 0.0, 0.0));
+        assert_eq!(bundle.transform.translation, pos);
+    }
+}

@@ -38,3 +38,34 @@ pub(super) fn load_machines(mut commands: Commands) {
     info!("Loaded {} machine definitions", machines.len());
     commands.insert_resource(MachineRegistry::new(machines));
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn def(id: &str) -> MachineDef {
+        MachineDef {
+            id: id.to_string(),
+            tiers: vec![],
+        }
+    }
+
+    #[test]
+    fn machine_def_found() {
+        let reg = MachineRegistry::new(vec![def("smelter"), def("furnace")]);
+        assert!(reg.machine_def("smelter").is_some());
+        assert_eq!(reg.machine_def("smelter").unwrap().id, "smelter");
+    }
+
+    #[test]
+    fn machine_def_not_found() {
+        let reg = MachineRegistry::new(vec![def("smelter")]);
+        assert!(reg.machine_def("forge").is_none());
+    }
+
+    #[test]
+    fn machine_def_empty_registry() {
+        let reg = MachineRegistry::new(vec![]);
+        assert!(reg.machine_def("anything").is_none());
+    }
+}
