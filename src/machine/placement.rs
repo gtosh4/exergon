@@ -108,15 +108,12 @@ pub(super) fn place_machine_system(
         let logistics_ports = bundle.machine.logistics_ports.clone();
         let machine_entity = commands.spawn(bundle).id();
 
-        if let Some(ref v) = visuals {
-            let mat = v
-                .materials
-                .get(&def.id)
-                .cloned()
-                .unwrap_or_else(|| v.fallback.clone());
+        if let Some(ref v) = visuals
+            && let Some(scene) = v.scenes.get(&def.id)
+        {
             commands
                 .entity(machine_entity)
-                .insert((Mesh3d(v.mesh.clone()), MeshMaterial3d(mat)));
+                .insert(SceneRoot(scene.clone()));
         }
 
         spawn_port_markers(
@@ -148,10 +145,7 @@ pub(super) fn place_platform_system(
             Collider::cuboid(1.0, 0.125, 1.0),
         ));
         if let Some(ref v) = visuals {
-            entity_cmd.insert((
-                Mesh3d(v.platform_mesh.clone()),
-                MeshMaterial3d(v.platform_mat.clone()),
-            ));
+            entity_cmd.insert(SceneRoot(v.platform_scene.clone()));
         }
         info!("Platform placed at {:?}", ev.pos);
     }

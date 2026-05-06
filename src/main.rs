@@ -159,11 +159,10 @@ fn give_test_items(
         let energy_ports = bundle.machine.energy_ports.clone();
         let logistics_ports = bundle.machine.logistics_ports.clone();
         let crate_e = commands.spawn(bundle).id();
-        if let Some(ref v) = visuals {
-            let (mesh, mat) = v.machine_visual(&def.id);
-            commands
-                .entity(crate_e)
-                .insert((Mesh3d(mesh), MeshMaterial3d(mat)));
+        if let Some(ref v) = visuals
+            && let Some(scene) = v.scenes.get(&def.id)
+        {
+            commands.entity(crate_e).insert(SceneRoot(scene.clone()));
         }
         commands.entity(crate_e).insert(StorageUnit {
             items: [

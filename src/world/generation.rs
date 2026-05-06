@@ -10,6 +10,7 @@ use xxhash_rust::xxh64::xxh64;
 
 use crate::GameState;
 use crate::content::{DepositRegistry, VeinRegistry};
+use crate::machine::MachineVisualAssets;
 use crate::seed::DomainSeeds;
 
 use super::MainCamera;
@@ -235,8 +236,7 @@ pub(super) fn spawn_deposit_markers(
     registry: Res<DepositRegistry>,
     world_config: Res<WorldConfig>,
     new_chunks: Query<(Entity, &TerrainChunk), Added<TerrainChunk>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    visuals: Option<Res<MachineVisualAssets>>,
 ) {
     if !world_config.active {
         return;
@@ -258,20 +258,18 @@ pub(super) fn spawn_deposit_markers(
             xxh64(&key, 0)
         };
 
-        commands.spawn((
+        let mut entity_cmd = commands.spawn((
             OreDeposit {
                 chunk_pos: chunk.chunk_pos,
                 ores,
                 total_extracted: 0.0,
                 depletion_seed,
             },
-            Mesh3d(meshes.add(Sphere::new(0.5).mesh())),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.9, 0.6, 0.1),
-                ..default()
-            })),
             Transform::from_xyz(wx, surface_y + 0.75, wz),
         ));
+        if let Some(ref v) = visuals {
+            entity_cmd.insert(SceneRoot(v.deposit_scene.clone()));
+        }
     }
 }
 
