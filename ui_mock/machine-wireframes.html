@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>exergon/ui — machine wireframes</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Caveat:wght@500;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="wireframe.css"/>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#e6e2d6; font-family: "JetBrains Mono", monospace; }
+  #root { height:100%; }
+  [data-dc-artboard] { background: var(--paper, #f4f1ea) !important; }
+  input, select, button { font-family: inherit; }
+  table { color: var(--ink); }
+  th { color: var(--ink-soft) !important; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="hotbar.jsx"></script>
+<script type="text/babel" src="machine.jsx"></script>
+
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "density": "moderate",
+  "vibe": "clean"
+}/*EDITMODE-END*/;
+
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const densityClass =
+    tweaks.density === "dense" ? "density-dense" :
+    tweaks.density === "sparse" ? "density-sparse" : "";
+  const vibeClass =
+    tweaks.vibe === "clean" ? "vibe-clean" :
+    tweaks.vibe === "blueprint" ? "vibe-blueprint" : "";
+
+  return (
+    <div className={`${densityClass} ${vibeClass}`} style={{ height:"100%" }}>
+      <DesignCanvas
+        title="exergon/ui — machine UI"
+        subtitle="V3 side-rail terminal · bidirectional logistic-net ports with per-item policy overrides"
+      >
+        <DCSection
+          id="v3"
+          title="01 · MACHINE — SIDE-RAIL TERMINAL"
+          subtitle="the design we're iterating on · left rail = identity / current craft / power / modules / PORTS · right pane = recipe table">
+          <DCArtboard id="m-v3" label="V3 · with bidirectional ports"
+                      width={1440} height={920} data-screen-label="01 V3 Current">
+            <MachineV3 portsSlot={<PortConfigA/>}/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="ports-detail"
+          title="02 · BIDIRECTIONAL PORTS — detail"
+          subtitle="each port = one logistic-net binding (no fixed direction) · every item carries a policy: in (▸) / out (◂) / both (⇆) / none (⊘) · default policy applies to unlisted items · overrides shown as item rows · click policy chip to cycle, × to remove override">
+          <DCArtboard id="zoom-a" label="port block · zoomed"
+                      width={300} height={760} data-screen-label="02 Ports Zoom">
+            <div className="paper" style={{ padding: 14, height: "100%", background: "var(--paper-2)" }}>
+              <PortConfigA/>
+            </div>
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+
+      <TweaksPanel title="Tweaks" defaults={TWEAK_DEFAULTS}>
+        <TweakSection label="Density">
+          <TweakRadio
+            value={tweaks.density}
+            onChange={(v)=>setTweak("density", v)}
+            options={[
+              {value:"sparse",   label:"Sparse"},
+              {value:"moderate", label:"Moderate"},
+              {value:"dense",    label:"Dense"},
+            ]}
+          />
+        </TweakSection>
+        <TweakSection label="Visual vibe">
+          <TweakRadio
+            value={tweaks.vibe}
+            onChange={(v)=>setTweak("vibe", v)}
+            options={[
+              {value:"sketch",    label:"Sketch"},
+              {value:"clean",     label:"Clean"},
+              {value:"blueprint", label:"Blueprint"},
+            ]}
+          />
+        </TweakSection>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

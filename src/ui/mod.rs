@@ -396,90 +396,83 @@ fn tech_tree_ui(
             });
 
             // Selected node detail (right panel — must precede CentralPanel)
-            if let Some(ref sel_id) = selected_clone {
-                if let Some(tree) = &tech_tree {
-                    if let Some(node) = tree.nodes.get(sel_id) {
-                        let empty_prog = TechTreeProgress::default();
-                        let prog = progress.as_deref().unwrap_or(&empty_prog);
-                        let unlocked = prog.unlocked_nodes.contains(sel_id);
+            if let Some(ref sel_id) = selected_clone
+                && let Some(tree) = &tech_tree
+                && let Some(node) = tree.nodes.get(sel_id)
+            {
+                let empty_prog = TechTreeProgress::default();
+                let prog = progress.as_deref().unwrap_or(&empty_prog);
+                let unlocked = prog.unlocked_nodes.contains(sel_id);
 
-                        egui::SidePanel::right("tech_node_detail")
-                            .resizable(false)
-                            .exact_width(220.0)
-                            .show_inside(ui, |ui| {
-                                ui.colored_label(gold, &node.name);
-                                ui.colored_label(dim, format!("Tier {}", node.tier));
-                                ui.separator();
+                egui::SidePanel::right("tech_node_detail")
+                    .resizable(false)
+                    .exact_width(220.0)
+                    .show_inside(ui, |ui| {
+                        ui.colored_label(gold, &node.name);
+                        ui.colored_label(dim, format!("Tier {}", node.tier));
+                        ui.separator();
 
-                                let (status_text, status_color) = if unlocked {
-                                    ("✓ Unlocked", green)
-                                } else {
-                                    ("Locked", egui::Color32::GRAY)
-                                };
-                                ui.colored_label(status_color, status_text);
-                                ui.separator();
+                        let (status_text, status_color) = if unlocked {
+                            ("✓ Unlocked", green)
+                        } else {
+                            ("Locked", egui::Color32::GRAY)
+                        };
+                        ui.colored_label(status_color, status_text);
+                        ui.separator();
 
-                                ui.colored_label(dim, "Unlock:");
-                                match &node.primary_unlock {
-                                    UnlockVector::ResearchSpend(cost) => {
-                                        let pts = pool.as_ref().map(|p| p.points).unwrap_or(0.0);
-                                        let can_afford = pts >= *cost as f32;
-                                        ui.colored_label(
-                                            if can_afford { gold } else { dim },
-                                            format!("{} / {} RP", pts as u32, cost),
-                                        );
-                                    }
-                                    UnlockVector::ExplorationDiscovery(loc) => {
-                                        ui.label(format!("Discover: {}", loc));
-                                    }
-                                    UnlockVector::PrerequisiteChain => {
-                                        ui.label("Complete prerequisites");
-                                    }
-                                    UnlockVector::ProductionMilestone { material, quantity } => {
-                                        ui.label(format!("Produce {:.0}× {}", quantity, material));
-                                    }
-                                    UnlockVector::Observation(loc) => {
-                                        ui.label(format!("Observe: {}", loc));
-                                    }
-                                }
+                        ui.colored_label(dim, "Unlock:");
+                        match &node.primary_unlock {
+                            UnlockVector::ResearchSpend(cost) => {
+                                let pts = pool.as_ref().map(|p| p.points).unwrap_or(0.0);
+                                let can_afford = pts >= *cost as f32;
+                                ui.colored_label(
+                                    if can_afford { gold } else { dim },
+                                    format!("{} / {} RP", pts as u32, cost),
+                                );
+                            }
+                            UnlockVector::ExplorationDiscovery(loc) => {
+                                ui.label(format!("Discover: {}", loc));
+                            }
+                            UnlockVector::PrerequisiteChain => {
+                                ui.label("Complete prerequisites");
+                            }
+                            UnlockVector::ProductionMilestone { material, quantity } => {
+                                ui.label(format!("Produce {:.0}× {}", quantity, material));
+                            }
+                            UnlockVector::Observation(loc) => {
+                                ui.label(format!("Observe: {}", loc));
+                            }
+                        }
 
-                                if !node.prerequisites.is_empty() {
-                                    ui.separator();
-                                    ui.colored_label(dim, "Requires:");
-                                    for prereq_id in &node.prerequisites {
-                                        let done = prog.unlocked_nodes.contains(prereq_id);
-                                        ui.colored_label(
-                                            if done { green } else { egui::Color32::GRAY },
-                                            format!("  {}", prereq_id.replace('_', " ")),
-                                        );
-                                    }
-                                }
+                        if !node.prerequisites.is_empty() {
+                            ui.separator();
+                            ui.colored_label(dim, "Requires:");
+                            for prereq_id in &node.prerequisites {
+                                let done = prog.unlocked_nodes.contains(prereq_id);
+                                ui.colored_label(
+                                    if done { green } else { egui::Color32::GRAY },
+                                    format!("  {}", prereq_id.replace('_', " ")),
+                                );
+                            }
+                        }
 
-                                if !node.effects.is_empty() {
-                                    ui.separator();
-                                    ui.colored_label(dim, "Effects:");
-                                    for effect in &node.effects {
-                                        match effect {
-                                            NodeEffect::UnlockRecipes(recipes) => {
-                                                for r in recipes {
-                                                    ui.label(format!(
-                                                        "  Recipe: {}",
-                                                        r.replace('_', " ")
-                                                    ));
-                                                }
-                                            }
-                                            NodeEffect::UnlockMachine(m) => {
-                                                ui.label(format!(
-                                                    "  Machine: {}",
-                                                    m.replace('_', " ")
-                                                ));
-                                            }
+                        if !node.effects.is_empty() {
+                            ui.separator();
+                            ui.colored_label(dim, "Effects:");
+                            for effect in &node.effects {
+                                match effect {
+                                    NodeEffect::UnlockRecipes(recipes) => {
+                                        for r in recipes {
+                                            ui.label(format!("  Recipe: {}", r.replace('_', " ")));
                                         }
                                     }
+                                    NodeEffect::UnlockMachine(m) => {
+                                        ui.label(format!("  Machine: {}", m.replace('_', " ")));
+                                    }
                                 }
-                            });
-                    }
-                }
+                            }
+                        }
+                    });
             }
 
             // Node graph canvas
@@ -613,34 +606,33 @@ fn tech_tree_ui(
                         }
 
                         // Click detection
-                        if response.clicked() {
-                            if let Some(pos) = response.interact_pointer_pos() {
-                                let local = pos - origin;
-                                let local_pos = egui::pos2(local.x, local.y);
-                                let mut hit = false;
-                                for node in tree.nodes.values() {
-                                    let Some(&(nx, ny)) = positions.get(&node.id) else {
-                                        continue;
-                                    };
-                                    let node_rect = egui::Rect::from_min_size(
-                                        egui::pos2(nx, ny),
-                                        egui::vec2(NODE_W, NODE_H),
-                                    );
-                                    if node_rect.contains(local_pos) {
-                                        clicked_node = if selected_clone.as_deref()
-                                            == Some(node.id.as_str())
-                                        {
+                        if response.clicked()
+                            && let Some(pos) = response.interact_pointer_pos()
+                        {
+                            let local = pos - origin;
+                            let local_pos = egui::pos2(local.x, local.y);
+                            let mut hit = false;
+                            for node in tree.nodes.values() {
+                                let Some(&(nx, ny)) = positions.get(&node.id) else {
+                                    continue;
+                                };
+                                let node_rect = egui::Rect::from_min_size(
+                                    egui::pos2(nx, ny),
+                                    egui::vec2(NODE_W, NODE_H),
+                                );
+                                if node_rect.contains(local_pos) {
+                                    clicked_node =
+                                        if selected_clone.as_deref() == Some(node.id.as_str()) {
                                             Some(None)
                                         } else {
                                             Some(Some(node.id.clone()))
                                         };
-                                        hit = true;
-                                        break;
-                                    }
+                                    hit = true;
+                                    break;
                                 }
-                                if !hit {
-                                    clicked_node = Some(None);
-                                }
+                            }
+                            if !hit {
+                                clicked_node = Some(None);
                             }
                         }
                     });

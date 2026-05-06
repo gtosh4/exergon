@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>exergon/ui — tech tree wireframes</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Caveat:wght@500;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="wireframe.css"/>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#e6e2d6; font-family: "JetBrains Mono", monospace; }
+  #root { height:100%; }
+  [data-dc-artboard] { background: var(--paper, #f4f1ea) !important; }
+  .sk-slot.sk-alert { border-color:#a31919; }
+  input, select, button { font-family: inherit; }
+  input:focus, select:focus { outline: 2px solid var(--accent, #f5c518); outline-offset:1px; }
+
+  /* tech-tree shared bits ─────────────────────────────────────────────── */
+  /* knowledge tiers — Tier 1 silhouette / Tier 2 partial / Tier 3 full */
+  .tt-node { position:absolute; }
+  .tt-node-card {
+    border:1.5px solid var(--ink); background:var(--paper);
+    padding:6px 8px; font-family:var(--font-mono); font-size:10px;
+    box-shadow: 1px 1px 0 var(--ink);
+    cursor:pointer; user-select:none;
+  }
+  .vibe-clean .tt-node-card { box-shadow:none; }
+  .tt-node-card.tt-t1 { /* known to exist */
+    background: repeating-linear-gradient(135deg, var(--paper) 0 4px, var(--paper-2) 4px 8px);
+    color: var(--ink-faint);
+    border-style: dashed;
+    box-shadow:none;
+  }
+  .tt-node-card.tt-t2 { /* partial */
+    background: var(--paper);
+    border-style: solid;
+  }
+  .tt-node-card.tt-t3 { /* full */
+    background: var(--paper);
+    border-width: 2px;
+  }
+  .tt-node-card.tt-milestone {
+    background: var(--accent);
+    border-width: 2.5px;
+  }
+  .tt-node-card.tt-selected {
+    outline: 2px dashed var(--ink);
+    outline-offset: 3px;
+  }
+  .tt-node-card.tt-wishlist::after {
+    content:"★"; position:absolute; top:-8px; right:-6px;
+    font-family: var(--font-hand); font-size: 16px; color: var(--ink);
+    background: var(--accent); border:1.5px solid var(--ink);
+    border-radius:50%; width:16px; height:16px; line-height:14px; text-align:center;
+  }
+  /* redacted text bar */
+  .tt-redact {
+    display:inline-block; background:var(--ink); color:transparent;
+    border-radius:1px; user-select:none;
+    height:0.85em; vertical-align:middle;
+  }
+  /* obscured glyph */
+  .tt-fog-glyph { color: transparent; text-shadow: 0 0 6px var(--ink-faint); }
+  .tt-fog-glyph.tt-fog-soft { text-shadow: 0 0 3px var(--ink-soft); }
+
+  /* edge styles for SVG edges */
+  .tt-edge-known { stroke: var(--ink); stroke-width: 1.5; fill:none; }
+  .tt-edge-partial { stroke: var(--ink-soft); stroke-width: 1.5; stroke-dasharray: 6 4; fill:none; }
+  .tt-edge-locked { stroke: var(--ink-faint); stroke-width: 1; stroke-dasharray: 2 4; fill:none; }
+  .vibe-blueprint .tt-edge-known { stroke: var(--ink); }
+
+  /* milestone tier banner */
+  .tt-tier-banner {
+    border-top: 2px solid var(--ink);
+    border-bottom: 2px solid var(--ink);
+    background: repeating-linear-gradient(45deg, var(--paper) 0 6px, var(--paper-2) 6px 8px);
+    padding: 2px 8px;
+    font-family: var(--font-label);
+    font-size: 11px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+  }
+
+  /* dashed search bar */
+  .tt-search {
+    border:1.5px solid var(--ink); background:var(--paper);
+    padding: 4px 8px; font-family: var(--font-mono); font-size:11px;
+    width:100%; box-sizing:border-box;
+  }
+  .tt-chip {
+    display:inline-flex; align-items:center; gap:4px;
+    border:1.5px solid var(--ink); background:var(--paper);
+    font-family:var(--font-mono); font-size:9px; padding:2px 6px;
+    text-transform:uppercase; letter-spacing:0.4px;
+    cursor:pointer;
+  }
+  .tt-chip.tt-on { background: var(--ink); color: var(--paper); }
+  .tt-chip.tt-accent { background: var(--accent); }
+
+  /* the central reveal modal */
+  .tt-modal-bg {
+    position:absolute; inset:0; background: rgba(26,26,26,0.35);
+    backdrop-filter: blur(0.5px);
+    display:flex; align-items:center; justify-content:center;
+    z-index: 50;
+  }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="tech-tree.jsx"></script>
+<script type="text/babel" src="tech-tree-v6.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "density": "moderate",
+  "vibe": "clean",
+  "fogStyle": "silhouette",
+  "showLockedEdges": false,
+  "milestoneStyle": "banner"
+}/*EDITMODE-END*/;
+
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  useEffect(()=>{
+    window.__ttTweaks = tweaks;
+    document.documentElement.style.setProperty("--tt-bump", String(Math.random()));
+  }, [tweaks]);
+
+  const densityClass =
+    tweaks.density === "dense" ? "density-dense" :
+    tweaks.density === "sparse" ? "density-sparse" : "";
+  const vibeClass =
+    tweaks.vibe === "clean" ? "vibe-clean" :
+    tweaks.vibe === "blueprint" ? "vibe-blueprint" : "";
+
+  return (
+    <div className={`${densityClass} ${vibeClass}`} style={{ height:"100%" }}>
+      <DesignCanvas
+        title="exergon/ui — tech tree wireframes"
+        subtitle="UI overlay (paused) · procedural tech tree · 3 knowledge tiers (silhouette → partial → full) · ~120 nodes · spend research to reveal"
+      >
+        <DCSection
+          id="approach"
+          title="00 · NORTH STAR"
+          subtitle="reading guide for the tier-paged questbook · pages · bridges · research-line colours · cross-tier port stubs">
+          <DCArtboard id="tt-ns" label="reading guide — tier-paged questbook"
+                      width={1180} height={460} data-screen-label="00 North Star">
+            <TTNorthStar/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="tier-pages"
+          title="01 · TIER PAGES"
+          subtitle="GTNH-questbook style · each tier is its own tab · subway-line color coding within pages · milestones appear as bridge cards on BOTH adjacent pages · cross-tier prereqs become port stubs at margins">
+          <DCArtboard id="tt-v6" label="tier pages (constellation × subway × tabs)"
+                      width={1440} height={900} data-screen-label="01 Tier Pages">
+            <TTTierPages/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="reveal"
+          title="02 · REVEAL PANEL"
+          subtitle="shared overlay invoked from any node · cost preview, prerequisite chain, reveal-to-tier action · drives the core strategic decision">
+          <DCArtboard id="tt-rv" label="reveal panel · cost · prereqs · tier 1 → 2 → 3"
+                      width={1440} height={900} data-screen-label="02 Reveal Panel">
+            <TTRevealOverlay/>
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+
+      <TweaksPanel title="Tweaks" defaults={TWEAK_DEFAULTS}>
+        <TweakSection label="Density">
+          <TweakRadio
+            value={tweaks.density}
+            onChange={(v)=>setTweak("density", v)}
+            options={[
+              {value:"sparse",   label:"Sparse"},
+              {value:"moderate", label:"Moderate"},
+              {value:"dense",    label:"Dense"},
+            ]}
+          />
+        </TweakSection>
+        <TweakSection label="Visual vibe">
+          <TweakRadio
+            value={tweaks.vibe}
+            onChange={(v)=>setTweak("vibe", v)}
+            options={[
+              {value:"sketch",    label:"Sketch"},
+              {value:"clean",     label:"Clean"},
+              {value:"blueprint", label:"Blueprint"},
+            ]}
+          />
+        </TweakSection>
+
+        <TweakSection label="Fog-of-war style">
+          <TweakSelect
+            value={tweaks.fogStyle}
+            onChange={(v)=>setTweak("fogStyle", v)}
+            options={[
+              {value:"silhouette", label:"Silhouette (blurred glyph)"},
+              {value:"redact",     label:"Redaction bars (▓▓▓)"},
+              {value:"sketchy",    label:"Sketchy (rough outline)"},
+              {value:"polaroid",   label:"Polaroid develop (fade-in)"},
+              {value:"microfilm",  label:"Microfilm (torn paper)"},
+            ]}
+          />
+        </TweakSection>
+
+        <TweakSection label="Milestone style">
+          <TweakRadio
+            value={tweaks.milestoneStyle}
+            onChange={(v)=>setTweak("milestoneStyle", v)}
+            options={[
+              {value:"banner",  label:"Banner"},
+              {value:"shape",   label:"Shape"},
+              {value:"boss",    label:"Boss"},
+            ]}
+          />
+        </TweakSection>
+
+        <TweakSection label="Locked-node prereq edges">
+          <TweakToggle
+            label="show edges to silhouettes"
+            value={tweaks.showLockedEdges}
+            onChange={(v)=>setTweak("showLockedEdges", v)}
+          />
+        </TweakSection>
+
+        <TweakSection label="Tip">
+          <div style={{ fontSize:11, lineHeight:1.4, opacity:0.7 }}>
+            Drag artboards to reorder · click a label to rename · click expand to focus an artboard fullscreen (←/→/Esc).
+          </div>
+        </TweakSection>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

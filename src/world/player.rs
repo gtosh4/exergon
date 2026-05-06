@@ -7,6 +7,7 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
 use crate::inventory::InventoryOpen;
+use crate::ui::{MachineStatusPanel, StorageStatusPanel, TechTreePanelOpen};
 
 #[derive(Component)]
 pub struct MainCamera;
@@ -92,17 +93,40 @@ pub(super) fn resume_on_escape(
 pub(super) fn toggle_inventory(
     keyboard: Res<ButtonInput<KeyCode>>,
     inv_open: Option<ResMut<InventoryOpen>>,
-    mut cursor_q: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
     let Some(mut open) = inv_open else { return };
     let should_toggle =
         keyboard.just_pressed(KeyCode::Tab) || (keyboard.just_pressed(KeyCode::Escape) && open.0);
-    if !should_toggle {
-        return;
+    if should_toggle {
+        open.0 = !open.0;
     }
-    open.0 = !open.0;
+}
+
+pub(super) fn any_ui_open(
+    inv: Option<Res<InventoryOpen>>,
+    machine: Option<Res<MachineStatusPanel>>,
+    storage: Option<Res<StorageStatusPanel>>,
+    tech: Option<Res<TechTreePanelOpen>>,
+) -> bool {
+    inv.is_some_and(|o| o.0)
+        || machine.is_some_and(|m| m.entity.is_some())
+        || storage.is_some_and(|s| s.0.is_some())
+        || tech.is_some_and(|t| t.open)
+}
+
+pub(super) fn sync_cursor(
+    inv: Option<Res<InventoryOpen>>,
+    machine: Option<Res<MachineStatusPanel>>,
+    storage: Option<Res<StorageStatusPanel>>,
+    tech: Option<Res<TechTreePanelOpen>>,
+    mut cursor_q: Query<&mut CursorOptions, With<PrimaryWindow>>,
+) {
+    let ui_open = inv.is_some_and(|o| o.0)
+        || machine.is_some_and(|m| m.entity.is_some())
+        || storage.is_some_and(|s| s.0.is_some())
+        || tech.is_some_and(|t| t.open);
     if let Ok(mut cursor) = cursor_q.single_mut() {
-        if open.0 {
+        if ui_open {
             cursor.grab_mode = CursorGrabMode::None;
             cursor.visible = true;
         } else {

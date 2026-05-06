@@ -29,7 +29,6 @@ pub struct CableConnectionEvent {
 
 use bevy::prelude::*;
 
-use crate::inventory::InventoryOpen;
 use crate::{GameState, PlayMode};
 
 pub struct WorldPlugin;
@@ -78,14 +77,15 @@ impl Plugin for WorldPlugin {
                 (
                     player::toggle_pause,
                     player::toggle_inventory,
+                    player::sync_cursor,
                     player::camera_input
-                        .run_if(|o: Option<Res<InventoryOpen>>| !o.is_some_and(|r| r.0))
+                        .run_if(not(player::any_ui_open))
                         .run_if(in_state(PlayMode::Exploring)),
                     interaction::update_look_target.after(player::camera_input),
                     interaction::object_interaction
                         .after(interaction::update_look_target)
                         .in_set(crate::GameSystems::Input)
-                        .run_if(|o: Option<Res<InventoryOpen>>| !o.is_some_and(|r| r.0)),
+                        .run_if(not(player::any_ui_open)),
                     interaction::update_ghost_preview.after(interaction::update_look_target),
                     interaction::update_removal_ghost.after(interaction::update_look_target),
                 )

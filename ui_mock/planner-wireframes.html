@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>exergon/ui — planner wireframes</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Caveat:wght@500;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="wireframe.css"/>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#e6e2d6; font-family: "JetBrains Mono", monospace; }
+  #root { height:100%; }
+  [data-dc-artboard] { background: var(--paper, #f4f1ea) !important; }
+  /* alert slot variant */
+  .sk-slot.sk-alert { border-color:#a31919; }
+  /* tighter inputs */
+  input, select, button { font-family: inherit; }
+  input:focus, select:focus { outline: 2px solid var(--accent, #f5c518); outline-offset:1px; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="planner.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "density": "moderate",
+  "vibe": "clean",
+  "nodeMode": "compact",
+  "edgeStyle": "ortho",
+  "sankeyMap": "linear"
+}/*EDITMODE-END*/;
+
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  // expose tweaks globally so the variation components can read them
+  useEffect(()=>{
+    window.__plannerTweaks = tweaks;
+    // force a re-render of children that read window.__plannerTweaks
+    // (cheap: bump a CSS var on root)
+    document.documentElement.style.setProperty("--plnr-bump", String(Math.random()));
+  }, [tweaks]);
+
+  const densityClass =
+    tweaks.density === "dense" ? "density-dense" :
+    tweaks.density === "sparse" ? "density-sparse" : "";
+  const vibeClass =
+    tweaks.vibe === "clean" ? "vibe-clean" :
+    tweaks.vibe === "blueprint" ? "vibe-blueprint" : "";
+
+  return (
+    <div className={`${densityClass} ${vibeClass}`} style={{ height:"100%" }}>
+      <DesignCanvas
+        title="exergon/ui — production planner wireframes"
+        subtitle="UI overlay (paused) · plan recipe graphs by hand · live throughput · medium-scale ~30 machines · 4 layout directions + recipe picker"
+      >
+        <DCSection
+          id="approach"
+          title="00 · NORTH STAR"
+          subtitle="four hybrids of SANKEY × COCKPIT · same recipe graph, same goal (60/s ferro-laminate, ~30 machines) · they differ in how the inspector and the sankey are entangled">
+          <DCArtboard id="northstar" label="reading guide — four ways sankey + cockpit can combine"
+                      width={1100} height={420} data-screen-label="00 North Star">
+            <NorthStar/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="v1"
+          title="01 · SIDE-BY-SIDE"
+          subtitle="V1 · the obvious combo · sankey left, full cockpit inspector right · click any node to inspect">
+          <DCArtboard id="pl-v1" label="V1 · sankey + inspector (side-by-side)"
+                      width={1440} height={900} data-screen-label="01 Planner V1 Side">
+            <PlannerV1/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="v2"
+          title="02 · SANKEY-CANVAS + DRAWER"
+          subtitle="V2 · sankey takes the whole canvas · inspector slides in as a drawer · tops with a MINI LOCAL SANKEY of the selected node's neighborhood — same metaphor as the canvas">
+          <DCArtboard id="pl-v2" label="V2 · full-bleed sankey + drawer (with local mini-sankey inside)"
+                      width={1440} height={900} data-screen-label="02 Planner V2 Drawer">
+            <PlannerV2/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="v3"
+          title="03 · DUAL SANKEY"
+          subtitle="V3 · overview sankey on top, ZOOMED BRANCH sankey on bottom (only ancestors of the selected node) · slim inspector right · best for big plans">
+          <DCArtboard id="pl-v3" label="V3 · dual sankey (overview + branch drill-down) + slim inspector"
+                      width={1440} height={900} data-screen-label="03 Planner V3 Dual">
+            <PlannerV3/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="v4"
+          title="04 · VERTICAL SPINE"
+          subtitle="V4 · sankey runs VERTICAL (raw at bottom, goal at top) · inspector tracks selection with an umbilical line · feels like a build-tree growing upward">
+          <DCArtboard id="pl-v4" label="V4 · vertical sankey-spine + tracking inspector"
+                      width={1440} height={900} data-screen-label="04 Planner V4 Spine">
+            <PlannerV4/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="picker"
+          title="05 · RECIPE PICKER"
+          subtitle="modal overlay invoked from any node · alt-recipes, unlocked filter, live comparison · drag to canvas to instantiate">
+          <DCArtboard id="pl-pk" label="recipe picker overlay (alt recipes · compare · drag)"
+                      width={1440} height={900} data-screen-label="05 Recipe Picker">
+            <PlannerRecipePicker/>
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+
+      <TweaksPanel title="Tweaks" defaults={TWEAK_DEFAULTS}>
+        <TweakSection title="Density">
+          <TweakRadio
+            value={tweaks.density}
+            onChange={(v)=>setTweak("density", v)}
+            options={[
+              {value:"sparse",   label:"Sparse"},
+              {value:"moderate", label:"Moderate"},
+              {value:"dense",    label:"Dense"},
+            ]}
+          />
+        </TweakSection>
+        <TweakSection title="Visual vibe">
+          <TweakRadio
+            value={tweaks.vibe}
+            onChange={(v)=>setTweak("vibe", v)}
+            options={[
+              {value:"sketch",    label:"Sketch"},
+              {value:"clean",     label:"Clean"},
+              {value:"blueprint", label:"Blueprint"},
+            ]}
+          />
+        </TweakSection>
+
+        <TweakSection title="Node card mode (V1, V3)">
+          <TweakRadio
+            value={tweaks.nodeMode}
+            onChange={(v)=>setTweak("nodeMode", v)}
+            options={[
+              {value:"expanded", label:"Expanded"},
+              {value:"compact",  label:"Compact"},
+            ]}
+          />
+        </TweakSection>
+
+        <TweakSection title="Edge style (V1)">
+          <TweakRadio
+            value={tweaks.edgeStyle}
+            onChange={(v)=>setTweak("edgeStyle", v)}
+            options={[
+              {value:"bezier",   label:"Bezier"},
+              {value:"ortho",    label:"Ortho"},
+              {value:"straight", label:"Straight"},
+            ]}
+          />
+        </TweakSection>
+
+        <TweakSection title="Sankey scale (V2)">
+          <TweakRadio
+            value={tweaks.sankeyMap}
+            onChange={(v)=>setTweak("sankeyMap", v)}
+            options={[
+              {value:"linear", label:"Linear"},
+              {value:"sqrt",   label:"√"},
+              {value:"log",    label:"Log"},
+            ]}
+          />
+        </TweakSection>
+
+        <TweakSection title="Tip">
+          <div style={{ fontSize:11, lineHeight:1.4, opacity:0.7 }}>
+            Drag artboards to reorder. Click a label to rename. Click expand on any artboard to focus it fullscreen (←/→/Esc).
+          </div>
+        </TweakSection>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+// ─── reading-guide artboard (00) ───────────────────────────────────────────
+function NorthStar(){
+  const cards = [
+    { tag:"V1", t:"side-by-side",     good:"clear separation · biggest inspector · easiest to learn", less:"sankey loses ~25% of canvas to the inspector" },
+    { tag:"V2", t:"canvas + drawer",  good:"sankey breathes full-bleed · drawer's mini-sankey keeps metaphor consistent", less:"drawer covers part of the graph when open" },
+    { tag:"V3", t:"dual sankey",      good:"overview + branch zoom · best for complex multi-floor plans", less:"two sankeys can feel busy · slim inspector is tight" },
+    { tag:"V4", t:"vertical spine",   good:"raw→goal direction is intuitive · novel & memorable", less:"horizontal labels are tighter · less common pattern" },
+    { tag:"05", t:"recipe picker",    good:"shared modal · drag to canvas · compares alts", less:"—" },
+  ];
+  return (
+    <div className="paper" style={{ height:"100%", padding:24, display:"flex", flexDirection:"column", gap:16 }}>
+      <div>
+        <div className="sk-h">production planner — four directions, one shared brain</div>
+        <div className="sk-mono-sm" style={{ color:"var(--ink-soft)", marginTop:6, maxWidth:760 }}>
+          all four variations operate on the same recipe graph and same goal (60/s ferro-laminate, ~30 machines).
+          they differ only in how the player <span className="sk-squig">sees and edits</span> the graph.
+          mix-and-match: a graph view for layout, a table for audit, the picker overlay shared across all of them.
+        </div>
+      </div>
+      <div className="sk-div"/>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(5, 1fr)", gap:12, flex:1 }}>
+        {cards.map(c=>(
+          <div key={c.tag} className="sk-box" style={{ padding:12, display:"flex", flexDirection:"column", gap:8 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <span className="sk-tag sk-on">{c.tag}</span>
+              <span className="sk-h sk-h-sm">{c.t}</span>
+            </div>
+            <div className="sk-mono-xs" style={{ lineHeight:1.5 }}>
+              <div style={{ color:"var(--ink)" }}>+ {c.good}</div>
+              <div style={{ color:"var(--ink-soft)", marginTop:4 }}>− {c.less}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="sk-mono-xs" style={{ color:"var(--ink-faint)" }}>
+        approachable hooks present in every variation: drag-from-codex · unlocked-only filter · red bottlenecks · plain-language summary in the right rail.<br/>
+        expert hooks: clamp throughput · lock machine count · module/beacon sweep · multi-floor · ⌘K palette · keyboard-first.
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

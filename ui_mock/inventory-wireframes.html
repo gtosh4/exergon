@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>exergon/ui — inventory wireframes</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Caveat:wght@500;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="wireframe.css"/>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#e6e2d6; font-family: "JetBrains Mono", monospace; }
+  #root { height:100%; }
+  /* Make DCArtboards look like sketchy paper cards */
+  [data-dc-artboard] { background: var(--paper, #f4f1ea) !important; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="hotbar.jsx"></script>
+<script type="text/babel" src="inventory.jsx"></script>
+<script type="text/babel" src="autocraft.jsx"></script>
+<script type="text/babel" src="lookup.jsx"></script>
+<script type="text/babel" src="integrated.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "density": "dense",
+  "vibe": "clean",
+  "hotbarLayout": "v1",
+  "inventoryLayout": "v1",
+  "autocraftLayout": "v1",
+  "lookupLayout": "v1"
+}/*EDITMODE-END*/;
+
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  const densityClass =
+    tweaks.density === "dense" ? "density-dense" :
+    tweaks.density === "sparse" ? "density-sparse" : "";
+  const vibeClass =
+    tweaks.vibe === "clean" ? "vibe-clean" :
+    tweaks.vibe === "blueprint" ? "vibe-blueprint" : "";
+
+  // Wrap all artboards in a vibe/density root
+  return (
+    <div className={`${densityClass} ${vibeClass}`} style={{ height:"100%" }}>
+      <DesignCanvas
+        title="exergon/ui — inventory system wireframes"
+        subtitle="genre-aware reimagining of GTNH × Factorio × AE2 × NEI · b&w sketch · drag-reorder, click-to-focus"
+      >
+        <DCSection id="integrated" title="00 · INTEGRATED v2" subtitle="synthesis of selected directions: hotbar V3 + table inventory w/ network meters + AE2-style autocrafting + sidebar codex (expandable)">
+          <DCArtboard id="int-v2" label="integrated terminal — pick the bits you like, iterate" width={1440} height={900} data-screen-label="00 Integrated Terminal v2">
+            <IntegratedTerminal/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="hotbar" title="01 · HOTBAR" subtitle="quick-access tool/block selector — bottom of HUD">
+          <DCArtboard id="hb-v1" label="V1 · classic 9-slot (Minecraft baseline)" width={620} height={300} data-screen-label="01 Hotbar V1 Classic">
+            <HotbarV1/>
+          </DCArtboard>
+          <DCArtboard id="hb-v2" label="V2 · radial wheel (hold TAB)" width={620} height={300} data-screen-label="01 Hotbar V2 Radial">
+            <HotbarV2/>
+          </DCArtboard>
+          <DCArtboard id="hb-v3" label="V3 · multi-bank (3 layers, 27 slots)" width={620} height={300} data-screen-label="01 Hotbar V3 Banks">
+            <HotbarV3/>
+          </DCArtboard>
+          <DCArtboard id="hb-v4" label="V4 · contextual (mode-aware)" width={620} height={300} data-screen-label="01 Hotbar V4 Contextual">
+            <HotbarV4/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="inventory" title="02 · INVENTORY" subtitle="main bag / character / storage view — opened via E">
+          <DCArtboard id="inv-v1" label="V1 · classic grid + character + stats" width={780} height={520} data-screen-label="02 Inventory V1 Classic">
+            <InventoryV1/>
+          </DCArtboard>
+          <DCArtboard id="inv-v2" label="V2 · spatial grid (items take physical space)" width={780} height={520} data-screen-label="02 Inventory V2 Spatial">
+            <InventoryV2/>
+          </DCArtboard>
+          <DCArtboard id="inv-v3" label="V3 · brutalist data table (sortable)" width={780} height={520} data-screen-label="02 Inventory V3 Table">
+            <InventoryV3/>
+          </DCArtboard>
+          <DCArtboard id="inv-v4" label="V4 · dual-pane (player ↔ network)" width={780} height={520} data-screen-label="02 Inventory V4 Dual">
+            <InventoryV4/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="autocraft" title="03 · AUTO-CRAFTING" subtitle="request / patterns / live CPUs / multi-step planning">
+          <DCArtboard id="ac-v1" label="V1 · request terminal + queue" width={900} height={540} data-screen-label="03 Autocraft V1 Terminal">
+            <AutocraftV1/>
+          </DCArtboard>
+          <DCArtboard id="ac-v2" label="V2 · pattern library + encoder" width={900} height={540} data-screen-label="03 Autocraft V2 Patterns">
+            <AutocraftV2/>
+          </DCArtboard>
+          <DCArtboard id="ac-v3" label="V3 · multi-step dep-tree planner" width={900} height={540} data-screen-label="03 Autocraft V3 Planner">
+            <AutocraftV3/>
+          </DCArtboard>
+          <DCArtboard id="ac-v4" label="V4 · CPU monitor (htop-style)" width={900} height={540} data-screen-label="03 Autocraft V4 Monitor">
+            <AutocraftV4/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="lookup" title="04 · ITEM & RECIPE LOOKUP" subtitle="NEI-style codex — search, recipes, uses, hover preview">
+          <DCArtboard id="lu-v1" label="V1 · NEI sidebar rail (always-visible)" width={780} height={520} data-screen-label="04 Lookup V1 Sidebar">
+            <LookupV1/>
+          </DCArtboard>
+          <DCArtboard id="lu-v2" label="V2 · 3-pane deep-dive (recipes ↔ uses)" width={900} height={520} data-screen-label="04 Lookup V2 Deepdive">
+            <LookupV2/>
+          </DCArtboard>
+          <DCArtboard id="lu-v3" label="V3 · relations graph (spider/network)" width={900} height={520} data-screen-label="04 Lookup V3 Graph">
+            <LookupV3/>
+          </DCArtboard>
+          <DCArtboard id="lu-v4" label="V4 · command palette overlay (CTRL+K)" width={780} height={520} data-screen-label="04 Lookup V4 Palette">
+            <LookupV4/>
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+
+      <TweaksPanel title="Tweaks" defaults={TWEAK_DEFAULTS}>
+        <TweakSection title="Density">
+          <TweakRadio
+            value={tweaks.density}
+            onChange={(v)=>setTweak("density", v)}
+            options={[
+              {value:"sparse", label:"Sparse"},
+              {value:"moderate", label:"Moderate"},
+              {value:"dense", label:"Dense"},
+            ]}
+          />
+        </TweakSection>
+        <TweakSection title="Visual vibe">
+          <TweakRadio
+            value={tweaks.vibe}
+            onChange={(v)=>setTweak("vibe", v)}
+            options={[
+              {value:"sketch", label:"Sketch"},
+              {value:"clean", label:"Clean"},
+              {value:"blueprint", label:"Blueprint"},
+            ]}
+          />
+        </TweakSection>
+        <TweakSection title="Tip">
+          <div style={{ fontSize: 11, lineHeight: 1.4, opacity: 0.7 }}>
+            Drag any artboard to reorder. Click a label to rename. Click an artboard's expand icon to focus it fullscreen (←/→/Esc to navigate).
+          </div>
+        </TweakSection>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
