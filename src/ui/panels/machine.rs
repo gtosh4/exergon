@@ -3,7 +3,9 @@ use bevy::prelude::*;
 use crate::{
     GameState,
     inventory::ItemRegistry,
-    machine::{Machine, MachineActivity, MachineState},
+    logistics::LogisticsNetworkMember,
+    machine::{Machine, MachineActivity, MachineEnergyPorts, MachineLogisticsPorts, MachineState},
+    power::PowerNetworkMember,
     recipe_graph::RecipeGraph,
     ui::{
         MachineStatusPanel,
@@ -275,7 +277,15 @@ fn sync_visibility(
 
 fn update_content(
     panel: Res<MachineStatusPanel>,
-    machine_q: Query<(&Machine, &MachineState, Option<&MachineActivity>)>,
+    machine_q: Query<(
+        &Machine,
+        &MachineState,
+        Option<&MachineActivity>,
+        Option<&MachineLogisticsPorts>,
+        Option<&MachineEnergyPorts>,
+    )>,
+    port_log_q: Query<Option<&LogisticsNetworkMember>>,
+    port_pwr_q: Query<Option<&PowerNetworkMember>>,
     recipe_graph: Option<Res<RecipeGraph>>,
     item_registry: Option<Res<ItemRegistry>>,
     filter_q: Query<&crate::ui::input::TextInput, With<RecipeFilterInput>>,
@@ -306,7 +316,8 @@ fn update_content(
         return;
     }
     let Some(entity) = panel.entity else { return };
-    let Ok((machine, state, activity)) = machine_q.get(entity) else {
+    let Ok((machine, state, activity, logistics_ports, energy_ports)) = machine_q.get(entity)
+    else {
         return;
     };
 
@@ -360,10 +371,56 @@ fn update_content(
 
     // Ports
     if let Ok(mut t) = ports_q.single_mut() {
+        let log_lines: Vec<String> = logistics_ports
+            .map(|lp| {
+                lp.ports()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &port_e)| {
+                        let net_str = port_log_q
+                            .get(port_e)
+                            .ok()
+                            .flatten()
+                            .map(|m| format!("{:?}", m.0))
+                            .unwrap_or_else(|| "—".to_string());
+                        format!("PORT {}: {}", i, net_str)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let pwr_lines: Vec<String> = energy_ports
+            .map(|ep| {
+                ep.ports()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &port_e)| {
+                        let net_str = port_pwr_q
+                            .get(port_e)
+                            .ok()
+                            .flatten()
+                            .map(|m| format!("{:?}", m.0))
+                            .unwrap_or_else(|| "—".to_string());
+                        format!("PORT {}: {}", i, net_str)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let log_text = if log_lines.is_empty() {
+            "—".to_string()
+        } else {
+            log_lines.join(", ")
+        };
+        let pwr_text = if pwr_lines.is_empty() {
+            "—".to_string()
+        } else {
+            pwr_lines.join(", ")
+        };
         **t = format!(
-            "▸ {} logistics port(s)\n⚡ {} power port(s)",
+            "▸ {} logistics port(s) · {}\n⚡ {} power port(s) · {}",
             machine.logistics_ports.len(),
-            machine.energy_ports.len()
+            log_text,
+            machine.energy_ports.len(),
+            pwr_text,
         );
     }
 

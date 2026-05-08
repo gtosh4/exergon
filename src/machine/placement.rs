@@ -4,13 +4,14 @@ use avian3d::prelude::{
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
+use crate::power::{GENERATOR_DEFAULT_WATTS, GeneratorUnit};
 use crate::world::{WorldObjectEvent, WorldObjectKind};
 
 use super::registry::{MachineDef, MachineRegistry, MachineTierDef};
 use super::visuals::{MachineColliders, MachineVisualAssets};
 use super::{
-    IoPortMarker, Machine, MachineNetworkChanged, MachineState, Mirror, Orientation, Platform,
-    Rotation,
+    EnergyPortOf, IoPortMarker, LogisticsPortOf, Machine, MachineNetworkChanged, MachineState,
+    Mirror, Orientation, Platform, Rotation,
 };
 
 #[derive(Bundle)]
@@ -63,26 +64,38 @@ pub fn spawn_port_markers(
     logistics_ports: &[Vec3],
     visuals: Option<&MachineVisualAssets>,
 ) {
-    for (&port_pos, is_energy) in energy_ports
-        .iter()
-        .map(|p| (p, true))
-        .chain(logistics_ports.iter().map(|p| (p, false)))
-    {
+    for &port_pos in energy_ports {
         let mut cmd = commands.spawn((
             IoPortMarker {
                 owner: machine_entity,
             },
+            EnergyPortOf(machine_entity),
             Transform::from_translation(port_pos),
             Collider::sphere(0.4),
             Sensor,
         ));
         if let Some(v) = visuals {
-            let mat = if is_energy {
-                v.energy_port_mat.clone()
-            } else {
-                v.logistics_port_mat.clone()
-            };
-            cmd.insert((Mesh3d(v.port_mesh.clone()), MeshMaterial3d(mat)));
+            cmd.insert((
+                Mesh3d(v.port_mesh.clone()),
+                MeshMaterial3d(v.energy_port_mat.clone()),
+            ));
+        }
+    }
+    for &port_pos in logistics_ports {
+        let mut cmd = commands.spawn((
+            IoPortMarker {
+                owner: machine_entity,
+            },
+            LogisticsPortOf(machine_entity),
+            Transform::from_translation(port_pos),
+            Collider::sphere(0.4),
+            Sensor,
+        ));
+        if let Some(v) = visuals {
+            cmd.insert((
+                Mesh3d(v.port_mesh.clone()),
+                MeshMaterial3d(v.logistics_port_mat.clone()),
+            ));
         }
     }
 }
@@ -138,6 +151,13 @@ pub(super) fn place_machine_system(
             &logistics_ports,
             visuals.as_deref(),
         );
+
+        if def.id == "generator" {
+            commands.entity(machine_entity).insert(GeneratorUnit {
+                pos: ev.pos,
+                watts: GENERATOR_DEFAULT_WATTS,
+            });
+        }
 
         network_changed.write(MachineNetworkChanged);
         info!("Machine '{}' tier {} placed at {:?}", def.id, tier, ev.pos);

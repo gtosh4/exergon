@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use bevy::ecs::message::Message;
 use bevy::prelude::*;
 
-use crate::machine::{Machine, MachineScanSet};
+use crate::machine::{Machine, MachineScanSet, PortOfMachine};
 use crate::world::CableConnectionEvent;
 
 pub mod bfs;
@@ -57,6 +57,7 @@ pub trait NetworkKind: Send + Sync + 'static {
     type CableSegment: Component + HasEndpoints;
     type Member: NetworkMemberComponent;
     type Members: NetworkMembersComponent;
+    type PortOf: PortOfMachine + Component;
 
     fn io_ports(machine: &Machine) -> &[Vec3];
     fn new_cable_segment(
@@ -263,7 +264,7 @@ mod tests {
 
     use super::*;
     use crate::machine::{
-        Machine, MachineNetworkChanged, MachineState, Mirror, Orientation, Rotation,
+        Machine, MachineNetworkChanged, MachineState, Mirror, Orientation, PortOfMachine, Rotation,
     };
     use crate::world::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
@@ -308,6 +309,26 @@ mod tests {
     }
 
     #[derive(Component)]
+    #[relationship(relationship_target = TestMachinePorts)]
+    struct TestPortOf(Entity);
+
+    #[derive(Component)]
+    #[relationship_target(relationship = TestPortOf)]
+    struct TestMachinePorts(Vec<Entity>);
+
+    impl TestMachinePorts {
+        fn ports(&self) -> &[Entity] {
+            &self.0
+        }
+    }
+
+    impl PortOfMachine for TestPortOf {
+        fn machine_entity(&self) -> Entity {
+            self.0
+        }
+    }
+
+    #[derive(Component)]
     struct TestNetworkMarker;
 
     impl NetworkKind for TestNetwork {
@@ -315,6 +336,7 @@ mod tests {
         type CableSegment = TestCableSegment;
         type Member = TestNetworkMember;
         type Members = TestNetworkMembers;
+        type PortOf = TestPortOf;
 
         fn io_ports(machine: &Machine) -> &[Vec3] {
             &machine.energy_ports
@@ -507,10 +529,10 @@ mod tests {
     #[test]
     fn machines_reassigned_to_correct_network_after_split() {
         let mut app = test_app();
-        let left_port = Vec3::new(0.0, 0.0, 0.0);
-        let right_port = Vec3::new(20.0, 0.0, 0.0);
+        let left_port_pos = Vec3::new(0.0, 0.0, 0.0);
+        let right_port_pos = Vec3::new(20.0, 0.0, 0.0);
 
-        connect(&mut app, left_port, Vec3::new(5.0, 0.0, 0.0));
+        connect(&mut app, left_port_pos, Vec3::new(5.0, 0.0, 0.0));
         connect(
             &mut app,
             Vec3::new(5.0, 0.0, 0.0),
@@ -521,37 +543,53 @@ mod tests {
             Vec3::new(10.0, 0.0, 0.0),
             Vec3::new(15.0, 0.0, 0.0),
         );
-        connect(&mut app, Vec3::new(15.0, 0.0, 0.0), right_port);
+        connect(&mut app, Vec3::new(15.0, 0.0, 0.0), right_port_pos);
         app.update();
 
         let orientation = Orientation {
             rotation: Rotation::North,
             mirror: Mirror::Normal,
         };
-        let left_machine = app
+        let left_machine_e = app
             .world_mut()
             .spawn((
                 Machine {
                     machine_type: "smelter".to_string(),
                     tier: 1,
                     orientation,
-                    energy_ports: vec![left_port],
+                    energy_ports: vec![left_port_pos],
                     logistics_ports: vec![],
                 },
                 MachineState::Idle,
             ))
             .id();
-        let right_machine = app
+        let right_machine_e = app
             .world_mut()
             .spawn((
                 Machine {
                     machine_type: "smelter".to_string(),
                     tier: 1,
                     orientation,
-                    energy_ports: vec![right_port],
+                    energy_ports: vec![right_port_pos],
                     logistics_ports: vec![],
                 },
                 MachineState::Idle,
+            ))
+            .id();
+
+        // Spawn port entities with TestPortOf
+        let left_port_e = app
+            .world_mut()
+            .spawn((
+                TestPortOf(left_machine_e),
+                Transform::from_translation(left_port_pos),
+            ))
+            .id();
+        let right_port_e = app
+            .world_mut()
+            .spawn((
+                TestPortOf(right_machine_e),
+                Transform::from_translation(right_port_pos),
             ))
             .id();
 
@@ -560,28 +598,28 @@ mod tests {
 
         let left_net = app
             .world()
-            .get::<TestNetworkMember>(left_machine)
+            .get::<TestNetworkMember>(left_port_e)
             .map(|m| m.0);
         let right_net = app
             .world()
-            .get::<TestNetworkMember>(right_machine)
+            .get::<TestNetworkMember>(right_port_e)
             .map(|m| m.0);
-        assert_eq!(left_net, right_net, "both machines start in same network");
+        assert_eq!(left_net, right_net, "both ports start in same network");
 
         disconnect_at(&mut app, Vec3::new(10.0, 0.0, 0.0));
         app.update();
 
         let left_net = app
             .world()
-            .get::<TestNetworkMember>(left_machine)
+            .get::<TestNetworkMember>(left_port_e)
             .map(|m| m.0);
         let right_net = app
             .world()
-            .get::<TestNetworkMember>(right_machine)
+            .get::<TestNetworkMember>(right_port_e)
             .map(|m| m.0);
         assert_ne!(
             left_net, right_net,
-            "machines should be in different networks after split"
+            "ports should be in different networks after split"
         );
     }
 

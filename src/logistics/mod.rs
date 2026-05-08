@@ -3,11 +3,12 @@ use std::collections::HashMap;
 use bevy::ecs::message::Message;
 use bevy::prelude::*;
 
-use crate::machine::Machine;
+use crate::machine::{LogisticsPortOf, Machine};
 use crate::network::{
     HasEndpoints, Logistics, NetworkKind, NetworkMemberComponent, NetworkMembersComponent,
     NetworkPlugin, NetworkSystems, route_avoiding,
 };
+use crate::power::PowerSimSystems;
 use crate::recipe_graph::RecipeGraph;
 
 mod items;
@@ -34,20 +35,22 @@ pub struct LogisticsSimPlugin;
 impl Plugin for LogisticsSimPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(NetworkPlugin::<Logistics>::default());
-        app.add_message::<NetworkStorageChanged>().add_systems(
-            Update,
-            (
-                ApplyDeferred,
-                storage::storage_unit_system,
-                ApplyDeferred,
-                miner::miner_tick_system,
-                recipes::recipe_start_system.run_if(resource_exists::<RecipeGraph>),
-                recipes::recipe_progress_system.run_if(resource_exists::<RecipeGraph>),
-            )
-                .chain()
-                .after(NetworkSystems::of::<Logistics>())
-                .in_set(LogisticsSimSystems),
-        );
+        app.add_message::<NetworkStorageChanged>()
+            .add_message::<crate::network::NetworkChanged<crate::network::Power>>()
+            .add_systems(
+                Update,
+                (
+                    ApplyDeferred,
+                    storage::storage_unit_system,
+                    ApplyDeferred,
+                    miner::miner_tick_system,
+                    recipes::recipe_start_system.run_if(resource_exists::<RecipeGraph>),
+                    recipes::recipe_progress_system.run_if(resource_exists::<RecipeGraph>),
+                )
+                    .chain()
+                    .after(NetworkSystems::of::<Logistics>())
+                    .in_set(LogisticsSimSystems),
+            );
     }
 }
 
@@ -64,6 +67,7 @@ impl Plugin for LogisticsPlugin {
             Update,
             LogisticsSimSystems
                 .in_set(crate::GameSystems::Simulation)
+                .after(PowerSimSystems)
                 .run_if(in_state(crate::GameState::Playing)),
         );
         app.add_systems(Startup, visuals::setup_logistics_visuals);
@@ -139,6 +143,7 @@ impl NetworkKind for Logistics {
     type CableSegment = LogisticsCableSegment;
     type Member = LogisticsNetworkMember;
     type Members = LogisticsNetworkMembers;
+    type PortOf = LogisticsPortOf;
 
     fn io_ports(machine: &Machine) -> &[Vec3] {
         &machine.logistics_ports
@@ -217,6 +222,132 @@ mod tests {
             .query_filtered::<(), With<LogisticsNetwork>>()
             .iter(world)
             .count()
+    }
+
+    #[test]
+    fn three_machines_on_separate_ports_join_same_network() {
+        // Regression: cable to smelter_port_2 created a new network N2 and
+        // reassigned the smelter from N1 to N2, orphaning storage_1.
+        let mut app = logistics_app();
+
+        let storage_1_e = app
+            .world_mut()
+            .spawn((
+                Machine {
+                    machine_type: "storage_crate".to_string(),
+                    tier: 1,
+                    orientation: Orientation {
+                        rotation: Rotation::North,
+                        mirror: Mirror::Normal,
+                    },
+                    energy_ports: vec![],
+                    logistics_ports: vec![Vec3::new(1.0, 0.0, 0.0)],
+                },
+                Transform::default(),
+            ))
+            .id();
+
+        let smelter_e = app
+            .world_mut()
+            .spawn((
+                Machine {
+                    machine_type: "smelter".to_string(),
+                    tier: 1,
+                    orientation: Orientation {
+                        rotation: Rotation::North,
+                        mirror: Mirror::Normal,
+                    },
+                    energy_ports: vec![],
+                    logistics_ports: vec![Vec3::new(4.0, 0.0, 0.0), Vec3::new(6.0, 0.0, 0.0)],
+                },
+                MachineState::Idle,
+                Transform::default(),
+            ))
+            .id();
+
+        let storage_2_e = app
+            .world_mut()
+            .spawn((
+                Machine {
+                    machine_type: "storage_crate".to_string(),
+                    tier: 1,
+                    orientation: Orientation {
+                        rotation: Rotation::North,
+                        mirror: Mirror::Normal,
+                    },
+                    energy_ports: vec![],
+                    logistics_ports: vec![Vec3::new(9.0, 0.0, 0.0)],
+                },
+                Transform::default(),
+            ))
+            .id();
+
+        // Spawn port entities
+        let port_s1 = app
+            .world_mut()
+            .spawn((
+                LogisticsPortOf(storage_1_e),
+                Transform::from_translation(Vec3::new(1.0, 0.0, 0.0)),
+            ))
+            .id();
+        let port_sm_1 = app
+            .world_mut()
+            .spawn((
+                LogisticsPortOf(smelter_e),
+                Transform::from_translation(Vec3::new(4.0, 0.0, 0.0)),
+            ))
+            .id();
+        let port_sm_2 = app
+            .world_mut()
+            .spawn((
+                LogisticsPortOf(smelter_e),
+                Transform::from_translation(Vec3::new(6.0, 0.0, 0.0)),
+            ))
+            .id();
+        let port_s2 = app
+            .world_mut()
+            .spawn((
+                LogisticsPortOf(storage_2_e),
+                Transform::from_translation(Vec3::new(9.0, 0.0, 0.0)),
+            ))
+            .id();
+
+        connect_cable(&mut app, Vec3::new(1.0, 0.0, 0.0), Vec3::new(4.0, 0.0, 0.0));
+        app.update();
+        connect_cable(&mut app, Vec3::new(6.0, 0.0, 0.0), Vec3::new(9.0, 0.0, 0.0));
+        app.update();
+
+        let net_s1 = app
+            .world()
+            .get::<LogisticsNetworkMember>(port_s1)
+            .map(|m| m.0);
+        let net_sm1 = app
+            .world()
+            .get::<LogisticsNetworkMember>(port_sm_1)
+            .map(|m| m.0);
+        let net_sm2 = app
+            .world()
+            .get::<LogisticsNetworkMember>(port_sm_2)
+            .map(|m| m.0);
+        let net_s2 = app
+            .world()
+            .get::<LogisticsNetworkMember>(port_s2)
+            .map(|m| m.0);
+
+        assert!(net_s1.is_some(), "storage_1 port should be in a network");
+        assert!(net_sm1.is_some(), "smelter port 1 should be in a network");
+        assert!(net_sm2.is_some(), "smelter port 2 should be in a network");
+        assert!(net_s2.is_some(), "storage_2 port should be in a network");
+        assert_eq!(
+            net_s1, net_sm1,
+            "storage_1 and smelter port 1 must share a network"
+        );
+        assert_eq!(net_sm1, net_sm2, "smelter ports must share a network");
+        assert_eq!(
+            net_sm2, net_s2,
+            "smelter port 2 and storage_2 must share a network"
+        );
+        assert_eq!(network_count(&mut app), 1, "should be exactly one network");
     }
 
     #[test]
@@ -299,11 +430,18 @@ mod tests {
                 MachineState::Idle,
             ))
             .id();
+        let port_entity = app
+            .world_mut()
+            .spawn((
+                LogisticsPortOf(machine_entity),
+                Transform::from_translation(io_pos),
+            ))
+            .id();
         app.world_mut().write_message(MachineNetworkChanged);
         app.update();
         assert!(
             app.world()
-                .get::<LogisticsNetworkMember>(machine_entity)
+                .get::<LogisticsNetworkMember>(port_entity)
                 .is_some()
         );
     }
@@ -370,6 +508,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .add_message::<NetworkChanged<Logistics>>()
+            .add_message::<NetworkChanged<crate::network::Power>>()
             .add_message::<NetworkStorageChanged>()
             .insert_resource(rg)
             .add_systems(
@@ -389,23 +528,28 @@ mod tests {
         let mut app = recipe_io_app(rg);
 
         let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
+        // Storage is a machine entity with StorageUnit; its port is in the network
         let storage_e = app
             .world_mut()
-            .spawn((
-                StorageUnit {
-                    items: [("iron".to_owned(), 10u32)].into_iter().collect(),
-                },
-                LogisticsNetworkMember(net_entity),
-            ))
+            .spawn(StorageUnit {
+                items: [("iron".to_owned(), 10u32)].into_iter().collect(),
+            })
             .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(storage_e),
+            Transform::default(),
+            LogisticsNetworkMember(net_entity),
+        ));
         let machine_entity = app
             .world_mut()
-            .spawn((
-                bare_machine("furnace"),
-                MachineState::Idle,
-                LogisticsNetworkMember(net_entity),
-            ))
+            .spawn((bare_machine("furnace"), MachineState::Idle))
             .id();
+        // Port entity linking machine to network
+        app.world_mut().spawn((
+            LogisticsPortOf(machine_entity),
+            Transform::default(),
+            LogisticsNetworkMember(net_entity),
+        ));
 
         app.world_mut().write_message(NetworkStorageChanged {
             network: net_entity,
@@ -430,13 +574,15 @@ mod tests {
         let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
         let storage_e = app
             .world_mut()
-            .spawn((
-                StorageUnit {
-                    items: HashMap::new(),
-                },
-                LogisticsNetworkMember(net_entity),
-            ))
+            .spawn(StorageUnit {
+                items: HashMap::new(),
+            })
             .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(storage_e),
+            Transform::default(),
+            LogisticsNetworkMember(net_entity),
+        ));
         let machine_entity = app
             .world_mut()
             .spawn((
@@ -447,9 +593,13 @@ mod tests {
                     progress: 10.0,
                     speed_factor: 1.0,
                 },
-                LogisticsNetworkMember(net_entity),
             ))
             .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(machine_entity),
+            Transform::default(),
+            LogisticsNetworkMember(net_entity),
+        ));
 
         app.update();
 
@@ -469,10 +619,15 @@ mod tests {
         let mut app = recipe_io_app(rg);
 
         let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
-        app.world_mut().spawn((
-            StorageUnit {
+        let storage_e = app
+            .world_mut()
+            .spawn(StorageUnit {
                 items: HashMap::new(),
-            },
+            })
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(storage_e),
+            Transform::default(),
             LogisticsNetworkMember(net_entity),
         ));
         let machine_entity = app
@@ -485,9 +640,13 @@ mod tests {
                     progress: 0.5,
                     speed_factor: 1.0,
                 },
-                LogisticsNetworkMember(net_entity),
             ))
             .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(machine_entity),
+            Transform::default(),
+            LogisticsNetworkMember(net_entity),
+        ));
 
         app.update();
 
@@ -511,20 +670,26 @@ mod tests {
         app.insert_resource(TechTreeProgress::default());
 
         let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
-        app.world_mut().spawn((
-            StorageUnit {
+        let storage_e = app
+            .world_mut()
+            .spawn(StorageUnit {
                 items: [("iron".to_owned(), 10u32)].into_iter().collect(),
-            },
+            })
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(storage_e),
+            Transform::default(),
             LogisticsNetworkMember(net_entity),
         ));
         let machine_entity = app
             .world_mut()
-            .spawn((
-                bare_machine("furnace"),
-                MachineState::Idle,
-                LogisticsNetworkMember(net_entity),
-            ))
+            .spawn((bare_machine("furnace"), MachineState::Idle))
             .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(machine_entity),
+            Transform::default(),
+            LogisticsNetworkMember(net_entity),
+        ));
 
         app.world_mut().write_message(NetworkStorageChanged {
             network: net_entity,
@@ -548,25 +713,92 @@ mod tests {
         app.insert_resource(ResearchPool::default());
 
         let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
-        app.world_mut().spawn((
-            StorageUnit {
+        let storage_e = app
+            .world_mut()
+            .spawn(StorageUnit {
                 items: HashMap::new(),
-            },
+            })
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(storage_e),
+            Transform::default(),
             LogisticsNetworkMember(net_entity),
         ));
+        let machine_entity = app
+            .world_mut()
+            .spawn((
+                bare_machine("furnace"),
+                MachineState::Running,
+                MachineActivity {
+                    recipe_id: "test_recipe".to_string(),
+                    progress: 10.0,
+                    speed_factor: 1.0,
+                },
+            ))
+            .id();
         app.world_mut().spawn((
-            bare_machine("furnace"),
-            MachineState::Running,
-            MachineActivity {
-                recipe_id: "test_recipe".to_string(),
-                progress: 10.0,
-                speed_factor: 1.0,
-            },
+            LogisticsPortOf(machine_entity),
+            Transform::default(),
             LogisticsNetworkMember(net_entity),
         ));
 
         app.update();
 
         assert_eq!(app.world().resource::<ResearchPool>().points, 5.0);
+    }
+
+    #[test]
+    fn idle_machine_starts_recipe_when_power_network_gains_capacity() {
+        use crate::machine::EnergyPortOf;
+        use crate::network::{NetworkChanged, Power};
+        use crate::power::{PowerNetwork, PowerNetworkMember};
+
+        let mut recipe = test_recipe_def("smelter", &[("iron_ore", 1.0)], &[("iron_ingot", 1.0)]);
+        recipe.energy_cost = 10.0;
+        let rg = single_recipe_graph(recipe);
+        let mut app = recipe_io_app(rg);
+
+        let net_e = app.world_mut().spawn(LogisticsNetwork).id();
+        let storage_e = app
+            .world_mut()
+            .spawn(StorageUnit {
+                items: [("iron_ore".to_owned(), 5u32)].into_iter().collect(),
+            })
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(storage_e),
+            Transform::default(),
+            LogisticsNetworkMember(net_e),
+        ));
+        let machine_e = app
+            .world_mut()
+            .spawn((bare_machine("smelter"), MachineState::Idle))
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(machine_e),
+            Transform::default(),
+            LogisticsNetworkMember(net_e),
+        ));
+
+        let power_net_e = app
+            .world_mut()
+            .spawn(PowerNetwork {
+                capacity_watts: 50.0,
+            })
+            .id();
+        app.world_mut()
+            .spawn((EnergyPortOf(machine_e), PowerNetworkMember(power_net_e)));
+
+        // Trigger via power network change (not storage change) — regression for bug where
+        // connecting a generator via power cable never re-triggered recipe_start_system
+        app.world_mut()
+            .write_message(NetworkChanged::<Power>::new(power_net_e));
+        app.update();
+
+        assert_eq!(
+            *app.world().get::<MachineState>(machine_e).unwrap(),
+            MachineState::Running,
+            "smelter should start when power network gains capacity"
+        );
     }
 }

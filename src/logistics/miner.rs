@@ -5,7 +5,7 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
 use crate::drone::{sample_ore, yield_factor};
-use crate::machine::MinerMachine;
+use crate::machine::{LogisticsPortOf, MinerMachine};
 use crate::world::generation::OreDeposit;
 
 use super::items::give_items;
@@ -32,6 +32,7 @@ pub(super) fn miner_tick_system(
     mut deposit_q: Query<&mut OreDeposit>,
     net_q: Query<&LogisticsNetworkMembers>,
     mut storage_q: Query<&mut StorageUnit>,
+    port_of_q: Query<&LogisticsPortOf>,
     mut storage_changed: MessageWriter<NetworkStorageChanged>,
 ) {
     let dt = time.delta_secs();
@@ -43,7 +44,7 @@ pub(super) fn miner_tick_system(
             let Ok(members) = net_q.get(member.0) else {
                 continue;
             };
-            give_items(members, &mut storage_q, &ore_id, 1);
+            give_items(members, &mut storage_q, &port_of_q, &ore_id, 1);
             storage_changed.write(NetworkStorageChanged { network: member.0 });
         }
     }
@@ -103,6 +104,8 @@ mod tests {
 
     #[test]
     fn miner_tick_system_produces_and_stores_ore() {
+        use crate::machine::LogisticsPortOf;
+
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .add_message::<NetworkStorageChanged>()
@@ -118,12 +121,18 @@ mod tests {
                 depletion_seed: 0,
             })
             .id();
+        // Storage machine with StorageUnit
+        let storage_machine = app
+            .world_mut()
+            .spawn(StorageUnit {
+                items: HashMap::new(),
+            })
+            .id();
+        // Port entity linking storage machine to network
         let storage_entity = app
             .world_mut()
             .spawn((
-                StorageUnit {
-                    items: HashMap::new(),
-                },
+                LogisticsPortOf(storage_machine),
                 LogisticsNetworkMember(net_entity),
             ))
             .id();
@@ -139,7 +148,7 @@ mod tests {
         app.update();
 
         let world = app.world();
-        let storage = world.get::<StorageUnit>(storage_entity).unwrap();
+        let storage = world.get::<StorageUnit>(storage_machine).unwrap();
         assert_eq!(storage.items.get("iron_ore").copied().unwrap_or(0), 1);
         assert_eq!(
             world
@@ -148,6 +157,8 @@ mod tests {
                 .total_extracted,
             1.0
         );
+        // Suppress unused warning
+        let _ = storage_entity;
     }
 
     #[test]

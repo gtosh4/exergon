@@ -6,7 +6,8 @@ use exergon::logistics::{
     LogisticsNetworkMember, LogisticsSimPlugin, NetworkStorageChanged, StorageUnit,
 };
 use exergon::machine::{
-    Machine, MachineActivity, MachineNetworkChanged, MachineState, Mirror, Orientation, Rotation,
+    LogisticsPortOf, Machine, MachineActivity, MachineNetworkChanged, MachineState, Mirror,
+    Orientation, Rotation,
 };
 use exergon::recipe_graph::{ConcreteRecipe, ItemStack, RecipeGraph};
 use exergon::world::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
@@ -91,7 +92,7 @@ fn storage_placed_before_cable_joins_network_when_cable_placed_adjacent() {
 
     let mut app = placement_app(rg);
 
-    // Frame 1: spawn storage machine — no cables yet
+    // Frame 1: spawn storage machine + its port entity — no cables yet
     let storage_e = app
         .world_mut()
         .spawn((
@@ -100,13 +101,20 @@ fn storage_placed_before_cable_joins_network_when_cable_placed_adjacent() {
             Transform::default(),
         ))
         .id();
+    let storage_port_e = app
+        .world_mut()
+        .spawn((
+            LogisticsPortOf(storage_e),
+            Transform::from_translation(storage_port),
+        ))
+        .id();
     app.update();
 
     assert!(
         app.world()
-            .get::<LogisticsNetworkMember>(storage_e)
+            .get::<LogisticsNetworkMember>(storage_port_e)
             .is_none(),
-        "no cable yet: storage should not be in any network"
+        "no cable yet: storage port should not be in any network"
     );
 
     // Frame 2: place cable adjacent to storage port + smelter with matching port
@@ -123,31 +131,38 @@ fn storage_placed_before_cable_joins_network_when_cable_placed_adjacent() {
             MachineState::Idle,
         ))
         .id();
+    let smelter_port_e = app
+        .world_mut()
+        .spawn((
+            LogisticsPortOf(smelter_e),
+            Transform::from_translation(smelter_port),
+        ))
+        .id();
     app.world_mut().write_message(MachineNetworkChanged);
     app.update();
 
     assert!(
         app.world()
-            .get::<LogisticsNetworkMember>(storage_e)
+            .get::<LogisticsNetworkMember>(storage_port_e)
             .is_some(),
-        "storage placed before cable must join network when cable placed adjacent"
+        "storage port placed before cable must join network when cable placed adjacent"
     );
     assert!(
         app.world()
-            .get::<LogisticsNetworkMember>(smelter_e)
+            .get::<LogisticsNetworkMember>(smelter_port_e)
             .is_some(),
-        "smelter must also join same network"
+        "smelter port must also join same network"
     );
     assert_eq!(
         app.world()
-            .get::<LogisticsNetworkMember>(storage_e)
+            .get::<LogisticsNetworkMember>(storage_port_e)
             .unwrap()
             .0,
         app.world()
-            .get::<LogisticsNetworkMember>(smelter_e)
+            .get::<LogisticsNetworkMember>(smelter_port_e)
             .unwrap()
             .0,
-        "smelter and storage must be on the same network"
+        "smelter and storage ports must be on the same network"
     );
 }
 
@@ -173,8 +188,7 @@ fn cable_endpoint_near_port_snaps_to_connect_machine() {
         item_id: "logistics_cable".to_string(),
         kind: WorldObjectKind::Placed,
     });
-    // Spawn WITH Transform so cable_placed_system sees it.
-    // No MachineNetworkChanged — this test isolates cable_placed_system.
+    // Spawn machine WITH Transform and its port entity
     let smelter_e = app
         .world_mut()
         .spawn((
@@ -183,12 +197,19 @@ fn cable_endpoint_near_port_snaps_to_connect_machine() {
             Transform::default(),
         ))
         .id();
+    let smelter_port_e = app
+        .world_mut()
+        .spawn((
+            LogisticsPortOf(smelter_e),
+            Transform::from_translation(smelter_port),
+        ))
+        .id();
 
     app.update();
 
     assert!(
         app.world()
-            .get::<LogisticsNetworkMember>(smelter_e)
+            .get::<LogisticsNetworkMember>(smelter_port_e)
             .is_some(),
         "machine port within snap radius of cable endpoint must join network"
     );
@@ -207,7 +228,7 @@ fn smelter_with_ore_storage_runs_smelt_recipe_and_outputs_ingot() {
 
     let mut app = placement_app(rg);
 
-    // Place cable, spawn storage and smelter machines with matching ports
+    // Place cable, spawn storage and smelter machines with matching port entities
     app.world_mut().write_message(CableConnectionEvent {
         from: storage_port,
         to: smelter_port,
@@ -222,6 +243,13 @@ fn smelter_with_ore_storage_runs_smelt_recipe_and_outputs_ingot() {
             Transform::default(),
         ))
         .id();
+    let storage_port_e = app
+        .world_mut()
+        .spawn((
+            LogisticsPortOf(storage_e),
+            Transform::from_translation(storage_port),
+        ))
+        .id();
     let smelter_e = app
         .world_mut()
         .spawn((
@@ -229,16 +257,23 @@ fn smelter_with_ore_storage_runs_smelt_recipe_and_outputs_ingot() {
             MachineState::Idle,
         ))
         .id();
+    let smelter_port_e = app
+        .world_mut()
+        .spawn((
+            LogisticsPortOf(smelter_e),
+            Transform::from_translation(smelter_port),
+        ))
+        .id();
     app.world_mut().write_message(MachineNetworkChanged);
 
-    // Network joins: cable_placed_system assigns smelter and storage
+    // Network joins: cable_placed_system assigns smelter and storage ports
     app.update();
 
     assert!(
         app.world()
-            .get::<LogisticsNetworkMember>(smelter_e)
+            .get::<LogisticsNetworkMember>(smelter_port_e)
             .is_some(),
-        "smelter should have joined the logistics network"
+        "smelter port should have joined the logistics network"
     );
     assert!(
         app.world().get::<StorageUnit>(storage_e).is_some(),
@@ -246,20 +281,20 @@ fn smelter_with_ore_storage_runs_smelt_recipe_and_outputs_ingot() {
     );
     assert!(
         app.world()
-            .get::<LogisticsNetworkMember>(storage_e)
+            .get::<LogisticsNetworkMember>(storage_port_e)
             .is_some(),
-        "storage should have joined the logistics network"
+        "storage port should have joined the logistics network"
     );
     assert_eq!(
         app.world()
-            .get::<LogisticsNetworkMember>(smelter_e)
+            .get::<LogisticsNetworkMember>(smelter_port_e)
             .unwrap()
             .0,
         app.world()
-            .get::<LogisticsNetworkMember>(storage_e)
+            .get::<LogisticsNetworkMember>(storage_port_e)
             .unwrap()
             .0,
-        "smelter and storage should be on the same network"
+        "smelter and storage ports should be on the same network"
     );
 
     // Seed ore and trigger recipe start
@@ -270,7 +305,7 @@ fn smelter_with_ore_storage_runs_smelt_recipe_and_outputs_ingot() {
         .insert("iron_ore".to_owned(), 5);
     let net_e = app
         .world()
-        .get::<LogisticsNetworkMember>(smelter_e)
+        .get::<LogisticsNetworkMember>(smelter_port_e)
         .unwrap()
         .0;
     app.world_mut()

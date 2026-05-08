@@ -84,6 +84,50 @@ pub struct IoPortMarker {
     pub owner: Entity,
 }
 
+pub trait PortOfMachine: Component {
+    fn machine_entity(&self) -> Entity;
+}
+
+#[derive(Component)]
+#[relationship(relationship_target = MachineLogisticsPorts)]
+pub struct LogisticsPortOf(pub Entity);
+
+impl PortOfMachine for LogisticsPortOf {
+    fn machine_entity(&self) -> Entity {
+        self.0
+    }
+}
+
+#[derive(Component)]
+#[relationship_target(relationship = LogisticsPortOf)]
+pub struct MachineLogisticsPorts(Vec<Entity>);
+
+impl MachineLogisticsPorts {
+    pub fn ports(&self) -> &[Entity] {
+        &self.0
+    }
+}
+
+#[derive(Component)]
+#[relationship(relationship_target = MachineEnergyPorts)]
+pub struct EnergyPortOf(pub Entity);
+
+impl PortOfMachine for EnergyPortOf {
+    fn machine_entity(&self) -> Entity {
+        self.0
+    }
+}
+
+#[derive(Component)]
+#[relationship_target(relationship = EnergyPortOf)]
+pub struct MachineEnergyPorts(Vec<Entity>);
+
+impl MachineEnergyPorts {
+    pub fn ports(&self) -> &[Entity] {
+        &self.0
+    }
+}
+
 /// Flat static platform entity placed on terrain.
 #[derive(Component)]
 pub struct Platform;

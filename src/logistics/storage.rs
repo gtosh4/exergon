@@ -3,18 +3,18 @@ use std::collections::HashMap;
 use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 
-use crate::machine::Machine;
+use crate::machine::{LogisticsPortOf, Machine};
 
 use super::{LogisticsNetworkMember, NetworkStorageChanged, STORAGE_CRATE_ID, StorageUnit};
 
 pub(super) fn storage_unit_system(
     mut commands: Commands,
     added_machines: Query<(Entity, &Machine), (Added<Machine>, Without<StorageUnit>)>,
-    added_members: Query<
-        (Entity, &LogisticsNetworkMember),
-        (Added<LogisticsNetworkMember>, With<StorageUnit>),
+    added_port_members: Query<
+        (&LogisticsPortOf, &LogisticsNetworkMember),
+        Added<LogisticsNetworkMember>,
     >,
-    member_q: Query<&LogisticsNetworkMember>,
+    storage_q: Query<(), With<StorageUnit>>,
     mut changed: MessageWriter<NetworkStorageChanged>,
 ) {
     for (entity, machine) in &added_machines {
@@ -25,19 +25,15 @@ pub(super) fn storage_unit_system(
         commands.entity(entity).insert(StorageUnit {
             items: HashMap::new(),
         });
-        if let Ok(member) = member_q.get(entity) {
+    }
+    for (port_of, member) in &added_port_members {
+        let machine_e = port_of.0;
+        if storage_q.get(machine_e).is_ok() {
             debug!(
-                "storage_unit: firing NetworkStorageChanged for network {:?} (new storage crate)",
-                member.0
+                "storage_unit: storage machine {:?} port joined network {:?}, firing NetworkStorageChanged",
+                machine_e, member.0
             );
             changed.write(NetworkStorageChanged { network: member.0 });
         }
-    }
-    for (entity, member) in &added_members {
-        debug!(
-            "storage_unit: storage {:?} joined network {:?}, firing NetworkStorageChanged",
-            entity, member.0
-        );
-        changed.write(NetworkStorageChanged { network: member.0 });
     }
 }

@@ -3,7 +3,9 @@ use bevy::prelude::*;
 use crate::{
     GameState,
     inventory::ItemRegistry,
-    logistics::StorageUnit,
+    logistics::{LogisticsNetworkMember, StorageUnit},
+    machine::{Machine, MachineEnergyPorts, MachineLogisticsPorts},
+    power::PowerNetworkMember,
     ui::{
         MachineStatusPanel, StorageStatusPanel,
         theme::{COLOR_DIM, COLOR_GOLD},
@@ -18,13 +20,17 @@ struct StoragePanel;
 struct StorageCloseButton;
 
 #[derive(Component)]
+struct StoragePortsText;
+
+#[derive(Component)]
 struct StorageListRoot;
 
 pub fn plugin(app: &mut App) {
     app.add_systems(OnEnter(GameState::Playing), spawn)
         .add_systems(
             Update,
-            (sync_visibility, update_list, handle_close).run_if(in_state(GameState::Playing)),
+            (sync_visibility, update_ports, update_list, handle_close)
+                .run_if(in_state(GameState::Playing)),
         );
 }
 
@@ -95,6 +101,21 @@ fn spawn(mut commands: Commands) {
                         ));
                     });
 
+                    // IO ports
+                    root.spawn((
+                        Text::new(""),
+                        TextFont {
+                            font_size: 11.0,
+                            ..default()
+                        },
+                        TextColor(COLOR_DIM),
+                        Node {
+                            margin: UiRect::bottom(Val::Px(8.0)),
+                            ..default()
+                        },
+                        StoragePortsText,
+                    ));
+
                     // Scrollable item list
                     root.spawn((
                         Node {
@@ -124,6 +145,84 @@ fn sync_visibility(
             Visibility::Hidden
         };
     }
+}
+
+fn update_ports(
+    panel: Res<StorageStatusPanel>,
+    storage_q: Query<(
+        &Machine,
+        Option<&MachineLogisticsPorts>,
+        Option<&MachineEnergyPorts>,
+    )>,
+    port_log_q: Query<Option<&LogisticsNetworkMember>>,
+    port_pwr_q: Query<Option<&PowerNetworkMember>>,
+    mut ports_q: Query<&mut Text, With<StoragePortsText>>,
+) {
+    if !panel.is_changed() {
+        return;
+    }
+    let Ok(mut t) = ports_q.single_mut() else {
+        return;
+    };
+    let Some(entity) = panel.0 else {
+        **t = String::new();
+        return;
+    };
+    let Ok((machine, logistics_ports, energy_ports)) = storage_q.get(entity) else {
+        **t = String::new();
+        return;
+    };
+    let log_lines: Vec<String> = logistics_ports
+        .map(|lp| {
+            lp.ports()
+                .iter()
+                .enumerate()
+                .map(|(i, &port_e)| {
+                    let net_str = port_log_q
+                        .get(port_e)
+                        .ok()
+                        .flatten()
+                        .map(|m| format!("{:?}", m.0))
+                        .unwrap_or_else(|| "—".to_string());
+                    format!("PORT {}: {}", i, net_str)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let pwr_lines: Vec<String> = energy_ports
+        .map(|ep| {
+            ep.ports()
+                .iter()
+                .enumerate()
+                .map(|(i, &port_e)| {
+                    let net_str = port_pwr_q
+                        .get(port_e)
+                        .ok()
+                        .flatten()
+                        .map(|m| format!("{:?}", m.0))
+                        .unwrap_or_else(|| "—".to_string());
+                    format!("PORT {}: {}", i, net_str)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let log_text = if log_lines.is_empty() {
+        "—".to_string()
+    } else {
+        log_lines.join(", ")
+    };
+    let pwr_text = if pwr_lines.is_empty() {
+        "—".to_string()
+    } else {
+        pwr_lines.join(", ")
+    };
+    **t = format!(
+        "▸ {} logistics port(s) · {}\n⚡ {} power port(s) · {}",
+        machine.logistics_ports.len(),
+        log_text,
+        machine.energy_ports.len(),
+        pwr_text,
+    );
 }
 
 fn update_list(
