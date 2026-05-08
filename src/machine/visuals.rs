@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use avian3d::prelude::Collider;
+use bevy::gltf::{Gltf, GltfMesh};
 use bevy::prelude::*;
 
 #[derive(Resource)]
@@ -12,6 +14,12 @@ pub struct MachineVisualAssets {
     pub scenes: HashMap<String, Handle<Scene>>,
     pub(crate) platform_scene: Handle<Scene>,
     pub(crate) deposit_scene: Handle<Scene>,
+    pub gltf_handles: HashMap<String, Handle<Gltf>>,
+}
+
+#[derive(Resource, Default)]
+pub struct MachineColliders {
+    pub colliders: HashMap<String, Collider>,
 }
 
 #[derive(Resource)]
@@ -44,8 +52,7 @@ pub(super) fn setup_machine_visuals(
     });
     let platform_mesh = meshes.add(Cuboid::new(8.0, 0.25, 8.0));
 
-    let mut scenes: HashMap<String, Handle<Scene>> = HashMap::new();
-    for id in [
+    let machine_ids = [
         "smelter",
         "assembler",
         "analysis_station",
@@ -53,10 +60,17 @@ pub(super) fn setup_machine_visuals(
         "storage_crate",
         "refinery",
         "gateway",
-    ] {
+    ];
+    let mut scenes: HashMap<String, Handle<Scene>> = HashMap::new();
+    let mut gltf_handles: HashMap<String, Handle<Gltf>> = HashMap::new();
+    for id in machine_ids {
         scenes.insert(
             id.to_string(),
             asset_server.load(format!("models/machines/{id}.glb#Scene0")),
+        );
+        gltf_handles.insert(
+            id.to_string(),
+            asset_server.load(format!("models/machines/{id}.glb")),
         );
     }
     let platform_scene = asset_server.load("models/platforms/platform.glb#Scene0");
@@ -71,6 +85,7 @@ pub(super) fn setup_machine_visuals(
         scenes,
         platform_scene,
         deposit_scene,
+        gltf_handles,
     });
 }
 
@@ -106,4 +121,59 @@ pub(super) fn setup_ghost_assets(
         fallback_material: materials.add(ghost_mat(Color::srgba(0.65, 0.65, 0.65, 0.5))),
         platform_material: materials.add(ghost_mat(Color::srgba(0.5, 0.5, 0.55, 0.5))),
     });
+}
+
+pub(super) fn compute_machine_colliders(
+    mut events: bevy::ecs::message::MessageReader<AssetEvent<Gltf>>,
+    gltf_assets: Res<Assets<Gltf>>,
+    gltf_mesh_assets: Res<Assets<GltfMesh>>,
+    mesh_assets: Res<Assets<Mesh>>,
+    visuals: Res<MachineVisualAssets>,
+    mut machine_colliders: ResMut<MachineColliders>,
+) {
+    for event in events.read() {
+        let AssetEvent::LoadedWithDependencies { id } = event else {
+            continue;
+        };
+        let Some((machine_id, _)) = visuals.gltf_handles.iter().find(|(_, h)| h.id() == *id) else {
+            continue;
+        };
+        let Some(gltf) = gltf_assets.get(*id) else {
+            continue;
+        };
+
+        let mut shapes: Vec<(Vec3, Quat, Collider)> = vec![];
+        for gltf_mesh_handle in &gltf.meshes {
+            let Some(gltf_mesh) = gltf_mesh_assets.get(gltf_mesh_handle) else {
+                continue;
+            };
+            for primitive in &gltf_mesh.primitives {
+                let Some(mesh) = mesh_assets.get(&primitive.mesh) else {
+                    continue;
+                };
+                if let Some(collider) = Collider::convex_hull_from_mesh(mesh) {
+                    shapes.push((Vec3::ZERO, Quat::IDENTITY, collider));
+                }
+            }
+        }
+
+        let collider = match shapes.len() {
+            0 => {
+                warn!("No mesh data for machine '{machine_id}', skipping collider cache");
+                continue;
+            }
+            1 => {
+                let Some((_, _, shape)) = shapes.into_iter().next() else {
+                    continue;
+                };
+                shape
+            }
+            _ => Collider::compound(shapes),
+        };
+
+        info!("Cached collider for machine '{machine_id}'");
+        machine_colliders
+            .colliders
+            .insert(machine_id.clone(), collider);
+    }
 }

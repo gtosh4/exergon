@@ -7,7 +7,7 @@ mod visuals;
 pub use placement::{MachineBundle, spawn_port_markers};
 pub use registry::{MachineDef, MachineRegistry, MachineTierDef};
 pub(crate) use visuals::GhostAssets;
-pub use visuals::MachineVisualAssets;
+pub use visuals::{MachineColliders, MachineVisualAssets};
 
 /// System set that contains machine placement. Logistics/power run after this.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -32,6 +32,7 @@ pub struct MachinePlugin;
 impl Plugin for MachinePlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<MachineNetworkChanged>()
+            .init_resource::<MachineColliders>()
             .configure_sets(
                 Update,
                 MachineScanSet
@@ -47,6 +48,7 @@ impl Plugin for MachinePlugin {
                 Startup,
                 visuals::setup_ghost_assets.after(visuals::setup_machine_visuals),
             )
+            .add_systems(Update, visuals::compute_machine_colliders)
             .add_systems(
                 Update,
                 (

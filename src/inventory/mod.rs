@@ -9,7 +9,6 @@ pub struct InventoryPlugin;
 impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Hotbar>()
-            .init_resource::<Inventory>()
             .init_resource::<InventoryOpen>();
     }
 }
@@ -32,7 +31,6 @@ impl ItemRegistry {
 #[derive(Clone, Debug)]
 pub struct HotbarSlot {
     pub item_id: String,
-    pub count: u32,
 }
 
 #[derive(Resource)]
@@ -56,26 +54,6 @@ impl Hotbar {
             .get(self.selected)?
             .as_ref()
             .map(|s| s.item_id.as_str())
-    }
-
-    pub fn consume_active(&mut self) -> Option<String> {
-        let slot = self.slots.get_mut(self.selected)?;
-        let s = slot.as_mut()?;
-        let id = s.item_id.clone();
-        s.count -= 1;
-        if s.count == 0 {
-            *slot = None;
-        }
-        Some(id)
-    }
-}
-
-#[derive(Resource, Default)]
-pub struct Inventory(pub HashMap<String, u32>);
-
-impl Inventory {
-    pub fn add(&mut self, item_id: impl Into<String>, count: u32) {
-        *self.0.entry(item_id.into()).or_insert(0) += count;
     }
 }
 
@@ -115,38 +93,7 @@ mod tests {
         let mut h = Hotbar::default();
         h.slots[0] = Some(HotbarSlot {
             item_id: "iron".to_string(),
-            count: 3,
         });
         assert_eq!(h.active_item_id(), Some("iron"));
-    }
-
-    #[test]
-    fn hotbar_consume_decrements_count() {
-        let mut h = Hotbar::default();
-        h.slots[0] = Some(HotbarSlot {
-            item_id: "iron".to_string(),
-            count: 3,
-        });
-        assert_eq!(h.consume_active().as_deref(), Some("iron"));
-        assert_eq!(h.slots[0].as_ref().unwrap().count, 2);
-    }
-
-    #[test]
-    fn hotbar_consume_clears_slot_at_zero() {
-        let mut h = Hotbar::default();
-        h.slots[0] = Some(HotbarSlot {
-            item_id: "iron".to_string(),
-            count: 1,
-        });
-        h.consume_active();
-        assert!(h.slots[0].is_none());
-    }
-
-    #[test]
-    fn inventory_add_accumulates() {
-        let mut inv = Inventory::default();
-        inv.add("iron", 3);
-        inv.add("iron", 5);
-        assert_eq!(inv.0["iron"], 8);
     }
 }

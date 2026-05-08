@@ -44,7 +44,11 @@ impl Plugin for WorldPlugin {
                 Startup,
                 (player::spawn_camera, interaction::setup_ghost_preview),
             )
-            .add_systems(OnEnter(GameState::Loading), generation::finish_loading)
+            .add_systems(OnEnter(GameState::Loading), generation::setup_world_config)
+            .add_systems(
+                Update,
+                generation::poll_assets_loaded.run_if(in_state(GameState::Loading)),
+            )
             .add_systems(
                 Update,
                 (
@@ -71,6 +75,13 @@ impl Plugin for WorldPlugin {
             .add_systems(
                 Update,
                 player::resume_on_escape.run_if(in_state(GameState::Paused)),
+            )
+            .add_systems(
+                FixedUpdate,
+                player::player_velocity
+                    .run_if(not(player::any_ui_open))
+                    .run_if(in_state(PlayMode::Exploring))
+                    .run_if(in_state(GameState::Playing)),
             )
             .add_systems(
                 Update,

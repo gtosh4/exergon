@@ -285,11 +285,10 @@ pub(super) fn despawn_deposit_markers(
     }
 }
 
-pub(super) fn finish_loading(
+pub(super) fn setup_world_config(
     mut world_config: ResMut<WorldConfig>,
     domain_seeds: Option<Res<DomainSeeds>>,
     registry: Option<Res<VeinRegistry>>,
-    mut next_state: ResMut<NextState<GameState>>,
 ) {
     if let Some(seeds) = domain_seeds {
         world_config.world_seed = seeds.world;
@@ -298,7 +297,25 @@ pub(super) fn finish_loading(
         world_config.vein_registry = Some(Arc::new(reg.clone()));
     }
     world_config.active = true;
-    next_state.set(GameState::Playing);
+}
+
+pub(super) fn poll_assets_loaded(
+    asset_server: Res<AssetServer>,
+    visuals: Option<Res<crate::machine::MachineVisualAssets>>,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    let Some(visuals) = visuals else { return };
+
+    let all_loaded = visuals
+        .gltf_handles
+        .values()
+        .all(|h| asset_server.is_loaded_with_dependencies(h))
+        && asset_server.is_loaded_with_dependencies(&visuals.platform_scene)
+        && asset_server.is_loaded_with_dependencies(&visuals.deposit_scene);
+
+    if all_loaded {
+        next_state.set(GameState::Playing);
+    }
 }
 
 #[cfg(test)]
@@ -529,12 +546,12 @@ mod tests {
     }
 
     #[test]
-    fn finish_loading_activates_world_config() {
+    fn setup_world_config_activates_world_config() {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, StatesPlugin))
             .init_state::<GameState>()
             .insert_resource(WorldConfig::default())
-            .add_systems(OnEnter(GameState::Loading), finish_loading);
+            .add_systems(OnEnter(GameState::Loading), setup_world_config);
 
         app.world_mut()
             .resource_mut::<NextState<GameState>>()

@@ -1,11 +1,13 @@
-use avian3d::prelude::{Collider, RigidBody, Sensor};
+use avian3d::prelude::{
+    Collider, ColliderConstructor, ColliderConstructorHierarchy, RigidBody, Sensor,
+};
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
 use crate::world::{WorldObjectEvent, WorldObjectKind};
 
 use super::registry::{MachineDef, MachineRegistry, MachineTierDef};
-use super::visuals::MachineVisualAssets;
+use super::visuals::{MachineColliders, MachineVisualAssets};
 use super::{
     IoPortMarker, Machine, MachineNetworkChanged, MachineState, Mirror, Orientation, Platform,
     Rotation,
@@ -17,7 +19,6 @@ pub struct MachineBundle {
     pub state: MachineState,
     pub transform: Transform,
     pub rigid_body: RigidBody,
-    pub collider: Collider,
 }
 
 impl MachineBundle {
@@ -51,7 +52,6 @@ impl MachineBundle {
             state: MachineState::Idle,
             transform: Transform::from_translation(pos),
             rigid_body: RigidBody::Static,
-            collider: Collider::cuboid(2.0, 2.0, 2.0),
         }
     }
 }
@@ -93,6 +93,7 @@ pub(super) fn place_machine_system(
     registry: Res<MachineRegistry>,
     mut network_changed: MessageWriter<MachineNetworkChanged>,
     visuals: Option<Res<MachineVisualAssets>>,
+    machine_colliders: Option<Res<MachineColliders>>,
 ) {
     for ev in events.read() {
         if ev.kind != WorldObjectKind::Placed {
@@ -107,6 +108,20 @@ pub(super) fn place_machine_system(
         let energy_ports = bundle.machine.energy_ports.clone();
         let logistics_ports = bundle.machine.logistics_ports.clone();
         let machine_entity = commands.spawn(bundle).id();
+
+        let cached = machine_colliders
+            .as_deref()
+            .and_then(|mc| mc.colliders.get(&def.id))
+            .cloned();
+        if let Some(collider) = cached {
+            commands.entity(machine_entity).insert(collider);
+        } else {
+            commands
+                .entity(machine_entity)
+                .insert(ColliderConstructorHierarchy::new(
+                    ColliderConstructor::ConvexHullFromMesh,
+                ));
+        }
 
         if let Some(ref v) = visuals
             && let Some(scene) = v.scenes.get(&def.id)
@@ -142,10 +157,14 @@ pub(super) fn place_platform_system(
             Platform,
             Transform::from_translation(ev.pos),
             RigidBody::Static,
-            Collider::cuboid(1.0, 0.125, 1.0),
         ));
         if let Some(ref v) = visuals {
-            entity_cmd.insert(SceneRoot(v.platform_scene.clone()));
+            entity_cmd.insert((
+                SceneRoot(v.platform_scene.clone()),
+                ColliderConstructorHierarchy::new(ColliderConstructor::ConvexHullFromMesh),
+            ));
+        } else {
+            entity_cmd.insert(Collider::cuboid(8.0, 0.25, 8.0));
         }
         info!("Platform placed at {:?}", ev.pos);
     }

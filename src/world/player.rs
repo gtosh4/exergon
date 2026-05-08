@@ -73,12 +73,36 @@ pub(super) fn unlock_cursor(mut cursor_q: Query<&mut CursorOptions, With<Primary
 pub(super) fn toggle_pause(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut next_state: ResMut<NextState<GameState>>,
-    inv_open: Option<Res<InventoryOpen>>,
+    mut inv_open: Option<ResMut<InventoryOpen>>,
+    mut machine: Option<ResMut<MachineStatusPanel>>,
+    mut storage: Option<ResMut<StorageStatusPanel>>,
+    mut tech: Option<ResMut<TechTreePanelOpen>>,
 ) {
-    let blocked = inv_open.is_some_and(|o| o.0);
-    if keyboard.just_pressed(KeyCode::Escape) && !blocked {
-        next_state.set(GameState::Paused);
+    if !keyboard.just_pressed(KeyCode::Escape) {
+        return;
     }
+    if inv_open.as_ref().is_some_and(|o| o.0) {
+        if let Some(ref mut o) = inv_open {
+            o.0 = false;
+        }
+        return;
+    }
+    if machine.as_ref().is_some_and(|m| m.entity.is_some())
+        || storage.as_ref().is_some_and(|s| s.0.is_some())
+        || tech.as_ref().is_some_and(|t| t.open)
+    {
+        if let Some(ref mut m) = machine {
+            m.entity = None;
+        }
+        if let Some(ref mut s) = storage {
+            s.0 = None;
+        }
+        if let Some(ref mut t) = tech {
+            t.open = false;
+        }
+        return;
+    }
+    next_state.set(GameState::Paused);
 }
 
 pub(super) fn resume_on_escape(
@@ -95,8 +119,7 @@ pub(super) fn toggle_inventory(
     inv_open: Option<ResMut<InventoryOpen>>,
 ) {
     let Some(mut open) = inv_open else { return };
-    let should_toggle =
-        keyboard.just_pressed(KeyCode::Tab) || (keyboard.just_pressed(KeyCode::Escape) && open.0);
+    let should_toggle = keyboard.just_pressed(KeyCode::Tab);
     if should_toggle {
         open.0 = !open.0;
     }
@@ -137,11 +160,9 @@ pub(super) fn sync_cursor(
 }
 
 pub(super) fn camera_input(
-    keyboard: Res<ButtonInput<KeyCode>>,
     mouse_motion: Res<AccumulatedMouseMotion>,
     mut camera_q: Query<&mut Transform, With<MainCamera>>,
     player_q: Query<&Transform, (With<Player>, Without<MainCamera>)>,
-    mut velocity_q: Query<&mut LinearVelocity, With<Player>>,
 ) {
     let Ok(mut camera) = camera_q.single_mut() else {
         return;
@@ -159,11 +180,20 @@ pub(super) fn camera_input(
     let Ok(player_transform) = player_q.single() else {
         return;
     };
+    camera.translation = player_transform.translation + Vec3::Y * 0.5;
+}
+
+pub(super) fn player_velocity(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    camera_q: Query<&Transform, With<MainCamera>>,
+    mut velocity_q: Query<&mut LinearVelocity, With<Player>>,
+) {
+    let Ok(camera) = camera_q.single() else {
+        return;
+    };
     let Ok(mut velocity) = velocity_q.single_mut() else {
         return;
     };
-
-    camera.translation = player_transform.translation + Vec3::Y * 0.5;
 
     let mut direction = Vec3::ZERO;
     if keyboard.pressed(KeyCode::KeyW) {
@@ -297,19 +327,30 @@ mod tests {
     }
 
     #[test]
-    fn toggle_inventory_escape_closes_when_open() {
+    fn toggle_pause_escape_closes_inventory_when_open() {
         let mut app = App::new();
-        app.add_plugins(MinimalPlugins)
+        app.add_plugins((MinimalPlugins, StatesPlugin))
+            .init_state::<GameState>()
             .init_resource::<ButtonInput<KeyCode>>()
             .insert_resource(InventoryOpen(true))
-            .add_systems(Update, toggle_inventory);
+            .add_systems(Update, toggle_pause.run_if(in_state(GameState::Playing)));
+
+        app.world_mut()
+            .resource_mut::<NextState<GameState>>()
+            .set(GameState::Playing);
+        app.update();
 
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
             .press(KeyCode::Escape);
         app.update();
+        app.update();
 
         assert!(!app.world().resource::<InventoryOpen>().0);
+        assert_eq!(
+            *app.world().resource::<State<GameState>>().get(),
+            GameState::Playing
+        );
     }
 
     #[test]

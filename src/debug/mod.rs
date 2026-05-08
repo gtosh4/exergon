@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
-use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 use xxhash_rust::xxh64::xxh64;
 
 use crate::{
@@ -69,10 +68,17 @@ impl NetworkOverlay {
 
 pub struct DebugPlugin;
 
+#[derive(Component)]
+struct DebugHudText;
+
+#[derive(Component)]
+struct NetworkHudText;
+
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DebugOverlay>()
             .init_resource::<NetworkOverlay>()
+            .add_systems(OnEnter(GameState::Playing), spawn_debug_huds)
             .add_systems(Update, toggle_overlay)
             .add_systems(Update, toggle_network_overlay)
             .add_systems(Update, screenshot_on_f12)
@@ -82,13 +88,54 @@ impl Plugin for DebugPlugin {
                 draw_network_gizmos.run_if(in_state(GameState::Playing)),
             )
             .add_systems(
-                EguiPrimaryContextPass,
+                Update,
                 (
-                    draw_ui.run_if(in_state(GameState::Playing)),
-                    draw_network_ui.run_if(in_state(GameState::Playing)),
+                    update_debug_hud.run_if(in_state(GameState::Playing)),
+                    update_network_hud.run_if(in_state(GameState::Playing)),
                 ),
             );
     }
+}
+
+fn spawn_debug_huds(mut commands: Commands) {
+    commands.spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(8.0),
+            top: Val::Px(8.0),
+            padding: UiRect::all(Val::Px(6.0)),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.627)),
+        Text::new(""),
+        TextFont {
+            font_size: 12.0,
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        Visibility::Hidden,
+        DespawnOnExit(GameState::Playing),
+        DebugHudText,
+    ));
+    commands.spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            right: Val::Px(8.0),
+            top: Val::Px(8.0),
+            padding: UiRect::all(Val::Px(6.0)),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.627)),
+        Text::new(""),
+        TextFont {
+            font_size: 12.0,
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        Visibility::Hidden,
+        DespawnOnExit(GameState::Playing),
+        NetworkHudText,
+    ));
 }
 
 fn toggle_overlay(keyboard: Res<ButtonInput<KeyCode>>, mut overlay: ResMut<DebugOverlay>) {
@@ -217,62 +264,48 @@ fn box_xz(
     gizmos.line(Vec3::new(x0, y_lo, z1), Vec3::new(x0, y_hi, z1), color);
 }
 
-fn draw_ui(
-    mut contexts: EguiContexts,
+fn update_debug_hud(
     overlay: Res<DebugOverlay>,
     camera_q: Query<&Transform, With<Camera3d>>,
     registry: Option<Res<VeinRegistry>>,
     seeds: Option<Res<DomainSeeds>>,
-) -> Result {
-    if *overlay == DebugOverlay::None {
-        return Ok(());
-    }
-    let Ok(cam) = camera_q.single() else {
-        return Ok(());
+    mut q: Query<(&mut Visibility, &mut Text), With<DebugHudText>>,
+) {
+    let Ok((mut vis, mut text)) = q.single_mut() else {
+        return;
     };
+
+    if *overlay == DebugOverlay::None {
+        *vis = Visibility::Hidden;
+        return;
+    }
+    *vis = Visibility::Inherited;
+
+    let Ok(cam) = camera_q.single() else { return };
     let pos = cam.translation;
     let cell_y = pos.y.div_euclid(CELL_Y) as i32;
-    let ctx = contexts.ctx_mut()?;
 
-    egui::Area::new(egui::Id::new("debug_hud"))
-        .anchor(egui::Align2::LEFT_TOP, [8.0, 8.0])
-        .show(ctx, |ui| {
-            egui::Frame::popup(ui.style())
-                .fill(egui::Color32::from_black_alpha(160))
-                .show(ui, |ui| {
-                    ui.set_max_width(ui.ctx().content_rect().width() * 0.3);
-                    ui.colored_label(egui::Color32::YELLOW, format!("[F9] {}", overlay.label()));
-                    match *overlay {
-                        DebugOverlay::Veins => {
-                            let world_seed = seeds.as_deref().map_or(0, |s| s.world);
-                            let cx = pos.x.div_euclid(CELL_XZ) as i32;
-                            let cz = pos.z.div_euclid(CELL_XZ) as i32;
-                            let label = registry
-                                .as_deref()
-                                .and_then(|r| r.cell_vein(world_seed, cx, cell_y, cz))
-                                .map_or("(empty)", |v| v.id.as_ref());
-                            ui.colored_label(
-                                egui::Color32::WHITE,
-                                format!("Cell [{cx},{cell_y},{cz}]: {label}"),
-                            );
-                        }
-                        DebugOverlay::Biomes => {
-                            let text =
-                                match registry.as_deref().and_then(|r| r.biome_at_cell_y(cell_y)) {
-                                    None => format!("Layer [y={cell_y}]: (none)"),
-                                    Some(info) => format!(
-                                        "Layer [y={cell_y}]: {} / {}",
-                                        info.layer_name, info.id
-                                    ),
-                                };
-                            ui.colored_label(egui::Color32::WHITE, text);
-                        }
-                        _ => {}
-                    }
-                });
-        });
-
-    Ok(())
+    let detail = match *overlay {
+        DebugOverlay::Veins => {
+            let world_seed = seeds.as_deref().map_or(0, |s| s.world);
+            let cx = pos.x.div_euclid(CELL_XZ) as i32;
+            let cz = pos.z.div_euclid(CELL_XZ) as i32;
+            let label = registry
+                .as_deref()
+                .and_then(|r| r.cell_vein(world_seed, cx, cell_y, cz))
+                .map_or("(empty)", |v| v.id.as_ref());
+            format!("\nCell [{cx},{cell_y},{cz}]: {label}")
+        }
+        DebugOverlay::Biomes => {
+            let detail = match registry.as_deref().and_then(|r| r.biome_at_cell_y(cell_y)) {
+                None => format!("Layer [y={cell_y}]: (none)"),
+                Some(info) => format!("Layer [y={cell_y}]: {} / {}", info.layer_name, info.id),
+            };
+            format!("\n{detail}")
+        }
+        _ => String::new(),
+    };
+    **text = format!("[F9] {}{detail}", overlay.label());
 }
 
 fn toggle_network_overlay(
@@ -305,38 +338,32 @@ fn draw_network_gizmos(
     }
 }
 
-fn draw_network_ui(
-    mut contexts: EguiContexts,
+fn update_network_hud(
     overlay: Res<NetworkOverlay>,
     power_cables: Query<&PowerCableSegment>,
     logistics_cables: Query<&LogisticsCableSegment>,
-) -> Result {
+    mut q: Query<(&mut Visibility, &mut Text), With<NetworkHudText>>,
+) {
+    let Ok((mut vis, mut text)) = q.single_mut() else {
+        return;
+    };
+
     if *overlay == NetworkOverlay::None {
-        return Ok(());
+        *vis = Visibility::Hidden;
+        return;
     }
-    let ctx = contexts.ctx_mut()?;
-    egui::Area::new(egui::Id::new("network_hud"))
-        .anchor(egui::Align2::RIGHT_TOP, [-8.0, 8.0])
-        .show(ctx, |ui| {
-            egui::Frame::popup(ui.style())
-                .fill(egui::Color32::from_black_alpha(160))
-                .show(ui, |ui| {
-                    ui.colored_label(
-                        egui::Color32::YELLOW,
-                        format!("[F10] Network: {}", overlay.label()),
-                    );
-                    let count = match *overlay {
-                        NetworkOverlay::Power => power_cables.iter().count(),
-                        NetworkOverlay::Logistics => logistics_cables.iter().count(),
-                        NetworkOverlay::None => 0,
-                    };
-                    ui.colored_label(
-                        egui::Color32::WHITE,
-                        format!("{} {} cable segments", count, overlay.label()),
-                    );
-                });
-        });
-    Ok(())
+    *vis = Visibility::Inherited;
+
+    let count = match *overlay {
+        NetworkOverlay::Power => power_cables.iter().count(),
+        NetworkOverlay::Logistics => logistics_cables.iter().count(),
+        NetworkOverlay::None => 0,
+    };
+    **text = format!(
+        "[F10] Network: {}\n{count} {} cable segments",
+        overlay.label(),
+        overlay.label()
+    );
 }
 
 fn screenshot_on_f12(input: Res<ButtonInput<KeyCode>>, mut commands: Commands) {

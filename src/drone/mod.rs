@@ -11,7 +11,7 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
-use crate::inventory::Inventory;
+use crate::logistics::StorageUnit;
 use crate::world::MainCamera;
 use crate::world::generation::OreDeposit;
 use crate::{GameState, PlayMode};
@@ -167,7 +167,7 @@ fn drone_mine_system(
     camera_q: Query<&Transform, With<MainCamera>>,
     spatial_query: SpatialQuery,
     mut deposit_q: Query<&mut OreDeposit>,
-    mut inventory: ResMut<Inventory>,
+    mut storage_q: Query<&mut StorageUnit>,
 ) {
     if !mouse.just_pressed(MouseButton::Right) {
         return;
@@ -187,7 +187,9 @@ fn drone_mine_system(
     let rng_seed = deposit.depletion_seed ^ deposit.total_extracted.to_bits() as u64;
     let mut rng = Pcg64::seed_from_u64(rng_seed);
     if let Some(ore_id) = sample_ore(&deposit.ores, &mut rng) {
-        inventory.add(ore_id, 1);
+        if let Some(mut unit) = storage_q.iter_mut().next() {
+            *unit.items.entry(ore_id).or_insert(0) += 1;
+        }
         deposit.total_extracted += 1.0;
     }
 }
@@ -299,8 +301,7 @@ mod tests {
     }
 
     #[test]
-    fn mine_adds_ore_to_inventory_and_increments_extracted() {
-        use crate::inventory::Inventory;
+    fn mine_samples_ore_and_increments_extracted() {
         use crate::world::generation::OreDeposit;
 
         let mut deposit = OreDeposit {
@@ -309,16 +310,15 @@ mod tests {
             total_extracted: 0.0,
             depletion_seed: 0,
         };
-        let mut inventory = Inventory::default();
 
         let rng_seed = deposit.depletion_seed ^ deposit.total_extracted.to_bits() as u64;
         let mut rng = Pcg64::seed_from_u64(rng_seed);
-        if let Some(ore_id) = sample_ore(&deposit.ores, &mut rng) {
-            inventory.add(ore_id, 1);
+        let ore = sample_ore(&deposit.ores, &mut rng);
+        if ore.is_some() {
             deposit.total_extracted += 1.0;
         }
 
-        assert_eq!(*inventory.0.get("copper_ore").unwrap_or(&0), 1);
+        assert_eq!(ore.as_deref(), Some("copper_ore"));
         assert_eq!(deposit.total_extracted, 1.0);
         assert!(!deposit.ores.is_empty(), "deposit must persist");
     }
