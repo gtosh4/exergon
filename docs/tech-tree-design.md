@@ -81,7 +81,7 @@ The tech tree follows a canonical 10-tier sequence. Each difficulty uses a prefi
 | # | Tier name | Terminal for | Gate condition |
 |---|---|---|---|
 | 1 | Landfall | — | Analyze first alien sample + deploy surface drone |
-| 2 | Roots | — | Reach Layer 2 + sustain stable second power source |
+| 2 | Roots | — | Produce 100 units of any refined base material |
 | 3 | Contact | **Initiation** | Activate alien structure (terminal: gateway; intermediary: ruin/cache unlocking alien material or machine) |
 | 4 | Reach | — | Achieve first orbital flight |
 | 5 | Salvage | **Standard** | Interact with alien structure (terminal: repair alien vessel + launch; intermediary: access alien fabrication probe, extract fabrication data) |
@@ -118,14 +118,14 @@ Each tier has a thematic identity that drives which categories dominate and what
 - Network design pressure begins: channel limits first felt
 - Power efficiency issues emerge; second source type needed
 - **Base/alien ratio:** ~70% base, 30% alien
-- **Gate:** Reach Layer 2 + sustain stable second power source
+- **Gate:** Produce 100 units of any refined base material (ingot or plate form)
 
 #### Tier 3 — Contact *(Initiation terminal)*
 *First alien structure. Gateway or ruin.*
 
 - 2–3 alien materials; base materials begin feeding alien chains
 - Processing conditions appear: temperature, pressure, catalysts
-- Flying drone → atmosphere layer
+- Flying drone → atmosphere layer *(post-MVP; T3 Initiation escape does not require it)*
 - Sub-network segmentation becomes economical
 - **Base/alien ratio:** ~40% base, 60% alien
 - **Gate (terminal):** Construct activation key + sustain gateway power + activate

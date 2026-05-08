@@ -63,8 +63,7 @@ Everything not listed above, including: underground layer, digger drone, reactiv
 - Sub-network interfaces (pass-through)
 
 **Power**
-- Amps & Voltage tier implementation
-- Separate power cable tiers
+- Power cable tiers (voltage tier + amperage ratings; transformers bridge adjacent tiers)
 - Planet modifier efficiency multipliers
 - Multiple generator types (seeded availability)
 - Full tier applicability / demand growth pressure

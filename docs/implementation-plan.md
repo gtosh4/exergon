@@ -1,5 +1,7 @@
-# Implementation Plan — MVP Sprint 1: First Escape
+# Implementation Plan — Vertical Slice Sprint 1: First Escape
 Always check off items as they are completed.
+
+> **Scope note:** This plan implements Milestone 1 (Vertical Slice) — one complete Initiation run end-to-end with simplified/stubbed systems. Tech node names used here (`science_basics`, `basic_processing`, `advanced_processing`, `resonite_engineering`) are VS placeholder assets. Final T1 node names per `tech-tree-design.md §6` (Stone Furnace, Field Analyzer, etc.) will replace them in MVP.
 
 ## What You Can Test When This Is Done
 
@@ -124,6 +126,10 @@ Player needs to know where the ruins are without wandering randomly.
 - [ ] `alien_materials` primary_unlock is `ExplorationDiscovery("xalite_deposit")` — this will now work after Phase 1
 - [ ] Assembler machine is in `assets/machines/` but not in `--test` hotbar — add it (with tier 2)
 - [ ] `assets/items/gateway.ron` exists — ensure it is never given to player inventory or `--test` hotbar
+- [ ] **Tier gate mechanics** — T1 gate ("Analyze first alien sample + deploy surface drone") and T1→2 gate ("Produce 100 units of refined base material") are specified in `tech-tree-design.md §3` and §6 but not implemented. For VS, `--test` mode must either bypass these gates or stub them so the full run path is testable.
+- [ ] Drag-drop inventory to hotbar doesn't work
+- [ ] Update power system to use volt/amp/watt as described in the docs
+- [ ] 
 
 ---
 

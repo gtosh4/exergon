@@ -21,9 +21,9 @@ Rationale and context behind key decisions. The GDD contains the *what*; this do
 
 **Why:** Fixed core = recognizability from screenshots (viewer can identify machine type at a glance). Flexible modules = aesthetic latitude and optimization decisions. This is the best combination of iconic identity and creative freedom.
 
-**Module slot count:** Determined by core tier — upgrading the core earns more slots. Tier is also expressed physically: higher-tier = larger structure. Size IS the tier indicator, no separate UI needed. Late-game machines visually dwarf early-game ones.
+**Module slot count:** Determined by core tier — upgrading the core earns more slots. Tier is expressed through visually distinct model variants — higher-tier machines look more impressive and complex; size may increase to accommodate more module slots but is not required. Late-game machines visually dwarf early-game ones.
 
-**Tier-up model:** Tentatively additive/in-place — the smaller structure is a valid sub-structure of the larger, so players expand outward without tearing down. This limits some design space and may be relaxed per-machine or globally later. Some machines (e.g. a reactor) could narratively justify requiring full rebuild.
+**Tier-up model:** Replace-in-place — upgrading a machine despawns the current tier prefab and spawns the tier+1 prefab at the same position and orientation; machine state (current recipe, inventory, module assignments, IO configuration) transfers where compatible. The original additive/in-place concept (smaller structure as valid sub-structure of the larger, expanding outward) was considered and superseded by this simpler model.
 
 **Modules carry real tradeoffs:** speed vs. efficiency, parallel processing slots, buffer capacity. Not cosmetic. Which modules exist in a given run is a valid seed variance axis.
 
@@ -133,7 +133,7 @@ Rationale and context behind key decisions. The GDD contains the *what*; this do
 
 **Tiers 3, 5, 7 have two variants:**
 - *Terminal*: the escape objective for that difficulty (gateway, derelict ship, relay)
-- *Intermediary*: a different alien artifact class that yields materials/knowledge but cannot itself be used to escape (automated probe, knowledge archive)
+- *Intermediary*: a different alien artifact class that yields materials/knowledge but cannot itself be used to escape — T3: ruin/cache (unlocks alien material or machine type); T5: alien fabrication probe (extract fabrication data); T7: alien archive (extract FTL theory fragments)
 - Immersion preserved by roguelite logic: each run is a different world with a different precursor remnant. Same civilization, different artifact.
 
 **Why goal-oriented tiers:** Generic tier names (Foundation/Expansion/Mastery) don't communicate the run's narrative arc. Goal-oriented tiers make the escape feel like a conclusion the entire run was building toward, not a bolt-on win condition. Each tier gate is a milestone in the specific escape arc.
@@ -156,11 +156,80 @@ Rationale and context behind key decisions. The GDD contains the *what*; this do
 
 ---
 
-## Power system model
+## Power system model — V×A with non-punishing failures
 
-**Decision:** Flow-based (EU-style). Separate power cables from logistics cables. Generators have fixed output; machines draw recipe-based wattage when active, zero when idle. Upgrade pressure comes from demand growth outpacing fixed supply — not from output degradation. Planet modifiers apply efficiency multipliers to generator output. Brownout = proportional throttling across all machines, not random cutoff.
+**Decision:** Power has two independent dimensions: **Voltage tier** (qualitative delivery level — LV / MV / HV / …) and **Amperage** (simultaneous throughput). Their product is the instantaneous watt draw. Cables carry a `(voltage_tier, max_amps)` pair; recipes carry a `min_voltage_tier`. All failure modes are **non-destructive** — machines pause or block, cables never burn, machines never explode.
 
-**Why:** Fixed-output + growing demand is simpler and more legible than explicit efficiency degradation. Players see total production vs. demand clearly; the signal to upgrade is unambiguous.
+Specific failure behaviors:
+- Voltage mismatch (network tier < recipe requirement): machine blocked, does not start, reason displayed
+- Amp cap reached: machine blocked, waits until headroom frees
+- Generator buffers empty mid-recipe: recipe pauses, amps held, resumes when buffers refill
+- Cable removal causes amp overload: affected machines pause and release amps, resume when headroom restores
+
+Generators have fixed output; machines draw recipe-based wattage when active, zero when idle. Upgrade pressure comes from demand growth outpacing fixed supply — not from degradation. Planet modifiers apply efficiency multipliers to generator output. Power cables are physically separate from logistics cables.
+
+---
+
+**Design space investigation:**
+
+We audited power systems across the factory/automation genre before committing:
+
+| Game | System | Shortage behavior | Destruction risk |
+|---|---|---|---|
+| Factorio | Single scalar (watts) | Proportional slowdown, all machines equally | None |
+| Satisfactory | Single scalar (MW) | Hard grid cutoff, manual fuse reset | None |
+| Dyson Sphere Program | Single scalar (MW) | Proportional slowdown, cascade collapse at ~10% | None |
+| Mindustry | Single scalar (power/tick) | Proportional slowdown | None |
+| Oxygen Not Included | Watts + wire tier capacity | Wire tile takes damage (random tile), breaks | None (tiles repaired) |
+| GregTech (GTNH) | Voltage tier × Amperage | Machine blocked / cable fire / machine explosion | Yes — permanent |
+
+**GregTech is the only mainstream factory game where power misconfiguration permanently destroys infrastructure.**
+
+---
+
+**What GregTech gets right:**
+
+The V×A model creates genuine infrastructure design decisions absent from all single-scalar systems:
+- Cable tier selection (voltage + amp rating per segment)
+- Transformer placement at tier boundaries — inter-tier power routing is an explicit design choice, not a free connection
+- Amp routing and per-zone amperage accounting
+- "Power epochs" — each machine tier upgrade requires retrofitting cables, machines, and transformers, creating real architectural evolution across the run
+
+Veterans consistently praise these decisions. The system is widely considered the most intellectually interesting power model in the genre.
+
+**What GregTech gets wrong:**
+
+The failure mode is explosive and permanent. Community research surfaced consistent patterns:
+1. **Opaque failure feedback** — the game doesn't tell you *why* the explosion happened. Players lose progress to rules they couldn't observe.
+2. **Culture shock from Factorio/Satisfactory** — every other popular factory game uses a single scalar where "more power = more better" and failure is graceful. GT's "wrong voltage = base explodes" violates deeply conditioned player expectations.
+3. **Three specific mental model collisions** for players coming from simpler systems: (a) power is one number, not two dimensions; (b) more generation never hurts; (c) shortage = slow, not catastrophic.
+4. **Supplementary guide requirement** — GTNH has a player-written "Snagger's Electricity Guide for New Players" separate from the main electricity article, plus 4+ dedicated YouTube tutorial series, specifically because in-game documentation is insufficient to navigate the system safely.
+5. **~35% of experienced modpack players actively avoid GT** (FTB community poll). Simplified GT-adjacent packs (Omnifactory, Nomifactory) exist specifically to preserve the progression depth while eliminating the "mistakes destroy your base" penalty — market evidence that demand for the mechanic without the punishment is real.
+
+**Factorio's power system** is the genre benchmark for legibility: the Electric Network Info screen gives ranked consumption, adjustable history graph, and satisfaction bar. Brownouts are puzzles because you can see exactly what's wrong. This is separate from the single-scalar model — it's a UI/feedback design lesson applicable to any model.
+
+**ONI's wire tier system** demonstrates that capacity tiers + failure consequences can coexist without catastrophic loss: exceeding wire capacity damages a tile (a Dupe fixes it), not the machine.
+
+---
+
+**Why V×A over single scalar:**
+
+We could match Factorio's single-scalar model. We chose not to because:
+- Single-scalar power is invisible as a design domain. Factorio's power system disappears once you've overbuilt. There is no ongoing infrastructure design challenge.
+- V×A creates decisions that recur at every tier upgrade: what cable grade, where to place transformers, how to segment amp zones. These decisions parallel the recipe graph decisions that are the intellectual core of the game — they're the same kind of thinking.
+- Planet modifiers (solar efficiency, combustion yield, geothermal availability) are more interesting when applied to a power system that already has structural depth. A modifier that halves solar output is a minor inconvenience in Factorio; in a V×A system it affects which tier strategy is viable this run.
+
+**Why non-punishing failures:**
+
+The GT failure model conflates two separable things: *system depth* (the V×A model) and *punishment severity* (explosions). Every other factory game proves these are independent axes. You can have the depth without the punishment.
+
+Non-punishing failures are also consistent with the broader game design principle (see "Failure conditions — none forced"): difficulty expresses as elegance of solution, not run termination. A misconfigured power network that pauses the factory and displays the reason is a puzzle. A misconfigured network that destroys machines and provides no explanation is friction.
+
+**The specific differentiator:** GT's primary flaw is failure *communication*, not the failure itself. "Your cable burned" is not the same as "Your cable burned because its amp rating (2A) was exceeded — 3A were in use when you removed the bypass cable." Exergon can deliver the first form of power system with the second form of feedback, which no other game in the genre has done.
+
+**Higher punishment as opt-in challenge modifiers:**
+
+Non-punishing is the *default*, not the only option. GT-style consequences are a natural fit for the point-buy challenge modifier system (GDD §14) — players who want the harder failure model can opt in and earn challenge points for doing so. Candidates: cable tier degradation on sustained overload, machine damage on voltage mismatch, cascading segment shutdown on amp overload, hidden power diagnostics. Veterans who cleared runs at baseline and want a GT-authentic experience can reconstruct it through modifiers; new players never encounter it unless they choose to.
 
 ---
 

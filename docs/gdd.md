@@ -199,7 +199,7 @@ The tech tree is organized into **tiers** that follow a canonical 10-tier sequen
 | # | Tier name | Terminal for | Gate condition |
 |---|---|---|---|
 | 1 | Landfall | — | Analyze first alien sample + deploy surface drone |
-| 2 | Roots | — | Reach Layer 2 + sustain stable second power source |
+| 2 | Roots | — | Produce 100 units of any refined base material |
 | 3 | Contact | **Initiation** | Activate alien structure (terminal: gateway; intermediary: ruin/cache unlocking alien material or machine) |
 | 4 | Reach | — | Achieve first orbital flight |
 | 5 | Salvage | **Standard** | Interact with alien vessel (terminal: repair + launch; intermediary: extract fabrication data) |
@@ -345,10 +345,34 @@ Power sources have a **peak efficiency window** across the run's tiers. Outside 
 
 This means power transitions are economic decisions: *when is the pain of staying on this solution worse than the cost of building the next one?* That is an interesting ongoing question, not a forced march.
 
+### Voltage and amperage
+
+Power cables have two independent ratings — **voltage tier** and **amperage** — rather than a single wattage capacity. This creates two distinct tier-gating axes:
+
+**Voltage (qualitative gate):** Each machine tier requires a minimum voltage tier to operate. A machine cannot run on a network below its voltage requirement regardless of available wattage. Voltage tiers are discrete steps that map directly to machine tiers. Players cannot circumvent this gate by adding more low-voltage generators — the cable network must be upgraded to a higher voltage tier to unlock higher-tier machines.
+
+**Amperage (throughput gate):** A cable's amperage rating caps how many amps it can carry simultaneously. Each running machine consumes `draw_watts / network_voltage` amps. Running more machines in parallel requires more amperage — thicker cables, parallel cable runs, or sub-network segmentation.
+
+**Transformers** bridge voltage tiers. A transformer machine accepts power at voltage tier N and outputs at tier N±1. Inter-tier power distribution requires explicit transformer infrastructure — not a free connection.
+
+The combined effect mirrors GTNH's EU tier system with clear physical grounding. The voltage gate is genuinely qualitative — more of the same tier cannot substitute for a higher tier — making each voltage upgrade a meaningful factory milestone rather than a smooth power ramp.
+
 ### Power transitions as factory events
 Transitioning power tiers is potentially the most disruptive event in a run — it may require rebuilding significant infrastructure. Combined with the world's reactivity to factory footprint, a major power transition is a meaningful moment in the run's arc, not a background task.
 
 > **Post-MVP enhancement:** Dramatic power transition events (factory going dark, world reacting to energy signature change) are desirable for narrative texture but not required for MVP. Transitions are meaningful as economic decisions; the drama layer can be added later.
+
+### Power punishment as a challenge modifier
+
+The default failure model is non-punishing: misconfigured power pauses machines and displays the reason; nothing is destroyed. This is a deliberate baseline that keeps the V×A system's strategic depth without catastrophic setbacks.
+
+Higher punishment levels are natural **challenge modifiers** in the point-buy system (§14):
+- *Cable stress* — sustained amp overload degrades cable tier, requiring repair or replacement
+- *Machine damage* — voltage mismatch damages machines rather than simply blocking them (requires repair)
+- *Cascading shutdown* — amp overload cuts power to the entire segment, not just the offending machine
+- *No power UI* — diagnostic overlays hidden; players must infer network state from machine behavior
+
+These are opt-in difficulty axes, not default behavior. Veterans who want GT-style consequences can take them as challenges; players who want the infrastructure design without the punishment play at baseline.
 
 ---
 
@@ -580,7 +604,7 @@ Meta-progression persists across runs and expands the game's possibility space w
 
 **Run modifiers & scenarios.** New run modifier types unlock — additional axes of seeded variance, special scenario conditions, unique escape artifact types. These expand what a run can be, not how easy it is to complete one.
 
-Run modifiers use a **point-buy system** at run start. Challenges (harder planet modifiers, tighter research budgets, disabled tools, higher reactivity rates) award points. Boons (starting resource cache, pre-researched node, *earlier access to a QoL tool*) cost points. The net must be **zero or positive** — players can customize how the run is hard and can push harder than the tier baseline, but cannot soften a tier below its baseline. Boons require equal or greater challenge point backing.
+Run modifiers use a **point-buy system** at run start. Challenges (harder planet modifiers, tighter research budgets, disabled tools, higher reactivity rates, *increased power punishment severity*) award points. Boons (starting resource cache, pre-researched node, *earlier access to a QoL tool*) cost points. The net must be **zero or positive** — players can customize how the run is hard and can push harder than the tier baseline, but cannot soften a tier below its baseline. Boons require equal or greater challenge point backing.
 
 The tool-access boons specifically shift the in-run Engineering research unlock window for a given tool to an earlier tier, not to run start. Boon cost scales with the depth of challenge the tool removes — early ratio calculator costs less than early auto-crafting network. No tool access boon should be an obvious always-buy.
 

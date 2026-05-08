@@ -87,6 +87,8 @@ After removal:
 4. **One component** → network survives; removes membership from ports no longer near any cable endpoint
 5. **Multiple components** → keeps largest as the original network; spawns new network entities for smaller fragments; reassigns cable and port memberships; fires `NetworkChanged<N>` for all resulting networks
 
+For power networks, after topology is updated: if any resulting network's `amps_in_use()` exceeds its new `amp_capacity()`, the system pauses all running machines on that network (removes `MachineActivity`, releases their amp allocations, sets `MachineState::Idle`) and fires `NetworkChanged<Power>` so `recipe_start_system` can re-evaluate them in priority order once headroom exists. No cable or machine damage occurs.
+
 #### Machine Removal
 
 When a machine is removed, all cables whose endpoints target any of that machine's ports are removed first. Each removal goes through `cable_removed_system`, which handles network splitting, port membership cleanup, and `NetworkChanged<N>` events. Port entities are then despawned with the machine.
@@ -144,13 +146,16 @@ Run after `NetworkSystems::of::<Logistics>()` and after `PowerSimSystems`:
 **`recipe_start_system`** — triggered by `NetworkStorageChanged` or `NetworkChanged<Power>`. For each affected logistics network, scans idle machines:
 1. Finds matching recipes by `machine_type` and `machine_tier`
 2. Checks tech tree lock (`TechTreeProgress.unlocked_recipes`) if progress resource exists
-3. **Power check** — if `recipe.energy_cost > 0`, calls `PowerNetworkMembers.has_energy(energy_per_tick)` where `energy_per_tick = energy_cost / processing_time * dt`; no withdrawal at start
+3. **Power check** — if `recipe.energy_cost > 0`:
+   - **Voltage** — `PowerNetworkMembers.voltage_tier()` ≥ `recipe.min_voltage_tier`; cannot start if not met
+   - **Amps** — `(energy_cost / processing_time) / network_voltage` ≤ `PowerNetworkMembers.amp_capacity() - amps_in_use()`; cannot start if at amp capacity
+   - **Buffer** — calls `PowerNetworkMembers.has_energy(energy_per_tick)` where `energy_per_tick = (energy_cost / processing_time) * dt`; no withdrawal at start
 4. **Input check** — for each recipe input item, resolves the machine's logistics ports that allow input for that item (via `PortPolicy`), then calls `has_items` across the `LogisticsNetworkMembers` of those ports' networks
 5. **Output check** — for each recipe output/byproduct item, verifies at least one of the machine's logistics ports allows output for that item and has a connected network; if any output has no valid destination, recipe does not start
 6. If all checks pass: calls `take_items` on each input-port network accordingly, inserts `MachineActivity` and `MachineState::Running` on the machine
 
 **`recipe_progress_system`** — each tick:
-1. If `recipe.energy_cost > 0`: calls `PowerNetworkMembers.take_energy(energy_cost / processing_time * dt)`; if insufficient energy, skips progress advance for this tick (recipe pauses until buffer refills)
+1. If `recipe.energy_cost > 0`: calls `PowerNetworkMembers.take_energy((energy_cost / processing_time) * dt)`; if insufficient energy, skips progress advance for this tick (recipe pauses until buffer refills). Amps remain held while paused — the machine stays online and does not release its amp allocation until the recipe completes or is cancelled.
 2. Advances `MachineActivity.progress` by `dt`
 
 On completion:
@@ -179,10 +184,10 @@ On completion:
 |---|---|---|
 | `PowerNetwork` | Network entity | Marker; no data |
 | `PowerNetworkMember(Entity)` | Cable segment, port entity, or generator entity | Points to owning network |
-| `PowerNetworkMembers(Vec<Entity>)` | Network entity | Lists all member entities; exposes `has_energy`, `take_energy`, `give_energy` with priority-ordered iteration across member `GeneratorUnit` buffers |
-| `PowerCableSegment` | Cable segment entity | `from`, `to`, `path` |
+| `PowerNetworkMembers(Vec<Entity>)` | Network entity | Lists all member entities; exposes `has_energy`, `take_energy`, `give_energy` across member `GeneratorUnit` buffers; exposes `voltage_tier()`, `amp_capacity()`, `amps_in_use()` for voltage and throughput checks |
+| `PowerCableSegment` | Cable segment entity | `from`, `to`, `path`, `voltage_tier: u8`, `max_amps: f32` |
 | `EnergyPortOf(Entity)` | Port entity | Points to owning machine |
-| `GeneratorUnit { pos: Vec3, watts: f32, buffer_joules: f32, max_buffer_joules: f32 }` | Standalone entity | Represents a placed generator; fills its buffer at `watts` joules/sec up to `max_buffer_joules` |
+| `GeneratorUnit { pos: Vec3, voltage_tier: u8, watts: f32, buffer_joules: f32, max_buffer_joules: f32 }` | Standalone entity | Outputs at `voltage_tier`; fills its own internal buffer at `watts` joules/sec up to `max_buffer_joules`; `PowerNetworkMembers.take_energy` draws across all member buffers |
 
 ### Simulation Systems
 
@@ -214,7 +219,7 @@ A machine with no power cable connection has no `PowerNetworkMember` on its ener
 
 ### Power as a Consumable Resource
 
-Power mirrors the item storage model. Generators produce energy into a buffer; recipes withdraw a lump of joules on start — exactly like miners produce items into storage and recipes withdraw inputs.
+Each generator fills its own internal buffer at its rated wattage. `PowerNetworkMembers.take_energy` draws across all member buffers in the network (generators and batteries). This mirrors the item storage model — multiple `StorageUnit`s, not a single pool.
 
 ```
 NetworkStorageChanged  ─┐
@@ -222,13 +227,17 @@ NetworkStorageChanged  ─┐
 NetworkChanged<Power>  ─┘
 ```
 
-When a power network's buffer becomes non-zero (`generator_tick_system` fires `NetworkChanged<Power>`), the system traverses:
+When any generator buffer transitions from empty to non-empty (`generator_tick_system` fires `NetworkChanged<Power>`), the system traverses:
 ```
 power network → PowerNetworkMembers → EnergyPortOf → machine → MachineLogisticsPorts → logistics network
 ```
-…and re-evaluates logistics networks whose machines have connected energy ports. This allows a newly charged generator to unblock a recipe waiting on energy.
+…and re-evaluates logistics networks whose machines have connected energy ports. This allows a refilling generator to unblock a paused recipe.
 
-Power is withdrawn per-tick during recipe execution, unlike logistics inputs which are consumed at recipe start. Each tick `recipe_progress_system` calls `take_energy(energy_cost / processing_time * dt)`; if the buffer is insufficient the recipe pauses until generators refill it. The start check (`has_energy`) only gates recipe initiation — no upfront withdrawal.
+Recipe start checks voltage tier compatibility and amp headroom before the energy check — a machine that requires Medium Voltage cannot start on a Low Voltage network regardless of available joules. Amps are allocated on start and held until the recipe finishes or is cancelled; a paused recipe (generator buffers empty) continues to hold its amp allocation.
+
+All power failure modes are non-destructive. Voltage mismatch blocks the machine with a displayed reason. Amp capacity reached blocks new starts. Generator shortage pauses in-progress recipes. Cable removal that causes amp overload pauses all affected running machines, releases their amp allocations, and lets them resume once headroom restores — no cable damage, no machine loss.
+
+Power is withdrawn per-tick during recipe execution, unlike logistics inputs which are consumed at recipe start. Each tick `recipe_progress_system` calls `take_energy((energy_cost / processing_time) * dt)`; if generator buffers are insufficient the recipe pauses until they refill. No upfront energy withdrawal; no proportional throttle.
 
 ### Execution Order
 

@@ -152,7 +152,7 @@ Each **item** is one of:
 
 Each **recipe template** records: a unique ID, input form(s) and base quantities, output form and base quantity, the form group both sides must belong to, required machine type, base processing time, and base energy cost.
 
-Each **concrete recipe** (generated at run start) records: a unique ID, source template ID (if template-derived), input items with quantities, output items with quantities, byproduct items with quantities, required machine type and tier, processing conditions (temperature, pressure, catalyst), processing time (post-variance), and energy cost (post-variance).
+Each **concrete recipe** (generated at run start) records: a unique ID, source template ID (if template-derived), input items with quantities, output items with quantities, byproduct items with quantities, required machine type and tier, processing conditions (temperature, pressure, catalyst), processing time (post-variance), energy cost in joules (post-variance), and `min_voltage_tier` (derived from required machine tier — higher machine tiers require higher voltage delivery).
 
 A machine is capable of running a concrete recipe when machine type and tier match. A machine can run any number of matching recipes. An item can have multiple producing recipes — alternative production routes are valid.
 
@@ -173,21 +173,15 @@ A generated graph must satisfy:
 
 The tech tree is a tiered DAG of nodes drawn from a content pool. It gates access to recipes, machines, and capabilities. Its shape is always visible to the player; its contents are revealed through play.
 
+> Content design (tier themes, unlock rates, node pool allocation, category breakdown, Tier 1 node set): see [`tech-tree-design.md`](tech-tree-design.md). This section covers the data model and implementation architecture only.
+
 ### Node pool
 
 The content pack defines a pool of available nodes. At run generation, the seed selects a subset to populate the run's tech tree. The pool grows as the game matures and content is added.
 
 **Pool size and run node count are design parameters determined through playtesting** — they are directly tied to run length targets (GDD Q#10). The architecture must support arbitrary pool and run sizes; no counts are hardcoded.
 
-Each node in the pool defines:
-- `category` — Power, Processing, Logistics, Science, Exploration, etc.
-- `tier_range` — the tiers this node can appear in (e.g. tiers 2–3)
-- `rarity` — probability weight for selection (Common, Uncommon, Rare, Unique)
-- `primary_prerequisite` — the node that must be unlocked before this one (if any)
-- `alternative_prerequisites` — a pool of additional nodes that can also satisfy the prerequisite requirement; the run selects 0–N active alternatives from this pool
-- `primary_unlock_vector` — the node's identity-defining unlock method
-- `alternative_unlock_vectors` — additional unlock methods the run may activate
-- `effects` — what unlocking this node grants (recipes, machines, capabilities)
+Node fields (category, tier range, rarity, effects, unlock vectors, prerequisites, optional flag, exclusive group) are specified in [`tech-tree-design.md §5`](tech-tree-design.md#5-node-pool-design).
 
 *Implementation: [`NodeDef`](../src/tech_tree/mod.rs#L52), [`NodeCategory`](../src/tech_tree/mod.rs#L19), [`NodeRarity`](../src/tech_tree/mod.rs#L29), [`NodeEffect`](../src/tech_tree/mod.rs#L46), [`TechTree`](../src/tech_tree/mod.rs#L64)*
 
@@ -225,7 +219,7 @@ Gate condition types (extensible):
 - Exploration milestone: reach a tagged site type
 - Node unlocked: a specific prerequisite node must be unlocked
 
-The specific gate conditions per tier are a **design parameter to be determined** — they should be thematically appropriate to each tier's content. This is noted as a design TODO; the architecture supports any condition type.
+Per-tier gate conditions are defined in [`tech-tree-design.md §3`](tech-tree-design.md#3-tier-structure).
 
 ### Player-visible shadow
 
@@ -373,17 +367,13 @@ Each machine entity carries: machine type and tier, orientation, IO port positio
 
 ## 6. Logistics Network
 
+> ECS components, topology systems, cable routing, simulation systems, and messages: see [`networks.md §2`](networks.md#2-logistics-network) (and [`networks.md §1`](networks.md#1-generic-network-system) for the shared generic layer). This section covers design intent and post-MVP features only.
+
 ### Network topology
 
 Networks are formed by **cable connections**. The player connects machine IO ports to the network; cables are auto-routed between endpoints and rendered as visible conduits in the world. Network membership is determined by graph traversal from any member node — all connected components form one network.
 
 Network graphs are recomputed on structural change (connection added/removed, machine placed/removed). Between changes, network state is stable and does not require per-tick recomputation of topology.
-
-Each network tracks: its ID, the set of cable segment endpoints (grid coordinates), the set of connected device entities (machines, storage, interfaces), and current vs. maximum channel usage.
-
-Each cable segment records which network it belongs to, its two endpoint positions, and its tier (which determines max devices). Each connected device records its network and how many channels it consumes.
-
-*Implementation: [`LogisticsCableSegment`](../src/logistics/mod.rs), [`LogisticsNetworkMember`](../src/logistics/mod.rs), [`LogisticsNetworkMembers`](../src/logistics/mod.rs), [`StorageUnit`](../src/logistics/mod.rs), [`LogisticsNetwork`](../src/logistics/mod.rs)*
 
 ### Channel limits
 
@@ -434,25 +424,44 @@ The network's job dispatcher runs when machines become idle — it scans queued 
 
 ### Network events
 
-The network system is event-driven, not tick-based:
-- **Topology change** (cable placed/removed) → recompute network graph
+Topology and storage events (`NetworkChanged<Logistics>`, `NetworkStorageChanged`) are defined in [`networks.md §1`](networks.md#1-generic-network-system).
+
+Post-MVP design-level events:
 - **Machine idle** → dispatcher assigns next job
-- **Storage change** → update network item index
 - **Channel limit exceeded** → emit warning event (surfaced to player as bottleneck)
 
 ---
 
 ## 7. Power System
 
+> ECS components, topology systems, and simulation systems: see [`networks.md §3`](networks.md#3-power-network) and [`networks.md §4`](networks.md#4-interplay). This section covers design intent.
+
 ### Model
 
-Power is **flow-based**: generators produce power units per tick, cables carry that flow to consumers, machines draw power when running recipes. Modelled after GTNH's EU system — cable tier determines voltage and amperage capacity; mismatched tiers have consequences.
+Power is **buffer-based**: generators fill a per-network energy buffer each tick; recipes withdraw joules per tick during execution and pause when the buffer runs dry. Power cables are **physically separate from logistics cables** — players lay power infrastructure independently. See [`networks.md §4`](networks.md#4-interplay) for the full power-as-consumable-resource model.
 
-Power cables are **physically separate from logistics cables**. Players lay power infrastructure independently of the logistics network. A single power network typically spans the whole base (unlike logistics, which encourages sub-networks).
+### Failure model
+
+All power failure modes are **non-destructive**. Cables never burn. Machines never explode. The factory pauses or blocks — it never punishes with permanent loss.
+
+| Condition | Consequence |
+|---|---|
+| Network voltage below recipe requirement | Machine blocked — does not start; displays reason |
+| Network at amp capacity | Machine blocked — waits until headroom frees |
+| Generator buffers empty mid-recipe | Recipe pauses; amps held; resumes when buffers refill |
+| Cable removal causes amp overload | Affected running machines pause and release amps; resume when headroom restores |
+
+This model preserves the strategic depth of the V×A system (infrastructure planning, tier gating, amp routing) while keeping all failure states recoverable and legible.
 
 ### Power units
 
-Power is measured in **watts (W)** — production rate and consumption rate, both per second. Generators output a fixed wattage. Machines draw a recipe-defined wattage while processing; **idle machines draw zero or minimal standby power**. Total demand is the sum of all actively processing machines at any moment.
+Power delivery has three dimensions:
+
+**Watts** — instantaneous draw rate. Each generator fills its own internal buffer at its rated wattage. `PowerNetworkMembers.take_energy` draws across all member buffers (generators and, post-MVP, batteries). Machines draw at `energy_cost / processing_time` watts during recipe execution. Idle machines draw zero power.
+
+**Voltage tier** — discrete power delivery level (e.g. Low Voltage → Medium → High → Ultra High). Each tier maps to a voltage constant. A recipe has a `min_voltage_tier` field; the machine cannot start on a network below that tier. This is a qualitative gate — it cannot be overcome by accumulating more low-voltage supply.
+
+**Amperage** — throughput capacity. Each cable segment has a `max_amps` rating. A running machine consumes `draw_rate_watts / network_voltage` amps. The network tracks total amps in use; starting a recipe that would exceed the cable's amp capacity is blocked until amp headroom frees (another recipe completes or a machine finishes). Removing a cable that reduces the network's amp capacity below current usage pauses all running machines on that network; they release their amp allocations and wait, then resume as headroom becomes available (in priority order, or FIFO if priorities are equal).
 
 ### Upgrade pressure
 
@@ -473,23 +482,26 @@ Multipliers apply to generator output, not demand. A `0.4×` solar modifier mean
 
 ### Cable tiers
 
-Power cables have tiers determining maximum wattage capacity. Exceeding cable capacity causes inefficiency or outage (exact consequence TBD — at minimum, a clear player-visible warning). Higher-tier cables carry more power. Each cable records its network, tier, and max wattage.
+Each cable tier defines a `(voltage_tier, max_amps)` pair. Maximum power throughput = `voltage × max_amps`. Higher tiers increase both axes — later cable tiers carry more power because they support higher voltage and more simultaneous amp load.
+
+All cable segments in a power network must share the same voltage tier. Connecting two networks at different voltage tiers requires a **transformer** machine bridging adjacent tiers — this makes inter-tier power routing an explicit factory design choice, not a free connection.
+
+Each cable segment records: `from`, `to`, `path`, `voltage_tier: u8`, `max_amps: f32`.
 
 ### Power network topology
 
-Power network membership follows the same cable-adjacency model as logistics. Recomputed on structural change; stable between changes.
+Power network membership follows the same cable-adjacency model as logistics. Recomputed on structural change; stable between changes. Components and implementation: [`networks.md §3`](networks.md#3-power-network).
 
-Each power network tracks: total production (sum of all generator output this tick), total demand (sum of all active machine demand), cable positions, generator entities, and consumer entities.
+### Machine power draw and voltage requirements
 
-*Implementation: [`PowerCableSegment`](../src/power/mod.rs), [`PowerNetworkMember`](../src/power/mod.rs), [`PowerNetworkMembers`](../src/power/mod.rs), [`GeneratorUnit`](../src/power/mod.rs), [`PowerNetwork`](../src/power/mod.rs)*
+Each recipe records `energy_cost` (joules) and `min_voltage_tier: u8`. Draw rate during execution = `energy_cost / processing_time` watts, consuming `draw_rate / network_voltage` amps from the network.
 
-### Machine power draw
+`recipe_start_system` checks in order:
+1. Network voltage tier ≥ `min_voltage_tier` — hard block if not met; the machine simply cannot run at this voltage
+2. Available amp headroom ≥ `draw_rate / voltage` — block if the network is at amp capacity
+3. Buffer has ≥ `draw_rate * dt` joules for first tick
 
-Machines declare power demand per recipe in the recipe data. Demand is applied when a recipe starts and released when it completes or the machine is interrupted. Each power consumer entity records its network and current active demand (0 when idle, recipe wattage when processing). Each power producer records its network, base output, efficiency modifier (from planet modifiers), and resulting actual output.
-
-### Brownout behaviour
-
-When demand exceeds supply, machines are **throttled proportionally** rather than randomly cut off. A factory running at 150% demand runs all machines at ~67% speed. This is legible (everything slows, nothing mysteriously stops) and gives players a clear signal to expand power capacity.
+`recipe_progress_system` withdraws `draw_rate * dt` joules per tick; pauses if generator buffers are insufficient and resumes when they refill. Amps remain consumed while a recipe is paused — the machine is still online and holding its amp allocation. No upfront energy withdrawal; no proportional throttle. See [`networks.md §4`](networks.md#4-interplay) for the full execution order.
 
 ---
 
