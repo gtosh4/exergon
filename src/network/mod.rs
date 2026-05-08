@@ -12,7 +12,7 @@ pub mod bfs;
 pub mod membership;
 pub mod visuals;
 
-use membership::{cable_placed_system, cable_removed_system, machine_membership_system};
+use membership::{cable_placed_system, cable_removed_system};
 
 /// The six axis-aligned directions in 3D space.
 pub const DIRS: [IVec3; 6] = [
@@ -247,11 +247,7 @@ impl<N: NetworkKind> Plugin for NetworkPlugin<N> {
         );
         app.add_systems(
             Update,
-            (
-                cable_placed_system::<N>,
-                cable_removed_system::<N>,
-                machine_membership_system::<N>,
-            )
+            (cable_placed_system::<N>, cable_removed_system::<N>)
                 .chain()
                 .in_set(NetworkSystems::of::<N>()),
         );
@@ -263,9 +259,7 @@ mod tests {
     use bevy::prelude::*;
 
     use super::*;
-    use crate::machine::{
-        Machine, MachineNetworkChanged, MachineState, Mirror, Orientation, PortOfMachine, Rotation,
-    };
+    use crate::machine::{Machine, MachineState, Mirror, Orientation, PortOfMachine, Rotation};
     use crate::world::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
     struct TestNetwork;
@@ -364,7 +358,6 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .add_message::<WorldObjectEvent>()
             .add_message::<CableConnectionEvent>()
-            .add_message::<MachineNetworkChanged>()
             .add_plugins(NetworkPlugin::<TestNetwork>::default());
         app
     }
@@ -383,6 +376,8 @@ mod tests {
             to,
             item_id: TEST_CABLE_ID.to_string(),
             kind: WorldObjectKind::Placed,
+            from_port: None,
+            to_port: None,
         });
     }
 
@@ -532,20 +527,6 @@ mod tests {
         let left_port_pos = Vec3::new(0.0, 0.0, 0.0);
         let right_port_pos = Vec3::new(20.0, 0.0, 0.0);
 
-        connect(&mut app, left_port_pos, Vec3::new(5.0, 0.0, 0.0));
-        connect(
-            &mut app,
-            Vec3::new(5.0, 0.0, 0.0),
-            Vec3::new(10.0, 0.0, 0.0),
-        );
-        connect(
-            &mut app,
-            Vec3::new(10.0, 0.0, 0.0),
-            Vec3::new(15.0, 0.0, 0.0),
-        );
-        connect(&mut app, Vec3::new(15.0, 0.0, 0.0), right_port_pos);
-        app.update();
-
         let orientation = Orientation {
             rotation: Rotation::North,
             mirror: Mirror::Normal,
@@ -577,7 +558,7 @@ mod tests {
             ))
             .id();
 
-        // Spawn port entities with TestPortOf
+        // Spawn port entities BEFORE cables so snap-radius assigns membership
         let left_port_e = app
             .world_mut()
             .spawn((
@@ -593,7 +574,19 @@ mod tests {
             ))
             .id();
 
-        app.world_mut().write_message(MachineNetworkChanged);
+        // Cables cover left_port_pos → right_port_pos; snap-radius assigns ports
+        connect(&mut app, left_port_pos, Vec3::new(5.0, 0.0, 0.0));
+        connect(
+            &mut app,
+            Vec3::new(5.0, 0.0, 0.0),
+            Vec3::new(10.0, 0.0, 0.0),
+        );
+        connect(
+            &mut app,
+            Vec3::new(10.0, 0.0, 0.0),
+            Vec3::new(15.0, 0.0, 0.0),
+        );
+        connect(&mut app, Vec3::new(15.0, 0.0, 0.0), right_port_pos);
         app.update();
 
         let left_net = app

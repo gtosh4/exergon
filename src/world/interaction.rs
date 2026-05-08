@@ -459,6 +459,8 @@ pub(super) fn object_interaction(
                                 to: place_pos,
                                 item_id,
                                 kind: WorldObjectKind::Placed,
+                                from_port: None,
+                                to_port: None,
                             });
                         }
                         pending_cable.pos = None;

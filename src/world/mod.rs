@@ -25,6 +25,8 @@ pub struct CableConnectionEvent {
     pub to: Vec3,
     pub item_id: String,
     pub kind: WorldObjectKind,
+    pub from_port: Option<Entity>,
+    pub to_port: Option<Entity>,
 }
 
 use bevy::prelude::*;

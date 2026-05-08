@@ -24,6 +24,9 @@ The current milestone's implementation plan steps/tasks. **Update this file when
 ### [`tech-tree-design.md`](tech-tree-design.md) — Tech Tree Content Design
 Content design layer for the tech tree: node definitions, pacing targets, unlock structure. Sits between `gdd.md §7` (design intent) and implementation. Status: first draft, pacing unvalidated. **Update when tech tree nodes or unlock order changes.**
 
+### [`networks.md`](networks.md) — Network System Design
+Implementation design for the generic cable network system and both concrete kinds (logistics and power). Covers ECS structure, topology systems (place/remove/split/merge), routing, and how power gating interacts with recipe start. **Read before touching `src/network/`, `src/logistics/`, or `src/power/`.**
+
 ### [`ui.md`](ui.md) — User Interface
 UI layout and mockups for inventory, machine panel, planner, and tech tree screens.
 

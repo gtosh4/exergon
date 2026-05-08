@@ -6,14 +6,16 @@ use bevy::prelude::*;
 use crate::machine::{EnergyPortOf, Machine};
 use crate::machine::{MachineActivity, MachineEnergyPorts, MachineLogisticsPorts, MachineState};
 use crate::network::{NetworkChanged, Power};
-use crate::power::{PowerNetwork, PowerNetworkMember, PowerNetworkMembers};
+use crate::power::{GeneratorUnit, PowerNetworkMember, PowerNetworkMembers};
 use crate::recipe_graph::RecipeGraph;
 use crate::research::{RESEARCH_POINTS_ID, ResearchPool, TechTreeProgress};
 
 use super::items::{give_items, has_items, take_items};
 use crate::network::NetworkMembersComponent;
 
-use super::{LogisticsNetworkMember, LogisticsNetworkMembers, NetworkStorageChanged, StorageUnit};
+use super::{
+    LogisticsNetworkMember, LogisticsNetworkMembers, NetworkStorageChanged, PortPolicy, StorageUnit,
+};
 use crate::machine::LogisticsPortOf;
 
 pub(super) fn recipe_start_system(
@@ -28,13 +30,14 @@ pub(super) fn recipe_start_system(
     port_net_q: Query<&LogisticsNetworkMember>,
     energy_ports_q: Query<&MachineEnergyPorts>,
     port_power_q: Query<&PowerNetworkMember>,
-    power_net_q: Query<&PowerNetwork>,
     power_members_q: Query<&PowerNetworkMembers>,
     energy_port_of_q: Query<&EnergyPortOf>,
+    gen_q: Query<&GeneratorUnit>,
     recipe_graph: Res<RecipeGraph>,
     progress: Option<Res<TechTreeProgress>>,
     mut storage_params: ParamSet<(Query<&StorageUnit>, Query<&mut StorageUnit>)>,
     port_of_q: Query<&LogisticsPortOf>,
+    policy_q: Query<&PortPolicy>,
 ) {
     let mut affected: HashSet<Entity> = storage_changed.read().map(|e| e.network).collect();
 
@@ -123,8 +126,9 @@ pub(super) fn recipe_start_system(
                         );
                         continue;
                     }
-                    // Power check: if recipe has energy cost, require a connected power network with capacity
+                    // Power check: if recipe has energy cost, require buffer energy
                     if recipe.energy_cost > 0.0 {
+                        let energy_per_tick = recipe.energy_cost / recipe.processing_time * 0.016;
                         let has_power = energy_ports_q
                             .get(machine_e)
                             .ok()
@@ -133,8 +137,14 @@ pub(super) fn recipe_start_system(
                                     port_power_q
                                         .get(energy_port_e)
                                         .ok()
-                                        .and_then(|pm| power_net_q.get(pm.0).ok())
-                                        .is_some_and(|pn| pn.capacity_watts > 0.0)
+                                        .and_then(|pm| power_members_q.get(pm.0).ok())
+                                        .is_some_and(|members| {
+                                            members.has_energy(
+                                                &gen_q,
+                                                &energy_port_of_q,
+                                                energy_per_tick,
+                                            )
+                                        })
                                 })
                             })
                             .unwrap_or(false);
@@ -146,14 +156,27 @@ pub(super) fn recipe_start_system(
                             continue;
                         }
                     }
-                    // Check inputs across any connected network that has them
+                    // Input check: for each input, find networks of input-eligible ports
                     let missing: Vec<_> = recipe
                         .inputs
                         .iter()
                         .filter(|input| {
-                            // Check across all connected networks
-                            !connected_nets.iter().any(|&cn| {
-                                if let Ok((_, net_members)) = net_q.get(cn) {
+                            let input_nets: Vec<Entity> = logistics_ports
+                                .ports()
+                                .iter()
+                                .filter_map(|&port_e| {
+                                    let policy_ok = policy_q
+                                        .get(port_e)
+                                        .map(|p| p.allows_input(&input.item))
+                                        .unwrap_or(true);
+                                    if !policy_ok {
+                                        return None;
+                                    }
+                                    port_net_q.get(port_e).ok().map(|m| m.0)
+                                })
+                                .collect();
+                            !input_nets.iter().any(|&net_e| {
+                                net_q.get(net_e).ok().is_some_and(|(_, net_members)| {
                                     has_items(
                                         net_members,
                                         &storage_q,
@@ -161,17 +184,11 @@ pub(super) fn recipe_start_system(
                                         &input.item,
                                         input.quantity as u32,
                                     )
-                                } else {
-                                    false
-                                }
+                                })
                             })
                         })
                         .collect();
-                    if missing.is_empty() {
-                        to_start.push((machine_e, recipe.id.clone(), net_entity));
-                        started = true;
-                        break;
-                    } else {
+                    if !missing.is_empty() {
                         debug!(
                             "recipe_start: machine {:?} recipe {} missing inputs: {:?}",
                             machine_e,
@@ -181,7 +198,37 @@ pub(super) fn recipe_start_system(
                                 .map(|i| (&i.item, i.quantity))
                                 .collect::<Vec<_>>()
                         );
+                        continue;
                     }
+                    // Output check: verify at least one output-eligible port with a network
+                    // for each non-research output
+                    let outputs_blocked = recipe
+                        .outputs
+                        .iter()
+                        .chain(recipe.byproducts.iter())
+                        .any(|out| {
+                            if out.item == RESEARCH_POINTS_ID {
+                                return false;
+                            }
+                            let has_destination = logistics_ports.ports().iter().any(|&port_e| {
+                                let policy_ok = policy_q
+                                    .get(port_e)
+                                    .map(|p| p.allows_output(&out.item))
+                                    .unwrap_or(true);
+                                policy_ok && port_net_q.get(port_e).is_ok()
+                            });
+                            !has_destination
+                        });
+                    if outputs_blocked {
+                        debug!(
+                            "recipe_start: machine {:?} recipe {} output has no destination",
+                            machine_e, recipe.id
+                        );
+                        continue;
+                    }
+                    to_start.push((machine_e, recipe.id.clone(), net_entity));
+                    started = true;
+                    break;
                 }
                 if !started {
                     debug!(
@@ -201,13 +248,54 @@ pub(super) fn recipe_start_system(
             };
             if let Ok((_, members)) = net_q.get(net_entity) {
                 for input in &recipe.inputs {
-                    take_items(
-                        members,
-                        &mut storage_q,
-                        &port_of_q,
-                        &input.item,
-                        input.quantity as u32,
-                    );
+                    // Take from input-eligible ports' networks
+                    let input_nets: Vec<Entity> = {
+                        let Ok((_, _, _, logistics_ports)) = machine_q.get(machine_e) else {
+                            continue;
+                        };
+                        logistics_ports
+                            .ports()
+                            .iter()
+                            .filter_map(|&port_e| {
+                                let policy_ok = policy_q
+                                    .get(port_e)
+                                    .map(|p| p.allows_input(&input.item))
+                                    .unwrap_or(true);
+                                if !policy_ok {
+                                    return None;
+                                }
+                                port_net_q.get(port_e).ok().map(|m| m.0)
+                            })
+                            .collect()
+                    };
+                    let take_net = input_nets.first().copied().unwrap_or(net_entity);
+                    if let Ok((_, net_members)) = net_q.get(take_net) {
+                        take_items(
+                            net_members,
+                            &mut storage_q,
+                            &port_of_q,
+                            &input.item,
+                            input.quantity as u32,
+                        );
+                    } else if let Ok((_, net_members)) = net_q.get(net_entity) {
+                        take_items(
+                            net_members,
+                            &mut storage_q,
+                            &port_of_q,
+                            &input.item,
+                            input.quantity as u32,
+                        );
+                    }
+                    // Fallback: if no input net found, use the members we already have
+                    if input_nets.is_empty() {
+                        // already handled above
+                    }
+                }
+                // For zero-input recipes, we still need to use the original members variable
+                // but we've already handled it in the loop above. Handle zero-input case:
+                if recipe.inputs.is_empty() {
+                    // nothing to take
+                    let _ = members;
                 }
             }
             commands.entity(machine_e).insert((
@@ -239,10 +327,16 @@ pub(super) fn recipe_progress_system(
     port_net_q: Query<&LogisticsNetworkMember>,
     mut storage_changed: MessageWriter<NetworkStorageChanged>,
     mut research_pool: Option<ResMut<ResearchPool>>,
+    energy_ports_q: Query<&MachineEnergyPorts>,
+    port_power_q: Query<&PowerNetworkMember>,
+    power_members_q: Query<&PowerNetworkMembers>,
+    energy_port_of_q: Query<&EnergyPortOf>,
+    mut gen_q: Query<&mut GeneratorUnit>,
+    policy_q: Query<&PortPolicy>,
 ) {
     let dt = time.delta_secs();
 
-    let mut to_finish: Vec<(Entity, Vec<(String, u32)>, Option<Entity>)> = Vec::new();
+    let mut to_finish: Vec<(Entity, Vec<(String, u32)>, Vec<Entity>)> = Vec::new();
 
     for (machine_e, mut activity, state, logistics_ports) in &mut machine_q {
         if *state != MachineState::Running {
@@ -251,6 +345,31 @@ pub(super) fn recipe_progress_system(
         let Some(recipe) = recipe_graph.recipes.get(&activity.recipe_id) else {
             continue;
         };
+
+        // Per-tick energy withdrawal
+        if recipe.energy_cost > 0.0 {
+            let energy_per_tick = recipe.energy_cost / recipe.processing_time * dt;
+            let took_energy = energy_ports_q
+                .get(machine_e)
+                .ok()
+                .map(|eps| {
+                    eps.ports().iter().any(|&ep| {
+                        port_power_q
+                            .get(ep)
+                            .ok()
+                            .and_then(|pm| power_members_q.get(pm.0).ok())
+                            .is_some_and(|members| {
+                                members.take_energy(&mut gen_q, &energy_port_of_q, energy_per_tick)
+                            })
+                    })
+                })
+                .unwrap_or(false);
+            if !took_energy {
+                // Pause: skip progress this tick
+                continue;
+            }
+        }
+
         let new_progress = activity.progress + dt * activity.speed_factor;
         if new_progress >= recipe.processing_time {
             let outputs: Vec<(String, u32)> = recipe
@@ -259,39 +378,48 @@ pub(super) fn recipe_progress_system(
                 .chain(recipe.byproducts.iter())
                 .map(|o| (o.item.clone(), o.quantity as u32))
                 .collect();
-            // Find first connected network
-            let net = logistics_ports
-                .ports()
-                .iter()
-                .find_map(|&port_e| port_net_q.get(port_e).ok().map(|m| m.0));
-            to_finish.push((machine_e, outputs, net));
+            // Collect port entities for output routing
+            let port_entities: Vec<Entity> = logistics_ports.ports().to_vec();
+            to_finish.push((machine_e, outputs, port_entities));
         } else {
             activity.progress = new_progress;
         }
     }
 
-    for (machine_e, outputs, maybe_net) in to_finish {
-        if let Some(net_entity) = maybe_net {
-            if let Ok((_, members)) = net_q.get(net_entity) {
-                for (item_id, count) in &outputs {
-                    if *item_id == RESEARCH_POINTS_ID {
-                        if let Some(ref mut pool) = research_pool {
-                            pool.points += *count as f32;
-                            info!("Research pool +{} points (total: {})", count, pool.points);
-                        }
-                    } else if *count > 0 {
-                        give_items(members, &mut storage_q, &port_of_q, item_id, *count);
-                    }
+    for (machine_e, outputs, port_entities) in to_finish {
+        for (item_id, count) in &outputs {
+            if *item_id == RESEARCH_POINTS_ID {
+                if let Some(ref mut pool) = research_pool {
+                    pool.points += *count as f32;
+                    info!("Research pool +{} points (total: {})", count, pool.points);
                 }
-                storage_changed.write(NetworkStorageChanged {
-                    network: net_entity,
-                });
+                continue;
             }
-        } else {
-            warn!(
-                "Machine {:?} finished recipe but has no connected logistics network; outputs lost",
-                machine_e
-            );
+            if *count == 0 {
+                continue;
+            }
+            // Find output-eligible port's network for this item
+            let target_net = port_entities.iter().find_map(|&port_e| {
+                let policy_ok = policy_q
+                    .get(port_e)
+                    .map(|p| p.allows_output(item_id))
+                    .unwrap_or(true);
+                if !policy_ok {
+                    return None;
+                }
+                port_net_q.get(port_e).ok().map(|m| m.0)
+            });
+            if let Some(net_e) = target_net {
+                if let Ok((_, members)) = net_q.get(net_e) {
+                    give_items(members, &mut storage_q, &port_of_q, item_id, *count);
+                    storage_changed.write(NetworkStorageChanged { network: net_e });
+                }
+            } else {
+                warn!(
+                    "Machine {:?} finished recipe but output '{}' has no eligible port network; output lost",
+                    machine_e, item_id
+                );
+            }
         }
         commands
             .entity(machine_e)

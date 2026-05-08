@@ -6,8 +6,7 @@ use exergon::logistics::{
     LogisticsNetworkMember, LogisticsSimPlugin, NetworkStorageChanged, StorageUnit,
 };
 use exergon::machine::{
-    LogisticsPortOf, Machine, MachineActivity, MachineNetworkChanged, MachineState, Mirror,
-    Orientation, Rotation,
+    LogisticsPortOf, Machine, MachineActivity, MachineState, Mirror, Orientation, Rotation,
 };
 use exergon::recipe_graph::{ConcreteRecipe, ItemStack, RecipeGraph};
 use exergon::world::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
@@ -73,7 +72,6 @@ fn placement_app(rg: RecipeGraph) -> App {
     app.add_plugins(MinimalPlugins)
         .add_message::<WorldObjectEvent>()
         .add_message::<CableConnectionEvent>()
-        .add_message::<MachineNetworkChanged>()
         .add_plugins(LogisticsSimPlugin)
         .insert_resource(rg);
     app
@@ -117,13 +115,9 @@ fn storage_placed_before_cable_joins_network_when_cable_placed_adjacent() {
         "no cable yet: storage port should not be in any network"
     );
 
-    // Frame 2: place cable adjacent to storage port + smelter with matching port
-    app.world_mut().write_message(CableConnectionEvent {
-        from: storage_port,
-        to: smelter_port,
-        item_id: "logistics_cable".to_string(),
-        kind: WorldObjectKind::Placed,
-    });
+    // Frame 2: place cable adjacent to storage port + smelter with matching port.
+    // Ports must be spawned in the same world state as the cable event so
+    // cable_placed_system's snap-radius scan finds them.
     let smelter_e = app
         .world_mut()
         .spawn((
@@ -138,7 +132,14 @@ fn storage_placed_before_cable_joins_network_when_cable_placed_adjacent() {
             Transform::from_translation(smelter_port),
         ))
         .id();
-    app.world_mut().write_message(MachineNetworkChanged);
+    app.world_mut().write_message(CableConnectionEvent {
+        from: storage_port,
+        to: smelter_port,
+        item_id: "logistics_cable".to_string(),
+        kind: WorldObjectKind::Placed,
+        from_port: None,
+        to_port: None,
+    });
     app.update();
 
     assert!(
@@ -182,13 +183,8 @@ fn cable_endpoint_near_port_snaps_to_connect_machine() {
 
     // 0.6 units short of the port — rounds to key 4, port is key 5
     let cable_to = Vec3::new(4.4, 0.0, 0.0);
-    app.world_mut().write_message(CableConnectionEvent {
-        from: Vec3::new(1.0, 0.0, 0.0),
-        to: cable_to,
-        item_id: "logistics_cable".to_string(),
-        kind: WorldObjectKind::Placed,
-    });
-    // Spawn machine WITH Transform and its port entity
+
+    // Spawn machine and port BEFORE writing the cable event so snap-radius finds them
     let smelter_e = app
         .world_mut()
         .spawn((
@@ -204,6 +200,14 @@ fn cable_endpoint_near_port_snaps_to_connect_machine() {
             Transform::from_translation(smelter_port),
         ))
         .id();
+    app.world_mut().write_message(CableConnectionEvent {
+        from: Vec3::new(1.0, 0.0, 0.0),
+        to: cable_to,
+        item_id: "logistics_cable".to_string(),
+        kind: WorldObjectKind::Placed,
+        from_port: None,
+        to_port: None,
+    });
 
     app.update();
 
@@ -228,13 +232,7 @@ fn smelter_with_ore_storage_runs_smelt_recipe_and_outputs_ingot() {
 
     let mut app = placement_app(rg);
 
-    // Place cable, spawn storage and smelter machines with matching port entities
-    app.world_mut().write_message(CableConnectionEvent {
-        from: storage_port,
-        to: smelter_port,
-        item_id: "logistics_cable".to_string(),
-        kind: WorldObjectKind::Placed,
-    });
+    // Spawn machines and ports, then place cable — snap-radius assigns membership
     let storage_e = app
         .world_mut()
         .spawn((
@@ -264,9 +262,16 @@ fn smelter_with_ore_storage_runs_smelt_recipe_and_outputs_ingot() {
             Transform::from_translation(smelter_port),
         ))
         .id();
-    app.world_mut().write_message(MachineNetworkChanged);
+    app.world_mut().write_message(CableConnectionEvent {
+        from: storage_port,
+        to: smelter_port,
+        item_id: "logistics_cable".to_string(),
+        kind: WorldObjectKind::Placed,
+        from_port: None,
+        to_port: None,
+    });
 
-    // Network joins: cable_placed_system assigns smelter and storage ports
+    // Network joins: cable_placed_system assigns smelter and storage ports via snap-radius
     app.update();
 
     assert!(

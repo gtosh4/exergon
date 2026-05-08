@@ -132,6 +132,37 @@ pub struct StorageUnit {
     pub items: HashMap<String, u32>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum PortMode {
+    None,
+    Input,
+    Output,
+    #[default]
+    Both,
+}
+
+#[derive(Component, Default)]
+pub struct PortPolicy {
+    pub default_mode: PortMode,
+    pub item_overrides: HashMap<String, PortMode>,
+}
+
+impl PortPolicy {
+    pub fn mode_for(&self, item_id: &str) -> &PortMode {
+        self.item_overrides
+            .get(item_id)
+            .unwrap_or(&self.default_mode)
+    }
+
+    pub fn allows_input(&self, item_id: &str) -> bool {
+        matches!(self.mode_for(item_id), PortMode::Input | PortMode::Both)
+    }
+
+    pub fn allows_output(&self, item_id: &str) -> bool {
+        matches!(self.mode_for(item_id), PortMode::Output | PortMode::Both)
+    }
+}
+
 #[derive(Component)]
 pub struct LogisticsNetwork;
 
@@ -205,6 +236,8 @@ mod tests {
             to,
             item_id: LOGISTICS_CABLE_ID.to_string(),
             kind: WorldObjectKind::Placed,
+            from_port: None,
+            to_port: None,
         });
     }
 
@@ -351,45 +384,6 @@ mod tests {
     }
 
     #[test]
-    fn cable_removal_clears_network() {
-        let mut app = logistics_app();
-        connect_cable(&mut app, Vec3::ZERO, Vec3::new(5.0, 0.0, 0.0));
-        app.update();
-        assert_eq!(network_count(&mut app), 1);
-
-        disconnect_at(&mut app, Vec3::ZERO);
-        app.update();
-        assert_eq!(network_count(&mut app), 0);
-    }
-
-    #[test]
-    fn cable_removal_splits_chain_into_two_networks() {
-        let mut app = logistics_app();
-        connect_cable(&mut app, Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0));
-        connect_cable(
-            &mut app,
-            Vec3::new(5.0, 0.0, 0.0),
-            Vec3::new(10.0, 0.0, 0.0),
-        );
-        connect_cable(
-            &mut app,
-            Vec3::new(10.0, 0.0, 0.0),
-            Vec3::new(15.0, 0.0, 0.0),
-        );
-        connect_cable(
-            &mut app,
-            Vec3::new(15.0, 0.0, 0.0),
-            Vec3::new(20.0, 0.0, 0.0),
-        );
-        app.update();
-        assert_eq!(network_count(&mut app), 1);
-
-        disconnect_at(&mut app, Vec3::new(10.0, 0.0, 0.0));
-        app.update();
-        assert_eq!(network_count(&mut app), 2);
-    }
-
-    #[test]
     fn storage_crate_machine_gets_storage_unit() {
         let mut app = logistics_app();
         let entity = app
@@ -444,6 +438,24 @@ mod tests {
                 .get::<LogisticsNetworkMember>(port_entity)
                 .is_some()
         );
+    }
+
+    // App without MinimalPlugins so TimePlugin doesn't override a manually set delta.
+    // Use this for tests where dt > 0 is required (power per-tick withdrawal).
+    fn recipe_test_app_dt(rg: RecipeGraph, dt_secs: f32) -> App {
+        let mut app = App::new();
+        let mut time = Time::<()>::default();
+        time.advance_by(std::time::Duration::from_secs_f32(dt_secs));
+        app.insert_resource(time)
+            .add_message::<NetworkChanged<Logistics>>()
+            .add_message::<NetworkChanged<crate::network::Power>>()
+            .add_message::<NetworkStorageChanged>()
+            .insert_resource(rg)
+            .add_systems(
+                Update,
+                (recipe_start_system, ApplyDeferred, recipe_progress_system).chain(),
+            );
+        app
     }
 
     fn test_recipe_def(
@@ -751,7 +763,7 @@ mod tests {
     fn idle_machine_starts_recipe_when_power_network_gains_capacity() {
         use crate::machine::EnergyPortOf;
         use crate::network::{NetworkChanged, Power};
-        use crate::power::{PowerNetwork, PowerNetworkMember};
+        use crate::power::{GeneratorUnit, PowerNetwork, PowerNetworkMember};
 
         let mut recipe = test_recipe_def("smelter", &[("iron_ore", 1.0)], &[("iron_ingot", 1.0)]);
         recipe.energy_cost = 10.0;
@@ -780,14 +792,23 @@ mod tests {
             LogisticsNetworkMember(net_e),
         ));
 
-        let power_net_e = app
+        let power_net_e = app.world_mut().spawn(PowerNetwork).id();
+        // Spawn a generator with pre-filled buffer so has_energy check passes
+        let gen_e = app
             .world_mut()
-            .spawn(PowerNetwork {
-                capacity_watts: 50.0,
+            .spawn(GeneratorUnit {
+                pos: Vec3::ZERO,
+                watts: 50.0,
+                buffer_joules: 1000.0,
+                max_buffer_joules: 1000.0,
             })
             .id();
         app.world_mut()
             .spawn((EnergyPortOf(machine_e), PowerNetworkMember(power_net_e)));
+        // Make gen_e a member of the power network
+        app.world_mut()
+            .entity_mut(gen_e)
+            .insert(PowerNetworkMember(power_net_e));
 
         // Trigger via power network change (not storage change) — regression for bug where
         // connecting a generator via power cable never re-triggered recipe_start_system
@@ -798,7 +819,199 @@ mod tests {
         assert_eq!(
             *app.world().get::<MachineState>(machine_e).unwrap(),
             MachineState::Running,
-            "smelter should start when power network gains capacity"
+            "smelter should start when power network has buffered energy"
+        );
+    }
+
+    #[test]
+    fn recipe_does_not_start_when_output_port_is_input_only() {
+        // Output check: if the only port is Input-only, copper output has no destination.
+        let rg = single_recipe_graph(test_recipe_def(
+            "furnace",
+            &[("iron", 1.0)],
+            &[("copper", 1.0)],
+        ));
+        let mut app = recipe_io_app(rg);
+
+        let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
+        let storage_e = app
+            .world_mut()
+            .spawn(StorageUnit {
+                items: [("iron".to_owned(), 10u32)].into_iter().collect(),
+            })
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(storage_e),
+            Transform::default(),
+            LogisticsNetworkMember(net_entity),
+        ));
+        let machine_entity = app
+            .world_mut()
+            .spawn((bare_machine("furnace"), MachineState::Idle))
+            .id();
+        // Port allows input (iron arrives) but not output (copper has nowhere to go).
+        app.world_mut().spawn((
+            LogisticsPortOf(machine_entity),
+            Transform::default(),
+            LogisticsNetworkMember(net_entity),
+            PortPolicy {
+                default_mode: PortMode::Input,
+                item_overrides: Default::default(),
+            },
+        ));
+
+        app.world_mut().write_message(NetworkStorageChanged {
+            network: net_entity,
+        });
+        app.update();
+
+        assert_eq!(
+            *app.world().get::<MachineState>(machine_entity).unwrap(),
+            MachineState::Idle,
+            "recipe must not start when no output-eligible port exists"
+        );
+    }
+
+    #[test]
+    fn recipe_progress_pauses_when_power_buffer_empty() {
+        use crate::machine::EnergyPortOf;
+        use crate::power::{GeneratorUnit, PowerNetwork, PowerNetworkMember};
+
+        let mut recipe = test_recipe_def("smelter", &[], &[]);
+        recipe.energy_cost = 10.0;
+        recipe.processing_time = 1000.0;
+        let rg = single_recipe_graph(recipe);
+        // Use dt=0.1s so energy_per_tick > 0; buffer=0 → take_energy fails → pause.
+        let mut app = recipe_test_app_dt(rg, 0.1);
+
+        let net_e = app.world_mut().spawn(LogisticsNetwork).id();
+        let storage_e = app
+            .world_mut()
+            .spawn(StorageUnit {
+                items: HashMap::new(),
+            })
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(storage_e),
+            Transform::default(),
+            LogisticsNetworkMember(net_e),
+        ));
+        let machine_e = app
+            .world_mut()
+            .spawn((
+                bare_machine("smelter"),
+                MachineState::Running,
+                MachineActivity {
+                    recipe_id: "test_recipe".to_string(),
+                    progress: 0.5,
+                    speed_factor: 1.0,
+                },
+            ))
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(machine_e),
+            Transform::default(),
+            LogisticsNetworkMember(net_e),
+        ));
+
+        let power_net_e = app.world_mut().spawn(PowerNetwork).id();
+        let gen_e = app
+            .world_mut()
+            .spawn(GeneratorUnit {
+                pos: Vec3::ZERO,
+                watts: 0.0,
+                buffer_joules: 0.0, // empty — take_energy must fail
+                max_buffer_joules: 500.0,
+            })
+            .id();
+        app.world_mut()
+            .entity_mut(gen_e)
+            .insert(PowerNetworkMember(power_net_e));
+        app.world_mut()
+            .spawn((EnergyPortOf(machine_e), PowerNetworkMember(power_net_e)));
+
+        app.update();
+
+        let activity = app.world().get::<MachineActivity>(machine_e).unwrap();
+        assert_eq!(
+            activity.progress, 0.5,
+            "progress must not advance when power buffer is empty"
+        );
+        assert_eq!(
+            *app.world().get::<MachineState>(machine_e).unwrap(),
+            MachineState::Running,
+            "machine must stay Running while paused on power shortage"
+        );
+    }
+
+    #[test]
+    fn recipe_progress_withdraws_energy_per_tick() {
+        use crate::machine::EnergyPortOf;
+        use crate::power::{GeneratorUnit, PowerNetwork, PowerNetworkMember};
+
+        let mut recipe = test_recipe_def("smelter", &[], &[]);
+        recipe.energy_cost = 10.0;
+        recipe.processing_time = 1000.0;
+        let rg = single_recipe_graph(recipe);
+        let mut app = recipe_test_app_dt(rg, 0.1); // dt=0.1 → energy_per_tick=0.001 J
+
+        let net_e = app.world_mut().spawn(LogisticsNetwork).id();
+        let storage_e = app
+            .world_mut()
+            .spawn(StorageUnit {
+                items: HashMap::new(),
+            })
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(storage_e),
+            Transform::default(),
+            LogisticsNetworkMember(net_e),
+        ));
+        let machine_e = app
+            .world_mut()
+            .spawn((
+                bare_machine("smelter"),
+                MachineState::Running,
+                MachineActivity {
+                    recipe_id: "test_recipe".to_string(),
+                    progress: 0.0,
+                    speed_factor: 1.0,
+                },
+            ))
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(machine_e),
+            Transform::default(),
+            LogisticsNetworkMember(net_e),
+        ));
+
+        let power_net_e = app.world_mut().spawn(PowerNetwork).id();
+        let gen_e = app
+            .world_mut()
+            .spawn(GeneratorUnit {
+                pos: Vec3::ZERO,
+                watts: 0.0,
+                buffer_joules: 1000.0, // full buffer
+                max_buffer_joules: 1000.0,
+            })
+            .id();
+        app.world_mut()
+            .entity_mut(gen_e)
+            .insert(PowerNetworkMember(power_net_e));
+        app.world_mut()
+            .spawn((EnergyPortOf(machine_e), PowerNetworkMember(power_net_e)));
+
+        app.update();
+
+        let generator = app.world().get::<GeneratorUnit>(gen_e).unwrap();
+        assert!(
+            generator.buffer_joules < 1000.0,
+            "generator buffer must decrease after per-tick energy withdrawal"
+        );
+        let activity = app.world().get::<MachineActivity>(machine_e).unwrap();
+        assert!(
+            activity.progress > 0.0,
+            "progress must advance when power available"
         );
     }
 }

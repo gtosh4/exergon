@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
-use crate::machine::{Machine, MachineNetworkChanged, MachineUnformed, PortOfMachine};
+use crate::machine::{Machine, MachineUnformed, PortOfMachine};
 use crate::world::generation::{TerrainSampler, WorldConfig};
 use crate::world::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
@@ -44,10 +44,10 @@ pub(super) fn cable_placed_system<N: NetworkKind>(
     mut changed: MessageWriter<NetworkChanged<N>>,
     world_config: Option<Res<WorldConfig>>,
 ) {
-    let new_connections: Vec<(Vec3, Vec3)> = cable_events
+    let new_connections: Vec<(Vec3, Vec3, Option<Entity>, Option<Entity>)> = cable_events
         .read()
         .filter(|ev| ev.kind == WorldObjectKind::Placed && ev.item_id == N::CABLE_ITEM_ID)
-        .map(|ev| (ev.from, ev.to))
+        .map(|ev| (ev.from, ev.to, ev.from_port, ev.to_port))
         .collect();
 
     if new_connections.is_empty() {
@@ -75,7 +75,7 @@ pub(super) fn cable_placed_system<N: NetworkKind>(
             })
     };
 
-    for (from, to) in new_connections {
+    for (from, to, from_port, to_port) in new_connections {
         if from.distance(to) < 0.01 {
             continue;
         }
@@ -157,19 +157,31 @@ pub(super) fn cable_placed_system<N: NetworkKind>(
             N::Member::new(target_net),
         ));
 
-        // Assign membership to port entities near cable endpoints
-        for (port_e, t, port_of, _) in &port_q {
-            let machine_e = port_of.machine_entity();
-            if unformed_q.get(machine_e).is_ok() {
-                continue;
-            }
-            let pos = t.translation;
-            if port_near_endpoint(pos, from) || port_near_endpoint(pos, to) {
+        // Assign membership to port entities.
+        // If explicit ports were provided in the event, use them directly.
+        // Otherwise fall back to snap-radius scan (backward compat with tests).
+        if from_port.is_some() || to_port.is_some() {
+            for port_e in from_port.into_iter().chain(to_port.into_iter()) {
                 debug!(
-                    "cable_placed: port {:?} (machine {:?}) joined network {:?}",
-                    port_e, machine_e, target_net
+                    "cable_placed: explicit port {:?} joined network {:?}",
+                    port_e, target_net
                 );
                 commands.entity(port_e).insert(N::Member::new(target_net));
+            }
+        } else {
+            for (port_e, t, port_of, _) in &port_q {
+                let machine_e = port_of.machine_entity();
+                if unformed_q.get(machine_e).is_ok() {
+                    continue;
+                }
+                let pos = t.translation;
+                if port_near_endpoint(pos, from) || port_near_endpoint(pos, to) {
+                    debug!(
+                        "cable_placed: port {:?} (machine {:?}) joined network {:?}",
+                        port_e, machine_e, target_net
+                    );
+                    commands.entity(port_e).insert(N::Member::new(target_net));
+                }
             }
         }
 
@@ -304,59 +316,6 @@ pub fn cable_removed_system<N: NetworkKind>(
         for (new_net, _) in &all_nets {
             changed.write(NetworkChanged::new(*new_net));
         }
-    }
-}
-
-/// Recomputes port→network membership whenever machines are placed or removed.
-pub fn machine_membership_system<N: NetworkKind>(
-    mut events: MessageReader<MachineNetworkChanged>,
-    cable_q: Query<(Entity, &N::CableSegment, &N::Member)>,
-    port_q: Query<(Entity, &Transform, &N::PortOf)>,
-    unformed_q: Query<(), With<MachineUnformed>>,
-    mut commands: Commands,
-    mut changed: MessageWriter<NetworkChanged<N>>,
-) {
-    if events.read().count() == 0 {
-        return;
-    }
-
-    let endpoint_to_net: HashMap<IVec3, Entity> = cable_q
-        .iter()
-        .flat_map(|(_, seg, m)| seg.endpoints().map(|ep| (key(ep), m.network())))
-        .collect();
-
-    let mut affected_nets: HashSet<Entity> = HashSet::new();
-
-    for (port_e, t, port_of) in &port_q {
-        let machine_e = port_of.machine_entity();
-        if unformed_q.get(machine_e).is_ok() {
-            commands.entity(port_e).remove::<N::Member>();
-            continue;
-        }
-
-        let new_net = endpoint_to_net.get(&key(t.translation)).copied();
-
-        match new_net {
-            Some(net) => {
-                debug!(
-                    "machine_membership: port {:?} (machine {:?}) joined network {:?}",
-                    port_e, machine_e, net
-                );
-                commands.entity(port_e).insert(N::Member::new(net));
-                affected_nets.insert(net);
-            }
-            None => {
-                debug!(
-                    "machine_membership: port {:?} (machine {:?}) has no network",
-                    port_e, machine_e
-                );
-                commands.entity(port_e).remove::<N::Member>();
-            }
-        }
-    }
-
-    for net in affected_nets {
-        changed.write(NetworkChanged::new(net));
     }
 }
 

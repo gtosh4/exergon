@@ -4,7 +4,7 @@ use crate::{
     GameState,
     inventory::InventoryOpen,
     machine::{MachineActivity, MachineState},
-    power::PowerNetwork,
+    power::GeneratorUnit,
     recipe_graph::RecipeGraph,
     ui::theme::{COLOR_GOLD, COLOR_OVERLAY_BG},
 };
@@ -48,7 +48,7 @@ fn spawn(mut commands: Commands) {
 }
 
 fn update(
-    net_q: Query<&PowerNetwork>,
+    gen_q: Query<&GeneratorUnit>,
     machine_q: Query<(&MachineState, Option<&MachineActivity>)>,
     recipe_graph: Option<Res<RecipeGraph>>,
     inv_open: Option<Res<InventoryOpen>>,
@@ -67,7 +67,7 @@ fn update(
         return;
     }
 
-    let produced: f32 = net_q.iter().map(|n| n.capacity_watts).sum();
+    let produced: f32 = gen_q.iter().map(|g| g.watts).sum();
     let demanded: f32 = recipe_graph
         .as_ref()
         .map(|rg| {

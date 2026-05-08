@@ -262,7 +262,7 @@ Every node in the pool defines:
 
 **Material nodes** — unlock a material and all its derived items + concrete recipes for already-known machines.
 
-**Machine/Process nodes** — unlock a machine type; all recipe templates using that machine become available for all known materials.
+**Machine/Process nodes** — unlock a machine type or tier; all recipe templates using that machine (and tier) become available for all known materials.
 
 **Special recipe nodes** — unlock one specific recipe not arising from template expansion.
 
@@ -299,6 +299,21 @@ Design uses: architectural forks (two legitimate approaches to the same problem)
 Tier 1 should feel like a fast-moving setup phase. The player is landing, building their first machines, and establishing the research loop. Unlocks come quickly — roughly one every 6 minutes — and there are always 3–5 unlockable nodes visible at once.
 
 The player's choices in Tier 1 determine their early factory shape: power-first vs. production-first vs. science-first. All orderings lead to the same Tier 2 gate, but they produce meaningfully different infrastructure going in.
+
+### Starting state
+
+The player AI body includes a **built-in hand scanner** — not a tech unlock, always present. It can analyze samples manually and generates a small fixed yield of Material Science research per sample analyzed.
+
+The **first alien sample analysis** is both the T1 gate trigger and the source of initial research. This analysis produces enough Material Science research to unlock 1–2 "Research spend (small)" nodes — typically Stone Furnace or a power source. From there the standard research loop begins: build Field Analyzer → analyze samples at scale → spend research on remaining nodes.
+
+Simultaneously, the player can collect stone by hand (no machine required). After 50 stone, Basic Miner unlocks via production milestone — no research needed. This creates two parallel opening tracks:
+
+- **Research-first:** Analyze sample → unlock Stone Furnace → build Field Analyzer → research loop live
+- **Production-first:** Collect 50 stone by hand → Basic Miner unlocks → mine ore → smelt (after Stone Furnace via research track)
+
+Both tracks converge quickly. Neither can proceed far without the other.
+
+The hand scanner remains available throughout the run as a fallback but is weak — it cannot be automated, has no throughput scaling, and yields less per sample than a built Field Analyzer. Its only purpose is bootstrapping.
 
 ### Tier 1 node set (8 nodes, representative)
 

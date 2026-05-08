@@ -3,13 +3,12 @@ use std::collections::{HashMap, HashSet};
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
-use crate::machine::{EnergyPortOf, Machine, MachineActivity, MachineState};
+use crate::machine::{EnergyPortOf, Machine};
 use crate::network::visuals::spawn_cable_children;
 use crate::network::{
     HasEndpoints, NetworkChanged, NetworkKind, NetworkMemberComponent, NetworkMembersComponent,
     NetworkPlugin, NetworkSystems, Power, route_avoiding,
 };
-use crate::recipe_graph::RecipeGraph;
 use crate::world::{WorldObjectEvent, WorldObjectKind};
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -27,11 +26,7 @@ impl Plugin for PowerPlugin {
         app.add_systems(Startup, setup_power_visuals);
         app.add_systems(
             Update,
-            (
-                generator_system,
-                recalc_capacity_system,
-                brownout_system.run_if(resource_exists::<RecipeGraph>),
-            )
+            (generator_system, generator_tick_system)
                 .chain()
                 .after(NetworkSystems::of::<Power>())
                 .in_set(PowerSimSystems)
@@ -181,12 +176,12 @@ impl NetworkMembersComponent for PowerNetworkMembers {
 pub struct GeneratorUnit {
     pub pos: Vec3,
     pub watts: f32,
+    pub buffer_joules: f32,
+    pub max_buffer_joules: f32,
 }
 
 #[derive(Component)]
-pub struct PowerNetwork {
-    pub capacity_watts: f32,
-}
+pub struct PowerNetwork;
 
 // -- NetworkKind impl --------------------------------------------------------
 
@@ -215,11 +210,106 @@ impl NetworkKind for Power {
     }
 
     fn spawn_network(commands: &mut Commands) -> Entity {
-        commands
-            .spawn(PowerNetwork {
-                capacity_watts: 0.0,
-            })
-            .id()
+        commands.spawn(PowerNetwork).id()
+    }
+}
+
+// -- PowerNetworkMembers energy helpers --------------------------------------
+
+impl PowerNetworkMembers {
+    fn collect_generator_entities(
+        &self,
+        gen_q: &Query<&GeneratorUnit>,
+        port_of_q: &Query<&EnergyPortOf>,
+    ) -> Vec<Entity> {
+        let mut seen = std::collections::HashSet::new();
+        let mut result = Vec::new();
+        for &e in &self.0 {
+            let gen_e = if gen_q.contains(e) {
+                Some(e)
+            } else if let Ok(pof) = port_of_q.get(e) {
+                if gen_q.contains(pof.0) {
+                    Some(pof.0)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            if let Some(g) = gen_e
+                && seen.insert(g)
+            {
+                result.push(g);
+            }
+        }
+        result
+    }
+
+    pub fn has_energy(
+        &self,
+        gen_q: &Query<&GeneratorUnit>,
+        port_of_q: &Query<&EnergyPortOf>,
+        joules: f32,
+    ) -> bool {
+        self.collect_generator_entities(gen_q, port_of_q)
+            .iter()
+            .filter_map(|&e| gen_q.get(e).ok())
+            .map(|g| g.buffer_joules)
+            .sum::<f32>()
+            >= joules
+    }
+
+    pub fn take_energy(
+        &self,
+        gen_q: &mut Query<&mut GeneratorUnit>,
+        port_of_q: &Query<&EnergyPortOf>,
+        joules: f32,
+    ) -> bool {
+        // Resolve generator entities without borrowing gen_q mutably yet
+        let entities: Vec<Entity> = {
+            let mut seen = std::collections::HashSet::new();
+            let mut result = Vec::new();
+            for &e in &self.0 {
+                let gen_e = if gen_q.contains(e) {
+                    Some(e)
+                } else if let Ok(pof) = port_of_q.get(e) {
+                    if gen_q.contains(pof.0) {
+                        Some(pof.0)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                if let Some(g) = gen_e
+                    && seen.insert(g)
+                {
+                    result.push(g);
+                }
+            }
+            result
+        };
+        // Collect current buffers to compute total without holding a borrow
+        let buffers: Vec<(Entity, f32)> = entities
+            .iter()
+            .filter_map(|&e| gen_q.get(e).ok().map(|g| (e, g.buffer_joules)))
+            .collect();
+        let total: f32 = buffers.iter().map(|(_, b)| b).sum();
+        if total < joules {
+            return false;
+        }
+        let mut remaining = joules;
+        for (e, _) in buffers {
+            if remaining <= 0.0 {
+                break;
+            }
+            if let Ok(mut unit) = gen_q.get_mut(e) {
+                let take = remaining.min(unit.buffer_joules);
+                unit.buffer_joules -= take;
+                remaining -= take;
+            }
+        }
+        true
     }
 }
 
@@ -266,6 +356,8 @@ fn generator_system(
                 .spawn(GeneratorUnit {
                     pos: ev.pos,
                     watts: GENERATOR_DEFAULT_WATTS,
+                    buffer_joules: 0.0,
+                    max_buffer_joules: GENERATOR_DEFAULT_WATTS * 10.0,
                 })
                 .id();
             for &dir in &crate::network::DIRS {
@@ -283,108 +375,48 @@ fn generator_system(
     }
 }
 
-fn recalc_capacity_system(
-    mut events: MessageReader<NetworkChanged<Power>>,
-    mut net_q: Query<(Entity, &mut PowerNetwork, &PowerNetworkMembers)>,
-    gen_q: Query<&GeneratorUnit>,
+fn generator_tick_system(
+    time: Res<Time>,
+    net_q: Query<(Entity, &PowerNetworkMembers)>,
+    mut gen_q: Query<&mut GeneratorUnit>,
     port_of_q: Query<&EnergyPortOf>,
+    mut changed: MessageWriter<NetworkChanged<Power>>,
 ) {
-    let affected: HashSet<Entity> = events.read().map(|e| e.network).collect();
-    if affected.is_empty() {
-        return;
-    }
-    for (net_entity, mut network, members) in &mut net_q {
-        if !affected.contains(&net_entity) {
-            continue;
-        }
-        // Deduplicate by grid position: standalone GeneratorUnit entities (spawned by
-        // generator_system when cable is pre-existing) and machine-entity GeneratorUnit
-        // components can both be in PowerNetworkMembers for the same physical generator.
-        let mut counted_positions: HashSet<IVec3> = HashSet::new();
-        let mut total_watts = 0.0f32;
-        for &member_e in &members.0 {
-            let maybe_unit: Option<&GeneratorUnit> = if let Ok(unit) = gen_q.get(member_e) {
-                Some(unit)
-            } else if let Ok(port_of) = port_of_q.get(member_e) {
-                gen_q.get(port_of.0).ok()
+    let dt = time.delta_secs();
+    for (net_e, members) in &net_q {
+        let mut seen = std::collections::HashSet::new();
+        let mut gen_entities = Vec::new();
+        for &e in members.members() {
+            let g = if gen_q.contains(e) {
+                Some(e)
+            } else if let Ok(pof) = port_of_q.get(e) {
+                if gen_q.contains(pof.0) {
+                    Some(pof.0)
+                } else {
+                    None
+                }
             } else {
                 None
             };
-            if let Some(unit) = maybe_unit {
-                let pos_key = unit.pos.round().as_ivec3();
-                if counted_positions.insert(pos_key) {
-                    total_watts += unit.watts;
+            if let Some(ge) = g
+                && seen.insert(ge)
+            {
+                gen_entities.push(ge);
+            }
+        }
+        let mut went_positive = false;
+        for ge in gen_entities {
+            if let Ok(mut unit) = gen_q.get_mut(ge) {
+                let prev = unit.buffer_joules;
+                unit.buffer_joules =
+                    (unit.buffer_joules + unit.watts * dt).min(unit.max_buffer_joules);
+                if prev <= 0.0 && unit.buffer_joules > 0.0 {
+                    went_positive = true;
                 }
             }
         }
-        network.capacity_watts = total_watts;
-    }
-}
-
-fn brownout_system(
-    mut events: MessageReader<NetworkChanged<Power>>,
-    net_q: Query<(Entity, &PowerNetwork, &PowerNetworkMembers)>,
-    port_of_q: Query<&EnergyPortOf>,
-    recipe_graph: Res<RecipeGraph>,
-    mut params: ParamSet<(
-        Query<(&MachineState, Option<&MachineActivity>)>,
-        Query<&mut MachineActivity>,
-    )>,
-) {
-    let affected: HashSet<Entity> = events.read().map(|e| e.network).collect();
-    if affected.is_empty() {
-        return;
-    }
-
-    // Each entry: (unique machine entities in network, speed factor)
-    let net_speeds: Vec<(Vec<Entity>, f32)> = {
-        let machine_q = params.p0();
-        net_q
-            .iter()
-            .filter(|(e, _, _)| affected.contains(e))
-            .map(|(_, network, members)| {
-                // Resolve port entities → unique machine entities
-                let machine_entities: Vec<Entity> = {
-                    let mut seen = HashSet::new();
-                    members
-                        .0
-                        .iter()
-                        .filter_map(|&e| port_of_q.get(e).ok().map(|p| p.0))
-                        .filter(|&m| seen.insert(m))
-                        .collect()
-                };
-                let speed = if network.capacity_watts > 0.0 {
-                    let demand: f32 = machine_entities
-                        .iter()
-                        .filter_map(|&machine_e| {
-                            let (state, activity) = machine_q.get(machine_e).ok()?;
-                            if *state != MachineState::Running {
-                                return None;
-                            }
-                            let activity = activity?;
-                            let recipe = recipe_graph.recipes.get(&activity.recipe_id)?;
-                            Some(recipe.energy_cost / recipe.processing_time)
-                        })
-                        .sum();
-                    if demand > network.capacity_watts {
-                        network.capacity_watts / demand
-                    } else {
-                        1.0
-                    }
-                } else {
-                    1.0
-                };
-                (machine_entities, speed)
-            })
-            .collect()
-    };
-
-    let mut activity_q = params.p1();
-    for (machine_entities, speed) in &net_speeds {
-        for &machine_e in machine_entities {
-            if let Ok(mut act) = activity_q.get_mut(machine_e) {
-                act.speed_factor = *speed;
-            }
+        if went_positive {
+            changed.write(NetworkChanged::new(net_e));
         }
     }
 }
@@ -394,11 +426,8 @@ mod tests {
     use bevy::prelude::*;
 
     use super::*;
-    use crate::machine::{
-        EnergyPortOf, Machine, MachineNetworkChanged, MachineState, Mirror, Orientation, Rotation,
-    };
-    use crate::network::{NetworkChanged, NetworkPlugin, NetworkSystems};
-    use crate::recipe_graph::{ConcreteRecipe, RecipeGraph};
+    use crate::machine::{EnergyPortOf, Machine, MachineState, Mirror, Orientation, Rotation};
+    use crate::network::{NetworkPlugin, NetworkSystems};
     use crate::world::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
     fn power_app() -> App {
@@ -406,42 +435,14 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .add_message::<WorldObjectEvent>()
             .add_message::<CableConnectionEvent>()
-            .add_message::<MachineNetworkChanged>()
             .add_plugins(NetworkPlugin::<Power>::default())
             .add_systems(
                 Update,
-                (generator_system, recalc_capacity_system)
+                (generator_system, generator_tick_system)
                     .chain()
                     .after(NetworkSystems::of::<Power>()),
             );
         app
-    }
-
-    fn recipe_graph_with(energy_cost: f32, processing_time: f32) -> RecipeGraph {
-        let mut recipes = std::collections::HashMap::new();
-        recipes.insert(
-            "r1".to_string(),
-            ConcreteRecipe {
-                id: "r1".to_string(),
-                inputs: vec![],
-                outputs: vec![],
-                byproducts: vec![],
-                machine_type: "smelter".to_string(),
-                machine_tier: 1,
-                processing_time,
-                energy_cost,
-            },
-        );
-        RecipeGraph {
-            materials: std::collections::HashMap::new(),
-            form_groups: std::collections::HashMap::new(),
-            templates: std::collections::HashMap::new(),
-            items: std::collections::HashMap::new(),
-            recipes,
-            terminal: String::new(),
-            producers: std::collections::HashMap::new(),
-            consumers: std::collections::HashMap::new(),
-        }
     }
 
     fn connect_cable(app: &mut App, from: Vec3, to: Vec3) {
@@ -450,6 +451,8 @@ mod tests {
             to,
             item_id: POWER_CABLE_ID.to_string(),
             kind: WorldObjectKind::Placed,
+            from_port: None,
+            to_port: None,
         });
     }
 
@@ -470,7 +473,9 @@ mod tests {
     }
 
     #[test]
-    fn generator_adjacent_to_cable_endpoint_adds_capacity() {
+    fn generator_adjacent_to_cable_endpoint_spawns_and_charges_buffer() {
+        // Generator placed adjacent to cable endpoint: spawns with correct watts
+        // and its buffer fills up over ticks (generator_tick_system runs same frame).
         let mut app = power_app();
         connect_cable(&mut app, Vec3::ZERO, Vec3::new(0.0, 0.0, 5.0));
         app.update();
@@ -481,17 +486,16 @@ mod tests {
         });
         app.update();
         let world = app.world_mut();
-        let caps: Vec<f32> = world
-            .query_filtered::<&PowerNetwork, ()>()
-            .iter(world)
-            .map(|n| n.capacity_watts)
-            .collect();
-        assert_eq!(caps.len(), 1);
-        assert_eq!(caps[0], GENERATOR_DEFAULT_WATTS);
+        let gens: Vec<&GeneratorUnit> = world.query::<&GeneratorUnit>().iter(world).collect();
+        assert_eq!(gens.len(), 1);
+        assert_eq!(gens[0].watts, GENERATOR_DEFAULT_WATTS);
+        // Buffer starts at 0 and is filled by tick; after one update it is ≥ 0
+        assert!(gens[0].buffer_joules >= 0.0);
+        assert!(gens[0].buffer_joules <= gens[0].max_buffer_joules);
     }
 
     #[test]
-    fn generator_removed_clears_capacity() {
+    fn generator_removed_despawns_generator_entity() {
         let mut app = power_app();
         connect_cable(&mut app, Vec3::ZERO, Vec3::new(0.0, 0.0, 5.0));
         app.update();
@@ -508,20 +512,14 @@ mod tests {
         });
         app.update();
         let world = app.world_mut();
-        let caps: Vec<f32> = world
-            .query_filtered::<&PowerNetwork, ()>()
-            .iter(world)
-            .map(|n| n.capacity_watts)
-            .collect();
-        assert_eq!(caps.len(), 1);
-        assert_eq!(caps[0], 0.0);
+        assert_eq!(world.query::<&GeneratorUnit>().iter(world).count(), 0);
     }
 
     #[test]
     fn machine_with_energy_port_matching_cable_endpoint_gets_member() {
+        // Port is spawned before cable → snap-radius assigns membership
         let mut app = power_app();
         let io_pos = Vec3::new(1.0, 0.0, 0.0);
-        connect_cable(&mut app, io_pos, Vec3::new(5.0, 0.0, 0.0));
         let machine_entity = app
             .world_mut()
             .spawn((
@@ -545,156 +543,9 @@ mod tests {
                 Transform::from_translation(io_pos),
             ))
             .id();
-        app.world_mut().write_message(MachineNetworkChanged);
+        connect_cable(&mut app, io_pos, Vec3::new(5.0, 0.0, 0.0));
         app.update();
         assert!(app.world().get::<PowerNetworkMember>(port_entity).is_some());
-    }
-
-    #[test]
-    fn brownout_full_speed_when_capacity_exceeds_demand() {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins)
-            .insert_resource(recipe_graph_with(50.0, 1.0))
-            .add_message::<NetworkChanged<Power>>()
-            .add_systems(Update, brownout_system);
-
-        let net = app
-            .world_mut()
-            .spawn(PowerNetwork {
-                capacity_watts: 200.0,
-            })
-            .id();
-        let machine_e = app
-            .world_mut()
-            .spawn((
-                MachineState::Running,
-                MachineActivity {
-                    recipe_id: "r1".to_string(),
-                    progress: 0.0,
-                    speed_factor: 1.0,
-                },
-            ))
-            .id();
-        app.world_mut()
-            .spawn((EnergyPortOf(machine_e), PowerNetworkMember(net)));
-        app.world_mut()
-            .write_message(NetworkChanged::<Power>::new(net));
-        app.update();
-
-        let world = app.world_mut();
-        let speed = world
-            .query_filtered::<&MachineActivity, ()>()
-            .iter(world)
-            .next()
-            .unwrap()
-            .speed_factor;
-        assert_eq!(speed, 1.0);
-    }
-
-    #[test]
-    fn brownout_throttles_when_demand_exceeds_capacity() {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins)
-            .insert_resource(recipe_graph_with(100.0, 1.0))
-            .add_message::<NetworkChanged<Power>>()
-            .add_systems(Update, brownout_system);
-
-        let net = app
-            .world_mut()
-            .spawn(PowerNetwork {
-                capacity_watts: 50.0,
-            })
-            .id();
-        let machine_e = app
-            .world_mut()
-            .spawn((
-                MachineState::Running,
-                MachineActivity {
-                    recipe_id: "r1".to_string(),
-                    progress: 0.0,
-                    speed_factor: 1.0,
-                },
-            ))
-            .id();
-        app.world_mut()
-            .spawn((EnergyPortOf(machine_e), PowerNetworkMember(net)));
-        app.world_mut()
-            .write_message(NetworkChanged::<Power>::new(net));
-        app.update();
-
-        let world = app.world_mut();
-        let speed = world
-            .query_filtered::<&MachineActivity, ()>()
-            .iter(world)
-            .next()
-            .unwrap()
-            .speed_factor;
-        assert!((speed - 0.5).abs() < 1e-6, "expected 0.5, got {speed}");
-    }
-
-    #[test]
-    fn brownout_idle_machine_not_counted_in_demand() {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins)
-            .insert_resource(recipe_graph_with(1000.0, 1.0))
-            .add_message::<NetworkChanged<Power>>()
-            .add_systems(Update, brownout_system);
-
-        let net = app
-            .world_mut()
-            .spawn(PowerNetwork {
-                capacity_watts: 1.0,
-            })
-            .id();
-        let machine_e = app.world_mut().spawn(MachineState::Idle).id();
-        app.world_mut()
-            .spawn((EnergyPortOf(machine_e), PowerNetworkMember(net)));
-        app.world_mut()
-            .write_message(NetworkChanged::<Power>::new(net));
-        app.update();
-
-        assert_eq!(network_count(&mut app), 1);
-    }
-
-    #[test]
-    fn cable_removal_clears_network() {
-        let mut app = power_app();
-        connect_cable(&mut app, Vec3::ZERO, Vec3::new(5.0, 0.0, 0.0));
-        app.update();
-        assert_eq!(network_count(&mut app), 1);
-
-        disconnect_at(&mut app, Vec3::ZERO);
-        app.update();
-        assert_eq!(network_count(&mut app), 0);
-    }
-
-    #[test]
-    fn cable_removal_splits_chain_into_two_networks() {
-        let mut app = power_app();
-        connect_cable(&mut app, Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0));
-        connect_cable(
-            &mut app,
-            Vec3::new(5.0, 0.0, 0.0),
-            Vec3::new(10.0, 0.0, 0.0),
-        );
-        connect_cable(
-            &mut app,
-            Vec3::new(10.0, 0.0, 0.0),
-            Vec3::new(15.0, 0.0, 0.0),
-        );
-        connect_cable(
-            &mut app,
-            Vec3::new(15.0, 0.0, 0.0),
-            Vec3::new(20.0, 0.0, 0.0),
-        );
-        app.update();
-        assert_eq!(network_count(&mut app), 1);
-
-        // Remove at shared endpoint (10,0,0) — cuts cables 5→10 and 10→15
-        // leaving 0→5 and 15→20 as two disconnected networks
-        disconnect_at(&mut app, Vec3::new(10.0, 0.0, 0.0));
-        app.update();
-        assert_eq!(network_count(&mut app), 2);
     }
 
     fn machine_with_port(port: Vec3) -> impl Bundle {
@@ -801,5 +652,103 @@ mod tests {
         });
         app.update();
         assert_eq!(network_count(&mut app), 0);
+    }
+
+    #[test]
+    fn has_energy_true_when_sufficient_false_when_not() {
+        use bevy::ecs::system::SystemState;
+
+        let mut world = World::new();
+        let gen_e = world
+            .spawn(GeneratorUnit {
+                pos: Vec3::ZERO,
+                watts: 0.0,
+                buffer_joules: 100.0,
+                max_buffer_joules: 100.0,
+            })
+            .id();
+        let net_e = world.spawn_empty().id();
+        world.entity_mut(gen_e).insert(PowerNetworkMember(net_e));
+
+        let mut state: SystemState<(
+            Query<&PowerNetworkMembers>,
+            Query<&GeneratorUnit>,
+            Query<&EnergyPortOf>,
+        )> = SystemState::new(&mut world);
+        let (net_q, gen_q, port_q) = state.get(&world);
+        let members = net_q.get(net_e).unwrap();
+
+        assert!(
+            members.has_energy(&gen_q, &port_q, 50.0),
+            "buffer=100 should satisfy 50J request"
+        );
+        assert!(
+            !members.has_energy(&gen_q, &port_q, 150.0),
+            "buffer=100 should not satisfy 150J request"
+        );
+    }
+
+    #[test]
+    fn take_energy_drains_buffer_and_returns_false_when_insufficient() {
+        use bevy::ecs::system::SystemState;
+
+        let mut world = World::new();
+        let gen_e = world
+            .spawn(GeneratorUnit {
+                pos: Vec3::ZERO,
+                watts: 0.0,
+                buffer_joules: 100.0,
+                max_buffer_joules: 100.0,
+            })
+            .id();
+        let net_e = world.spawn_empty().id();
+        world.entity_mut(gen_e).insert(PowerNetworkMember(net_e));
+
+        // Successful drain
+        {
+            let mut state: SystemState<(
+                Query<&PowerNetworkMembers>,
+                Query<&mut GeneratorUnit>,
+                Query<&EnergyPortOf>,
+            )> = SystemState::new(&mut world);
+            let (net_q, mut gen_q, port_q) = state.get_mut(&mut world);
+            assert!(
+                net_q
+                    .get(net_e)
+                    .unwrap()
+                    .take_energy(&mut gen_q, &port_q, 30.0),
+                "take_energy should succeed when buffer >= amount"
+            );
+            state.apply(&mut world);
+        }
+        assert_eq!(
+            world.get::<GeneratorUnit>(gen_e).unwrap().buffer_joules,
+            70.0,
+            "buffer must decrease by the taken amount"
+        );
+
+        // Failed drain — 200 > 70
+        {
+            let mut state: SystemState<(
+                Query<&PowerNetworkMembers>,
+                Query<&mut GeneratorUnit>,
+                Query<&EnergyPortOf>,
+            )> = SystemState::new(&mut world);
+            let (net_q, mut gen_q, port_q) = state.get_mut(&mut world);
+            assert!(
+                !net_q
+                    .get(net_e)
+                    .unwrap()
+                    .take_energy(&mut gen_q, &port_q, 200.0),
+                "take_energy should fail when buffer < amount"
+            );
+            state.apply(&mut world);
+        }
+        // Buffer must be unchanged after a failed drain
+        assert_eq!(
+            world.get::<GeneratorUnit>(gen_e).unwrap().buffer_joules,
+            70.0,
+            "failed take_energy must not modify the buffer"
+        );
     }
 }
