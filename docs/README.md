@@ -27,6 +27,12 @@ Content design layer for the tech tree: node definitions, pacing targets, unlock
 ### [`networks.md`](networks.md) — Network System Design
 Implementation design for the generic cable network system and both concrete kinds (logistics and power). Covers ECS structure, topology systems (place/remove/split/merge), routing, and how power gating interacts with recipe start. **Read before touching `src/network/`, `src/logistics/`, or `src/power/`.**
 
+### [`mining.md`](mining.md) — Mining & Deposit System
+Ore extraction from surface deposits. Covers ECS components (`OreDeposit`, `MinerMachine`), miner placement and deposit linking, depletion curve, weighted ore sampling, manual mining, and deposit discovery. **Read before touching `src/logistics/miner.rs`, `src/drone/`, or deposit-related code in `src/world/generation.rs`.**
+
+### [`design-todos.md`](design-todos.md) — Design Todos
+Systems that need a `networks.md`-depth spec (ECS components, system logic, events, edge cases) before implementation. Organized by priority: Vertical Slice and MVP. **Check here before starting a new system. Remove entries as specs are written.**
+
 ### [`ui.md`](ui.md) — User Interface
 UI layout and mockups for inventory, machine panel, planner, and tech tree screens.
 

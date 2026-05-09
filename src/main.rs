@@ -105,37 +105,38 @@ fn main() {
     app.run();
 }
 
+#[cfg(debug_assertions)]
 fn give_test_items(
-    mut hotbar: ResMut<Hotbar>,
+    mut _hotbar: ResMut<Hotbar>,
     mut commands: Commands,
     registry: Res<MachineRegistry>,
     visuals: Option<Res<MachineVisualAssets>>,
     mut network_changed: MessageWriter<MachineNetworkChanged>,
 ) {
-    hotbar.slots[0] = Some(HotbarSlot {
-        item_id: "smelter".into(),
-    });
-    hotbar.slots[1] = Some(HotbarSlot {
-        item_id: "assembler".into(),
-    });
-    hotbar.slots[2] = Some(HotbarSlot {
-        item_id: "analysis_station".into(),
-    });
-    hotbar.slots[3] = Some(HotbarSlot {
-        item_id: "generator".into(),
-    });
-    hotbar.slots[4] = Some(HotbarSlot {
-        item_id: "storage_crate".into(),
-    });
-    hotbar.slots[5] = Some(HotbarSlot {
-        item_id: "logistics_cable".into(),
-    });
-    hotbar.slots[6] = Some(HotbarSlot {
-        item_id: "power_cable".into(),
-    });
-    hotbar.slots[7] = Some(HotbarSlot {
-        item_id: "platform".into(),
-    });
+    // hotbar.slots[0] = Some(HotbarSlot {
+    //     item_id: "smelter".into(),
+    // });
+    // hotbar.slots[1] = Some(HotbarSlot {
+    //     item_id: "assembler".into(),
+    // });
+    // hotbar.slots[2] = Some(HotbarSlot {
+    //     item_id: "analysis_station".into(),
+    // });
+    // hotbar.slots[3] = Some(HotbarSlot {
+    //     item_id: "generator".into(),
+    // });
+    // hotbar.slots[4] = Some(HotbarSlot {
+    //     item_id: "storage_crate".into(),
+    // });
+    // hotbar.slots[5] = Some(HotbarSlot {
+    //     item_id: "logistics_cable".into(),
+    // });
+    // hotbar.slots[6] = Some(HotbarSlot {
+    //     item_id: "power_cable".into(),
+    // });
+    // hotbar.slots[7] = Some(HotbarSlot {
+    //     item_id: "platform".into(),
+    // });
 
     let crate_pos = Vec3::new(5.0, 15.0, 5.0);
     if let Some(def) = registry.machine_def("storage_crate") {
