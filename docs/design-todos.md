@@ -6,29 +6,6 @@ Systems that need a `networks.md`-depth spec before implementation: ECS componen
 
 ## Vertical Slice Priority
 
-### Science & Research System
-
-`technical-design.md §9` covers types and experiment model at GDD-level prose. Needs:
-
-- ECS components: what is on analysis station entity, what tracks per-type research totals (`ResearchPool` is named but not structured), what is on an in-progress experiment entity (if one exists)
-- How `ResearchPool` integrates with `TechTreeProgress` — what triggers unlock evaluation, what event fires
-- Knowledge visibility: what component tracks `Shadow → PartialReveal → FullyRevealed`, what system or event drives each transition, what data does partial reveal expose
-- Vertical Slice simplification: how does single-research-type collapse of the full model work
-
----
-
-### Escape Condition
-
-Escape types are described in `gdd.md §12` and `milestones.md`. No mechanic spec exists. Needs:
-
-- ECS structure: components tracking construction progress, field requirements, activation state
-- Initiation escape ("sustain gateway power"): what constitutes sufficient power, continuous tick check or timer, pass/fail condition
-- System driving phase transitions: Construction → FieldRequirement → Activation
-- Event on completion and what it triggers
-- Player-initiated activation: input system, UI interaction, or world object interaction?
-
----
-
 ### Drone System
 
 `technical-design.md §8` has control model intent. Needs ECS/system spec:

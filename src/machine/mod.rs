@@ -19,7 +19,9 @@ pub struct MachineScanSet;
 pub struct MachineNetworkChanged;
 
 /// Active recipe processing state on a running machine.
+// SparseSet: added/removed every recipe cycle; avoids archetype churn from TableStorage moves.
 #[derive(Component, Clone)]
+#[component(storage = "SparseSet")]
 pub struct MachineActivity {
     pub recipe_id: String,
     pub progress: f32,
