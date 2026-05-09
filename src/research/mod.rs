@@ -1,8 +1,17 @@
 use std::collections::HashSet;
 
+use bevy::ecs::message::{Message, MessageReader};
 use bevy::prelude::*;
 
 use crate::tech_tree::{NodeEffect, NodeId, TechTree, UnlockVector};
+
+#[derive(Debug, Clone)]
+pub struct DiscoveryEvent(pub String);
+impl Message for DiscoveryEvent {}
+
+/// Marker: prevents re-firing discovery events for an already-discovered entity.
+#[derive(Component)]
+pub struct Discovered;
 
 pub const RESEARCH_POINTS_ID: &str = "research_points";
 
@@ -22,7 +31,8 @@ pub struct ResearchPlugin;
 
 impl Plugin for ResearchPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ResearchPool>()
+        app.add_message::<DiscoveryEvent>()
+            .init_resource::<ResearchPool>()
             .init_resource::<TechTreeProgress>()
             .add_systems(
                 Update,
@@ -37,10 +47,13 @@ fn check_research_unlocks(
     tech_tree: Option<Res<TechTree>>,
     mut pool: ResMut<ResearchPool>,
     mut progress: ResMut<TechTreeProgress>,
+    mut discovery_events: MessageReader<DiscoveryEvent>,
 ) {
     let Some(tech_tree) = tech_tree else {
         return;
     };
+
+    let discovered_keys: HashSet<String> = discovery_events.read().map(|e| e.0.clone()).collect();
 
     loop {
         let mut any_unlocked = false;
@@ -55,11 +68,19 @@ fn check_research_unlocks(
             {
                 continue;
             }
-            let UnlockVector::ResearchSpend(cost) = node.primary_unlock else {
-                continue;
+            let unlocked = match &node.primary_unlock {
+                UnlockVector::ResearchSpend(cost) => {
+                    if pool.points >= *cost as f32 {
+                        pool.points -= *cost as f32;
+                        true
+                    } else {
+                        false
+                    }
+                }
+                UnlockVector::ExplorationDiscovery(key) => discovered_keys.contains(key),
+                _ => false,
             };
-            if pool.points >= cost as f32 {
-                pool.points -= cost as f32;
+            if unlocked {
                 progress.unlocked_nodes.insert(id.clone());
                 for effect in &node.effects {
                     match effect {
@@ -114,7 +135,8 @@ mod tests {
     #[test]
     fn unlocks_node_when_enough_points() {
         let mut app = App::new();
-        app.add_systems(Update, check_research_unlocks);
+        app.add_message::<DiscoveryEvent>()
+            .add_systems(Update, check_research_unlocks);
         app.insert_resource(make_tree(vec![base_node("alpha", 50, vec![])]));
         app.insert_resource(ResearchPool { points: 50.0 });
         app.init_resource::<TechTreeProgress>();
@@ -131,7 +153,8 @@ mod tests {
     #[test]
     fn does_not_unlock_without_enough_points() {
         let mut app = App::new();
-        app.add_systems(Update, check_research_unlocks);
+        app.add_message::<DiscoveryEvent>()
+            .add_systems(Update, check_research_unlocks);
         app.insert_resource(make_tree(vec![base_node("alpha", 50, vec![])]));
         app.insert_resource(ResearchPool { points: 49.0 });
         app.init_resource::<TechTreeProgress>();
@@ -145,7 +168,8 @@ mod tests {
     #[test]
     fn does_not_unlock_when_prereqs_missing() {
         let mut app = App::new();
-        app.add_systems(Update, check_research_unlocks);
+        app.add_message::<DiscoveryEvent>()
+            .add_systems(Update, check_research_unlocks);
         app.insert_resource(make_tree(vec![
             base_node("alpha", 50, vec![]),
             base_node("beta", 50, vec!["alpha".to_string()]),
@@ -166,7 +190,8 @@ mod tests {
     #[test]
     fn unlocks_chain_in_single_frame() {
         let mut app = App::new();
-        app.add_systems(Update, check_research_unlocks);
+        app.add_message::<DiscoveryEvent>()
+            .add_systems(Update, check_research_unlocks);
         app.insert_resource(make_tree(vec![
             base_node("alpha", 50, vec![]),
             base_node("beta", 50, vec!["alpha".to_string()]),
@@ -184,7 +209,8 @@ mod tests {
     #[test]
     fn no_tech_tree_resource_is_noop() {
         let mut app = App::new();
-        app.add_systems(Update, check_research_unlocks)
+        app.add_message::<DiscoveryEvent>()
+            .add_systems(Update, check_research_unlocks)
             .insert_resource(ResearchPool { points: 999.0 })
             .init_resource::<TechTreeProgress>();
         // No TechTree resource — early return branch
@@ -195,7 +221,8 @@ mod tests {
     #[test]
     fn unlock_machine_effect_populates_unlocked_machines() {
         let mut app = App::new();
-        app.add_systems(Update, check_research_unlocks);
+        app.add_message::<DiscoveryEvent>()
+            .add_systems(Update, check_research_unlocks);
         let mut node = base_node("alpha", 10, vec![]);
         node.effects = vec![NodeEffect::UnlockMachine("smelter".to_string())];
         app.insert_resource(make_tree(vec![node]));
@@ -211,13 +238,52 @@ mod tests {
     #[test]
     fn skips_non_research_spend_unlock_vectors() {
         let mut app = App::new();
-        app.add_systems(Update, check_research_unlocks);
+        app.add_message::<DiscoveryEvent>()
+            .add_systems(Update, check_research_unlocks);
         let mut node = base_node("alpha", 50, vec![]);
         node.primary_unlock = UnlockVector::ExplorationDiscovery("somewhere".to_string());
         app.insert_resource(make_tree(vec![node]));
         app.insert_resource(ResearchPool { points: 999.0 });
         app.init_resource::<TechTreeProgress>();
 
+        app.update();
+
+        let progress = app.world().resource::<TechTreeProgress>();
+        assert!(!progress.unlocked_nodes.contains("alpha"));
+    }
+
+    #[test]
+    fn exploration_discovery_unlocks_on_matching_key() {
+        let mut app = App::new();
+        app.add_message::<DiscoveryEvent>()
+            .add_systems(Update, check_research_unlocks);
+        let mut node = base_node("alpha", 0, vec![]);
+        node.primary_unlock = UnlockVector::ExplorationDiscovery("xalite_deposit".to_string());
+        app.insert_resource(make_tree(vec![node]));
+        app.insert_resource(ResearchPool { points: 0.0 });
+        app.init_resource::<TechTreeProgress>();
+
+        app.world_mut()
+            .write_message(DiscoveryEvent("xalite_deposit".to_string()));
+        app.update();
+
+        let progress = app.world().resource::<TechTreeProgress>();
+        assert!(progress.unlocked_nodes.contains("alpha"));
+    }
+
+    #[test]
+    fn exploration_discovery_does_not_unlock_on_wrong_key() {
+        let mut app = App::new();
+        app.add_message::<DiscoveryEvent>()
+            .add_systems(Update, check_research_unlocks);
+        let mut node = base_node("alpha", 0, vec![]);
+        node.primary_unlock = UnlockVector::ExplorationDiscovery("xalite_deposit".to_string());
+        app.insert_resource(make_tree(vec![node]));
+        app.insert_resource(ResearchPool { points: 0.0 });
+        app.init_resource::<TechTreeProgress>();
+
+        app.world_mut()
+            .write_message(DiscoveryEvent("wrong_key".to_string()));
         app.update();
 
         let progress = app.world().resource::<TechTreeProgress>();

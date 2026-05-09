@@ -1,6 +1,7 @@
 pub(crate) mod generation;
 mod interaction;
 mod player;
+pub(crate) mod ruins;
 
 pub use interaction::LookTarget;
 pub use player::{MainCamera, Player};
@@ -68,6 +69,7 @@ impl Plugin for WorldPlugin {
                     player::setup_world_once,
                     player::lock_cursor,
                     player::spawn_player,
+                    ruins::spawn_gateway_ruins_system,
                 ),
             )
             .add_systems(
@@ -101,6 +103,7 @@ impl Plugin for WorldPlugin {
                         .run_if(not(player::any_ui_open)),
                     interaction::update_ghost_preview.after(interaction::update_look_target),
                     interaction::update_removal_ghost.after(interaction::update_look_target),
+                    ruins::ruins_discovery_system.run_if(in_state(PlayMode::DronePilot)),
                 )
                     .run_if(in_state(GameState::Playing)),
             );

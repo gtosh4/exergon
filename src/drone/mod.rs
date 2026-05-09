@@ -11,7 +11,10 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
+use bevy::ecs::message::MessageWriter;
+
 use crate::logistics::StorageUnit;
+use crate::research::{Discovered, DiscoveryEvent};
 use crate::world::MainCamera;
 use crate::world::generation::OreDeposit;
 use crate::{GameState, PlayMode};
@@ -43,6 +46,7 @@ impl Plugin for DronePlugin {
                     .in_set(TnuaUserControlsSystems)
                     .run_if(in_state(PlayMode::DronePilot)),
                 drone_mine_system.run_if(in_state(PlayMode::DronePilot)),
+                deposit_discovery_system.run_if(in_state(PlayMode::DronePilot)),
             )
                 .run_if(in_state(GameState::Playing)),
         );
@@ -191,6 +195,28 @@ fn drone_mine_system(
             *unit.items.entry(ore_id).or_insert(0) += 1;
         }
         deposit.total_extracted += 1.0;
+    }
+}
+
+const DISCOVERY_RADIUS: f32 = 8.0;
+
+fn deposit_discovery_system(
+    mut commands: Commands,
+    drone_q: Query<&Transform, With<Drone>>,
+    deposit_q: Query<(Entity, &Transform, &OreDeposit), Without<Discovered>>,
+    mut events: MessageWriter<DiscoveryEvent>,
+) {
+    let Ok(drone) = drone_q.single() else {
+        return;
+    };
+    for (entity, deposit_transform, deposit) in &deposit_q {
+        if !deposit.ores.iter().any(|(id, _)| id == "xalite") {
+            continue;
+        }
+        if drone.translation.distance(deposit_transform.translation) <= DISCOVERY_RADIUS {
+            events.write(DiscoveryEvent("xalite_deposit".to_string()));
+            commands.entity(entity).insert(Discovered);
+        }
     }
 }
 
@@ -345,5 +371,74 @@ mod tests {
             y_after
         );
         assert!(y_after > 0.0, "yield floor must remain above zero");
+    }
+
+    #[test]
+    fn deposit_discovery_fires_once_for_xalite() {
+        use crate::research::{Discovered, DiscoveryEvent};
+        use crate::world::generation::OreDeposit;
+
+        let mut app = App::new();
+        app.add_message::<DiscoveryEvent>()
+            .add_systems(Update, deposit_discovery_system);
+
+        app.world_mut()
+            .spawn((Drone, Transform::from_xyz(0.0, 0.0, 0.0)));
+        let deposit = app
+            .world_mut()
+            .spawn((
+                OreDeposit {
+                    chunk_pos: IVec2::ZERO,
+                    ores: vec![("xalite".to_string(), 1.0)],
+                    total_extracted: 0.0,
+                    depletion_seed: 0,
+                },
+                Transform::from_xyz(1.0, 0.0, 0.0),
+            ))
+            .id();
+
+        // First frame — within radius → Discovered inserted
+        app.update();
+        assert!(
+            app.world().get::<Discovered>(deposit).is_some(),
+            "deposit should be marked Discovered"
+        );
+
+        // Second frame — Without<Discovered> excludes deposit → no re-processing
+        app.update();
+        // Still Discovered (not cleared)
+        assert!(app.world().get::<Discovered>(deposit).is_some());
+    }
+
+    #[test]
+    fn deposit_discovery_ignores_non_xalite() {
+        use crate::research::{Discovered, DiscoveryEvent};
+        use crate::world::generation::OreDeposit;
+
+        let mut app = App::new();
+        app.add_message::<DiscoveryEvent>()
+            .add_systems(Update, deposit_discovery_system);
+
+        app.world_mut()
+            .spawn((Drone, Transform::from_xyz(0.0, 0.0, 0.0)));
+        let deposit = app
+            .world_mut()
+            .spawn((
+                OreDeposit {
+                    chunk_pos: IVec2::ZERO,
+                    ores: vec![("iron".to_string(), 1.0)],
+                    total_extracted: 0.0,
+                    depletion_seed: 0,
+                },
+                Transform::from_xyz(1.0, 0.0, 0.0),
+            ))
+            .id();
+
+        app.update();
+
+        assert!(
+            app.world().get::<Discovered>(deposit).is_none(),
+            "iron deposit should not trigger discovery"
+        );
     }
 }

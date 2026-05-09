@@ -40,24 +40,22 @@ The `ExplorationDiscovery(String)` unlock trigger exists in the type system but 
 Xalite deposit markers exist in the world. Gateway ruins does not exist yet.
 
 **1-1. `DiscoveryEvent`** (`src/research/mod.rs`)
-- [ ] Add `DiscoveryEvent(pub String)` Bevy event
-- [ ] Register event in `ResearchPlugin`
-- [ ] In `check_research_unlocks`: match `UnlockVector::ExplorationDiscovery(ref key)` — unlock if `DiscoveryEvent` with matching key was fired this frame
-- [ ] Test: node with `ExplorationDiscovery("x")` unlocks when `DiscoveryEvent("x")` fires; does not unlock on wrong key
+- [x] Add `DiscoveryEvent(pub String)` Bevy event
+- [x] Register event in `ResearchPlugin`
+- [x] In `check_research_unlocks`: match `UnlockVector::ExplorationDiscovery(ref key)` — unlock if `DiscoveryEvent` with matching key was fired this frame
+- [x] Test: node with `ExplorationDiscovery("x")` unlocks when `DiscoveryEvent("x")` fires; does not unlock on wrong key
 
 **1-2. Xalite deposit proximity trigger** (`src/drone/mod.rs`)
-- [ ] `deposit_discovery_system`: in `DronePilot` state, check distance from drone to each `OreDeposit` entity whose ores contain xalite; within 8.0 units → fire `DiscoveryEvent("xalite_deposit")`; use a `Discovered` marker component to fire only once per deposit
-- [ ] Test: system fires event once, not repeatedly
+- [x] `deposit_discovery_system`: in `DronePilot` state, check distance from drone to each `OreDeposit` entity whose ores contain xalite; within 8.0 units → fire `DiscoveryEvent("xalite_deposit")`; use a `Discovered` marker component to fire only once per deposit
+- [x] Test: system fires event once, not repeatedly
 
 **1-3. Gateway ruins site** (`src/world/generation.rs` or new `src/world/ruins.rs`)
-- [ ] `spawn_gateway_ruins_system`: runs once after terrain loads; picks seeded position (use `DomainSeeds::world` + offset, ensure above terrain surface); spawns:
-  - Decorative ruins mesh (broken columns, rubble — or a simple distinctive shape for now)
-  - The gateway machine entity itself (`Machine { machine_type: "gateway", tier: 1 }`) with IO port markers, collidable, right-clickable — same as any placed machine but world-spawned
-  - `Collider::sphere(8.0)` sensor on ruins root for proximity detection
-- [ ] `ruins_discovery_system`: in `DronePilot` state, drone within sensor radius → fire `DiscoveryEvent("gateway_ruins")` once (same `Discovered` marker pattern)
+- [x] `spawn_gateway_ruins_system`: runs once after terrain loads; picks seeded position (use `DomainSeeds::world` + offset, ensure above terrain surface); spawns GatewayRuins entity at seeded position; inserts `GatewayRuinsPosition` resource
+- [ ] The gateway machine entity itself (`Machine { machine_type: "gateway", tier: 1 }`) with IO port markers, collidable, right-clickable — world-spawned at ruins site (Phase 3)
+- [x] `ruins_discovery_system`: in `DronePilot` state, drone within 8.0 units → fire `DiscoveryEvent("gateway_ruins")` once (same `Discovered` marker pattern)
 - [ ] Gateway machine cables/interaction locked until `gateway_theory` unlocked (check `TechTreeProgress::unlocked_machines` contains "gateway" before allowing cable snap or right-click)
-- [ ] Gateway ruins position must be reachable on foot — place within 200 units of spawn, above terrain
-- [ ] Test: ruins spawns at deterministic position for a given seed; `DiscoveryEvent` fires once on approach
+- [x] Gateway ruins position must be reachable on foot — place within 200 units of spawn, above terrain
+- [x] Test: ruins spawns at deterministic position for a given seed; `DiscoveryEvent` fires once on approach
 
 ---
 
@@ -66,11 +64,11 @@ Xalite deposit markers exist in the world. Gateway ruins does not exist yet.
 `forge_gateway_key` requires `machine_tier: 2` assembler. Assembler asset only defines tier 1.
 
 **2-1. Assembler tier 2 asset** (`assets/machines/assembler.ron`)
-- [ ] Add tier 2 entry: same footprint, same IO layout as tier 1 (recipe system uses `machine_tier <= machine.tier`, so tier 2 machine can run tier 1 and tier 2 recipes)
+- [x] Add tier 2 entry: same footprint, same IO layout as tier 1 (recipe system uses `machine_tier <= machine.tier`, so tier 2 machine can run tier 1 and tier 2 recipes)
 - [ ] Add assembler tier 2 to `--test` hotbar so it's testable
 
 **2-2. Verify recipe runs** (no new code needed if tier check already works)
-- [ ] Integration test: assembler tier 2 + forge_gateway_key recipe + required inputs → gateway_key output
+- [x] Integration test: assembler tier 2 + forge_gateway_key recipe + required inputs → gateway_key output
   - Pattern: same as smelter test in `tests/smelter_recipe.rs`
 
 ---
@@ -122,14 +120,20 @@ Player needs to know where the ruins are without wandering randomly.
 
 ## Bugs / Gaps to Fix
 
-- [ ] `gateway_theory` primary_unlock is `ExplorationDiscovery("gateway_ruins")` — this will now work after Phase 1
-- [ ] `alien_materials` primary_unlock is `ExplorationDiscovery("xalite_deposit")` — this will now work after Phase 1
+- [x] `gateway_theory` primary_unlock is `ExplorationDiscovery("gateway_ruins")` — works after Phase 1
+- [x] `alien_materials` primary_unlock is `ExplorationDiscovery("xalite_deposit")` — works after Phase 1
 - [ ] Assembler machine is in `assets/machines/` but not in `--test` hotbar — add it (with tier 2)
 - [ ] `assets/items/gateway.ron` exists — ensure it is never given to player inventory or `--test` hotbar
+- [ ] Hand scanner item implementation & starting with it
 - [ ] **Tier gate mechanics** — T1 gate ("Analyze first alien sample + deploy surface drone") and T1→2 gate ("Produce 100 units of refined base material") are specified in `tech-tree-design.md §3` and §6 but not implemented. For VS, `--test` mode must either bypass these gates or stub them so the full run path is testable.
 - [ ] Drag-drop inventory to hotbar doesn't work
 - [ ] Update power system to use volt/amp/watt as described in the docs
-- [ ] 
+- [ ] Starting habitat zone (no deposits)
+- [ ] Drone doesn't have same hotbar, has tools instead
+- [ ] Drones have internal inventory for manual mining ores. Tab opens up internal inventory
+- [ ] As player, inventory also shows nearby drone inventories. Ability to transfer items from drone to logistic
+- [ ] As done, storage unit right click allows transfer
+- [ ] Use a different model for the deposits so they don't look like IO ports
 
 ---
 
