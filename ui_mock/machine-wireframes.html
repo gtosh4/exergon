@@ -58,18 +58,6 @@ function App() {
             <MachineV3 portsSlot={<PortConfigA/>}/>
           </DCArtboard>
         </DCSection>
-
-        <DCSection
-          id="ports-detail"
-          title="02 · BIDIRECTIONAL PORTS — detail"
-          subtitle="each port = one logistic-net binding (no fixed direction) · every item carries a policy: in (▸) / out (◂) / both (⇆) / none (⊘) · default policy applies to unlisted items · overrides shown as item rows · click policy chip to cycle, × to remove override">
-          <DCArtboard id="zoom-a" label="port block · zoomed"
-                      width={300} height={760} data-screen-label="02 Ports Zoom">
-            <div className="paper" style={{ padding: 14, height: "100%", background: "var(--paper-2)" }}>
-              <PortConfigA/>
-            </div>
-          </DCArtboard>
-        </DCSection>
       </DesignCanvas>
 
       <TweaksPanel title="Tweaks" defaults={TWEAK_DEFAULTS}>

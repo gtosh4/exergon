@@ -62,13 +62,13 @@ function App() {
     <div className={`${densityClass} ${vibeClass}`} style={{ height:"100%" }}>
       <DesignCanvas
         title="exergon/ui — production planner wireframes"
-        subtitle="UI overlay (paused) · plan recipe graphs by hand · live throughput · medium-scale ~30 machines · 4 layout directions + recipe picker"
+        subtitle="UI overlay (paused) · plan recipe graphs by hand · live throughput · medium-scale ~30 machines · side-by-side layout + recipe picker"
       >
         <DCSection
           id="approach"
           title="00 · NORTH STAR"
-          subtitle="four hybrids of SANKEY × COCKPIT · same recipe graph, same goal (60/s ferro-laminate, ~30 machines) · they differ in how the inspector and the sankey are entangled">
-          <DCArtboard id="northstar" label="reading guide — four ways sankey + cockpit can combine"
+          subtitle="SANKEY × COCKPIT · same recipe graph, same goal (60/s ferro-laminate, ~30 machines) · how the inspector and the sankey are entangled">
+          <DCArtboard id="northstar" label="reading guide — sankey + cockpit"
                       width={1100} height={420} data-screen-label="00 North Star">
             <NorthStar/>
           </DCArtboard>
@@ -81,36 +81,6 @@ function App() {
           <DCArtboard id="pl-v1" label="V1 · sankey + inspector (side-by-side)"
                       width={1440} height={900} data-screen-label="01 Planner V1 Side">
             <PlannerV1/>
-          </DCArtboard>
-        </DCSection>
-
-        <DCSection
-          id="v2"
-          title="02 · SANKEY-CANVAS + DRAWER"
-          subtitle="V2 · sankey takes the whole canvas · inspector slides in as a drawer · tops with a MINI LOCAL SANKEY of the selected node's neighborhood — same metaphor as the canvas">
-          <DCArtboard id="pl-v2" label="V2 · full-bleed sankey + drawer (with local mini-sankey inside)"
-                      width={1440} height={900} data-screen-label="02 Planner V2 Drawer">
-            <PlannerV2/>
-          </DCArtboard>
-        </DCSection>
-
-        <DCSection
-          id="v3"
-          title="03 · DUAL SANKEY"
-          subtitle="V3 · overview sankey on top, ZOOMED BRANCH sankey on bottom (only ancestors of the selected node) · slim inspector right · best for big plans">
-          <DCArtboard id="pl-v3" label="V3 · dual sankey (overview + branch drill-down) + slim inspector"
-                      width={1440} height={900} data-screen-label="03 Planner V3 Dual">
-            <PlannerV3/>
-          </DCArtboard>
-        </DCSection>
-
-        <DCSection
-          id="v4"
-          title="04 · VERTICAL SPINE"
-          subtitle="V4 · sankey runs VERTICAL (raw at bottom, goal at top) · inspector tracks selection with an umbilical line · feels like a build-tree growing upward">
-          <DCArtboard id="pl-v4" label="V4 · vertical sankey-spine + tracking inspector"
-                      width={1440} height={900} data-screen-label="04 Planner V4 Spine">
-            <PlannerV4/>
           </DCArtboard>
         </DCSection>
 
@@ -149,7 +119,7 @@ function App() {
           />
         </TweakSection>
 
-        <TweakSection title="Node card mode (V1, V3)">
+        <TweakSection title="Node card mode">
           <TweakRadio
             value={tweaks.nodeMode}
             onChange={(v)=>setTweak("nodeMode", v)}
@@ -160,7 +130,7 @@ function App() {
           />
         </TweakSection>
 
-        <TweakSection title="Edge style (V1)">
+        <TweakSection title="Edge style">
           <TweakRadio
             value={tweaks.edgeStyle}
             onChange={(v)=>setTweak("edgeStyle", v)}
@@ -168,18 +138,6 @@ function App() {
               {value:"bezier",   label:"Bezier"},
               {value:"ortho",    label:"Ortho"},
               {value:"straight", label:"Straight"},
-            ]}
-          />
-        </TweakSection>
-
-        <TweakSection title="Sankey scale (V2)">
-          <TweakRadio
-            value={tweaks.sankeyMap}
-            onChange={(v)=>setTweak("sankeyMap", v)}
-            options={[
-              {value:"linear", label:"Linear"},
-              {value:"sqrt",   label:"√"},
-              {value:"log",    label:"Log"},
             ]}
           />
         </TweakSection>
@@ -198,23 +156,20 @@ function App() {
 function NorthStar(){
   const cards = [
     { tag:"V1", t:"side-by-side",     good:"clear separation · biggest inspector · easiest to learn", less:"sankey loses ~25% of canvas to the inspector" },
-    { tag:"V2", t:"canvas + drawer",  good:"sankey breathes full-bleed · drawer's mini-sankey keeps metaphor consistent", less:"drawer covers part of the graph when open" },
-    { tag:"V3", t:"dual sankey",      good:"overview + branch zoom · best for complex multi-floor plans", less:"two sankeys can feel busy · slim inspector is tight" },
-    { tag:"V4", t:"vertical spine",   good:"raw→goal direction is intuitive · novel & memorable", less:"horizontal labels are tighter · less common pattern" },
     { tag:"05", t:"recipe picker",    good:"shared modal · drag to canvas · compares alts", less:"—" },
   ];
   return (
     <div className="paper" style={{ height:"100%", padding:24, display:"flex", flexDirection:"column", gap:16 }}>
       <div>
-        <div className="sk-h">production planner — four directions, one shared brain</div>
+        <div className="sk-h">production planner — sankey + cockpit, one shared brain</div>
         <div className="sk-mono-sm" style={{ color:"var(--ink-soft)", marginTop:6, maxWidth:760 }}>
-          all four variations operate on the same recipe graph and same goal (60/s ferro-laminate, ~30 machines).
-          they differ only in how the player <span className="sk-squig">sees and edits</span> the graph.
-          mix-and-match: a graph view for layout, a table for audit, the picker overlay shared across all of them.
+          one shared recipe graph with the same goal (60/s ferro-laminate, ~30 machines).
+          the planner pairs a sankey with a cockpit inspector so the player can <span className="sk-squig">see and edit</span> the graph at once.
+          the picker overlay is shared — invoked from any node.
         </div>
       </div>
       <div className="sk-div"/>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(5, 1fr)", gap:12, flex:1 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(2, 1fr)", gap:12, flex:1 }}>
         {cards.map(c=>(
           <div key={c.tag} className="sk-box" style={{ padding:12, display:"flex", flexDirection:"column", gap:8 }}>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>

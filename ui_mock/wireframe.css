@@ -38,14 +38,6 @@
 }
 .sk-box.sk-thick { border-width: 2.5px; box-shadow: 2px 2px 0 var(--ink); }
 .sk-box.sk-dashed { border-style: dashed; box-shadow: none; }
-.sk-box.sk-dotted { border-style: dotted; box-shadow: none; }
-.sk-box.sk-double {
-  border-width: 1px;
-  box-shadow:
-    0 0 0 2px var(--paper),
-    0 0 0 3px var(--ink),
-    2px 2px 0 var(--ink);
-}
 
 /* slot — dashed square placeholder for an item */
 .sk-slot {
@@ -86,40 +78,6 @@
   font-size: 16px;
   color: var(--ink);
   line-height: 1;
-}
-
-/* X-marked image placeholder */
-.sk-img {
-  background: var(--paper);
-  border: 1.5px solid var(--ink);
-  position: relative;
-  overflow: hidden;
-}
-.sk-img::before, .sk-img::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to top right, transparent calc(50% - 1px), var(--ink) calc(50% - 1px), var(--ink) calc(50% + 1px), transparent calc(50% + 1px));
-}
-.sk-img::after {
-  background: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--ink) calc(50% - 1px), var(--ink) calc(50% + 1px), transparent calc(50% + 1px));
-}
-.sk-img > span {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--ink);
-  background: var(--paper);
-  padding: 2px 4px;
-  width: max-content;
-  height: max-content;
-  margin: auto;
-  border: 1px solid var(--ink);
-  z-index: 1;
 }
 
 /* scribble-fill bar */
@@ -224,27 +182,6 @@
   padding-bottom: 3px;
 }
 
-/* tooltip flag */
-.sk-flag {
-  border: 1.5px solid var(--ink);
-  background: var(--paper);
-  padding: 4px 6px;
-  font-family: var(--font-label);
-  font-size: 11px;
-  position: relative;
-  box-shadow: 2px 2px 0 var(--ink);
-  display: inline-block;
-}
-
-/* connection line dot */
-.sk-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--ink);
-  display: inline-block;
-}
-
 /* annotations — handwritten arrow + note */
 .sk-annot {
   position: absolute;
@@ -254,23 +191,6 @@
   pointer-events: none;
   line-height: 1.1;
 }
-.sk-annot.sk-accent-text { color: #b88a00; }
-
-/* scrollbar placeholder */
-.sk-scroll {
-  width: 8px;
-  background: var(--paper);
-  border: 1.5px solid var(--ink);
-  position: relative;
-}
-.sk-scroll > i {
-  position: absolute;
-  left: 0;
-  right: 0;
-  background: var(--ink);
-  display: block;
-}
-
 /* dense mode overrides */
 .density-dense {
   --slot: 26px;
@@ -304,5 +224,3 @@
   --accent: #ffd84d;
   --grid-line: rgba(232,241,255,0.10);
 }
-.vibe-blueprint .sk-img { background: var(--paper); }
-.vibe-blueprint .sk-img > span { background: var(--paper); color: var(--ink); border-color: var(--ink); }

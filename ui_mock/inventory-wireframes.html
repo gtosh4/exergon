@@ -24,7 +24,6 @@
 <script type="text/babel" src="design-canvas.jsx"></script>
 <script type="text/babel" src="tweaks-panel.jsx"></script>
 <script type="text/babel" src="hotbar.jsx"></script>
-<script type="text/babel" src="inventory.jsx"></script>
 <script type="text/babel" src="autocraft.jsx"></script>
 <script type="text/babel" src="lookup.jsx"></script>
 <script type="text/babel" src="integrated.jsx"></script>
@@ -64,63 +63,15 @@ function App() {
           </DCArtboard>
         </DCSection>
 
-        <DCSection id="hotbar" title="01 · HOTBAR" subtitle="quick-access tool/block selector — bottom of HUD">
-          <DCArtboard id="hb-v1" label="V1 · classic 9-slot (Minecraft baseline)" width={620} height={300} data-screen-label="01 Hotbar V1 Classic">
-            <HotbarV1/>
-          </DCArtboard>
-          <DCArtboard id="hb-v2" label="V2 · radial wheel (hold TAB)" width={620} height={300} data-screen-label="01 Hotbar V2 Radial">
-            <HotbarV2/>
-          </DCArtboard>
-          <DCArtboard id="hb-v3" label="V3 · multi-bank (3 layers, 27 slots)" width={620} height={300} data-screen-label="01 Hotbar V3 Banks">
-            <HotbarV3/>
-          </DCArtboard>
-          <DCArtboard id="hb-v4" label="V4 · contextual (mode-aware)" width={620} height={300} data-screen-label="01 Hotbar V4 Contextual">
-            <HotbarV4/>
-          </DCArtboard>
-        </DCSection>
-
-        <DCSection id="inventory" title="02 · INVENTORY" subtitle="main bag / character / storage view — opened via E">
-          <DCArtboard id="inv-v1" label="V1 · classic grid + character + stats" width={780} height={520} data-screen-label="02 Inventory V1 Classic">
-            <InventoryV1/>
-          </DCArtboard>
-          <DCArtboard id="inv-v2" label="V2 · spatial grid (items take physical space)" width={780} height={520} data-screen-label="02 Inventory V2 Spatial">
-            <InventoryV2/>
-          </DCArtboard>
-          <DCArtboard id="inv-v3" label="V3 · brutalist data table (sortable)" width={780} height={520} data-screen-label="02 Inventory V3 Table">
-            <InventoryV3/>
-          </DCArtboard>
-          <DCArtboard id="inv-v4" label="V4 · dual-pane (player ↔ network)" width={780} height={520} data-screen-label="02 Inventory V4 Dual">
-            <InventoryV4/>
-          </DCArtboard>
-        </DCSection>
-
-        <DCSection id="autocraft" title="03 · AUTO-CRAFTING" subtitle="request / patterns / live CPUs / multi-step planning">
-          <DCArtboard id="ac-v1" label="V1 · request terminal + queue" width={900} height={540} data-screen-label="03 Autocraft V1 Terminal">
-            <AutocraftV1/>
-          </DCArtboard>
-          <DCArtboard id="ac-v2" label="V2 · pattern library + encoder" width={900} height={540} data-screen-label="03 Autocraft V2 Patterns">
-            <AutocraftV2/>
-          </DCArtboard>
-          <DCArtboard id="ac-v3" label="V3 · multi-step dep-tree planner" width={900} height={540} data-screen-label="03 Autocraft V3 Planner">
-            <AutocraftV3/>
-          </DCArtboard>
+        <DCSection id="autocraft" title="03 · AUTO-CRAFTING" subtitle="CPU monitor — htop-style live view of running jobs">
           <DCArtboard id="ac-v4" label="V4 · CPU monitor (htop-style)" width={900} height={540} data-screen-label="03 Autocraft V4 Monitor">
             <AutocraftV4/>
           </DCArtboard>
         </DCSection>
 
-        <DCSection id="lookup" title="04 · ITEM & RECIPE LOOKUP" subtitle="NEI-style codex — search, recipes, uses, hover preview">
-          <DCArtboard id="lu-v1" label="V1 · NEI sidebar rail (always-visible)" width={780} height={520} data-screen-label="04 Lookup V1 Sidebar">
-            <LookupV1/>
-          </DCArtboard>
+        <DCSection id="lookup" title="04 · ITEM & RECIPE LOOKUP" subtitle="NEI-style codex — 3-pane deep-dive (recipes ↔ uses)">
           <DCArtboard id="lu-v2" label="V2 · 3-pane deep-dive (recipes ↔ uses)" width={900} height={520} data-screen-label="04 Lookup V2 Deepdive">
             <LookupV2/>
-          </DCArtboard>
-          <DCArtboard id="lu-v3" label="V3 · relations graph (spider/network)" width={900} height={520} data-screen-label="04 Lookup V3 Graph">
-            <LookupV3/>
-          </DCArtboard>
-          <DCArtboard id="lu-v4" label="V4 · command palette overlay (CTRL+K)" width={780} height={520} data-screen-label="04 Lookup V4 Palette">
-            <LookupV4/>
           </DCArtboard>
         </DCSection>
       </DesignCanvas>
