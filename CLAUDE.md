@@ -8,7 +8,7 @@ Built using `bevy` game engine and `clap` for CLI argument parsing.
 ## Before Implementing Any Feature
 
 1. Read relevant section of [gdd](docs/gdd.md) for design intent
-2. Read relevant section of [tech-design](docs/technical-design.md) for architecture
+2. Read relevant section of [tech-design](docs/technical/technical-design.md) for architecture
 3. Check [milestones](docs/milestones.md) — is this feature in scope for current milestone?
 4. Did we make a design decision? Record in [log](docs/design-decisions.md)
 
