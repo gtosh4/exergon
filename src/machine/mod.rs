@@ -4,7 +4,7 @@ mod placement;
 mod registry;
 mod visuals;
 
-pub use placement::{MachineBundle, spawn_port_markers};
+pub use placement::MachineBundle;
 pub use registry::{MachineDef, MachineRegistry, MachineTierDef};
 pub(crate) use visuals::GhostAssets;
 pub use visuals::{MachineColliders, MachineVisualAssets};
@@ -33,7 +33,8 @@ pub struct MachinePlugin;
 
 impl Plugin for MachinePlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<MachineNetworkChanged>()
+        app.add_observer(placement::on_machine_added)
+            .add_message::<MachineNetworkChanged>()
             .init_resource::<MachineColliders>()
             .configure_sets(
                 Update,
@@ -68,6 +69,7 @@ impl Plugin for MachinePlugin {
 // ---------------------------------------------------------------------------
 
 #[derive(Component, Debug)]
+#[require(Transform)]
 pub struct Machine {
     pub machine_type: String,
     pub tier: u8,
@@ -409,7 +411,8 @@ mod tests {
             .add_message::<MachineNetworkChanged>()
             .insert_resource(MachineRegistry::new(vec![simple_machine("smelter")]));
 
-        app.add_systems(Update, place_machine_system);
+        app.add_observer(placement::on_machine_added)
+            .add_systems(Update, place_machine_system);
 
         app.world_mut().write_message(WorldObjectEvent {
             pos: Vec3::ZERO,
@@ -431,7 +434,8 @@ mod tests {
             .add_message::<MachineNetworkChanged>()
             .insert_resource(MachineRegistry::new(vec![simple_machine("smelter")]));
 
-        app.add_systems(Update, (place_machine_system, remove_placed_objects_system));
+        app.add_observer(placement::on_machine_added)
+            .add_systems(Update, (place_machine_system, remove_placed_objects_system));
 
         app.world_mut().write_message(WorldObjectEvent {
             pos: Vec3::ZERO,

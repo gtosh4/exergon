@@ -191,13 +191,38 @@ function Sankey({ width, height, selected, onSelect, mapMode="linear", colCount=
 }
 
 // ─── V1 — SANKEY + COCKPIT (side-by-side) ───────────────────────────────────
-function PlannerV1(){
+// Optional prop `preSelectedItem` — set when opened via "⊞ open in planner"
+// from the Index. Shows a dismissible banner and pre-selects the matching node.
+function PlannerV1({ preSelectedItem = null }){
   const t = (typeof window!=="undefined" && window.__plannerTweaks) || {};
-  const [sel, setSel] = React.useState("steel");
+  // Map Index item id to sankey node id if possible (best-effort).
+  const initialSel = preSelectedItem
+    ? (Object.values(PLAN.cols).flat().find(n => n.label.includes(preSelectedItem?.split(".")[0]))?.id ?? "steel")
+    : "steel";
+  const [sel, setSel] = React.useState(initialSel);
+  const [bannerDismissed, setBannerDismissed] = React.useState(false);
 
   return (
     <div className="paper" style={{ height:"100%", display:"flex", flexDirection:"column" }}>
       <PlannerTopbar mode="SANKEY · COCKPIT" goal="60.0/s ferro-laminate" />
+
+      {/* PRE-SELECTION BANNER — shown when opened from Index */}
+      {preSelectedItem && !bannerDismissed && (
+        <div style={{
+          padding:"5px 14px",
+          borderBottom:"1.5px solid var(--ink)",
+          background:"rgba(245,197,24,0.18)",
+          display:"flex", alignItems:"center", gap:10,
+          fontFamily:"var(--font-mono)", fontSize:11,
+        }}>
+          <span style={{ color:"var(--ink-soft)" }}>⊞ opened from Index ·</span>
+          <span style={{ fontWeight:700 }}>{preSelectedItem}</span>
+          <span style={{ color:"var(--ink-faint)", fontSize:10 }}>· pre-selected in inspector</span>
+          <span
+            style={{ marginLeft:"auto", cursor:"pointer", color:"var(--ink-faint)", fontSize:13 }}
+            onClick={()=>setBannerDismissed(true)}>✕</span>
+        </div>
+      )}
 
       <div style={{ flex:1, display:"grid", gridTemplateColumns:"56px 1fr 380px", overflow:"hidden" }}>
         <PlannerLeftRail/>
@@ -316,16 +341,6 @@ function InspectorBody({ selectedId }){
         <div className="sk-mono-xs" style={{ color:"var(--ink-soft)", marginTop:8, padding:6,
                                              border:"1px dashed var(--ink)", lineHeight:1.5 }}>
           sweep: <strong>P/P/P/S</strong> saves ×1 machine, +12% power
-        </div>
-      </Section>
-
-      <Section label="BEACONS">
-        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <span className="sk-mono-sm" style={{ flex:1 }}>nearby beacons</span>
-          <input className="sk-mono" defaultValue={n.alert?"0":"2"} style={{...inputStyle, width:50}}/>
-        </div>
-        <div className="sk-mono-xs" style={{ color:"var(--ink-soft)", marginTop:4 }}>
-          shared S/S → +60% effective speed
         </div>
       </Section>
 
@@ -537,5 +552,8 @@ function Section({ label, children, right }){
   );
 }
 
+// PlannerFromIndex — planner opened via "⊞ open in planner" from Index
+function PlannerFromIndex(){ return <PlannerV1 preSelectedItem="steel.plate"/>; }
+
 // expose
-Object.assign(window, { PlannerV1, PlannerRecipePicker });
+Object.assign(window, { PlannerV1, PlannerRecipePicker, PlannerFromIndex });

@@ -80,7 +80,7 @@ The tech tree follows a canonical 10-tier sequence. Each difficulty uses a prefi
 
 | # | Tier name | Terminal for | Gate condition |
 |---|---|---|---|
-| 1 | Landfall | — | Analyze first alien sample + deploy surface drone |
+| 1 | Landfall | — | — (always available) |
 | 2 | Roots | — | Produce 100 units of any refined base material |
 | 3 | Contact | **Initiation** | Activate alien structure (terminal: gateway; intermediary: ruin/cache unlocking alien material or machine) |
 | 4 | Reach | — | Achieve first orbital flight |
@@ -90,6 +90,8 @@ The tech tree follows a canonical 10-tier sequence. Each difficulty uses a prefi
 | 8 | Revelation | — | Synthesize first exotic material |
 | 9 | Forge | — | Produce all FTL drive component types + sustain FTL-grade power |
 | 10 | Transcendence | **Pinnacle** | — (escape condition is the terminal) |
+
+*Gate condition = requirement that completes a tier and opens the next. Exit of tier T = entry of tier T+1. T1 has no entry gate; it is always available.*
 
 **Tiers 3, 5, and 7** each have two artifact variants. Terminal variant: the alien structure is the escape objective. Intermediary variant: a different artifact class is present (probe, cache, archive) — intact but not usable for escape, value is what it teaches or produces. This preserves immersion: each run has a different precursor remnant suited to its difficulty.
 
@@ -304,7 +306,7 @@ The player's choices in Tier 1 determine their early factory shape: power-first 
 
 The player AI body includes a **built-in hand scanner** — not a tech unlock, always present. It can analyze samples manually and generates a small fixed yield of Material Science research per sample analyzed.
 
-The **first alien sample analysis** is both the T1 gate trigger and the source of initial research. This analysis produces enough Material Science research to unlock 1–2 "Research spend (small)" nodes — typically Stone Furnace or a power source. From there the standard research loop begins: build Field Analyzer → analyze samples at scale → spend research on remaining nodes.
+The **first alien sample analysis** is the source of initial research — a bootstrapping event within T1, not a tier gate. This analysis produces enough Material Science research to unlock 1–2 "Research spend (small)" nodes — typically Stone Furnace or a power source. From there the standard research loop begins: build Field Analyzer → analyze samples at scale → spend research on remaining nodes.
 
 Simultaneously, the player can collect stone by hand (no machine required). After 50 stone, Basic Miner unlocks via production milestone — no research needed. This creates two parallel opening tracks:
 

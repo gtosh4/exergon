@@ -438,7 +438,7 @@ function TTRevealOverlay(){
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:8 }}>
               {[
                 ["recipe","control chip recipe","2× silica · 1× wire → 1× chip"],
-                ["item","control chip","item slot in inventory codex"],
+                ["item","control chip","item slot in item index"],
                 ["machine","assembly bench T3","new placeable in the build menu"],
                 ["edge","→ exergon core","prereq edge to milestone T4"],
               ].map((row,i)=>(

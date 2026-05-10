@@ -7,15 +7,13 @@ const LookupV2 = () => (
   <div className="paper" style={{padding:16, height:"100%", display:"flex", flexDirection:"column", gap:10}}>
     <Row style={{justifyContent:"space-between", alignItems:"flex-end"}}>
       <div>
-        <div className="sk-h">CODEX · steel.plate</div>
+        <div className="sk-h">INDEX · steel.plate</div>
         <div className="sk-mono-xs" style={{color:"var(--ink-faint)"}}>browse → focus → uses</div>
       </div>
       <Row gap={6}>
         <span className="sk-tag sk-on">RECIPE</span>
         <span className="sk-tag">USES</span>
-        <span className="sk-tag">DROPS</span>
-        <span className="sk-tag">FUEL</span>
-        <span className="sk-tag">WIKI</span>
+        <span className="sk-tag">CODEX</span>
       </Row>
     </Row>
     <hr className="sk-div"/>
@@ -134,7 +132,6 @@ const LookupV2 = () => (
         </div>
         <Row gap={6}>
           <button className="sk-btn sk-accent">▶ auto-craft</button>
-          <button className="sk-btn">⊕ to queue</button>
           <button className="sk-btn">★ favorite</button>
           <button className="sk-btn">⎘ copy id</button>
         </Row>

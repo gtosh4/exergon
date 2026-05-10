@@ -93,6 +93,8 @@ For power networks, after topology is updated: if any resulting network's `amps_
 
 When a machine is removed, all cables whose endpoints target any of that machine's ports are removed first. Each removal goes through `cable_removed_system`, which handles network splitting, port membership cleanup, and `NetworkChanged<N>` events. Port entities are then despawned with the machine.
 
+`remove_placed_objects_system` emits `MachineRemoved { entity: Entity, machine_type: String }` after the generic despawn. Machine-type plugins (e.g. the miner plugin) register their own reader systems for this event to handle type-specific teardown. Logic that depends on which kind of machine was removed belongs in those plugin systems, not in the generic removal path.
+
 ### Cable Routing
 
 Two routing strategies, both producing `Vec<IVec3>` paths:

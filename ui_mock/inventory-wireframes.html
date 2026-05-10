@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Caveat:wght@500;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="wireframe.css"/>
+<link rel="stylesheet" href="theme.css"/>
 <style>
   html, body { margin:0; padding:0; height:100%; background:#e6e2d6; font-family: "JetBrains Mono", monospace; }
   #root { height:100%; }
@@ -27,6 +28,7 @@
 <script type="text/babel" src="autocraft.jsx"></script>
 <script type="text/babel" src="lookup.jsx"></script>
 <script type="text/babel" src="integrated.jsx"></script>
+<script type="text/babel" src="craft-modal.jsx"></script>
 
 <script type="text/babel">
 const { useState, useEffect } = React;
@@ -57,7 +59,7 @@ function App() {
         title="exergon/ui — inventory system wireframes"
         subtitle="genre-aware reimagining of GTNH × Factorio × AE2 × NEI · b&w sketch · drag-reorder, click-to-focus"
       >
-        <DCSection id="integrated" title="00 · INTEGRATED v2" subtitle="synthesis of selected directions: hotbar V3 + table inventory w/ network meters + AE2-style autocrafting + sidebar codex (expandable)">
+        <DCSection id="integrated" title="00 · INTEGRATED v2" subtitle="synthesis of selected directions: hotbar V3 + table inventory w/ network meters + AE2-style autocrafting + sidebar index (expandable)">
           <DCArtboard id="int-v2" label="integrated terminal — pick the bits you like, iterate" width={1440} height={900} data-screen-label="00 Integrated Terminal v2">
             <IntegratedTerminal/>
           </DCArtboard>
@@ -69,9 +71,18 @@ function App() {
           </DCArtboard>
         </DCSection>
 
-        <DCSection id="lookup" title="04 · ITEM & RECIPE LOOKUP" subtitle="NEI-style codex — 3-pane deep-dive (recipes ↔ uses)">
+        <DCSection id="lookup" title="04 · ITEM & RECIPE LOOKUP" subtitle="item index (NEI-style) — 3-pane deep-dive (recipes ↔ uses)">
           <DCArtboard id="lu-v2" label="V2 · 3-pane deep-dive (recipes ↔ uses)" width={900} height={520} data-screen-label="04 Lookup V2 Deepdive">
             <LookupV2/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="craft-modal" title="05 · CRAFT MODAL" subtitle="qty input → resolved execution plan → enqueue · AE2-inspired, two-phase">
+          <DCArtboard id="cm-input" label="phase 1 · qty input" width={440} height={420} data-screen-label="05 Craft Modal — Input">
+            <CraftModal/>
+          </DCArtboard>
+          <DCArtboard id="cm-plan" label="phase 2 · resolved plan (pre-set to plan view)" width={920} height={560} data-screen-label="05 Craft Modal — Plan">
+            <CraftModalPlanOnly/>
           </DCArtboard>
         </DCSection>
       </DesignCanvas>

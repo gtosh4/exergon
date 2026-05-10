@@ -168,7 +168,7 @@ Research is **scarce enough to force tradeoffs**, especially early. The player c
 ### The physical discovery loop
 The player's attention is the research instrument. Science happens in the world, not in menus.
 
-- Exploration is conducted via player-piloted drones. The AI body stays within a habitat bubble; the player's *attention* travels via drone. Piloting a drone to collect samples is an active time cost, not passive automation.
+- Exploration is conducted via player-piloted drones. The AI body stays within a habitat bubble; the player's *attention* travels via drone. This is **Remote mode** — the player's perspective and control transfer fully to the drone. Returning to the body is **Local mode**. Piloting a drone to collect samples is an active time cost, not passive automation.
 - Collecting samples requires the player to pilot a drone to the location and interact with it
 - Some sample sites are dangerous, distant, or require a specific drone tier to reach — creating a progression gate on information as well as production
 - Analysis stations are built in the world and consume samples + research currency to produce knowledge
@@ -184,6 +184,8 @@ At any point in a run, the player has three tiers of knowledge about any given r
 **Partially revealed** is earned through gameplay, not purchased — hitting a related production milestone, making an exploration discovery, or completing a relevant experiment. It is a reward for engagement.
 
 **Fully revealed** is purchased with research currency of the appropriate type. Players can skip partial reveal entirely and go directly from known-to-exist → fully revealed at higher cost. The decision of *which* nodes to fully reveal before others is a core strategic choice, especially on runs where research is tight.
+
+Visibility states only advance forward — a node never reverts from a higher state to a lower one. Skipping steps is allowed; going backwards is not.
 
 > **Post-MVP:** A "building blind" mechanic — committing to a partially-revealed recipe at some risk cost — is a candidate optional challenge mode, not a core MVP mechanic. Core loop assumes players reveal before committing.
 
@@ -417,11 +419,11 @@ All significant machines are multi-block structures: a fixed core footprint plus
 ### The avatar in the factory
 The player's physical presence in the world means they move through their own factory. This creates an organic relationship between the scouting/science layer and the factory layer — the player is always in the same world, not switching between a map view and a factory view. The factory grows around them as they work.
 
-The AI exists in one body at a time. Within a connected habitat zone, the player flies and builds directly. Remote exploration beyond the habitat is conducted via drones (see §11). Switching to a new outpost means switching which body the AI currently inhabits — an explicit action, not free travel.
+The AI exists in one body at a time. Within a connected habitat zone, the player flies and builds directly (**Local mode**). Exploration beyond the habitat is conducted via drones (**Remote mode**) (see §11). Switching to a new outpost means switching which body the AI currently inhabits — an explicit action, not free travel.
 
 ### Base management — Habitat bubbles and outpost islands
 
-The alien atmosphere is lethal without life support infrastructure. The player begins with a core **Habitat Generator** (delivered with the escape pod) that projects a survivable bubble around the landing site. Within this bubble, the AI can fly, build, and interact directly. Outside it: drones only.
+The alien atmosphere is lethal without life support infrastructure. The player begins with a core **Habitat Generator** (delivered with the escape pod) that projects a survivable bubble around the landing site. Within this bubble, the AI can fly, build, and interact directly (Local mode). Outside it: Remote mode only.
 
 **Expanding into new biomes** is done through **Outpost Beacons** — support structures built at the main base, then shipped to a target location via drone. Once an Outpost Beacon is placed and connected to the logistics network, it projects its own life-support bubble. The player can then fabricate a new **body chassis** at the main base, ship it to the outpost via drone, and upload into it — becoming physically present there to build and interact directly.
 

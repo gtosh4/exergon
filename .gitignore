@@ -31,6 +31,7 @@ target
 # Generated files
 assets/textures/blocks.png
 /screenshot_*.png
+/.playwright-mcp/
 
 # Large binary assets
 assets/**/*.png

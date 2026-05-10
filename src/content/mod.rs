@@ -373,28 +373,35 @@ fn load_content(mut commands: Commands) {
 }
 
 pub(crate) fn load_ron_dir<T: for<'de> Deserialize<'de>>(dir: &str, label: &str) -> Vec<T> {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return Vec::new();
-    };
     let mut results = Vec::new();
-    for entry in entries
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.path().extension().is_some_and(|ext| ext == "ron"))
-    {
+    collect_ron_dir(dir, label, &mut results);
+    results
+}
+
+fn collect_ron_dir<T: for<'de> Deserialize<'de>>(dir: &str, label: &str, results: &mut Vec<T>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.filter_map(std::result::Result::ok) {
         let path = entry.path();
-        let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("?");
-        match std::fs::read_to_string(&path) {
-            Ok(s) => match ron::from_str::<T>(&s) {
-                Ok(v) => {
-                    debug!("  {label} [{filename}]");
-                    results.push(v);
-                }
-                Err(err) => warn!("Failed to parse {filename}: {err}"),
-            },
-            Err(err) => warn!("Failed to read {filename}: {err}"),
+        if path.is_dir() {
+            if let Some(s) = path.to_str() {
+                collect_ron_dir(s, label, results);
+            }
+        } else if path.extension().is_some_and(|ext| ext == "ron") {
+            let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("?");
+            match std::fs::read_to_string(&path) {
+                Ok(s) => match ron::from_str::<T>(&s) {
+                    Ok(v) => {
+                        debug!("  {label} [{filename}]");
+                        results.push(v);
+                    }
+                    Err(err) => warn!("Failed to parse {filename}: {err}"),
+                },
+                Err(err) => warn!("Failed to read {filename}: {err}"),
+            }
         }
     }
-    results
 }
 
 #[cfg(test)]

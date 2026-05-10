@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<title>exergon/ui — machine wireframes</title>
+<title>exergon/ui — in-world HUD wireframes</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -13,9 +13,6 @@
   html, body { margin:0; padding:0; height:100%; background:#e6e2d6; font-family: "JetBrains Mono", monospace; }
   #root { height:100%; }
   [data-dc-artboard] { background: var(--paper, #f4f1ea) !important; }
-  input, select, button { font-family: inherit; }
-  table { color: var(--ink); }
-  th { color: var(--ink-soft) !important; }
 </style>
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
@@ -27,9 +24,11 @@
 <script type="text/babel" src="design-canvas.jsx"></script>
 <script type="text/babel" src="tweaks-panel.jsx"></script>
 <script type="text/babel" src="hotbar.jsx"></script>
-<script type="text/babel" src="machine.jsx"></script>
+<script type="text/babel" src="hud.jsx"></script>
 
 <script type="text/babel">
+const { useState, useEffect } = React;
+
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "density": "moderate",
   "vibe": "clean"
@@ -37,32 +36,41 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 
 function App() {
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
   const densityClass =
-    tweaks.density === "dense" ? "density-dense" :
-    tweaks.density === "sparse" ? "density-sparse" : "";
+    tweaks.density === "dense"   ? "density-dense"  :
+    tweaks.density === "sparse"  ? "density-sparse" : "";
   const vibeClass =
-    tweaks.vibe === "clean" ? "vibe-clean" :
-    tweaks.vibe === "blueprint" ? "vibe-blueprint" : "";
+    tweaks.vibe === "blueprint"  ? "vibe-blueprint"  :
+    tweaks.vibe === "clean"      ? "vibe-clean"      : "";
 
   return (
     <div className={`${densityClass} ${vibeClass}`} style={{ height:"100%" }}>
       <DesignCanvas
-        title="exergon/ui — machine UI"
-        subtitle="V3 side-rail terminal · bidirectional logistic-net ports with per-item policy overrides"
+        title="exergon/ui — in-world HUD wireframes"
+        subtitle="Floating panels · world shows through gaps · LOCAL (body/build) and REMOTE (drone) modes"
       >
-        <DCSection
-          id="v3"
-          title="01 · MACHINE — SIDE-RAIL TERMINAL"
-          subtitle="the design we're iterating on · left rail = identity / current craft / power / modules / PORTS · right pane = recipe table">
-          <DCArtboard id="m-v3" label="V3 · with bidirectional ports"
-                      width={1440} height={920} data-screen-label="01 V3 Current">
-            <MachineV3 portsSlot={<PortConfigA/>}/>
+        <DCSection id="local-hud" title="01 · LOCAL HUD" subtitle="body/build mode · research pool · no vitals (AI) · minimap + XP">
+          <DCArtboard id="local-default" label="local — idle · alerts closed" width={1280} height={720} data-screen-label="01 Local HUD">
+            <LocalHUD/>
+          </DCArtboard>
+          <DCArtboard id="local-alerts" label="local — alerts open" width={1280} height={720} data-screen-label="01 Local HUD — alerts open">
+            <LocalHUD initialAlertsOpen={true}/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="remote-hud" title="02 · REMOTE HUD" subtitle="drone control mode · INT+PWR+SIG vitals · no research pool · drone status in top bar">
+          <DCArtboard id="remote-default" label="remote — idle · drone active" width={1280} height={720} data-screen-label="02 Remote HUD">
+            <RemoteHUD/>
+          </DCArtboard>
+          <DCArtboard id="remote-alerts" label="remote — alerts open" width={1280} height={720} data-screen-label="02 Remote HUD — alerts open">
+            <RemoteHUD initialAlertsOpen={true}/>
           </DCArtboard>
         </DCSection>
       </DesignCanvas>
 
       <TweaksPanel title="Tweaks" defaults={TWEAK_DEFAULTS}>
-        <TweakSection label="Density">
+        <TweakSection title="Density">
           <TweakRadio
             value={tweaks.density}
             onChange={(v)=>setTweak("density", v)}
@@ -73,7 +81,7 @@ function App() {
             ]}
           />
         </TweakSection>
-        <TweakSection label="Visual vibe">
+        <TweakSection title="Visual vibe">
           <TweakRadio
             value={tweaks.vibe}
             onChange={(v)=>setTweak("vibe", v)}
@@ -83,6 +91,15 @@ function App() {
               {value:"blueprint", label:"Blueprint"},
             ]}
           />
+        </TweakSection>
+        <TweakSection title="Tips">
+          <div style={{ fontSize:11, lineHeight:1.6, opacity:0.7 }}>
+            <div>⚠ button → toggle alerts panel</div>
+            <div>Hotbar slots clickable · A/B/C tabs switch banks</div>
+            <div>LOCAL: O₂+SAT only, research pool top-right</div>
+            <div>REMOTE: INT+PWR+SIG, drone status top-right</div>
+            <div>Minimap: bottom-right, fog of war at edges</div>
+          </div>
         </TweakSection>
       </TweaksPanel>
     </div>

@@ -11,7 +11,7 @@ Systems that need a `networks.md`-depth spec before implementation: ECS componen
 `technical-design.md §8` has control model intent. Needs ECS/system spec:
 
 - Components on drone entity beyond the named fields (`type, pos, orientation, inventory, state`)
-- Camera/control transfer: which system handles it, what components change on the character entity vs. drone entity
+- Local↔Remote mode transition: which system handles camera/control transfer, what components change on the character entity vs. drone entity
 - Fog-of-war reveal: component or resource, which system reveals on drone movement, data structure
 - Sample collection: trigger, range check, what item is produced and where it lands
 - Range scanning: which system, what radius, what data is exposed vs. withheld
@@ -54,6 +54,18 @@ Referenced in `gdd.md §10` and `milestones.md`. No mechanics doc exists. Needs:
 - How module effects apply during recipe execution: where multiplier is stored, which system reads it
 - Slot attachment: snap detection system, component recording slot occupancy
 - Concrete tradeoff definitions: speed vs. efficiency (formula), parallel processing slots (how do parallel slots change recipe execution — run two recipes simultaneously? halve time?), buffer capacity (what buffer?)
+
+---
+
+### Catalyst Inputs (Recipe System Extension)
+
+General recipe concept needed for gateway activation (key present for job duration, not consumed). Needs spec:
+
+- Data model: `catalyst_inputs: Vec<(ItemId, u32)>` on `RecipeDef` — default empty, no effect on existing recipes
+- Reservation semantics: how items are marked reserved in logistics network (flagged unavailable for other jobs but still present in inventory)
+- Release on job complete or cancel: items remain in network, reservation clears
+- Multi-job contention: two jobs requiring the same catalyst each need independent copies in the network
+- Asset format: `catalyst_inputs` list in concrete and template recipe assets; generation algorithm passes field through unchanged (not a seeded variance axis)
 
 ---
 

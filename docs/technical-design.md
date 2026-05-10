@@ -513,7 +513,7 @@ Drones are player-piloted exploration and interaction tools. The player's attent
 
 ### Control model
 
-When the player activates a drone, **camera and control fully transfer** to the drone's perspective. The character remains stationary in the world. Returning to character control requires switching back explicitly (recall drone or deactivate).
+When the player activates a drone, the game enters **Remote mode** — **camera and control fully transfer** to the drone's perspective. The character remains stationary in the world. Recalling or deactivating the drone returns to **Local mode** (character control).
 
 Drones have no autonomous behaviour — they are inert when not actively piloted. A drone parked at a remote site does nothing until the player switches to it. This rewards planning (knowing where to send a drone and what to do there) over multitasking.
 
@@ -539,7 +539,7 @@ Drone construction requires factory-produced components. Factory progression unl
 
 Deployed drones **persist in the world** across sessions. A drone left at a remote site is still there on return. World events are unlikely to destroy unattended drones (world reactivity is legible and non-sudden), but drones could become temporarily inaccessible if terrain changes block their position.
 
-Each drone entity records: type, position, orientation, inventory (samples and items collected), and state (Idle or ActivelyControlled).
+Each drone entity records: type, position, orientation, inventory (samples and items collected), and state (`Idle` or `ActivelyControlled` — the latter corresponding to the player being in Remote mode on this drone).
 
 *Implementation: [`Drone`](../src/drone/mod.rs#L21), [`DroneScheme`](../src/drone/mod.rs#L18)*
 

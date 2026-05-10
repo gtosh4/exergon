@@ -8,7 +8,7 @@ use tracing_subscriber::Layer;
 use exergon::inventory::{Hotbar, HotbarSlot};
 use exergon::logistics::StorageUnit;
 use exergon::machine::{
-    MachineBundle, MachineNetworkChanged, MachineRegistry, MachineVisualAssets, spawn_port_markers,
+    MachineBundle, MachineNetworkChanged, MachineRegistry, MachineVisualAssets,
 };
 use exergon::research::{ResearchPool, TechTreeProgress};
 use exergon::{GameState, GameSystems, PlayMode};
@@ -142,8 +142,6 @@ fn give_test_items(
     if let Some(def) = registry.machine_def("storage_crate") {
         let tier = def.tiers.iter().map(|t| t.tier).max().unwrap_or(1);
         let bundle = MachineBundle::new(crate_pos, def, tier);
-        let energy_ports = bundle.machine.energy_ports.clone();
-        let logistics_ports = bundle.machine.logistics_ports.clone();
         let crate_e = commands.spawn(bundle).id();
         if let Some(ref v) = visuals
             && let Some(scene) = v.scenes.get(&def.id)
@@ -166,13 +164,6 @@ fn give_test_items(
             .into_iter()
             .collect(),
         });
-        spawn_port_markers(
-            &mut commands,
-            crate_e,
-            &energy_ports,
-            &logistics_ports,
-            visuals.as_deref(),
-        );
         network_changed.write(MachineNetworkChanged);
     }
     info!("Test mode: spawned starting crate with all items at {crate_pos}");

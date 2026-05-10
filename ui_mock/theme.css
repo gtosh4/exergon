@@ -1,0 +1,208 @@
+/* theme.css — Exergon dark sci-fi theme
+   Load after wireframe.css. Overrides all variables + sk-* classes. */
+
+/* ── tokens ─────────────────────────────────────── */
+:root {
+  /* surfaces */
+  --bg:  #1a1d21;
+  --p1:  #22262b;
+  --p2:  #2a2f36;
+  --p3:  #333940;
+  /* text */
+  --text:  #c8cdd4;
+  --dim:   #5a6370;
+  /* semantic */
+  --acc:   #8a72aa;
+  --ok:    #4a9e6a;
+  --warn:  #c8b440;
+  --err:   #b84a4a;
+  /* rarity */
+  --r-common:    #7a8590;
+  --r-uncommon:  #4a9e6a;
+  --r-rare:      #4a82c8;
+  --r-epic:      #b450c8;
+  --r-legendary: #d2aa1e;
+  /* misc */
+  --border: rgba(255,255,255,0.07);
+  /* wireframe compat aliases */
+  --paper:    var(--p1);
+  --paper-2:  var(--p2);
+  --ink:      var(--text);
+  --ink-soft: #909aa4;
+  --ink-faint: var(--dim);
+  --accent:   var(--acc);
+  --grid-line: rgba(255,255,255,0.03);
+  /* fonts — replace hand-drawn with clean */
+  --font-hand:  'Inter', system-ui, sans-serif;
+  --font-label: 'Inter', system-ui, sans-serif;
+  --font-mono:  'JetBrains Mono', 'Courier New', monospace;
+}
+
+/* neutralize vibes — our root vars win */
+.vibe-clean,
+.vibe-blueprint {
+  --paper:    var(--p1);
+  --paper-2:  var(--p2);
+  --ink:      var(--text);
+  --ink-soft: #909aa4;
+  --ink-faint: var(--dim);
+  --accent:   var(--acc);
+  --grid-line: rgba(255,255,255,0.03);
+  --font-hand:  'Inter', system-ui, sans-serif;
+  --font-label: 'Inter', system-ui, sans-serif;
+}
+
+/* ── base ────────────────────────────────────────── */
+html, body { background: var(--bg) !important; color: var(--text); }
+[data-dc-artboard] { background: var(--p1) !important; }
+
+.paper {
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 20px 20px;
+  color: var(--text);
+  font-family: var(--font-label);
+}
+
+/* ── panels ──────────────────────────────────────── */
+.sk-box {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--p1);
+  box-shadow: none;
+}
+.sk-box.sk-thick  { border-width: 1px; box-shadow: none; }
+.sk-box.sk-dashed { border-style: dashed; border-color: rgba(255,255,255,0.1); box-shadow: none; }
+
+/* ── slots ───────────────────────────────────────── */
+.sk-slot {
+  background: var(--p2);
+  border: 1px solid var(--border);
+  border-style: solid;
+  color: var(--dim);
+}
+.sk-slot.sk-filled {
+  border-color: rgba(255,255,255,0.12);
+  background: var(--p2);
+}
+.sk-slot.sk-active {
+  border-width: 1px;
+  border-color: var(--acc);
+  box-shadow: 0 0 0 1px var(--acc), 0 0 8px rgba(138,114,170,0.2);
+}
+.sk-slot .sk-qty   { color: var(--text); text-shadow: none; }
+.sk-slot .sk-icon  { color: var(--text); font-family: var(--font-mono); }
+
+/* ── bars ────────────────────────────────────────── */
+.sk-bar {
+  height: 6px;
+  border: none;
+  border-radius: 3px;
+  background: var(--p3);
+  overflow: hidden;
+}
+.sk-bar > i {
+  border-radius: 3px;
+  background: var(--acc);
+}
+
+/* ── typography ──────────────────────────────────── */
+.sk-h {
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.sk-h-sm { font-size: 13px; }
+.sk-h-xs { font-size: 11px; }
+
+.sk-label {
+  font-family: var(--font-label);
+  font-size: 12px;
+  letter-spacing: 0;
+  color: var(--dim);
+}
+
+.sk-mono    { font-family: var(--font-mono); font-size: 11px; }
+.sk-mono-xs { font-size: 9px; }
+.sk-mono-sm { font-size: 10px; }
+
+/* ── tags ────────────────────────────────────────── */
+.sk-tag {
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  color: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.sk-tag.sk-on {
+  background: rgba(138,114,170,0.18);
+  color: var(--acc);
+  border-color: rgba(138,114,170,0.35);
+}
+.sk-tag.sk-accent {
+  background: var(--acc);
+  color: #fff;
+  border-color: transparent;
+}
+
+/* ── buttons ─────────────────────────────────────── */
+.sk-btn {
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.05);
+  color: var(--dim);
+  padding: 5px 12px;
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  box-shadow: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.sk-btn:hover { background: rgba(255,255,255,0.09); color: var(--text); }
+
+.sk-btn.sk-on {
+  background: var(--acc);
+  color: #fff;
+  border-color: transparent;
+}
+.sk-btn.sk-on:hover { background: #9d85bd; }
+
+.sk-btn.sk-accent {
+  background: var(--acc);
+  color: #fff;
+  border-color: transparent;
+}
+.sk-btn.sk-accent:hover { background: #9d85bd; }
+
+/* ── divider ─────────────────────────────────────── */
+.sk-div {
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── arrow / annotations ──────────────────────────── */
+.sk-arrow { font-family: var(--font-mono); color: var(--dim); }
+.sk-annot  { font-family: var(--font-label); color: var(--dim); font-size: 11px; }
+.sk-squig  { background-image: none; text-decoration: underline; text-decoration-color: var(--dim); text-underline-offset: 3px; }
+
+/* ── rarity helpers ──────────────────────────────── */
+.rarity-common    { color: var(--r-common); }
+.rarity-uncommon  { color: var(--r-uncommon); }
+.rarity-rare      { color: var(--r-rare); }
+.rarity-epic      { color: var(--r-epic); }
+.rarity-legendary { color: var(--r-legendary); }
+
+.rarity-border-common    { border-bottom: 3px solid var(--r-common); }
+.rarity-border-uncommon  { border-bottom: 3px solid var(--r-uncommon); }
+.rarity-border-rare      { border-bottom: 3px solid var(--r-rare); }
+.rarity-border-epic      { border-bottom: 3px solid var(--r-epic); }
+.rarity-border-legendary { border-bottom: 3px solid var(--r-legendary); }

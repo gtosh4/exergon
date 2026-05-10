@@ -55,20 +55,34 @@ const AutocraftV4 = () => (
         </thead>
         <tbody>
           {[
-            ["#0421","α","steel.plate","512","74%","0:42","2.1MW","run"],
-            ["#0422","α","└ iron.plate","48","spawned","0:08","0.4MW","sub"],
-            ["#0419","β","circuit.basic","128","31%","1:55","1.8MW","run"],
-            ["#0420","β","└ copper.wire","256","14%","0:50","0.6MW","sub"],
-            ["#0418","γ","reactor.frame","4","8%","5:10","1.2MW","run"],
-            ["#0417","—","wire.copper","2k","queued","—","—","wait"],
-            ["#0416","—","plastic.sheet","64","queued","—","—","wait"],
-            ["#0414","—","gear.bronze","32","blocked","—","—","ERR"],
-          ].map((r,i)=>(
+            { cols:["#0421","α","steel.plate","512","74%","0:42","2.1MW","run"],  err: null },
+            { cols:["#0422","α","└ iron.plate","48","spawned","0:08","0.4MW","sub"], err: null },
+            { cols:["#0419","β","circuit.basic","128","31%","1:55","1.8MW","run"], err: null },
+            { cols:["#0420","β","└ copper.wire","256","14%","0:50","0.6MW","sub"], err: null },
+            { cols:["#0418","γ","reactor.frame","4","8%","5:10","1.2MW","run"], err: null },
+            { cols:["#0417","—","wire.copper","2k","queued","—","—","wait"], err: null },
+            { cols:["#0416","—","plastic.sheet","64","queued","—","—","wait"], err: null },
+            { cols:["#0414","—","gear.bronze","32","blocked","—","—","ERR"],
+              err: "no machine with gear.bronze recipe has autocraft (C) enabled" },
+          ].map((row,i)=>(
             <tr key={i} style={{
               borderBottom:"1px dashed var(--ink-faint)",
-              background: r[7]==="ERR" ? "rgba(245,197,24,0.18)" : "transparent"
+              background: row.cols[7]==="ERR" ? "rgba(245,197,24,0.18)" : "transparent"
             }}>
-              {r.map((c,j)=><td key={j} style={{padding:"2px 6px"}}>{c}</td>)}
+              {row.cols.map((c,j)=>{
+                // ERR status cell: show with hover tooltip
+                if (j === 7 && c === "ERR") {
+                  return (
+                    <td key={j} style={{padding:"2px 6px"}}>
+                      <span title={row.err} style={{
+                        color:"#9a1a1a", fontWeight:700, cursor:"help",
+                        borderBottom:"1px dashed #9a1a1a",
+                      }}>ERR ⓘ</span>
+                    </td>
+                  );
+                }
+                return <td key={j} style={{padding:"2px 6px"}}>{c}</td>;
+              })}
             </tr>
           ))}
         </tbody>

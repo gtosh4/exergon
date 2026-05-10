@@ -59,3 +59,28 @@ Lifecycle / Change Detection:
 ## Messages
 Pub (`MessageWriter`) / Sub (`MessageReader`) communication between systems.
 ✓ Use instead of polling for better performance
+
+## Observers
+React to `Trigger<E>` immediately when event fires — not deferred like `EventReader`.
+
+```rust
+// Global observer (all entities)
+app.add_observer(on_hit);
+
+// Entity-scoped observer
+commands.entity(id).observe(on_hit);
+
+fn on_hit(trigger: Trigger<HitEvent>, mut hp: Query<&mut Health>) {
+    let entity = trigger.target();
+    // ...
+}
+```
+
+Trigger manually:
+```rust
+commands.trigger(HitEvent { damage: 10 });                 // global
+commands.trigger_targets(HitEvent { damage: 10 }, entity); // targeted
+```
+
+Lifecycle triggers: `OnAdd<C>`, `OnInsert<C>`, `OnReplace<C>`, `OnRemove<C>`, `OnDespawn<C>`.
+✓ Prefer over `EventReader` when response must be immediate or scoped to one entity

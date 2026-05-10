@@ -119,7 +119,7 @@ Rationale and context behind key decisions. The GDD contains the *what*; this do
 
 ## Science discovery — drone clarification and building blind
 
-**Drones are player-piloted, not autonomous.** The player's character stays at the base; the player's *attention* travels via drone control. Scouting and sample collection are active time costs. Drones are mobility tools, not automation.
+**Drones are player-piloted, not autonomous.** The player's character stays at the base; the player's *attention* travels via drone control (**Remote mode**). Returning to the body is **Local mode**. Scouting and sample collection are active time costs. Drones are mobility tools, not automation.
 
 **Building blind** (committing to a partially-revealed recipe at risk) is a post-MVP optional challenge mode, not core. MVP assumes players reveal before committing.
 

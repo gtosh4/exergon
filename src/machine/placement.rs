@@ -59,7 +59,7 @@ impl MachineBundle {
     }
 }
 
-pub fn spawn_port_markers(
+fn spawn_port_markers(
     commands: &mut Commands,
     machine_entity: Entity,
     energy_ports: &[Vec3],
@@ -102,6 +102,27 @@ pub fn spawn_port_markers(
     }
 }
 
+pub(super) fn on_machine_added(
+    trigger: On<Add, Machine>,
+    machines: Query<&Machine>,
+    visuals: Option<Res<MachineVisualAssets>>,
+    mut commands: Commands,
+) {
+    let entity = trigger.event_target();
+    let Ok(machine) = machines.get(entity) else {
+        return;
+    };
+    let energy_ports = machine.energy_ports.clone();
+    let logistics_ports = machine.logistics_ports.clone();
+    spawn_port_markers(
+        &mut commands,
+        entity,
+        &energy_ports,
+        &logistics_ports,
+        visuals.as_deref(),
+    );
+}
+
 pub(super) fn place_machine_system(
     mut commands: Commands,
     mut events: MessageReader<WorldObjectEvent>,
@@ -120,8 +141,6 @@ pub(super) fn place_machine_system(
 
         let tier = def.tiers.iter().map(|t| t.tier).max().unwrap_or(1);
         let bundle = MachineBundle::new(ev.pos, def, tier);
-        let energy_ports = bundle.machine.energy_ports.clone();
-        let logistics_ports = bundle.machine.logistics_ports.clone();
         let machine_entity = commands.spawn(bundle).id();
 
         let cached = machine_colliders
@@ -145,14 +164,6 @@ pub(super) fn place_machine_system(
                 .entity(machine_entity)
                 .insert(SceneRoot(scene.clone()));
         }
-
-        spawn_port_markers(
-            &mut commands,
-            machine_entity,
-            &energy_ports,
-            &logistics_ports,
-            visuals.as_deref(),
-        );
 
         if def.id == "generator" {
             commands.entity(machine_entity).insert(GeneratorUnit {

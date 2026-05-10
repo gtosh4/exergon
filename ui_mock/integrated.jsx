@@ -2,12 +2,12 @@
 const { useState: useStateInt } = React;
 
 // ============================================================
-// INTEGRATED TERMINAL v3 — mass-based, codex right, bookmarks left
+// INTEGRATED TERMINAL v3 — mass-based, index right, bookmarks left
 // ============================================================
 const IntegratedTerminal = () => {
   const [mainView, setMainView] = useStateInt("network");
-  const [codexOpen, setCodexOpen] = useStateInt(true);
-  const [codexFull, setCodexFull] = useStateInt(false);
+  const [indexOpen, setIndexOpen] = useStateInt(true);
+  const [indexFull, setIndexFull] = useStateInt(false);
   const [acDrawer, setAcDrawer] = useStateInt(null); // null | 'patterns' | 'planner' | 'cpus'
   const [selected, setSelected] = useStateInt("steel.plate");
 
@@ -80,7 +80,29 @@ const IntegratedTerminal = () => {
         </Col>
       </Row>
 
-      {/* MAIN ROW — bookmarks | items+actions | codex */}
+      {/* RESEARCH POOL STRIP */}
+      {/* 4 typed research buckets (research.md § 3). VS only populates mat.sci. */}
+      <Row gap={10} style={{ padding: "4px 14px", borderBottom: "1.5px solid var(--ink)", alignItems: "center", background: "var(--paper-2)" }}>
+        <span className="sk-mono-xs" style={{ color: "var(--ink-soft)", letterSpacing: 1 }}>RESEARCH</span>
+        {[
+          { id: "mat.sci", color: "#3a6ea8", label: "material science", amount: 47  },
+          { id: "field",   color: "#3d8b6b", label: "field research",   amount: 0   },
+          { id: "eng",     color: "#b88a00", label: "engineering",      amount: 0   },
+          { id: "disc",    color: "#7a3d8b", label: "discovery",        amount: 0   },
+        ].map(rt => {
+          const active = rt.amount > 0;
+          return (
+            <Row key={rt.id} gap={4} title={rt.label} style={{ opacity: active ? 1 : 0.35 }}>
+              <span style={{ width: 7, height: 7, background: active ? rt.color : "var(--ink-faint)", border: "1px solid var(--ink)", borderRadius: 1, flexShrink: 0 }}/>
+              <span className="sk-mono-xs" style={{ fontWeight: active ? 700 : 400 }}>{active ? rt.amount : "—"}</span>
+              <span className="sk-mono-xs" style={{ color: "var(--ink-faint)" }}>{rt.id}</span>
+            </Row>
+          );
+        })}
+        <span className="sk-mono-xs" style={{ color: "var(--ink-faint)", marginLeft: "auto" }}>spend in TECH TREE</span>
+      </Row>
+
+      {/* MAIN ROW — bookmarks | items+actions | index */}
       <Row gap={0} style={{ flex: 1, alignItems: "stretch", overflow: "hidden" }}>
 
         {/* LEFT: BOOKMARKS / TODO */}
@@ -215,7 +237,7 @@ const IntegratedTerminal = () => {
                         <Row gap={2} style={{ justifyContent: "flex-end" }}>
                           <span className="sk-tag" style={{ fontSize: 8 }}>★ bm</span>
                           {r[4] && <span className="sk-tag sk-accent" style={{ fontSize: 8 }}>▶ craft</span>}
-                          <span className="sk-tag" style={{ fontSize: 8 }}>⌕ codex</span>
+                          <span className="sk-tag" style={{ fontSize: 8 }}>⌕ index</span>
                         </Row>
                       </td>
                     </tr>
@@ -256,14 +278,14 @@ const IntegratedTerminal = () => {
           )}
         </Col>
 
-        {/* RIGHT: CODEX (NEI-style) */}
-        {codexOpen && (
-          <Col style={{ width: codexFull ? 480 : 240, borderLeft: "1.5px solid var(--ink)", background: "var(--paper-2)" }}>
+        {/* RIGHT: INDEX (NEI-style) */}
+        {indexOpen && (
+          <Col style={{ width: indexFull ? 480 : 240, borderLeft: "1.5px solid var(--ink)", background: "var(--paper-2)" }}>
             <Row gap={4} style={{ padding: "6px 8px", borderBottom: "1.5px solid var(--ink)", justifyContent: "space-between" }}>
-              <span className="sk-h-sm">⌕ CODEX</span>
+              <span className="sk-h-sm">⌕ INDEX</span>
               <Row gap={3}>
-                <button className="sk-btn" style={{ padding: "1px 5px", fontSize: 9 }} onClick={() => setCodexFull(!codexFull)}>{codexFull ? "⇲ shrink" : "⇱ expand"}</button>
-                <button className="sk-btn" style={{ padding: "1px 5px", fontSize: 9 }} onClick={() => setCodexOpen(false)}>✕</button>
+                <button className="sk-btn" style={{ padding: "1px 5px", fontSize: 9 }} onClick={() => setIndexFull(!indexFull)}>{indexFull ? "⇲ shrink" : "⇱ expand"}</button>
+                <button className="sk-btn" style={{ padding: "1px 5px", fontSize: 9 }} onClick={() => setIndexOpen(false)}>✕</button>
               </Row>
             </Row>
             <div style={{ padding: 8, flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
@@ -278,7 +300,7 @@ const IntegratedTerminal = () => {
                 <span className="sk-tag">★</span>
               </Row>
 
-              {!codexFull && (
+              {!indexFull && (
                 <>
                   <div className="sk-box" style={{ padding: 4 }}>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 2 }}>
@@ -296,8 +318,8 @@ const IntegratedTerminal = () => {
                       </Col>
                     </Row>
                     <Row gap={3} style={{ marginTop: 4, flexWrap: "wrap" }}>
-                      <button className="sk-btn" style={{ padding: "1px 5px", fontSize: 9 }} onClick={() => setCodexFull(true)}>R recipe</button>
-                      <button className="sk-btn" style={{ padding: "1px 5px", fontSize: 9 }} onClick={() => setCodexFull(true)}>U uses</button>
+                      <button className="sk-btn" style={{ padding: "1px 5px", fontSize: 9 }} onClick={() => setIndexFull(true)}>R recipe</button>
+                      <button className="sk-btn" style={{ padding: "1px 5px", fontSize: 9 }} onClick={() => setIndexFull(true)}>U uses</button>
                       <button className="sk-btn sk-accent" style={{ padding: "1px 5px", fontSize: 9 }}>▶ craft</button>
                       <button className="sk-btn" style={{ padding: "1px 5px", fontSize: 9 }}>★ bm</button>
                     </Row>
@@ -305,13 +327,13 @@ const IntegratedTerminal = () => {
                 </>
               )}
 
-              {codexFull && <CodexDeepDive/>}
+              {indexFull && <IndexDeepDive/>}
             </div>
           </Col>
         )}
 
-        {!codexOpen && (
-          <button className="sk-btn" style={{ padding: "2px 6px", fontSize: 10, alignSelf: "flex-start", margin: 6 }} onClick={() => setCodexOpen(true)}>⌕ codex</button>
+        {!indexOpen && (
+          <button className="sk-btn" style={{ padding: "2px 6px", fontSize: 10, alignSelf: "flex-start", margin: 6 }} onClick={() => setIndexOpen(true)}>⌕ index</button>
         )}
       </Row>
 
@@ -516,13 +538,12 @@ const CpusRow = () => (
   </Row>
 );
 
-const CodexDeepDive = () => (
+const IndexDeepDive = () => (
   <Col gap={6} style={{ flex: 1, overflow: "auto" }}>
     <Row gap={3}>
       <span className="sk-tag sk-on">RECIPE</span>
       <span className="sk-tag">USES 47</span>
-      <span className="sk-tag">DROPS</span>
-      <span className="sk-tag">WIKI</span>
+      <span className="sk-tag">CODEX</span>
     </Row>
     <Row style={{ justifyContent: "space-between" }}>
       <span className="sk-h-sm">steel.plate</span>
