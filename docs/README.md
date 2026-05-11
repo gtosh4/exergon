@@ -42,6 +42,15 @@ ECS components, system logic (gateway charge, interact, status UI), events, edge
 ### [`technical/mining.md`](technical/mining.md) — Mining & Deposit System
 Ore extraction from surface deposits. Covers ECS components (`OreDeposit`, `MinerMachine`), miner placement and deposit linking, depletion curve, weighted ore sampling, manual mining, and deposit discovery. **Read before touching `src/logistics/miner.rs`, `src/drone/`, or deposit-related code in `src/world/generation.rs`.**
 
+### [`technical/drone.md`](technical/drone.md) — Drone System Design
+ECS components, system logic (Local↔Remote mode transition, fog-of-war reveal, sample collection, range scanning, multiple drone switching), events, edge cases, and execution order. VS and MVP scope noted inline. **Read before touching `src/drone/` or anything involving `PlayMode::DronePilot`.**
+
+### [`technical/aegis.md`](technical/aegis.md) — Aegis System Design
+ECS components, system logic (boundary check, Local mode constraint, atmospheric exposure, outpost beacon power, body switching), events, edge cases, and execution order. VS and MVP scope noted inline. **Read before implementing aegis fields, body switching, or outpost beacons.**
+
+### [`technical/crafting.md`](technical/crafting.md) — Crafting System Design
+ECS components, system logic (recipe execution, job dispatch, catalyst reservation, module effects, plan resolution), events, edge cases, and execution order. Resolves: Recipe Graph Runtime Integration, Catalyst Inputs, and Auto-crafting Job Dispatch todos. VS and MVP scope noted inline. **Read before implementing recipe execution, crafting jobs, or auto-crafting dispatch.**
+
 ### [`technical/tech-tree-design.md`](technical/tech-tree-design.md) — Tech Tree Content Design
 Content design layer for the tech tree: node definitions, pacing targets, unlock structure. Sits between `gdd.md §7` (design intent) and implementation. Status: first draft, pacing unvalidated. **Update when tech tree nodes or unlock order changes.**
 

@@ -88,8 +88,8 @@ Everything not listed above, including: underground layer, digger drone, reactiv
 - Recovery faster than buildup
 - Reactivity seeded rate per region
 
-**Habitats**
-- Expand habitat
+**Aegis fields**
+- Expand aegis field
 - Outposts
 
 **Escape conditions**

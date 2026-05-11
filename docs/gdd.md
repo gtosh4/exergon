@@ -127,6 +127,7 @@ The seed is the engine of replayability. It controls every axis of variance simu
 - Geological activity → geothermal availability and efficiency
 - Temperature → affects machine cooling requirements, certain reaction efficiencies
 - Atmospheric pressure → affects fluid dynamics, certain chemical processes
+- Environmental hazard type → the mechanism by which the open environment is destructive to AI hardware (EM interference, corrosive particulates, exotic radiation, etc.); cosmetically distinct per run, mechanically identical — determines flavor of warning feedback and lore framing, not gameplay rules
 
 Planet properties are partially visible at run start (broad characteristics) and fully revealed through early scouting. An experienced player reads planet properties at landing and immediately forms a rough power strategy.
 
@@ -168,7 +169,7 @@ Research is **scarce enough to force tradeoffs**, especially early. The player c
 ### The physical discovery loop
 The player's attention is the research instrument. Science happens in the world, not in menus.
 
-- Exploration is conducted via player-piloted drones. The AI body stays within a habitat bubble; the player's *attention* travels via drone. This is **Remote mode** — the player's perspective and control transfer fully to the drone. Returning to the body is **Local mode**. Piloting a drone to collect samples is an active time cost, not passive automation.
+- Exploration is conducted via player-piloted drones. The AI body stays within a shielded zone; the player's *attention* travels via drone. This is **Remote mode** — the player's perspective and control transfer fully to the drone. Returning to the body is **Local mode**. Piloting a drone to collect samples is an active time cost, not passive automation.
 - Collecting samples requires the player to pilot a drone to the location and interact with it
 - Some sample sites are dangerous, distant, or require a specific drone tier to reach — creating a progression gate on information as well as production
 - Analysis stations are built in the world and consume samples + research currency to produce knowledge
@@ -419,18 +420,18 @@ All significant machines are multi-block structures: a fixed core footprint plus
 ### The avatar in the factory
 The player's physical presence in the world means they move through their own factory. This creates an organic relationship between the scouting/science layer and the factory layer — the player is always in the same world, not switching between a map view and a factory view. The factory grows around them as they work.
 
-The AI exists in one body at a time. Within a connected habitat zone, the player flies and builds directly (**Local mode**). Exploration beyond the habitat is conducted via drones (**Remote mode**) (see §11). Switching to a new outpost means switching which body the AI currently inhabits — an explicit action, not free travel.
+The AI exists in one body at a time. Within a connected aegis field, the player flies and builds directly (**Local mode**). Exploration beyond the aegis field is conducted via drones (**Remote mode**) (see §11). Switching to a new outpost means switching which body the AI currently inhabits — an explicit action, not free travel.
 
-### Base management — Habitat bubbles and outpost islands
+### Base management — Aegis fields and outpost islands
 
-The alien atmosphere is lethal without life support infrastructure. The player begins with a core **Habitat Generator** (delivered with the escape pod) that projects a survivable bubble around the landing site. Within this bubble, the AI can fly, build, and interact directly (Local mode). Outside it: Remote mode only.
+The open environment is hostile to the AI's hardware. The exact hazard type is a planet property — EM interference, corrosive particulates, exotic radiation — legible from early scan data and fixed for the run. The player begins with a core **Aegis Emitter** (delivered with the escape pod) that projects a aegis field around the landing site. Within this envelope, the AI can fly, build, and interact directly (Local mode). Outside it: Remote mode only. Drones are ruggedized expendable hardware, unaffected by the hazard.
 
-**Expanding into new biomes** is done through **Outpost Beacons** — support structures built at the main base, then shipped to a target location via drone. Once an Outpost Beacon is placed and connected to the logistics network, it projects its own life-support bubble. The player can then fabricate a new **body chassis** at the main base, ship it to the outpost via drone, and upload into it — becoming physically present there to build and interact directly.
+**Expanding into new biomes** is done through **Outpost Beacons** — support structures built at the main base, then shipped to a target location via drone. Once an Outpost Beacon is placed and connected to the logistics network, it projects its own aegis field. The player can then fabricate a new **body** at the main base, ship it to the outpost via drone, and upload into it — becoming physically present there to build and interact directly.
 
 Key properties:
 - The player inhabits exactly one body at a time. Switching bodies is deliberate: select a connected outpost, transfer via the network. Instantaneous once connected, but requires an active network link (power + logistics).
-- Each body is a manufactured item. Losing a body to environmental hazard is a real setback. Body fabrication costs scale with chassis tier.
-- Outpost Beacons require power from the network. A power interruption collapses the life-support bubble — the AI must evacuate or risk body loss.
+- Each body is a manufactured item. Losing a body to environmental hazard is a real setback. Body fabrication costs scale with body tier.
+- Outpost Beacons require power from the network. A power interruption collapses the aegis field — the AI must evacuate or risk body loss.
 - Expanding into a new biome is a deliberate investment: scout (drone), select site, build beacon, run logistics, fabricate body. This makes each expansion a design decision, not free movement.
 - Outposts are discrete islands, not a contiguous growing bubble. The gap between islands is drone-only territory. This forces intentional logistics design: resources must travel via the network between islands.
 

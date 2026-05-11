@@ -128,7 +128,7 @@ Player needs to know where the ruins are without wandering randomly.
 - [ ] **Tier gate mechanics** — T1 gate ("Analyze first alien sample + deploy surface drone") and T1→2 gate ("Produce 100 units of refined base material") are specified in `tech-tree-design.md §3` and §6 but not implemented. For VS, `--test` mode must either bypass these gates or stub them so the full run path is testable.
 - [ ] Drag-drop inventory to hotbar doesn't work
 - [ ] Update power system to use volt/amp/watt as described in the docs
-- [ ] Starting habitat zone (no deposits)
+- [ ] Starting aegis field (no deposits)
 - [ ] Drone doesn't have same hotbar, has tools instead
 - [ ] Drones have internal inventory for manual mining ores. Tab opens up internal inventory
 - [ ] As player, inventory also shows nearby drone inventories. Ability to transfer items from drone to logistic

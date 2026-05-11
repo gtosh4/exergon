@@ -207,7 +207,7 @@ Eight categories. Each node belongs to exactly one.
 | **Power** | Generation, storage, distribution — renegotiated each tier | 1–10 |
 | **Logistics** | Network cables, controllers, auto-crafting, storage | 1–5 |
 | **Science** | Analyzers, labs, sample processors | 1–5 |
-| **Exploration** | Drone types, scanners, habitat expanders | 1–7 |
+| **Exploration** | Drone types, scanners, aegis expanders | 1–7 |
 | **Fabrication** | Assembly machines for composite and alien items | 3–10 |
 
 **Power** is the only category that spans all tiers with equal importance. Every other category has a peak window.
@@ -330,7 +330,7 @@ These are the 8 nodes that appear in *every* Standard run (all Common, Tier 1 on
 | **Solar Array** | Power | Unlocks `solar_array` machine type; passive power scaled by planet solar modifier | Research spend (small) | — |
 | **Field Analyzer** | Science | Unlocks `analyzer` machine type Tier 1; enables sample analysis → research currency | Research spend (small) | — |
 | **Basic Network Node** | Logistics | Unlocks `network_node` Tier 1 cable + basic storage node; enables logistics network | Research spend (small) | Stone Furnace |
-| **Land Drone Mk1** | Exploration | Unlocks `land_drone` Tier 1; enables surface scouting and sample collection beyond habitat | Production milestone: 20 iron ingots | Basic Miner |
+| **Land Drone Mk1** | Exploration | Unlocks `land_drone` Tier 1; enables surface scouting and sample collection beyond the aegis field | Production milestone: 20 iron ingots | Basic Miner |
 
 > ⚠️ Both power nodes (Combustion Generator, Solar Array) are in every run. The planet modifier determines which is worth building — a low-solar world pushes players to combustion; a geologically inert world pushes solar. Both exist so the player always has a choice, not a dictated answer.
 

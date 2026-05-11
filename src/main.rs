@@ -5,7 +5,7 @@ use bevy::window::WindowResolution;
 use clap::Parser;
 use tracing_subscriber::Layer;
 
-use exergon::inventory::{Hotbar, HotbarSlot};
+use exergon::inventory::Hotbar;
 use exergon::logistics::StorageUnit;
 use exergon::machine::{
     MachineBundle, MachineNetworkChanged, MachineRegistry, MachineVisualAssets,

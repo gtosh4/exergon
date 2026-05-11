@@ -145,16 +145,17 @@ Run after `NetworkSystems::of::<Logistics>()` and after `PowerSimSystems`:
 
 **`miner_tick_system`** — advances miner timers each tick; when a cycle completes, picks ore from the deposit distribution and calls `give_items` on the networks of the miner's output-eligible ports.
 
-**`recipe_start_system`** — triggered by `NetworkStorageChanged` or `NetworkChanged<Power>`. For each affected logistics network, scans idle machines:
-1. Finds matching recipes by `machine_type` and `machine_tier`
+**`recipe_start_system`** — triggered by `NetworkStorageChanged` or `NetworkChanged<Power>` (manual-mode machines; see `crafting.md §4`) or by `JobDispatched` (auto-craft machines; see `crafting.md §8`). The full recipe execution specification — `RecipeProcessor` component, job dispatch path, catalyst reservation, module effects — is in `crafting.md §5`. The logistics-layer checks this system performs:
+1. Finds matching recipes by `machine_type` and `machine_tier` (using `MachineCapability` from `crafting.md §3`)
 2. Checks tech tree lock (`TechTreeProgress.unlocked_recipes`) if progress resource exists
 3. **Power check** — if `recipe.energy_cost > 0`:
    - **Voltage** — `PowerNetworkMembers.voltage_tier()` ≥ `recipe.min_voltage_tier`; cannot start if not met
    - **Amps** — `(energy_cost / processing_time) / network_voltage` ≤ `PowerNetworkMembers.amp_capacity() - amps_in_use()`; cannot start if at amp capacity
    - **Buffer** — calls `PowerNetworkMembers.has_energy(energy_per_tick)` where `energy_per_tick = (energy_cost / processing_time) * dt`; no withdrawal at start
 4. **Input check** — for each recipe input item, resolves the machine's logistics ports that allow input for that item (via `PortPolicy`), then calls `has_items` across the `LogisticsNetworkMembers` of those ports' networks
-5. **Output check** — for each recipe output/byproduct item, verifies at least one of the machine's logistics ports allows output for that item and has a connected network; if any output has no valid destination, recipe does not start
-6. If all checks pass: calls `take_items` on each input-port network accordingly, inserts `MachineActivity` and `MachineState::Running` on the machine
+5. **Catalyst check** — if `recipe.catalyst_inputs` is non-empty: for each item, `available = has_items(item) - CatalystReservationBook.reserved[item]`; if `available < required`, recipe does not start (see `crafting.md §6`)
+6. **Output check** — for each recipe output/byproduct item, verifies at least one of the machine's logistics ports allows output for that item and has a connected network; if any output has no valid destination, recipe does not start
+7. If all checks pass: calls `take_items` on each input-port network accordingly; reserves catalyst inputs in `CatalystReservationBook`; sets `RecipeSlot.state = Running` and `progress = 0.0` (see `crafting.md §2` for `RecipeProcessor` definition)
 
 **`recipe_progress_system`** — each tick:
 1. If `recipe.energy_cost > 0`: calls `PowerNetworkMembers.take_energy((energy_cost / processing_time) * dt)`; if insufficient energy, skips progress advance for this tick (recipe pauses until buffer refills). Amps remain held while paused — the machine stays online and does not release its amp allocation until the recipe completes or is cancelled.
@@ -163,12 +164,12 @@ Run after `NetworkSystems::of::<Logistics>()` and after `PowerSimSystems`:
 On completion:
 - For each output/byproduct item, resolves the machine's logistics ports that allow output for that item (via `PortPolicy`), calls `give_items` on those ports' networks
 - Special-cases `RESEARCH_POINTS_ID` outputs → adds to `ResearchPool` resource instead of storage
-- Removes `MachineActivity`, sets `MachineState::Idle`
+- Sets `RecipeSlot.state = Idle`, `job = None`, `progress = 0.0`; releases catalyst reservations (see `crafting.md §5`)
 - Fires `NetworkStorageChanged` for the network (triggers next recipe evaluation)
 
 ### Unified Storage
 
-`LogisticsNetworkMembers` exposes `has_items`, `take_items`, and `give_items` as methods. It owns the iteration order across member `StorageUnit` entities, allowing priority ordering between storage units to be encapsulated here. Items are not centralized — each `StorageUnit` holds its own `HashMap<String, u32>`; `LogisticsNetworkMembers` is the index and the access point.
+`LogisticsNetworkMembers` exposes `has_items`, `take_items`, and `give_items` as methods. It owns the iteration order across member `StorageUnit` entities, allowing priority ordering between storage units to be encapsulated here. Items are not centralized — each `StorageUnit` holds its own `HashMap<String, u32>`; `LogisticsNetworkMembers` is the index and the access point. When the `CatalystReservationBook` resource is present, `has_items` subtracts `CatalystReservationBook.reserved[item_id]` from the total available count before returning — items with active catalyst reservations are physically present in storage but treated as unavailable (see `crafting.md §6`).
 
 ### Messages
 
@@ -247,7 +248,10 @@ Power is withdrawn per-tick during recipe execution, unlike logistics inputs whi
 NetworkSystems::of::<Power>()        // cable_placed, cable_removed
   → PowerSimSystems                  // generator, generator_tick
     → NetworkSystems::of::<Logistics>()
-      → LogisticsSimSystems          // storage_unit, miner_tick, recipe_start, recipe_progress
+      → LogisticsSimSystems          // storage_unit, miner_tick, manual_recipe,
+                                     // recipe_progress, recipe_completion, job_prerequisite,
+                                     // job_dispatcher, recipe_start
+                                     // (see crafting.md §11 for sub-ordering)
 ```
 
 Power systems complete before logistics recipe evaluation begins each frame. This ensures generator buffers are filled before `recipe_start_system` checks and withdraws from them.
@@ -257,8 +261,7 @@ Power systems complete before logistics recipe evaluation begins each frame. Thi
 ```
 Machine entity
 ├── Machine { energy_ports: Vec<Vec3>, logistics_ports: Vec<Vec3> }
-├── MachineState
-├── MachineActivity (optional, when Running)
+├── RecipeProcessor    ← recipe execution state; replaces MachineState + MachineActivity (see crafting.md §2)
 ├── MachineEnergyPorts    ← relationship target: lists EnergyPortOf entities
 ├── MachineLogisticsPorts ← relationship target: lists LogisticsPortOf entities
 └── GeneratorUnit (optional, if this machine is a generator)

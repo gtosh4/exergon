@@ -17,63 +17,93 @@ function TTTierPages(){
   const fogStyle = ttTweaks().fogStyle || "silhouette";
   const showLocked = !!ttTweaks().showLockedEdges;
 
-  // research-line colors (matches V3 subway)
+  // research-line colors — one per category (8 total)
   const LINE_COLORS = {
-    craft:"#888",    smelt:"#a85a2c", refine:"#c2a845",
-    chem:"#3d8b6b",  electric:"#3a6ea8", logic:"#7a3d8b", power:"#1a1a1a",
+    extract:"#8b6914",  smelt:"#a85a2c",   process:"#3d8b6b",
+    power:"#c23b22",    logistics:"#3a6ea8", science:"#7a3d8b",
+    explore:"#2e7d32",  fab:"#6b6b8b",
   };
-  const LINE_LABELS = {
-    craft:"CRAFT", smelt:"SMELT", refine:"REFINE", chem:"CHEM",
-    electric:"ELECTRIC", logic:"LOGIC", power:"POWER",
+  // milestone gates: MS[n] = node ID of the milestone that unlocks tier n
+  // T1 has no gate (always available), so MS[1] is absent
+  const MS = {
+    2:"t2-gate", 3:"t3-gate", 4:"t4-gate",  5:"t5-gate",
+    6:"t6-gate", 7:"t7-gate", 8:"t8-gate",  9:"t9-gate", 10:"t10-gate",
   };
 
-  // milestones in order (the gates between tiers)
-  // by inspecting TT.techs: tier1=steam, tier2=dynamo, tier3=logic, tier4=exotic
-  const MS = { 1:"steam", 2:"dynamo", 3:"logic", 4:"exotic" };
-
-  const [page, setPage] = React.useState(2); // start on T2 — visually richest
-  const [selected, setSelected] = React.useState(MS[page] || "dynamo");
+  const [page, setPage] = React.useState(3); // start on T3 Contact — most visually rich
+  const [selected, setSelected] = React.useState(MS[3] || "alien-lab");
 
   // ── per-page layout ─────────────────────────────────────────────────────
-  // Within a page we draw a swim-laned grid:
-  //   columns = "early / mid / late" within tier (x-axis = position along tier)
-  //   rows    = research lines (one row per tag, each with its line color)
-  // Then we place each tech in its (col, row) cell, with bridge cards in the
-  // far-left & far-right gutters.
+  // X = prerequisite depth via BFS on in-page edges (prerequisite graph drives layout)
+  // Y = research-line category row
+  // Nodes sharing (depth, row) are spread into adjacent sub-columns.
 
-  const lineRows = ["craft","refine","smelt","chem","electric","logic","power"];
+  const TAG_ORDER = ["extract","smelt","process","power","logistics","science","explore","fab"];
 
   const techsOnPage = TT.techs.filter(t => t.tier === page);
-  // crude column assignment: spread techs in each row across 3 columns
-  const layout = React.useMemo(()=>{
-    // group by tag, then assign col per group
+
+  const { layout, maxCol } = React.useMemo(()=>{
     const out = {};
-    const byTag = {};
-    techsOnPage.forEach(t=>{
-      (byTag[t.tag] ||= []).push(t);
+    const ids = new Set(techsOnPage.map(t=>t.id));
+
+    // build in-page adjacency
+    const predCount = {}, succs = {};
+    ids.forEach(id=>{ predCount[id]=0; succs[id]=[]; });
+    TT.edges.forEach(([a,b])=>{
+      if(ids.has(a) && ids.has(b)){ predCount[b]++; succs[a].push(b); }
     });
-    Object.entries(byTag).forEach(([tag, arr])=>{
-      arr.forEach((t,i)=>{
-        const col = arr.length===1 ? 1 : Math.round((i/(arr.length-1)) * 2);
-        out[t.id] = { col, row: lineRows.indexOf(tag) };
+
+    // BFS topological depth from source nodes (no in-page predecessors)
+    const depth = {};
+    const queue = [...ids].filter(id=>!predCount[id]);
+    queue.forEach(id=>{ depth[id]=0; });
+    let qi=0;
+    while(qi<queue.length){
+      const cur=queue[qi++];
+      (succs[cur]||[]).forEach(nxt=>{
+        const d=(depth[cur]||0)+1;
+        if(depth[nxt]===undefined||depth[nxt]<d) depth[nxt]=d;
+        if(!queue.includes(nxt)) queue.push(nxt);
       });
+    }
+
+    // bucket by depth only; sort within bucket by tag for loose visual grouping
+    const depthBuckets = {};
+    techsOnPage.forEach(t=>{
+      const d = depth[t.id]||0;
+      (depthBuckets[d]=depthBuckets[d]||[]).push(t.id);
     });
-    return out;
+    Object.values(depthBuckets).forEach(grp=>{
+      grp.sort((a,b)=> TAG_ORDER.indexOf(TT.byId[a]?.tag) - TAG_ORDER.indexOf(TT.byId[b]?.tag));
+    });
+
+    techsOnPage.forEach(t=>{
+      const d = depth[t.id]||0;
+      const grp = depthBuckets[d];
+      const pos = grp.indexOf(t.id);
+      out[t.id] = { col: d, row: pos, rowCount: grp.length };
+    });
+
+    const mc = Math.max(...Object.values(out).map(l=>l.col), 3);
+    return { layout:out, maxCol:mc };
   }, [page]);
 
   // ── stage geometry ──────────────────────────────────────────────────────
-  const STAGE_W = 1080;
-  const STAGE_H = 720;
-  const GUTTER = 130; // bridge-card area on each side
-  const innerW = STAGE_W - GUTTER*2;
+  const COL_W  = 180;
+  const GUTTER = 130;
+  const STAGE_H = 760;
+  const STAGE_W = Math.max(1080, GUTTER*2 + 120 + (maxCol+1)*COL_W);
   const innerH = STAGE_H - 60;
-  const colX = (c)=> GUTTER + 80 + c * (innerW - 160) / 2;
-  const rowY = (r)=> 50 + r * (innerH - 80) / (lineRows.length - 1);
 
   const nodeXY = (id)=>{
     const L = layout[id];
-    if (!L || L.row < 0) return null;
-    return { x: colX(L.col), y: rowY(L.row) };
+    if (!L) return null;
+    const x = GUTTER + 76 + L.col * COL_W;
+    const margin = 50;
+    const y = L.rowCount <= 1
+      ? STAGE_H / 2
+      : margin + L.row * (innerH - 2*margin) / (L.rowCount - 1);
+    return { x, y };
   };
 
   // ── bridge cards (milestones gating in/out of this page) ─────────────────
@@ -203,8 +233,8 @@ function TTTierPages(){
       display:"flex", borderBottom:"1.5px solid var(--ink)",
       background:"var(--paper-2)", flexShrink:0
     }}>
-      {[0,1,2,3,4].map(n=>{
-        const tierName = ["MANUAL","STEAM","ELECTRIC","LOGIC","EXOTIC"][n];
+      {[1,2,3,4,5,6,7,8,9,10].map(n=>{
+        const tierName = ["","LANDFALL","ROOTS","CONTACT","REACH","SALVAGE","TRAVERSE","INTERFACE","REVELATION","FORGE","TRANSCENDENCE"][n];
         const ms = MS[n] ? TT.byId[MS[n]] : null;
         const gateOpen = !ms || (TT.knowledge[ms.id]||0) >= 2;
         const isOn = page === n;
@@ -224,15 +254,15 @@ function TTTierPages(){
               {!gateOpen && <span className="sk-mono-xs" style={{ color:"var(--ink-faint)" }}>· locked</span>}
             </div>
             <div className="sk-mono-xs" style={{ color:"var(--ink-soft)" }}>
-              {TT.techs.filter(t=>t.tier===n && (TT.knowledge[t.id]||0) >= 2).length}/{TT.techs.filter(t=>t.tier===n).length} known
+              {TT.techs.filter(t=>t.tier===n && (TT.knowledge[t.id]||0) >= 2).length}/{TT.techs.filter(t=>t.tier===n).length} nodes
             </div>
           </div>
         );
       })}
       <div style={{ flex:1 }}/>
       <div style={{ padding:"10px 14px", display:"flex", alignItems:"center", gap:8 }}>
-        <button className="sk-btn" onClick={()=>setPage(Math.max(0, page-1))}>← prev tier</button>
-        <button className="sk-btn" onClick={()=>setPage(Math.min(4, page+1))}>next tier →</button>
+        <button className="sk-btn" onClick={()=>setPage(Math.max(1, page-1))}>← prev tier</button>
+        <button className="sk-btn" onClick={()=>setPage(Math.min(10, page+1))}>next tier →</button>
       </div>
     </div>
   );
@@ -274,24 +304,8 @@ function TTTierPages(){
               <rect x="0" y="0" width={STAGE_W} height="36" fill="var(--paper-2)"/>
               <text x={STAGE_W/2} y="24" fontSize="13" fontFamily="var(--font-mono)"
                     fill="var(--ink-soft)" textAnchor="middle" letterSpacing="3">
-                — TIER {page} · {["MANUAL","STEAM","ELECTRIC","LOGIC","EXOTIC"][page]} —
+                — TIER {page} · {["","LANDFALL","ROOTS","CONTACT","REACH","SALVAGE","TRAVERSE","INTERFACE","REVELATION","FORGE","TRANSCENDENCE"][page]} —
               </text>
-
-              {/* swim lanes */}
-              {lineRows.map((tag,i)=>{
-                const y = rowY(i);
-                const isUsed = techsOnPage.some(t=>t.tag===tag);
-                if (!isUsed) return null;
-                return (
-                  <g key={tag}>
-                    <line x1={GUTTER+30} y1={y} x2={STAGE_W-GUTTER-30} y2={y}
-                          stroke={LINE_COLORS[tag]} strokeWidth="3"
-                          strokeOpacity={isUsed ? 0.18 : 0.05} strokeLinecap="round"/>
-                    <text x={GUTTER + 6} y={y+4} fontSize="9" fontFamily="var(--font-mono)"
-                          fill={LINE_COLORS[tag]}>{LINE_LABELS[tag]}</text>
-                  </g>
-                );
-              })}
 
               {/* gutter divider lines */}
               <line x1={GUTTER} y1="40" x2={GUTTER} y2={STAGE_H-10}
@@ -414,8 +428,8 @@ function TTTierPages(){
               );
             })}
 
-            {/* nodes */}
-            {techsOnPage.map(t=>{
+            {/* nodes — exclude entry gate; it renders as the left GateCard */}
+            {techsOnPage.filter(t => t.id !== entryGateId).map(t=>{
               const xy = nodeXY(t.id); if (!xy) return null;
               return <NodeCard key={t.id} t={t} x={xy.x} y={xy.y}
                                color={LINE_COLORS[t.tag] || "#888"}/>;

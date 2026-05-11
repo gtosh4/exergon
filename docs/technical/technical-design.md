@@ -284,7 +284,7 @@ Biome appearance is handled by **terrain shaders**, not block type texture atlas
 
 ### Deposits
 
-Ore deposits are **persistent surface markers** — visible indicators on the terrain surface (similar to Satisfactory's resource nodes). Each deposit has a position, a seeded weighted ore blend, and a depletion state. Deposits do not spawn inside habitat boundaries and are removed when habitat expansion covers their location.
+Ore deposits are **persistent surface markers** — visible indicators on the terrain surface (similar to Satisfactory's resource nodes). Each deposit has a position, a seeded weighted ore blend, and a depletion state. Deposits do not spawn inside aegis field boundaries and are removed when aegis expansion covers their location.
 
 **Discovery** is two-stage: drone scan or prospecting tool gives coarse data (resource category, approximate area); physical drone proximity reveals exact location, dominant ore type, and current yield.
 

@@ -255,6 +255,18 @@ Non-punishing is the *default*, not the only option. GT-style consequences are a
 
 ---
 
+## Player body constraint — hardware-hostile environment, per-run hazard type
+
+**Decision:** The open environment is hostile to the AI's hardware. The AI body can only operate in Local mode inside aegis fields projected by infrastructure (Aegis Emitter, Outpost Beacons). Outside, hardware damage accumulates and leads to body loss. The hazard type is a planet property seeded per run (EM interference, corrosive particulates, exotic radiation, etc.) — cosmetically distinct but mechanically identical across all types. Drones are ruggedized expendable hardware, unaffected.
+
+**Why — hardware-hostile over "lethal atmosphere":** The player is an AI, not an organism. "Lethal atmosphere" implies biological life support, which is inconsistent with the character identity. A hardware-hostile environment explains why sophisticated AI cognition can't operate freely outside aegis fields while simple drone firmware can — smarter hardware is more vulnerable.
+
+**Why — per-run hazard type:** Identical hazard on every planet reads as contrivance. Varying the flavor per run fits the planet modifier system (§5) and the Legible Chaos pillar — players read scan data at landing and learn what threat they're dealing with this run. Mechanically identical; the distinction is narrative texture and feedback framing only.
+
+**Why — drones unaffected:** Drones use simpler hardened hardware designed for open-environment operation. This is the diegetic explanation for why Remote mode exploration is possible while the AI body must stay shielded. Higher drone tiers tolerate more extreme conditions (space, deep underground), consistent with the tier system.
+
+---
+
 ## Power transition drama — post-MVP
 
 **Decision:** Dramatic in-world power transition events (factory going dark, world reacting to energy signature change) are a post-MVP enhancement, not core.
