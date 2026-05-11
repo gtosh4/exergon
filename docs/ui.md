@@ -153,27 +153,142 @@ Machine UI (per-machine config)
 
 - **Research currency in Terminal** — yes. Research pool strip added below capacity bars in Terminal, showing all 4 typed buckets. Zero-balance types dimmed. Also shown compact in HUD top bar.
 - **Autocraft ERR detail** — hover tooltip (`ERR ⓘ`, `title` attribute gives specific reason).
-- **DROPS/FUEL tabs in Index** — removed (undefined scope).
-- **Port flow controls (+/-/%)** — removed for now; in/out/both/none policies are sufficient.
 - **Subnet creation** — no UI. Subnets are formed automatically by physical cable/connection topology. The Terminal shows subnets by name once they exist.
 
 ---
 
-## Prior Mockup Images
+## Mockup Images
 
-### Inventory
-![](inventory_ui_mock_v0.1.png)
+### Palette
+
+![](images/palette.png)
+
+---
+
+### In-World HUD
+
+Full wireframe (both local and remote variants):
+
+![](images/hud_mock.png)
+
+**Top bar** — menus, research pool, alerts button:
+
+![](images/hud_topbar.png)
+
+**Alerts dropdown** — machine errors with jump-to links:
+
+![](images/hud_alerts.png)
+
+**Bottom bar** — vitals, hotbar (3 banks), XP:
+
+![](images/hud_bottombar.png)
+
+---
+
+### Terminal
+
+Full wireframe:
+
+![](images/terminal_mock.png)
+
+**Header** — mass/cell/power capacity bars + research pool strip:
+
+![](images/terminal_header.png)
+
+**Item table + sidebar** — item list, Δ/min, filters, goal tracker:
+
+![](images/terminal_item_table.png)
+
+---
+
+### Craft Modal
+
+**Phase 1** — qty input + RESOLVE:
+
+![](images/craft_modal_phase1.png)
+
+**Phase 2** — dependency tree + machine plan + ENQUEUE:
+
+![](images/craft_modal_phase2.png)
+
+---
+
+### Index (Item & Recipe Lookup)
+
+Full wireframe:
+
+![](images/lookup_mock.png)
+
+**Recipe focus pane** — inputs/outputs, pagination, CODEX tab:
+
+![](images/lookup_recipe_pane.png)
+
+---
+
+### Autocraft CPU Monitor
+
+![](images/autocraft_mock.png)
+
+---
 
 ### Factory Planner
-![](planner_expert_mock_v0.1.png)
 
-<details><summary>Sankey flow</summary>
+Full wireframe:
 
-![](planner_sanky_mock_v0.1.png)
-</details>
+![](images/planner_mock.png)
+
+**Main layout** — sankey + inspector side-by-side:
+
+![](images/planner_main.png)
+
+**Sankey pane** — ribbon diagram with bottleneck highlighting and left rail:
+
+![](images/planner_sankey.png)
+
+**Node inspector** — recipe swap, throughput target, machine count, module slots:
+
+![](images/planner_inspector.png)
+
+**Recipe picker overlay** — alt recipes, tier filter, live comparison:
+
+![](images/planner_recipe_picker.png)
+
+---
 
 ### Tech Tree
-![](tech_tree_mock_v0.1.png)
+
+Full wireframe:
+
+![](images/tech_tree_mock.png)
+
+**Tier page** — questbook layout with swim lanes and cross-tier stubs:
+
+![](images/tech_tree_tier_page.png)
+
+**Top bar** — research currency, tier tabs, wishlist/filter:
+
+![](images/tech_tree_topbar.png)
+
+**Node canvas** — swim-lane rows, fog states, milestone bridges:
+
+![](images/tech_tree_canvas.png)
+
+**Reveal panel** — knowledge ladder, prereq chain, before/after diff:
+
+![](images/tech_tree_reveal_panel.png)
+
+---
 
 ### Machine UI
-![](machine_ui_mock_v0.1.png)
+
+Full wireframe:
+
+![](images/machine_mock.png)
+
+**Left rail** — identity, current craft, power draw, module slots, port bindings:
+
+![](images/machine_left_rail.png)
+
+**Recipe table pane** — priority sort, bulk edit, mode flags (C/P):
+
+![](images/machine_recipe_table.png)

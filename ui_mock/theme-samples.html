@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Exergon — Theme Samples v4</title>
+<title>Exergon — Theme Samples v5</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -24,8 +24,7 @@ body {
   --acc:    #8a72aa;   /* P3 muted lavender */
   --ok:     #4a9e6a;
   --err:    #b84a4a;
-  --warn-w1:#c8a830;
-  --warn-w3:#c8b440;
+  --warn:   #c8b440;
   --r-common:   #7a8590;
   --r-uncommon: #4a9e6a;
   --r-rare:     #4a82c8;
@@ -146,71 +145,6 @@ h2:first-child { margin-top: 0; }
 <body>
 
 <!-- ══════════════════════════════════════════════
-     SEMANTIC COLOR TRIO — W1 vs W3
-     ══════════════════════════════════════════════ -->
-<h2>WARN comparison with OK + ERR</h2>
-<p class="note">W3 recommended — sits cleanly between ERR red and OK green (traffic-light logic). W1's amber leans toward orange, perceptually crowding ERR.</p>
-
-<div class="warn-compare">
-
-  <!-- W1 -->
-  <div class="warn-block">
-    <div class="warn-title">W1 — Amber gold #c8a830</div>
-    <div style="display:flex;gap:6px">
-      <div class="spectrum-bar" style="flex:1;background:#b84a4a;color:#fff">ERR</div>
-      <div class="spectrum-bar" style="flex:1;background:#c8a830;color:#1a1d21">WARN</div>
-      <div class="spectrum-bar" style="flex:1;background:#4a9e6a;color:#fff">OK</div>
-    </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <span class="tag" style="background:rgba(184,74,74,0.15);color:#b84a4a;border:1px solid rgba(184,74,74,0.3)">FAULT</span>
-      <span class="tag" style="background:rgba(200,168,48,0.15);color:#c8a830;border:1px solid rgba(200,168,48,0.3)">LOW POWER</span>
-      <span class="tag" style="background:rgba(74,158,106,0.15);color:#4a9e6a;border:1px solid rgba(74,158,106,0.3)">ACTIVE</span>
-    </div>
-    <div style="font-size:11px;color:#556;line-height:1.6">
-      Orange-amber reads slightly warm/urgent. WARN and ERR hues are closer together — could feel like WARN is "almost an error" rather than "caution".
-    </div>
-  </div>
-
-  <!-- W3 -->
-  <div class="warn-block" style="border-color:rgba(200,180,64,0.25)">
-    <div class="warn-title">W3 — Warm yellow #c8b440 ← recommended</div>
-    <div style="display:flex;gap:6px">
-      <div class="spectrum-bar" style="flex:1;background:#b84a4a;color:#fff">ERR</div>
-      <div class="spectrum-bar" style="flex:1;background:#c8b440;color:#1a1d21">WARN</div>
-      <div class="spectrum-bar" style="flex:1;background:#4a9e6a;color:#fff">OK</div>
-    </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <span class="tag" style="background:rgba(184,74,74,0.15);color:#b84a4a;border:1px solid rgba(184,74,74,0.3)">FAULT</span>
-      <span class="tag" style="background:rgba(200,180,64,0.15);color:#c8b440;border:1px solid rgba(200,180,64,0.3)">LOW POWER</span>
-      <span class="tag" style="background:rgba(74,158,106,0.15);color:#4a9e6a;border:1px solid rgba(74,158,106,0.3)">ACTIVE</span>
-    </div>
-    <div style="font-size:11px;color:#556;line-height:1.6">
-      Yellow sits equidistant between red and green. Classic traffic-light logic — immediately readable without thinking.
-    </div>
-  </div>
-
-</div>
-
-<!-- Legendary gold proximity check -->
-<div style="background:var(--p1);border:1px solid var(--border);border-radius:4px;padding:14px 16px;margin-bottom:8px">
-  <div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:10px">
-    WARN vs Legendary gold — context check
-  </div>
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
-      <div style="width:80px;height:28px;background:#c8b440;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#1a1d21">WARN #c8b440</div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
-      <div style="width:80px;height:28px;background:#d2aa1e;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#1a1d21">LGND #d2aa1e</div>
-    </div>
-    <div style="font-size:11px;color:#556;max-width:400px;line-height:1.6">
-      Similar hue range, but <strong style="color:var(--text)">different contexts</strong> — WARN appears as status tags in panels; Legendary appears as item border/glow. Unlikely to be confused. If it feels too close, Legendary can shift slightly redder toward gold (#d49a10) to widen the gap.
-    </div>
-  </div>
-</div>
-
-
-<!-- ══════════════════════════════════════════════
      FULL PALETTE CONFIRMATION
      ══════════════════════════════════════════════ -->
 <h2>Full Palette — Confirmed Choices</h2>
@@ -236,11 +170,11 @@ h2:first-child { margin-top: 0; }
     <div><span class="tag" style="background:rgba(74,158,106,0.15);color:var(--ok);border:1px solid rgba(74,158,106,0.3)">RUNNING</span></div>
   </div>
   <div class="sem-card">
-    <div class="sem-swatch" style="background:var(--warn-w3)"></div>
+    <div class="sem-swatch" style="background:var(--warn)"></div>
     <div class="sem-label">Warn / Caution</div>
-    <div class="sem-hex" style="color:var(--warn-w3)">#c8b440</div>
-    <div class="bar"><div class="bar-fill" style="width:70%;background:var(--warn-w3)"></div></div>
-    <div><span class="tag" style="background:rgba(200,180,64,0.15);color:var(--warn-w3);border:1px solid rgba(200,180,64,0.3)">LOW POWER</span></div>
+    <div class="sem-hex" style="color:var(--warn)">#c8b440</div>
+    <div class="bar"><div class="bar-fill" style="width:70%;background:var(--warn)"></div></div>
+    <div><span class="tag" style="background:rgba(200,180,64,0.15);color:var(--warn);border:1px solid rgba(200,180,64,0.3)">LOW POWER</span></div>
   </div>
   <div class="sem-card">
     <div class="sem-swatch" style="background:var(--err)"></div>
@@ -294,6 +228,19 @@ h2:first-child { margin-top: 0; }
       </span>
     </div>
   </div>
+
+  <!-- Warn vs legendary check -->
+  <div style="margin-top:8px;background:var(--p1);border:1px solid var(--border);border-radius:4px;padding:12px 14px;">
+    <div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:8px">Warn vs Legendary — context check</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span class="tag" style="background:rgba(200,180,64,0.18);color:#c8b440;border:1px solid rgba(200,180,64,0.35);font-size:10px;padding:3px 9px">WARN #c8b440</span>
+      <span style="color:var(--dim);font-size:12px">vs</span>
+      <span class="tag" style="background:rgba(210,170,30,0.18);color:#d2aa1e;border:1px solid rgba(210,170,30,0.35);font-size:10px;padding:3px 9px">LEGENDARY #d2aa1e</span>
+      <span style="font-size:11px;color:#556;line-height:1.5;max-width:400px">
+        Similar hue range, but different contexts — WARN appears as status tags in panels; Legendary appears as item border/glow. Unlikely to be confused. If it feels too close, Legendary can shift slightly redder (#d49a10) to widen the gap.
+      </span>
+    </div>
+  </div>
 </div>
 
 <!-- Machine panel with all semantic states -->
@@ -329,9 +276,8 @@ h2:first-child { margin-top: 0; }
 
 <div style="margin-top:40px;color:#333;font-size:11px;line-height:2;border-top:1px solid #222;padding-top:16px">
   Confirm or redirect:<br>
-  1. W3 (#c8b440) for WARN — good?<br>
-  2. Epic (#b450c8) vs accent (#8a72aa) — distinct enough?<br>
-  3. Ready to apply this as a proper CSS variable sheet and wire into the existing mocks?
+  1. Epic (#b450c8) vs accent (#8a72aa) — distinct enough?<br>
+  2. Ready to apply this as a proper CSS variable sheet and wire into the existing mocks?
 </div>
 
 </body>
