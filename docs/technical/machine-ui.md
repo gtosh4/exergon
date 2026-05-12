@@ -202,7 +202,7 @@ Block reason display examples:
 | Current draw | Sum of active slot draw rates (display with SI metric prefix, e.g. `560 EU/t`, `1.2 kEU/t`) |
 | Voltage requirement | Max `min_voltage_tier` across all non-excluded recipes in `MachineCapability.capable` |
 
-All numeric quantities (EU/t, item counts) display with SI metric prefixes (k/M/G…). Use a crate (e.g. `metric_prefix` or similar on crates.io) or a small custom formatter; do not hand-roll per call-site.
+All numeric quantities (EU/t, item counts) display with SI metric prefixes (k/M/G…). Use a crate (e.g. `uom`, `unit-prefix` or similar on crates.io) or a small custom formatter; do not hand-roll per call-site.
 
 Status line:
 
