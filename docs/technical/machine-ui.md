@@ -25,9 +25,9 @@ The Machine UI is a side-rail overlay opened when the player interacts with a pl
 
 **Left rail** — machine identity (type, tier, player name), per-slot recipe progress, power status, module slots, port binding configuration.
 
-**Right pane** — recipe table: all recipes in `MachineCapability`, with per-recipe C (autocraft) and P (passive) flags and priority editing.
+**Right pane** — recipe table: all recipes in `MachineCapability`, with per-recipe C (craft) and P (passive) flags and priority editing.
 
-This document also defines the **revised `MachineJobPolicy`** structure that replaces the single-enum form in `crafting.md §4`. The per-recipe model (`per_recipe: HashMap<RecipeId, RecipePolicy>`) carries independent C/P flags per recipe, with machine-level `AutoJobMode` as the default. `crafting.md §4` defers to this document for the canonical `MachineJobPolicy` definition.
+This document also defines the **revised `MachineJobPolicy`** structure that replaces the single-enum form in `crafting.md §4`. The per-recipe model (`per_recipe: HashMap<RecipeId, RecipePolicy>`) carries independent C/P flags per recipe, with machine-level `CraftingJobMode` and `passive: bool` as defaults. `crafting.md §4` defers to this document for the canonical `MachineJobPolicy` definition.
 
 ---
 
@@ -98,19 +98,21 @@ This definition supersedes `crafting.md §4`. The single `JobMode` enum is repla
 ```rust
 #[derive(Component)]
 pub struct MachineJobPolicy {
-    pub auto_mode: AutoJobMode,
+    pub crafting_mode: CraftingJobMode,
+    pub passive: bool,                        // machine-wide passive default
     pub per_recipe: HashMap<RecipeId, RecipePolicy>,
 }
 
-/// Per-recipe flags. Missing entry = defaults: auto_mode governs C eligibility, P = off.
+/// Per-recipe overrides. None on a field = use machine-level default.
 pub struct RecipePolicy {
-    pub passive: bool,               // P flag: keep a slot running this recipe continuously
-    pub auto_override: Option<bool>, // None = follow auto_mode; Some(true) = force include; Some(false) = exclude
-    pub priority: Option<i32>,       // per-recipe priority override; None = use AutoJobMode::Auto.priority
+    pub passive: Option<bool>,                   // None = use MachineJobPolicy.passive
+    pub crafting_mode: Option<CraftingJobMode>,  // None = use MachineJobPolicy.crafting_mode
+                                                 // Some(Craft { priority, .. }) = force-include with per-recipe priority
+                                                 // Some(Excluded) = force-exclude even if machine is Craft
 }
 
-pub enum AutoJobMode {
-    Auto {
+pub enum CraftingJobMode {
+    Craft {
         priority: i32,
         category_filter: Option<RecipeCategory>,
     },
@@ -118,13 +120,20 @@ pub enum AutoJobMode {
 }
 ```
 
-**C flag effective state:**
-- `auto_mode == Auto` and `auto_override != Some(false)` → **ON**
-- `auto_override == Some(true)` → **ON** (force-included even if `auto_mode == Excluded`)
-- `auto_override == Some(false)` → **OFF**
-- `auto_mode == Excluded` and no override → **OFF**
+**C flag effective state** (per recipe):
+- `per_recipe[id].crafting_mode == Some(Craft { .. })` → **ON** (per-recipe override, uses its own priority)
+- `per_recipe[id].crafting_mode == Some(Excluded)` → **OFF** (force-excluded)
+- `per_recipe[id].crafting_mode == None` and machine `crafting_mode == Craft` → **ON** (inherits machine priority)
+- `per_recipe[id].crafting_mode == None` and machine `crafting_mode == Excluded` → **OFF**
 
-**Slot assignment:** Slots are parallel processors of the machine's single policy — no per-slot configuration. `passive_recipe_system` fills free slots with passive recipes first (any recipe where `per_recipe[id].passive == true` that is not currently running, ordered by priority). `job_dispatcher_system` fills remaining free slots: checks `auto_mode` and recipe overrides, dispatches to any available slot.
+**P flag effective state** (per recipe):
+- `per_recipe[id].passive == Some(true)` → **ON** (force passive on)
+- `per_recipe[id].passive == Some(false)` → **OFF** (force passive off)
+- `per_recipe[id].passive == None` → inherits `MachineJobPolicy.passive`
+
+**Passive runtime:** `MachineJobPolicy` is **pure config** — no runtime state. `RecipePolicy.passive: Option<bool>` declares intent. Actual slot state lives in `RecipeProcessor.slots`. `passive_recipe_system` each tick: cross-references passive-flagged recipes against occupied slots; starts a passive recipe on any free slot where it is not already running.
+
+**Slot assignment:** Slots are parallel processors of the machine's single policy — no per-slot configuration. `passive_recipe_system` fills free slots with passive recipes first (any recipe where effective passive = true that is not currently running, ordered by effective priority). `job_dispatcher_system` fills remaining free slots: checks `crafting_mode` and per-recipe overrides, dispatches to any available slot.
 
 **Passive limit (network-wide, future scope):** Level-maintainer behavior ("keep N items in the network") is deferred to a future `ProductionGoal` component that operates network-wide rather than per-machine. The passive P flag is a simple boolean for now.
 
@@ -271,21 +280,26 @@ Locked recipes (not in `TechTreeProgress.unlocked_recipes`): greyed row, lock ic
 
 ### 5.2 Mode flags
 
-**C flag (autocraft eligible):**
+**C flag (craft eligible):**
 
-- **ON** — `auto_mode == Auto` and `per_recipe[id].auto_override != Some(false)`, OR `auto_override == Some(true)` (force-includes recipe even when `auto_mode == Excluded`).
-- **OFF** — `per_recipe[id].auto_override == Some(false)`, or `auto_mode == Excluded` with no override.
-- If `auto_mode == Excluded` and player enables C on any recipe: `auto_mode` switches to `Auto { priority: 0, category_filter: None }`. UI shows a one-time hint: "Machine now accepts auto-craft jobs."
+- **ON** — `per_recipe[id].crafting_mode == Some(Craft { .. })`, OR `crafting_mode == None` and machine `crafting_mode == Craft`.
+- **OFF** — `per_recipe[id].crafting_mode == Some(Excluded)`, or both `None` and machine `crafting_mode == Excluded`.
+- Setting C ON when recipe has `Some(Excluded)`: clears to `None` (reverts to machine default).
+- Setting C ON on any recipe when machine `crafting_mode == Excluded` with no per-recipe override: switches machine `crafting_mode` to `Craft { priority: 0, category_filter: None }`. UI shows a one-time hint: "Machine now accepts craft jobs."
 
 **P flag (passive):**
 
-- **Off** — `per_recipe[id]` absent or `passive == false`.
-- **On** — `per_recipe[id].passive == true`.
-- Multiple recipes can be P-flagged simultaneously. `passive_recipe_system` fills free slots with P-flagged recipes ordered by priority (per-recipe priority if set, else `auto_mode.priority`). If passive recipes outnumber slots, lower-priority ones wait for a slot to free.
+- **Off** — effective passive = false (per-recipe `Some(false)` or `None` with machine `passive == false`).
+- **On** — effective passive = true (per-recipe `Some(true)` or `None` with machine `passive == true`).
+- Multiple recipes can be P-flagged simultaneously. `passive_recipe_system` fills free slots with P-flagged recipes ordered by effective priority. If passive recipes outnumber slots, lower-priority ones wait for a slot to free.
+
+**Override indicator:**
+
+C and P are two-state toggles (ON/OFF). When a recipe has an explicit per-recipe override (`RecipePolicy` field is `Some(...)`), the flag renders with a small indicator dot. No dot = value inherited from machine default. Right-clicking a flag with a dot shows a "Reset to default" action, which emits `SetRecipeCraftingMode { mode: None }` or `SetRecipePassive { passive: None }` to clear the override. Right-clicking an inherited flag has no action.
 
 **Priority field:**
 
-Editable integer. Writes to `per_recipe[id].priority`. Blank = `None` (use `auto_mode.priority`). Higher integer = preferred by `job_dispatcher_system` and `passive_recipe_system`.
+Editable integer. Sets `per_recipe[id].crafting_mode = Some(Craft { priority: value, category_filter: None })` (upserts). Clearing it sets `crafting_mode = None` (reverts to machine default). Higher integer = preferred by `job_dispatcher_system` and `passive_recipe_system`.
 
 ### 5.3 Edits
 
@@ -293,11 +307,10 @@ All recipe table edits emit `MachinePolicyEdit` events consumed by `machine_poli
 
 ```rust
 pub enum MachinePolicyEdit {
-    SetPFlag { machine: Entity, recipe_id: RecipeId, passive: bool },
-    SetCOverride { machine: Entity, recipe_id: RecipeId, auto_override: Option<bool> },
-    SetRecipePriority { machine: Entity, recipe_id: RecipeId, priority: Option<i32> },
-    SetGlobalPriority { machine: Entity, priority: i32 },
-    SetAutoMode { machine: Entity, mode: AutoJobMode },
+    SetRecipePassive { machine: Entity, recipe_id: RecipeId, passive: Option<bool> },
+    SetMachinePassive { machine: Entity, passive: bool },
+    SetRecipeCraftingMode { machine: Entity, recipe_id: RecipeId, mode: Option<CraftingJobMode> },
+    SetMachineCraftingMode { machine: Entity, mode: CraftingJobMode },
 }
 ```
 
@@ -387,7 +400,7 @@ pub enum PortPolicyEditKind {
 | Port binding section — flow mode editing (`PortPolicyEdit`) | — | ✓ |
 | Recipe table — full (C/P flags, priority editing) | — | ✓ |
 | Recipe table — VS stub (P flag only, hardcoded recipe, no C flag) | ✓ | — |
-| Auto mode category filter | — | ✓ |
+| Craft mode category filter | — | ✓ |
 | Alert jump-to machine UI | — | ✓ |
 
 **VS simplifications:**
@@ -406,9 +419,9 @@ pub enum PortPolicyEditKind {
 | Machine despawned while UI open | `machine_ui_open_system` observes `OnRemove<Machine>` for `FocusedMachine.entity`; clears `FocusedMachine`, closes UI. |
 | Player sets P flag on locked recipe | P selector is non-interactive for locked recipes. No event emitted. |
 | Player disables P on a recipe while it is running | `per_recipe[id].passive = false`. In-progress run completes normally. `passive_recipe_system` does not restart that recipe on next slot idle. |
-| Player disables C on recipe currently InProgress | In-progress job runs to completion. `per_recipe[id].auto_override = Some(false)` only affects future dispatch. |
+| Player disables C on recipe currently InProgress | In-progress job runs to completion. `per_recipe[id].crafting_mode = Some(Excluded)` only affects future dispatch. |
 | Player disables C on all recipes while a job is `Dispatched` (not yet started) | `MachineJobPolicyChanged` fires. `job_dispatcher_system` does not un-assign already-dispatched jobs. Job stays assigned; `recipe_start_system` retries per its normal triggers. Player must wait or cancel the plan via Terminal. |
 | More passive recipes than slots | `passive_recipe_system` fills each free slot with the highest-priority passive recipe not already running. Lower-priority passive recipes wait. If all slots are busy with passive, no auto jobs are dispatched until a passive completes and a slot frees. |
-| Machine has 1 slot; passive + auto both configured | Passive fills the single slot. `job_dispatcher_system` finds no free slot and skips machine. Machine UI shows hint: "Install parallel slot module to enable concurrent auto-craft." |
+| Machine has 1 slot; passive + auto both configured | Passive fills the single slot. `job_dispatcher_system` finds no free slot and skips machine. Machine UI shows hint: "Install parallel slot module to enable concurrent craft jobs." |
 | Port policy edited while recipe is running | Change takes effect immediately on the component. Inputs were already consumed at start (`recipe_start_system`). New `PortPolicy` affects output routing in `recipe_completion_system` for the current run and all subsequent ones. |
 | Player opens UI for a machine on a network the player's body is not on | UI opens normally — no network restriction. Port binding shows connected network names for that machine's ports regardless of player body location. |

@@ -1,6 +1,6 @@
 # Crafting System Design
 
-ECS components, system step-by-step logic, events/messages, and edge cases for the crafting system. Read `gdd.md §8` and `technical-design.md §5–6` for design intent. Covers recipe execution, catalyst inputs, module effects on recipes, auto-crafting job dispatch, and recipe graph runtime integration.
+ECS components, system step-by-step logic, events/messages, and edge cases for the crafting system. Read `gdd.md §8` and `technical-design.md §5–6` for design intent. Covers recipe execution, catalyst inputs, module effects on recipes, craft job dispatch, and recipe graph runtime integration.
 
 ---
 
@@ -13,7 +13,7 @@ ECS components, system step-by-step logic, events/messages, and edge cases for t
 5. [Recipe Execution](#5-recipe-execution)
 6. [Catalyst Inputs](#6-catalyst-inputs)
 7. [Module Effects on Recipe Execution](#7-module-effects-on-recipe-execution)
-8. [Auto-crafting Job Dispatch](#8-auto-crafting-job-dispatch)
+8. [Craft Job Dispatch](#8-craft-job-dispatch)
 9. [Systems](#9-systems)
 10. [Messages](#10-messages)
 11. [Execution Order](#11-execution-order)
@@ -24,9 +24,9 @@ ECS components, system step-by-step logic, events/messages, and edge cases for t
 
 ## 1. Overview
 
-Crafting is the execution layer for the recipe graph. A machine runs a recipe by consuming input items, holding power, advancing a progress timer, and producing output items on completion. The auto-crafting network (logistics layer) dispatches crafting jobs to capable machines and resolves multi-step dependency chains automatically.
+Crafting is the execution layer for the recipe graph. A machine runs a recipe by consuming input items, holding power, advancing a progress timer, and producing output items on completion. The logistics network dispatches craft jobs to capable machines and resolves multi-step dependency chains automatically.
 
-Three todos from `design-todos.md` are resolved here: **Recipe Graph Runtime Integration**, **Catalyst Inputs**, and **Auto-crafting Job Dispatch**. Module slot mechanics and snap detection are out of scope (separate module system spec); this document covers only how module components alter recipe execution.
+Three todos from `design-todos.md` are resolved here: **Recipe Graph Runtime Integration**, **Catalyst Inputs**, and **Craft Job Dispatch**. Module slot mechanics and snap detection are out of scope (separate module system spec); this document covers only how module components alter recipe execution.
 
 ---
 
@@ -69,7 +69,7 @@ Slot count is set at machine spawn (1) and updated when a parallel-slot module i
 
 ### CraftingJob entity
 
-One entity per dispatched job. Spawned by `crafting_plan_resolver_system` (auto-craft) or `manual_recipe_system` (manual mode).
+One entity per dispatched job. Spawned by `crafting_plan_resolver_system` (craft job) or `manual_recipe_system` (manual mode).
 
 ```
 CraftingJob entity
@@ -90,7 +90,7 @@ pub enum JobStatus {
 
 ### CraftingPlan entity
 
-Spawned by `crafting_plan_resolver_system` per auto-craft request. Groups all jobs belonging to one plan. A plan is scoped to a single logistics network — the dispatcher only assigns jobs to machines on that network.
+Spawned by `crafting_plan_resolver_system` per craft job request. Groups all jobs belonging to one plan. A plan is scoped to a single logistics network — the dispatcher only assigns jobs to machines on that network.
 
 ```
 CraftingPlan entity
@@ -220,10 +220,11 @@ Each machine entity carries a `MachineJobPolicy` component. Configured through t
 
 `MachineJobPolicy` uses a per-recipe model:
 
-- **`per_recipe: HashMap<RecipeId, RecipePolicy>`** — per-recipe `passive` bool and `auto_override`. Any number of recipes can have `passive = true`; `passive_recipe_system` fills free slots with them (no `CraftingJob` entity created for passive runs).
-- **`auto_mode: AutoJobMode`** — `Auto { priority, category_filter }` or `Excluded`. Machine-level default for dispatcher eligibility; `auto_override` on individual recipes can force-include or force-exclude.
+- **`per_recipe: HashMap<RecipeId, RecipePolicy>`** — per-recipe `passive: Option<bool>` and `crafting_mode: Option<CraftingJobMode>`. Any number of recipes can have effective passive = true; `passive_recipe_system` fills free slots with them (no `CraftingJob` entity created for passive runs). Per-recipe `crafting_mode` overrides the machine default when set.
+- **`crafting_mode: CraftingJobMode`** — `Craft { priority, category_filter }` or `Excluded`. Machine-level default; per-recipe `crafting_mode` can force-include (`Some(Craft { .. })`) or force-exclude (`Some(Excluded)`) individual recipes.
+- **`passive: bool`** — machine-wide passive default; per-recipe `passive: Option<bool>` overrides.
 
-Slot assignment: slots are parallel processors of the single policy. `passive_recipe_system` fills free slots with passive recipes first (ordered by priority); `job_dispatcher_system` fills remaining free slots with auto jobs. A machine with 1 slot and passive configured accepts no concurrent auto-craft jobs.
+Slot assignment: slots are parallel processors of the single policy. `passive_recipe_system` fills free slots with passive recipes first (ordered by effective priority); `job_dispatcher_system` fills remaining free slots with craft jobs. A machine with 1 slot and passive configured accepts no concurrent craft jobs.
 
 `recipe_overrides` only applies in `Auto` mode.
 
@@ -233,7 +234,7 @@ Slot assignment: slots are parallel processors of the single policy. `passive_re
 
 ### recipe_start_system
 
-**Trigger:** `JobDispatched { job, machine, slot }` (auto-craft path) or `PassiveRecipeStart { machine, slot, recipe_id }` (passive-mode path). `passive_recipe_system` emits `PassiveRecipeStart` and is itself triggered by `MachineSlotIdle` and `NetworkStorageChanged` — the latter handles newly available inputs unblocking a stalled passive machine.
+**Trigger:** `JobDispatched { job, machine, slot }` (craft job path) or `PassiveRecipeStart { machine, slot, recipe_id }` (passive-mode path). `passive_recipe_system` emits `PassiveRecipeStart` and is itself triggered by `MachineSlotIdle` and `NetworkStorageChanged` — the latter handles newly available inputs unblocking a stalled passive machine.
 
 Step by step:
 
@@ -246,7 +247,7 @@ Step by step:
 5. Check catalyst availability — for each `recipe.inputs` where `consumed == false`, call `has_items` on the item's source network (subtracts `NetworkReservations.catalyst[item]` for that network). If `available < required`, block: emit `RecipeBlockedCatalysts { machine, slot }`. Retries on `NetworkStorageChanged` and on `CatalystReservationReleased`.
 6. All checks pass:
    a. Pull `recipe.inputs` where `consumed == true` from the plan's logistics network.
-   b. For auto-craft path: for each pulled item, decrement `network.NetworkReservations.plan_output[(plan, item)]`.
+   b. For craft job path: for each pulled item, decrement `network.NetworkReservations.plan_output[(plan, item)]`.
    c. Reserve `recipe.inputs` where `consumed == false`: increment `network.NetworkReservations.catalyst[item]`; add `CatalystReservations` component to job entity (records item and quantity — network is always the plan's network).
    d. Allocate amp draw from power network.
    e. Set `RecipeSlot.state = Running`, `progress = 0.0`, `job = Some(job_entity)`.
@@ -331,7 +332,7 @@ Template recipes may also define catalyst inputs; they are copied identically to
 
 ### Reservation semantics
 
-Catalyst inputs (`consumed: false`) are **not pulled** from the logistics network during job execution — they remain in place throughout the job. They are **reserved**: unavailable to other jobs, other auto-craft requests, or passive pulls until the reservation is released.
+Catalyst inputs (`consumed: false`) are **not pulled** from the logistics network during job execution — they remain in place throughout the job. They are **reserved**: unavailable to other jobs, other craft job requests, or passive pulls until the reservation is released.
 
 Reservations are stored on the `NetworkReservations` component of the specific network where the catalyst physically resides:
 
@@ -394,7 +395,7 @@ The tradeoff between speed and efficiency modules is a function of their specifi
 
 ---
 
-## 8. Auto-crafting Job Dispatch
+## 8. Craft Job Dispatch
 
 ### Crafting plan resolution
 
@@ -424,10 +425,10 @@ Step by step:
 Step by step:
 
 1. **On `MachineSlotIdle { machine, slot }`:**
-   a. Skip if machine has no free slot or `auto_mode == Excluded` (with no force-included recipe overrides).
+   a. Skip if machine has no free slot or effective `crafting_mode == Excluded` for all recipes (no force-included overrides).
    b. Collect all `Queued` jobs (status = Queued, no blocking prerequisites).
    c. Filter to jobs whose `recipe_id` is in `machine.MachineCapability.capable`.
-   d. Apply `per_recipe` overrides: remove recipes where effective C = OFF; collect per-recipe priority (fallback to `auto_mode.priority`).
+   d. Apply `per_recipe` overrides: remove recipes where effective C = OFF; collect per-recipe priority (fallback to machine `crafting_mode.priority`).
    e. If no candidates: machine stays idle.
    f. Select highest-priority job (tiebreak: FIFO by job creation order).
    g. Set job status to `Dispatched { machine, slot }`.
@@ -436,7 +437,7 @@ Step by step:
 2. **On `JobQueued { job }`:**
    a. Collect all machines with a free slot and effective C = ON for this recipe.
    b. For each candidate, check if `recipe_id` is in that machine's `MachineCapability.capable` and C is ON.
-   c. Among eligible machines, select highest-priority machine (by per-recipe priority or `auto_mode.priority`, tiebreak FIFO).
+   c. Among eligible machines, select highest-priority machine (by per-recipe priority or machine `crafting_mode.priority`, tiebreak FIFO).
    d. If a match found: proceed as step 1f–h.
    e. If no match: job remains `Queued` until a machine becomes idle.
 
@@ -594,7 +595,7 @@ Power systems complete before `LogisticsSimSystems` — generator buffers are fi
 | RecipeGraph resource + lookup indexes | ✓ | ✓ |
 | TechTreeProgress unlock gating | — | ✓ |
 | MachineCapability auto-registration | — | ✓ |
-| Auto-crafting job dispatch (CraftingPlan + dispatcher) | — | ✓ |
+| Craft job dispatch (CraftingPlan + dispatcher) | — | ✓ |
 | Catalyst inputs + plan output isolation (NetworkReservations) | — | ✓ |
 | Job prerequisite resolution (multi-step plans) | — | ✓ |
 | Recipe-level policy overrides | — | ✓ |
@@ -613,8 +614,8 @@ For VS: one machine type, one tier. `MachineJobPolicy` defaults to one hardcoded
 | Parallel slot module detached while slot 1 is running | Detachment blocked: module system rejects detach while any slot `state != Idle`. Player must wait for slot 1 to complete. |
 | Parallel slot module attached while slot 0 is running | Allowed: slot 0 continues; slot 1 starts idle. `RecipeProcessor.slots.push(RecipeSlot::default())`. |
 | PassiveLoop machine: inputs unavailable at completion | `recipe_completion_system` emits `PassiveRecipeStart`. `recipe_start_system` checks input availability, blocks on `RecipeBlockedInputs`. Machine idles until `NetworkStorageChanged` fires with sufficient inputs. |
-| Auto-craft plan requested for item with no unlocked recipe | `crafting_plan_resolver_system` emits `PlanResolutionFailed { reason: NoRecipe }`. No jobs created. |
-| Auto-craft plan requested; recipe exists but no capable machine exists | Plan resolves and jobs are spawned as `Queued`. Jobs remain queued indefinitely until a capable machine is placed and `MachineCapabilityUpdated` triggers the dispatcher. |
+| Craft job requested for item with no unlocked recipe | `crafting_plan_resolver_system` emits `PlanResolutionFailed { reason: NoRecipe }`. No jobs created. |
+| Craft job requested; recipe exists but no capable machine exists | Plan resolves and jobs are spawned as `Queued`. Jobs remain queued indefinitely until a capable machine is placed and `MachineCapabilityUpdated` triggers the dispatcher. |
 | Job dispatched to machine; power voltage too low at start | `recipe_start_system` emits `RecipeBlockedVoltage`. Job stays `Dispatched`. No retry is automatic — player must upgrade the power network. The dispatcher does not reassign the job; the blocked start is a signal to the player. |
 | Job dispatched; amp capacity full at start | `recipe_start_system` emits `RecipeBlockedAmps`. Job stays `Dispatched`. `recipe_start_system` retries when `AmpHeadroomRestored` fires (another recipe completes and frees amps). |
 | CraftingPlan cancelled mid-execution | `plan_cancellation_system` runs (see §8). |
