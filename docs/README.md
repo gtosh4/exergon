@@ -54,6 +54,9 @@ ECS components, system logic (recipe execution, job dispatch, catalyst reservati
 ### [`technical/inventory.md`](technical/inventory.md) — Inventory System Design
 ECS components, system logic (hotbar, drone inventory, storage units, Terminal screen runtime data, goal tracker), events, edge cases, and execution order. Covers the no-personal-inventory model, hotbar-as-network-view, drone deposit flow, NetworkFlowLedger (Δ/min), and pin-based goal tracker. VS and MVP scope noted inline. **Read before implementing the hotbar, Terminal screen, drone deposit, or storage capacity.**
 
+### [`technical/machine-ui.md`](technical/machine-ui.md) — Machine UI Technical Design
+ECS components, system logic (open/close, identity, progress, power status, module slots, port binding editor, recipe table C/P flag editing), events, edge cases. Also defines the **revised `MachineJobPolicy`** (supersedes `crafting.md §4`) with independent passive and auto tracks. VS and MVP scope noted inline. **Read before implementing the machine panel, `MachineJobPolicy`, `PortPolicy` editing, or `SlotBlockReason`.**
+
 ### [`technical/tech-tree-design.md`](technical/tech-tree-design.md) — Tech Tree Content Design
 Content design layer for the tech tree: node definitions, pacing targets, unlock structure. Sits between `gdd.md §7` (design intent) and implementation. Status: first draft, pacing unvalidated. **Update when tech tree nodes or unlock order changes.**
 

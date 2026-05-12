@@ -214,38 +214,18 @@ The dispatcher reads `MachineCapability` directly; it does not re-query `RecipeG
 
 ## 4. Machine Job Policy
 
-Each machine entity carries a `MachineJobPolicy` component. Configured through the machine's UI panel (see machine UI mock). The dispatcher reads this component when selecting machines for job assignment.
+Each machine entity carries a `MachineJobPolicy` component. Configured through the machine UI panel (see `machine-ui.md`). The dispatcher reads this component when selecting machines for job assignment.
 
-```rust
-#[derive(Component)]
-pub struct MachineJobPolicy {
-    pub mode: JobMode,
-    pub overrides: HashMap<RecipeId, RecipeOverride>,
-}
+> **Canonical definition in `machine-ui.md §3`.** This section summarizes the model. For the full struct definition and slot assignment rules, see [`machine-ui.md §3`](machine-ui.md#3-ecs-structure).
 
-pub enum JobMode {
-    Auto {
-        priority: i32,                        // higher = preferred by dispatcher
-        category_filter: Option<RecipeCategory>,  // None = all categories
-    },
-    PassiveLoop(RecipeId),   // run this recipe continuously; auto-restart on completion
-    PassiveOnce(RecipeId),   // run this recipe once; go idle afterward
-    Excluded,                // never accept auto-craft jobs
-}
+`MachineJobPolicy` uses a per-recipe model:
 
-pub struct RecipeOverride {
-    pub priority: Option<i32>,  // overrides Auto priority for this specific recipe
-    pub excluded: bool,         // exclude this recipe from this machine even in Auto mode
-}
-```
+- **`per_recipe: HashMap<RecipeId, RecipePolicy>`** — per-recipe `passive` bool and `auto_override`. Any number of recipes can have `passive = true`; `passive_recipe_system` fills free slots with them (no `CraftingJob` entity created for passive runs).
+- **`auto_mode: AutoJobMode`** — `Auto { priority, category_filter }` or `Excluded`. Machine-level default for dispatcher eligibility; `auto_override` on individual recipes can force-include or force-exclude.
 
-**Auto mode:** machine is eligible for auto-crafting job dispatch. Priority determines preference when multiple machines can run the same job — higher priority machines are assigned first. Category filter restricts the machine to jobs of matching recipe category. Recipe-level overrides further tune per-recipe priority or exclusion.
+Slot assignment: slots are parallel processors of the single policy. `passive_recipe_system` fills free slots with passive recipes first (ordered by priority); `job_dispatcher_system` fills remaining free slots with auto jobs. A machine with 1 slot and passive configured accepts no concurrent auto-craft jobs.
 
-**PassiveLoop / PassiveOnce:** machine is not eligible for auto-craft dispatch. The player pins a recipe; the machine runs it passively and automatically without dispatcher involvement. `passive_recipe_system` handles these machines directly. Inputs are pulled from the logistics network; outputs are pushed back. No `CraftingJob` entity is created for passive-mode runs — progress is tracked directly on the `RecipeSlot`.
-
-**Excluded:** machine is invisible to the dispatcher; useful for machines reserved for specific workflows.
-
-`overrides` only applies in `Auto` mode. In `ManualLoop`/`ManualOnce`/`Excluded`, overrides are ignored.
+`recipe_overrides` only applies in `Auto` mode.
 
 ---
 
@@ -444,19 +424,19 @@ Step by step:
 Step by step:
 
 1. **On `MachineSlotIdle { machine, slot }`:**
-   a. Skip if machine's `MachineJobPolicy.mode` is not `Auto`.
+   a. Skip if machine has no free slot or `auto_mode == Excluded` (with no force-included recipe overrides).
    b. Collect all `Queued` jobs (status = Queued, no blocking prerequisites).
    c. Filter to jobs whose `recipe_id` is in `machine.MachineCapability.capable`.
-   d. Apply `MachineJobPolicy.overrides`: remove excluded recipes; collect priority values.
+   d. Apply `per_recipe` overrides: remove recipes where effective C = OFF; collect per-recipe priority (fallback to `auto_mode.priority`).
    e. If no candidates: machine stays idle.
    f. Select highest-priority job (tiebreak: FIFO by job creation order).
    g. Set job status to `Dispatched { machine, slot }`.
    h. Emit `JobDispatched { job, machine, slot }` → triggers `recipe_start_system`.
 
 2. **On `JobQueued { job }`:**
-   a. Collect all idle slots across all `Auto`-mode machines.
-   b. For each idle slot, check if `recipe_id` is in that machine's `MachineCapability.capable` and not overridden-excluded.
-   c. Among eligible machines, select highest-priority machine (by `MachineJobPolicy.mode.priority`, tiebreak FIFO).
+   a. Collect all machines with a free slot and effective C = ON for this recipe.
+   b. For each candidate, check if `recipe_id` is in that machine's `MachineCapability.capable` and C is ON.
+   c. Among eligible machines, select highest-priority machine (by per-recipe priority or `auto_mode.priority`, tiebreak FIFO).
    d. If a match found: proceed as step 1f–h.
    e. If no match: job remains `Queued` until a machine becomes idle.
 
@@ -620,9 +600,7 @@ Power systems complete before `LogisticsSimSystems` — generator buffers are fi
 | Recipe-level policy overrides | — | ✓ |
 | Parallel slot module | — | ✓ |
 | Speed/efficiency module effects | — | ✓ |
-| PassiveOnce mode | — | ✓ |
-
-For VS: one machine type, one tier. `MachineJobPolicy` defaults to `PassiveLoop` with a hardcoded recipe. No dispatcher, no plans, no catalysts. `RecipeGraph` resource exists but contains only the VS recipe set. `TechTreeProgress.unlocked_recipes` is not gated.
+For VS: one machine type, one tier. `MachineJobPolicy` defaults to one hardcoded recipe with `passive = true`. No dispatcher, no plans, no catalysts. `RecipeGraph` resource exists but contains only the VS recipe set. `TechTreeProgress.unlocked_recipes` is not gated.
 
 ---
 
