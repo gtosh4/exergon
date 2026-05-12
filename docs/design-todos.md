@@ -21,12 +21,12 @@ Systems that need a `networks.md`-depth spec before implementation: ECS componen
 
 ### Module System
 
-`technical-design.md §5` mentions modules snap to attachment points and carry functional tradeoffs. Needs:
+`technical-design.md §5` mentions modules snap to attachment points and carry functional tradeoffs. Runtime effects (multiplier storage, which system reads it) are specified in `technical/crafting.md §module-effects`. Still needs:
 
 - ECS components on module entity
-- How module effects apply during recipe execution: where multiplier is stored, which system reads it
 - Slot attachment: snap detection system, component recording slot occupancy
-- Concrete tradeoff definitions: speed vs. efficiency (formula), parallel processing slots (how do parallel slots change recipe execution — run two recipes simultaneously? halve time?), buffer capacity (what buffer?)
+- Buffer capacity: what buffer does "buffer capacity" refer to?
+- Parallel processing slots: run two recipes simultaneously, or halve time?
 
 ---
 

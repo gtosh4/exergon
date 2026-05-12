@@ -129,17 +129,17 @@ Everything not listed above, including: underground layer, digger drone, reactiv
   - Quick save & quick load
 - In-game settings
 - In-game recipe graph viewer with ratio calculator
-  - see [expert](./planner_expert_mock_v0.1.png) + [sanky](./planner_sanky_mock_v0.1.png)
+  - see [expert](./images/planner_expert_mock_v0.1.png) + [sanky](./images/planner_sanky_mock_v0.1.png)
   - Bottleneck visualization
 - Better inventory screen
-  - see [mock](./inventory_ui_mock_v0.1.png)
+  - see [mock](./images/inventory_ui_mock_v0.1.png)
   - Drag-drop with hotbar
   - Codex browser
 - Machine UI
-  - see [mock](./machine_ui_mock_v0.1.png)
+  - see [mock](./images/machine_ui_mock_v0.1.png)
 - Hotbar cycling
 - Tech tree UI
-  - see [mock](./tech_tree_mock_v0.1.png)
+  - see [mock](./images/tech_tree_mock_v0.1.png)
 - World map
   - Biomes/regions
 - Minimap

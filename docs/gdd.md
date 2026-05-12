@@ -531,7 +531,7 @@ The world is not hostile in the traditional sense — there are no enemies that 
 
 The world's reactivity profile is seeded — some worlds react quickly and dramatically, others are resilient. This is a meaningful run modifier that affects pacing and strategy.
 
-> ⚠️ **OPEN QUESTION:** Should world reactivity create new opportunities as well as problems — e.g., reactive events that open access to new resources or discovery sites? This would make reactivity feel more dynamic and less purely punishing.
+> **Resolved:** World reactivity will also create opportunities — reactive events open access to new resources and discovery sites. Post-MVP; considered core to the design, not optional. See §18 Q#4.
 
 ---
 

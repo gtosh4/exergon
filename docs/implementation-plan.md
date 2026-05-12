@@ -75,25 +75,29 @@ Xalite deposit markers exist in the world. Gateway ruins does not exist yet.
 
 ## Phase 3 — Gateway Activation
 
-The gateway is a world-spawned machine. Need activation logic when player right-clicks it.
+The gateway is a world-spawned machine with an `EscapeObjective` marker. Escape fires when its recipe job completes. No gateway-specific interaction system needed — machine enable/disable and recipe execution use existing systems. See `technical/escape-condition.md`.
 
-**3-1. Gateway activation interaction** (`src/machine/mod.rs` or `src/world/interaction.rs`)
-- [ ] Right-click gateway machine in `Exploring` mode → `GatewayInteractEvent { gateway: Entity }`
-- [ ] `gateway_activate_system`: on `GatewayInteractEvent` — check `gateway_theory` is unlocked (gating interaction on discovery) AND logistics network connected to gateway contains `gateway_key` (qty ≥ 1) AND gateway is on a powered network with `speed_factor >= 1.0` → fire `EscapeEvent`; else show diagnostic in machine status panel ("Undiscovered" / "Missing key" / "Insufficient power")
+**3-1. `EscapeObjective` component** (`src/escape/mod.rs`)
+- [ ] Add `EscapeObjective` marker component (no fields)
+- [ ] World generation spawns gateway entity with `EscapeObjective` alongside existing `Machine` component
 
-**3-2. `EscapeEvent`** (`src/lib.rs` or `src/game/mod.rs`)
-- [ ] Add `EscapeEvent` Bevy event
-- [ ] Handler: on `EscapeEvent` → record escape time in `RunState` → transition to `GameState::Escaped`
+**3-2. `escape_objective_system`** (`src/escape/mod.rs`)
+- [ ] Reads `RecipeJobCompleted { machine: Entity, .. }` events each tick
+- [ ] If `machine` has `EscapeObjective`: fire `EscapeEvent { escape_time_secs: current_time }`
+- [ ] Test 1: `RecipeJobCompleted` on `EscapeObjective` machine → `EscapeEvent` fires
+- [ ] Test 2: `RecipeJobCompleted` on non-escape machine → no `EscapeEvent`
+
+**3-3. `EscapeEvent`** (`src/lib.rs` or `src/game/mod.rs`)
+- [ ] Add `EscapeEvent { escape_time_secs: f32 }` Bevy event
+- [ ] Handler: on `EscapeEvent` → write run outcome to save file → transition to `GameState::Escaped`
 
 ---
 
-## Phase 4 — Run State + Win Screen
+## Phase 4 — Win Screen
 
-**4-1. `RunState` resource** (`src/game/mod.rs` or new `src/run_state.rs`)
-- [ ] `RunState { seed: u64, status: RunStatus, start_time: f32, escape_time: Option<f32> }`
-- [ ] `RunStatus` enum: `InProgress`, `Escaped`
-- [ ] Populated at game start from `RunSeed` resource; `escape_time` set on `EscapeEvent`
-- [ ] Test: RunState initializes with correct seed and InProgress status
+**4-1. Run outcome** (`src/save/mod.rs`)
+- [ ] Save system consumes `EscapeEvent`; writes `{ seed, escape_time_secs }` to save file metadata
+- [ ] No `RunState` runtime resource — outcome is save file metadata, not runtime state (see `technical/escape-condition.md §2`)
 
 **4-2. `GameState::Escaped`** (`src/game/mod.rs`)
 - [ ] Add `Escaped` variant to `GameState` enum
