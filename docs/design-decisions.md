@@ -29,6 +29,22 @@ Rationale and context behind key decisions. The GDD contains the *what*; this do
 
 ---
 
+## Inventory model — no personal inventory; hotbar is a network view
+
+**Decision:** The player AI has no personal inventory. Items live in the logistics network or in a drone's local buffer. The hotbar is a network-linked shortcut panel — each slot is a configured reference to an item type in the active network, not a personal item slot. The hotbar holds only tools and placeables.
+
+**Why:** Consistent with the AI-as-scientist identity and Pillar 2 ("the design phase is the game"). Personal inventory management is friction, not depth — exactly the kind of mechanic the GDD explicitly avoids. Since items flow through the logistics network, there is no design reason for a separate player bag. The network IS the inventory.
+
+**Hotbar as network view:** The hotbar shows live qty from whichever logistics network the player has selected in the Terminal. Switching Terminal tabs updates the hotbar's source network. This makes the hotbar a quick-access lens into the network, not a separate state to manage.
+
+**Tools by reference:** Equipping a tool from the hotbar does not consume it from storage — the tool stays in the network, checked out by reference. No reservation is placed. Tools are not contested resources in single-player.
+
+**Drone inventory as staging buffer:** Drones carry a local buffer because they operate outside the network. Deposit is explicit — the player flies the drone to a logistics port and triggers deposit, choosing which network receives the items. This preserves exploration cost: going far means carrying capacity is a real constraint.
+
+**Alternatives considered:** Traditional player inventory (Minecraft-style grid) — rejected because it introduces item management friction and creates a second inventory state to reconcile with the network. Auto-deposit on mode-switch (drone → player returns, items auto-land in network) — rejected because it removes the intentionality of choosing which network to deposit to.
+
+---
+
 ## Logistics network — ME-style, discrete channels
 
 **Decision:** ME-style logistics network (not belt routing). Discrete channel capacity limits. Unified network storage. On-demand auto-crafting.
