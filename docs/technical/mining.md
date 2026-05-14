@@ -230,7 +230,7 @@ Trigger: right mouse button press while in `PlayMode::DronePilot`.
 
 `sample_ore` increments `total_extracted` internally; the caller does not manage it.
 
-Output target: the `StorageUnit` component on the `Drone` entity currently being piloted. The `Drone` entity carries a `StorageUnit` added at spawn alongside the other drone components.
+Output target: the `DroneInventory` component on the `Drone` entity currently being piloted.
 
 Manual mining does not check:
 - `Discovered` status (player can mine before formally discovering)

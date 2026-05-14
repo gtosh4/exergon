@@ -173,7 +173,7 @@ A generated graph must satisfy:
 
 The tech tree is a tiered DAG of nodes drawn from a content pool. It gates access to recipes, machines, and capabilities. Its shape is always visible to the player; its contents are revealed through play.
 
-> Content design (tier themes, unlock rates, node pool allocation, category breakdown, Tier 1 node set): see [`tech-tree-design.md`](tech-tree-design.md). This section covers the data model and implementation architecture only.
+> Content design (tier themes, unlock rates, node pool allocation, category breakdown, Tier 1 node set): see [`tech-tree-design.md`](../tech-tree-design.md). This section covers the data model and implementation architecture only.
 
 ### Node pool
 
@@ -367,257 +367,33 @@ Each machine entity carries: machine type and tier, orientation, IO port positio
 
 ## 6. Logistics Network
 
-> ECS components, topology systems, cable routing, simulation systems, and messages: see [`networks.md §2`](networks.md#2-logistics-network) (and [`networks.md §1`](networks.md#1-generic-network-system) for the shared generic layer). This section covers design intent and post-MVP features only.
+ECS structure, topology systems (place/remove/split/merge), routing, simulation systems, and messages: [`networks.md §1–2`](networks.md#1-generic-network-system). Job dispatch and crafting plan resolution: [`crafting.md §8`](crafting.md#8-craft-job-dispatch).
 
-### Network topology
-
-Networks are formed by **cable connections**. The player connects machine IO ports to the network; cables are auto-routed between endpoints and rendered as visible conduits in the world. Network membership is determined by graph traversal from any member node — all connected components form one network.
-
-Network graphs are recomputed on structural change (connection added/removed, machine placed/removed). Between changes, network state is stable and does not require per-tick recomputation of topology.
-
-### Channel limits
-
-Cables have a **devices-per-cable** channel limit determined by cable tier. Higher-tier cables support more connected devices before the limit is hit. Exceeding the limit requires sub-network segmentation or cable upgrades.
-
-Interface blocks bridge two sub-networks with a defined channel allowance — pass-through for MVP, with potential for richer constraints post-MVP.
-
-Different interface tiers may offer higher throughput as a post-MVP extension.
-
-### Unified storage
-
-All storage nodes on a network present a **unified item inventory** — the network indexes items across all connected storage. Items are not physically moved to a central location; the network tracks which storage node holds what and routes retrieval as needed.
-
-Storage is a necessary system but not a primary design constraint. Players expand storage by adding storage nodes; no inventory management puzzle is intended.
-
-### Auto-crafting and job dispatch
-
-Crafting requests generate **job entities** that the network dispatches to capable machines. This is an explicit improvement over AE2's pattern mechanic:
-
-**AE2 approach (avoided):** Players must physically encode crafting recipes into each machine as "patterns." Tedious, fiddly, poor UX.
-
-**Exergon approach:** Machines **auto-register their capable recipes** from the tech tree on formation — no physical patterns required. A machine is capable of a recipe when `machine_type` and `machine_tier` both match; a single machine can be capable of many recipes. When a craft is requested, the network creates a job for the required recipe, and any capable machine can accept it.
-
-Players configure job **priorities and filters** rather than patterns:
-- Priority: prefer machine A over B for recipe X
-- Filter: this machine only accepts jobs of category Y (e.g. smelting only)
-- Exclusion: this machine never accepts auto-crafting jobs (manual-only)
-
-### Crafting plan resolution (recipe chain detection)
-
-When a crafting request arrives for a material, the network **resolves the full dependency chain automatically** before dispatching any jobs. Given recipes `{A+B → C}` and `{C+D → E}`, a request for E produces a plan with two jobs — the network sees the combined effective inputs as `A+B+D → E` and presents that to the player.
-
-Resolution algorithm (recursive, depth-first):
-1. For each required input of the target recipe: check network storage
-2. If input is available in sufficient quantity → mark as sourced from storage
-3. If not → look up producing recipes in the recipe graph, pick best recipe (priority/filter), recurse
-4. Result: a crafting plan — a tree of jobs with prerequisite edges
-
-A job only becomes dispatchable once all its prerequisite jobs are complete. The dispatcher enforces ordering automatically.
-
-The **effective recipe** of a plan (leaf inputs → terminal output) is computed by the network and shown to the player in the graph analyzer. This is the combined view; individual machine jobs are an implementation detail.
-
-Each crafting plan records: its ID, target material and quantity, and a topologically ordered list of crafting jobs (roots are leaf jobs). Each job records: its ID, recipe, quantity, priority, status, and prerequisite job IDs. Job statuses are: Blocked (waiting on prerequisites), Queued, Dispatched (assigned to a specific machine), InProgress (with progress fraction), and Complete.
-
-Each machine entity records its job acceptance settings: whether it accepts auto-crafting jobs, an optional category filter, and a priority bias.
-
-The network's job dispatcher runs when machines become idle — it scans queued (not blocked) jobs, finds the highest-priority job the machine can run, and assigns it. No per-tick polling; event-driven on machine idle, job creation, and job completion (completion may unblock downstream jobs).
-
-### Network events
-
-Topology and storage events (`NetworkChanged<Logistics>`, `NetworkStorageChanged`) are defined in [`networks.md §1`](networks.md#1-generic-network-system).
-
-Post-MVP design-level events:
-- **Machine idle** → dispatcher assigns next job
-- **Channel limit exceeded** → emit warning event (surfaced to player as bottleneck)
+Key design choices: ME-style unified storage (network as index across all `StorageUnit`s; no personal inventory); machine auto-registration of capable recipes (no AE2-style physical pattern encoding); dependency-chain resolution at craft request time. See `gdd.md §10` for intent.
 
 ---
 
 ## 7. Power System
 
-> ECS components, topology systems, and simulation systems: see [`networks.md §3`](networks.md#3-power-network) and [`networks.md §4`](networks.md#4-interplay). This section covers design intent.
+ECS components, topology systems, generator simulation, V×A checks, and execution order: [`networks.md §3–4`](networks.md#3-power-network).
 
-### Model
-
-Power is **buffer-based**: generators fill a per-network energy buffer each tick; recipes withdraw joules per tick during execution and pause when the buffer runs dry. Power cables are **physically separate from logistics cables** — players lay power infrastructure independently. See [`networks.md §4`](networks.md#4-interplay) for the full power-as-consumable-resource model.
-
-### Failure model
-
-All power failure modes are **non-destructive**. Cables never burn. Machines never explode. The factory pauses or blocks — it never punishes with permanent loss.
-
-| Condition | Consequence |
-|---|---|
-| Network voltage below recipe requirement | Machine blocked — does not start; displays reason |
-| Network at amp capacity | Machine blocked — waits until headroom frees |
-| Generator buffers empty mid-recipe | Recipe pauses; amps held; resumes when buffers refill |
-| Cable removal causes amp overload | Affected running machines pause and release amps; resume when headroom restores |
-
-This model preserves the strategic depth of the V×A system (infrastructure planning, tier gating, amp routing) while keeping all failure states recoverable and legible.
-
-### Power units
-
-Power delivery has three dimensions:
-
-**Watts** — instantaneous draw rate. Each generator fills its own internal buffer at its rated wattage. `PowerNetworkMembers.take_energy` draws across all member buffers (generators and, post-MVP, batteries). Machines draw at `energy_cost / processing_time` watts during recipe execution. Idle machines draw zero power.
-
-**Voltage tier** — discrete power delivery level (e.g. Low Voltage → Medium → High → Ultra High). Each tier maps to a voltage constant. A recipe has a `min_voltage_tier` field; the machine cannot start on a network below that tier. This is a qualitative gate — it cannot be overcome by accumulating more low-voltage supply.
-
-**Amperage** — throughput capacity. Each cable segment has a `max_amps` rating. A running machine consumes `draw_rate_watts / network_voltage` amps. The network tracks total amps in use; starting a recipe that would exceed the cable's amp capacity is blocked until amp headroom frees (another recipe completes or a machine finishes). Removing a cable that reduces the network's amp capacity below current usage pauses all running machines on that network; they release their amp allocations and wait, then resume as headroom becomes available (in priority order, or FIFO if priorities are equal).
-
-### Upgrade pressure
-
-Generators have **fixed output capacity**. As the factory scales up and higher-tier machines run more energy-intensive recipes, aggregate demand grows. Early-tier generators are not penalized — they simply get outmatched by demand. Players are soft-forced to upgrade power infrastructure to maintain throughput.
-
-This is the primary progression pressure on power: not degradation, but natural demand growth outpacing fixed supply.
-
-### Planet modifier efficiency
-
-Planet modifiers apply **efficiency multipliers** to specific generator types (GDD §9):
-- Solar efficiency: `0.4×`–`1.6×` based on star distance
-- Combustion efficiency: scaled by atmospheric oxygen content
-- Geothermal availability: scaled by geological activity
-
-A solar array on a dim world produces significantly less power than baseline. Experienced players read planet modifiers at run start to identify which power strategy is favoured this run.
-
-Multipliers apply to generator output, not demand. A `0.4×` solar modifier means solar arrays produce 40% of their rated wattage.
-
-### Cable tiers
-
-Each cable tier defines a `(voltage_tier, max_amps)` pair. Maximum power throughput = `voltage × max_amps`. Higher tiers increase both axes — later cable tiers carry more power because they support higher voltage and more simultaneous amp load.
-
-All cable segments in a power network must share the same voltage tier. Connecting two networks at different voltage tiers requires a **transformer** machine bridging adjacent tiers — this makes inter-tier power routing an explicit factory design choice, not a free connection.
-
-Each cable segment records: `from`, `to`, `path`, `voltage_tier: u8`, `max_amps: f32`.
-
-### Power network topology
-
-Power network membership follows the same cable-adjacency model as logistics. Recomputed on structural change; stable between changes. Components and implementation: [`networks.md §3`](networks.md#3-power-network).
-
-### Machine power draw and voltage requirements
-
-Each recipe records `energy_cost` (joules) and `min_voltage_tier: u8`. Draw rate during execution = `energy_cost / processing_time` watts, consuming `draw_rate / network_voltage` amps from the network.
-
-`recipe_start_system` checks in order:
-1. Network voltage tier ≥ `min_voltage_tier` — hard block if not met; the machine simply cannot run at this voltage
-2. Available amp headroom ≥ `draw_rate / voltage` — block if the network is at amp capacity
-3. Buffer has ≥ `draw_rate * dt` joules for first tick
-
-`recipe_progress_system` withdraws `draw_rate * dt` joules per tick; pauses if generator buffers are insufficient and resumes when they refill. Amps remain consumed while a recipe is paused — the machine is still online and holding its amp allocation. No upfront energy withdrawal; no proportional throttle. See [`networks.md §4`](networks.md#4-interplay) for the full execution order.
+Key design choices: buffer-based (generators fill per-generator internal buffer at rated wattage; recipes withdraw joules per tick via `take_energy`); V×A as two independent gates (voltage = qualitative tier gate, cannot overcome with more low-voltage; amperage = cable throughput cap per cable segment); all failure modes non-destructive (machines pause/block, never explode); planet modifier efficiency multipliers apply to generator output only (`0.4×`–`1.6×` depending on generator type and planet properties); inter-tier power routing requires a transformer machine. See `gdd.md` §Power for intent.
 
 ---
 
 ## 8. Drone System
 
-### Overview
+ECS structure, Local↔Remote mode transition, fog-of-war reveal, sample collection, range scanning, multiple drone switching, events, edge cases, and execution order: [`drone.md`](drone.md).
 
-Drones are player-piloted exploration and interaction tools. The player's attention — not their character — travels via drone. The character is left idle at its last position while a drone is active.
-
-### Control model
-
-When the player activates a drone, the game enters **Remote mode** — **camera and control fully transfer** to the drone's perspective. The character remains stationary in the world. Recalling or deactivating the drone returns to **Local mode** (character control).
-
-Drones have no autonomous behaviour — they are inert when not actively piloted. A drone parked at a remote site does nothing until the player switches to it. This rewards planning (knowing where to send a drone and what to do there) over multitasking.
-
-### Multiple drones
-
-Players can deploy multiple drones simultaneously and **switch between them**. Only one drone is active (controlled) at a time. Inactive drones remain at their last position, inert.
-
-Switching is not inherently advantageous — the game does not reward rapid context-switching. A player with three deployed drones at three sites works sequentially, not in parallel. The value of multiple drones is positional: park one at a distant site, switch to it when needed, without having to travel again.
-
-### Drone tiers and layer access
-
-| Drone tier | Layer access | Tech tree requirement |
-|---|---|---|
-| Land drone | Surface terrain | Starting equipment |
-| Amphibious drone | Surface water + underwater | Mid-tier tech |
-| Digger drone | Underground layer | Mid-tier tech |
-| Flying drone | Sky / atmosphere layer | High-tier tech |
-| Space drone | Orbital layer | Late-tier tech |
-
-Drone construction requires factory-produced components. Factory progression unlocks new drone tiers naturally.
-
-### Persistence
-
-Deployed drones **persist in the world** across sessions. A drone left at a remote site is still there on return. World events are unlikely to destroy unattended drones (world reactivity is legible and non-sudden), but drones could become temporarily inaccessible if terrain changes block their position.
-
-Each drone entity records: type, position, orientation, inventory (samples and items collected), and state (`Idle` or `ActivelyControlled` — the latter corresponding to the player being in Remote mode on this drone).
-
-*Implementation: [`Drone`](../src/drone/mod.rs#L21), [`DroneScheme`](../src/drone/mod.rs#L18)*
-
-### Interaction model
-
-While actively piloted, drones interact with the world **point-based** — the drone must be adjacent to a block to interact with it (mine it, collect a sample, trigger a site). No area-of-effect collection.
-
-Digger drones excavate terrain by flying through it — passage creates tunnel nodes and edges in the tunnel graph (see §4). The player pilots the route; the tunnel persists as a navigable passage. Reaching an underground ore deposit requires piloting to its location and placing a mining machine; the machine then extracts automatically into the logistics network.
-
-### Fog of war and scanning
-
-Drones reveal fog of war at their current position. Range scanning (biome type + broad resource category) is available from the drone without requiring physical adjacency — a scan action from the drone provides imprecise data about the surrounding area out to a defined radius. Precise data (exact deposit location, quantity) requires physical proximity.
+VS scope: single land drone, F-key toggle, WASD piloting, ore sample collection, deposit discovery, fog reveal. See `gdd.md` §Drone for intent.
 
 ---
 
 ## 9. Science & Research System
 
-### Research currency types
+ECS components, research pool, analysis station systems, experiment recipe model, knowledge visibility states (Known-to-exist → Partially-revealed → Fully-revealed), unlock flow, and edge cases: [`research.md`](research.md).
 
-Research is not a single currency. Multiple **research types** are earned through different activities and spent on different things. Research type gates ensure players cannot bypass the discovery loop by grinding one activity.
-
-| Research type | Primary sources | Gates |
-|---|---|---|
-| Material Science | Mineral/ore/fluid sample analysis | Recipe reveals, machine tier unlocks |
-| Field Research | Ecosystem/biological sample analysis | Exploration-gated tech nodes, biome knowledge |
-| Engineering | Production milestones, machine operation | Machine module unlocks, logistics upgrades |
-| Discovery | Exploration finds, site interactions, observations | Exploration-only tech nodes, tier unlocks |
-
-Specific type names and exact gating are content/balance decisions to be tuned. Architecture supports arbitrary research types defined in the content pack. Research state is a mapping from research type to accumulated amount.
-
-*Implementation: [`ResearchPool`](../src/research/mod.rs#L10), [`TechTreeProgress`](../src/research/mod.rs#L15)*
-
-### Analysis stations
-
-Analysis stations are **specialized multiblock machines** — one per sample domain. Each station processes samples of its type and produces research currency + knowledge outputs.
-
-| Station | Sample types processed |
-|---|---|
-| Geological Analysis Station | Rock, mineral, ore, fluid samples |
-| Biological Analysis Station | Flora, fauna, ecosystem samples |
-| Atmospheric Analysis Station | Gas, particulate, energy-field samples |
-
-Stations are tech-tree gated. Upgrading a station (higher machine tier) unlocks higher-tier sample processing and more efficient research output — same structure as other machines.
-
-### Experiment model
-
-Experiments are **crafting-style interactions** at an analysis station:
-
-- Player places sample(s) + optional reagents/catalysts into the station
-- Station runs an "experiment recipe" — a timed process consuming inputs
-- Output: research currency (of appropriate type) + possible knowledge reveal
-
-Experiment recipes increase in complexity and output at higher tiers, mirroring Factorio's science pack progression. Early experiments: basic samples → small research gain. Late experiments: complex multi-material inputs → large research gain + high-value reveals.
-
-Each experiment recipe records: ID, required station type and tier, input items (samples + reagents) with quantities, research output (type + amount), an optional knowledge trigger, and processing time.
-
-### Knowledge visibility model
-
-Three tiers per recipe/node:
-
-```
-Known-to-exist → Partially-revealed → Fully-revealed
-```
-
-**Known-to-exist** is the default state for any node present in the run. The shadow (category, tier, rarity) is always visible.
-
-**Partially-revealed** is **earned through gameplay**, not purchased:
-- Hitting a production milestone that relates to the node
-- An exploration discovery or observation that reveals context
-- Completing an experiment that produces a relevant knowledge trigger
-
-Partial reveal surfaces broad parameters (approximate input types, rough output range). It is a reward for engagement, not a purchasable step.
-
-**Fully-revealed** is **purchased with research currency** of the appropriate type. Players can go directly from known-to-exist → fully-revealed, skipping partial reveal — at higher cost. Experienced players who recognise a node from prior runs (via the Codex) can skip the intermediate step entirely and spend research directly to full reveal.
-
-### Research scarcity
-
-Research is intentionally scarce enough to force tradeoffs, especially early. Players cannot reveal everything before committing to a path. The tension between "reveal more before building" and "build now and generate more research through production" is a core strategic rhythm of each run.
+VS scope: Geological Analysis Station, research pool per type (Material Science, Field Research, Engineering, Discovery), experiment recipes, tech tree unlock integration. See `gdd.md` §Research for intent.
 
 ---
 
@@ -676,13 +452,7 @@ Reactivity **decreases when sources are removed or reduced**. Each tick, buildup
 
 ### Save file architecture
 
-Two distinct save scopes:
-
-**Run save** — one file per run. Contains world state, factory state, tech tree progress, research pools, drone positions, tunnel graph, run seed, and completion status. Runs are **never automatically deleted** — players can revisit completed runs to explore builds or take screenshots. Each run save carries a header recording: seed string, difficulty tier, status (InProgress / Completed / Abandoned), start time, completion time, and total run time.
-
-**Meta save** — single file. Contains codex, unlocked content, blueprints, starting boons pool. Persists across all runs. Updated at run completion and on milestone triggers mid-run.
-
-**Save format and library:** Both run saves and meta saves use **RON format** via `moonshine-save` (v0.6.1, Bevy 0.18 compatible). Saveable entities are tagged with `moonshine_save::Save`; rendering/aesthetic entities (particle effects, camera rigs, UI) are excluded via `moonshine_save::Unload`. `SQLite` is not used.
+Save scopes, RON format, `moonshine-save` details, and entity tagging rules: [`technical/README.md §Save Architecture`](README.md#save-architecture).
 
 ### Codex
 

@@ -29,24 +29,42 @@
 
 ## 1. Vision & Concept
 
-This game is a **factory-building roguelite** in which every run takes place on a procedurally generated world with alien physical laws. The player is a scientist-engineer whose job is to decode how this particular world works, design a factory that exploits those laws, and synthesize a single large escape artifact that proves they understood the system well enough to master it.
+This game is a **run-based factory science campaign** in which every run takes place on a procedurally generated world with alien physical laws. The player is a scientist-engineer whose job is to decode how this particular world works, design a factory that exploits those laws, and synthesize a single large escape artifact that proves they understood the system well enough to master it.
 
-The primary inspiration is **GregTech: New Horizons (GTNH)** — specifically its depth of production graph complexity, its multi-tier processing chains, its demand that players understand systems rather than execute recipes from memory, and its culture of genuine accomplishment through genuine difficulty. The roguelite layer is not a cosmetic addition. It is the mechanism by which a GTNH-depth game becomes replayable: the graph itself is different every run.
+The primary design depth reference is **GregTech: New Horizons (GTNH)** — specifically its depth of production graph complexity, its multi-tier processing chains, its demand that players understand systems rather than execute recipes from memory, and its culture of genuine accomplishment through genuine difficulty. GTNH is an internal benchmark, not the commercial pitch — it implies grind, wiki dependency, and punishment to most players. The run structure is not a cosmetic addition. It is the mechanism by which GTNH-depth complexity becomes replayable: the graph itself is different every run.
 
 The game is also meaningfully different from GTNH in one key respect: **the design phase is the game.** Watching machines run, fixing belt bottlenecks, and grinding execution time are minimized. The intellectual work of reading a run, planning a factory, and discovering alien science is maximized. A run that takes 20 hours of engaged thinking is more satisfying than a run that takes 200 hours of engaged thinking plus 800 hours of waiting and grinding.
 
 ### Closest existing references
-- **GregTech: New Horizons** — depth, complexity, tier-gated progression, power systems
-- **Factorio** — factory layout, belt logistics, the satisfaction of throughput
-- **Slay the Spire** — roguelite meta-progression, run variance as the replayability engine
-- **Zachtronics games (Opus Magnum, Infinifactory)** — puzzle-oriented, the solution is the reward
+
+**Structural:**
+- **Against the Storm** — *primary run structure model*. Proved that the early problem-solving phase of a builder — planning, discovery, constraint navigation — is the genre's best part and can stand alone as a repeatable session. Each run ends with a specific completion event, not a session that just stops. Lesson: the reset must feel like a launch, not a loss. Every run must feel complete, not truncated.
+- **Shapez / Shapez 2** — *planning purity benchmark*. Strong demand for factory games stripped toward pure design, with friction reduction, excellent tooling, and fast iteration. Lesson: graph tools, blueprints, ghost planning, and bottleneck analysis are not optional polish — they are the product. If the tooling feels bad, the game feels bad regardless of depth.
+- **Factorio / Factorio: Space Age** — *throughput satisfaction and per-planet rules*. Space Age showed players respond strongly to each world forcing a new factory logic. Lesson: "every planet changes the rules" is a strong pitch, but each planet needs a memorable identity — not just a modifier table. Runs should be describable by character ("the ice-shelf geothermal run"), not by stat rolls.
+
+**Depth benchmark (internal — not the public pitch):**
+- **GregTech: New Horizons** — production graph complexity, multi-tier processing chains, tier-gated power, culture of genuine accomplishment. Use internally as the bar for systems depth and difficulty design; do not use externally as the primary comparison.
+
+**Scale and spectacle:**
+- **Dyson Sphere Program** — clear long-term objective, galactic scale fantasy, production that feels physically larger over time. Lesson: late-game escape artifacts need visible majesty. Completion must be screenshot-worthy — a dramatic visual climax, not a condition-met screen.
+
+**Tension and discovery:**
+- **Duskers** — drone-mediated exploration, limited information, tension from imperfect perception and expendable hardware. Lesson: Remote mode must feel like sending something fragile into hostile space. Tension and discovery are the point, not remote clicking.
+- **Pacific Drive** — repeated excursions from a safe base, anomaly flavor, environmental storytelling. Useful for expedition rhythm and atmosphere.
+
+**Cautionary:**
+- **Captain of Industry** — warns against death spirals, opaque logistics, steep onboarding. The "bad run = ugly escape, not failure" design stance is a direct response.
+- **Techtonica** — factory + exploration + narrative can work, but factory players are very sensitive to pacing, performance, and unclear direction. Narrative is a bonus only if the automation underneath is satisfying.
+
+**Tone and discovery:**
+- **Zachtronics games (Opus Magnum, Infinifactory)** — puzzle-oriented; the solution is the reward; satisfaction from genuine intellectual work
 - **Outer Wilds** — physical presence in a world whose rules you are discovering
 
 ---
 
 ## 2. Design Pillars
 
-These four pillars are the filter through which every design decision should pass. If a proposed mechanic conflicts with a pillar, the mechanic changes — not the pillar.
+These five pillars are the filter through which every design decision should pass. If a proposed mechanic conflicts with a pillar, the mechanic changes — not the pillar.
 
 ### Pillar 1 — Legible Chaos
 Randomization must produce *solvable* problems, not arbitrary noise. Every procedural element must have a legible in-world explanation the player can reason about. A planet further from its star has weaker solar output. A world with unusual atmospheric chemistry has different combustion properties. The player should be able to look at a run's constraints and think *"this is a specific, interesting problem"* — not *"this is random."*
@@ -59,6 +77,11 @@ Difficulty comes from the genuine complexity of the puzzle, not from systems fri
 
 ### Pillar 4 — Content Is Data, Engine Is Platform
 The game is designed from the start as a moddable platform. All content — tech nodes, recipes, planet modifiers, power sources, biome definitions — is defined in data files, not code. The official game ships as the reference content pack. Modders extend the platform by writing data, not by modifying the engine.
+
+### Pillar 5 — Every Run Is Unspoilable
+No external knowledge — guides, wikis, prior runs, community solutions — fully substitutes for playing a new run. Universal science (base materials and fundamental processes) is intentionally stable across runs: veterans move through the early game faster because they know this layer, and that is correct behavior, not a gap. The early game is short enough that this advantage is appropriate — it gets veterans to the interesting part sooner. The unspoilable part is everything seeded per run: which alien science exists, which nodes are present, what their specific parameters are this run, and how they unlock. A guide written for seed A is a partial map of seed A. It cannot substitute for the science discovery loop on seed B.
+
+This pillar is enforced by variance depth, not obscurity. The codex intentionally parallels what a community wiki would contain — parameter ranges, tier windows, behaviors observed across runs — so in-game tools are never worse than external ones. The variance that matters is below that level: the run-specific values and alien science configuration that neither codex nor wiki can predict.
 
 ---
 
@@ -131,6 +154,8 @@ The seed is the engine of replayability. It controls every axis of variance simu
 
 Planet properties are partially visible at run start (broad characteristics) and fully revealed through early scouting. An experienced player reads planet properties at landing and immediately forms a rough power strategy.
 
+Planet properties should reinforce a **coherent identity** for each run, not feel like a random stat roll. Runs should be describable by character — "the geothermal ice shelf," "the low-oxygen high-pressure world" — and that character should be legible from screenshots and community discussion. Modifier combinations are curated by the seed to feel thematically coherent, not assembled from independent random draws.
+
 **Tech tree node selection.** The nodes that exist in this run's tech tree are drawn from a larger pool. Not every node exists in every run. This means the set of available machines, processing methods, and solutions is genuinely different run to run — not just reshuffled but different in kind. See Section 7.
 
 **Tech tree unlock conditions.** Each node's unlock vector(s) are also seeded within defined constraints. A node that is researchable in one run might be exploration-discovered in another. See Section 7.
@@ -143,6 +168,8 @@ Planet properties are partially visible at run start (broad characteristics) and
 
 ### Seed legibility
 Runs can be shared by seed string. Community discussion of specific runs ("seed 4729 has terrible solar but incredible geothermal and a near-surface rare ore deposit at coordinates X") is an intended and supported part of the game's culture, consistent with the GTNH tradition of community knowledge-building.
+
+Sharing a seed is an explicit, deliberate opt-in to spoilability for that seed. A player who runs a fresh, unshared seed is guaranteed that no guide for their specific run exists. The game's replayability derives from playing new seeds, not from re-running known ones.
 
 ---
 
@@ -174,6 +201,8 @@ The player's attention is the research instrument. Science happens in the world,
 - Some sample sites are dangerous, distant, or require a specific drone tier to reach — creating a progression gate on information as well as production
 - Analysis stations are built in the world and consume samples + research currency to produce knowledge
 - The act of experimentation has a mild world-reactivity cost — running reactions disturbs local ecosystems
+
+Remote mode must feel like sending something fragile into hostile space — limited sensor range, environmental hazards that can damage or destroy drones, imperfect information at range. The tension of piloting vs. the safety of Local mode is a feature, not friction to minimize. Drone loss should sting; discovery should feel earned.
 
 ### Information visibility model
 At any point in a run, the player has three tiers of knowledge about any given recipe or tech node:
@@ -542,6 +571,8 @@ Each run has a single escape objective — a multi-step construction and activat
 ### Design intent
 The escape condition is the run's thesis statement. Completing it means the player understood this alien world's science well enough to leave it. It is not a checklist — it is proof of mastery.
 
+Each escape type must have a **visually legible, dramatic climax** — a gateway powering up and tearing open, a derelict ship shuddering to life and launching, a relay network synchronizing across the sky. Completion must be screenshot-worthy. A run that ends with a condition-met screen rather than a visible, impressive event fails the fantasy that justified 5–50 hours of play.
+
 ### Escape type by difficulty
 
 The nature of the escape scales with difficulty tier, reflecting the player's growing self-sufficiency across the meta-progression arc:
@@ -589,7 +620,7 @@ Multiple axes are tuned independently to create the difficulty ladder:
 
 **Initiation.** First 1–3 runs. Shallow graph, mild modifiers, generous research, most nodes researchable. Planet is relatively hospitable. Designed to teach the science discovery loop and produce a satisfying first completion. Target: 4–6 hours.
 
-**Standard.** Core experience. Moderate graph depth, meaningful modifiers, some exploration-gated nodes. Power requires one transition. Target: 10–15 hours.
+**Standard.** Core experience. Moderate graph depth, meaningful modifiers, some exploration-gated nodes. Power requires one transition. Target: 10–15 hours. **Standard is the commercial anchor** — the experience the store page, demo, and early access should center. Initiation is onboarding; Advanced and Pinnacle are for veterans.
 
 **Advanced.** For experienced players. Deep graph, strong modifiers, significant exploration requirements, tight research budget. Multiple power transitions. World reactivity is a genuine strategic consideration. Target: 20–30 hours.
 
@@ -627,11 +658,16 @@ Examples of what the codex surfaces:
 
 The codex rewards thorough play and reduces the "I've never seen this before" friction on repeat encounters. It does not reduce run difficulty — experienced players read the map faster, not more easily. Codex content is a meta-progression unlock in the sense that it fills in over time, but it is not gated — it expands automatically through play.
 
+The codex is intentionally designed to be equivalent in scope to a community wiki for parameter ranges and node behaviors. When a node is first unlocked, the codex records its observed range — the same information a wiki would surface. This is deliberate: external resources for ranges should provide no advantage over the codex, and the codex should never be worse than external resources. The discovery value in each run lies below this level — in the run-specific parameter values, alien science configuration, and unlock vectors that neither codex nor wiki can predict. Before a node is first encountered, knowing its range from a wiki provides minimal advantage: the discovery loop gates access to run-specific values, not knowledge of the range that value falls within.
+
 ---
 
 ## 15. The First Run & Tutorial
 
 The first run is a real run — completable, satisfying, and representative of the game's core loop. It is not a separate tutorial mode.
+
+### Early insight target
+The player should have at least one "I figured out something about this planet" moment — a genuine scientific inference they acted on correctly — within the first 30–60 minutes of Initiation. The tutorial system watches for confusion, but pacing design must actively create this early insight payoff. Players who feel smart quickly will recommend the game; players who feel lost or wait for it to "get good" will not. Marketability lives here.
 
 ### Observant tutorial system
 A light tutorial system activates contextually during the first run. It is **observant rather than prescriptive** — the game watches for signs of genuine confusion and intervenes only when needed. A player who understands the loop naturally will see little or none of the tutorial content.

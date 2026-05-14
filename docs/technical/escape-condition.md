@@ -62,11 +62,11 @@ Run outcome (seed, escape time, status) is **save file metadata** — read and w
 
 ### 3-1. `escape_objective_system`
 
-**Trigger:** Reads `RecipeJobCompleted` events each tick.
+**Trigger:** Reads `JobComplete` events each tick.
 
 **Step-by-step:**
 
-1. For each `RecipeJobCompleted { machine: Entity, .. }`:
+1. For each `JobComplete { job, machine, slot }`:
 2. Check whether `machine` has `EscapeObjective` marker.
 3. If yes: fire `EscapeEvent { escape_time_secs: current_time }`.
 
@@ -110,12 +110,12 @@ Power and item delivery both break; machine job stalls. Catalyst key reservation
 All tests use `World` directly, no `App`.
 
 **Test 1 — Recipe completion on EscapeObjective machine fires EscapeEvent**  
-Setup: gateway entity with `EscapeObjective` marker. `RecipeJobCompleted` event for that entity.  
+Setup: gateway entity with `EscapeObjective` marker. `JobComplete` event for that entity.  
 Run: `escape_objective_system`.  
 Assert: `EscapeEvent` in world events.
 
 **Test 2 — Recipe completion on non-escape machine does not fire EscapeEvent**  
-Setup: assembler entity without `EscapeObjective`. `RecipeJobCompleted` event for that entity.  
+Setup: assembler entity without `EscapeObjective`. `JobComplete` event for that entity.  
 Run: `escape_objective_system`.  
 Assert: no `EscapeEvent`.
 

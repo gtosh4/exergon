@@ -157,15 +157,7 @@ Run after `NetworkSystems::of::<Logistics>()` and after `PowerSimSystems`:
 6. **Output check** — for each recipe output/byproduct item, verifies at least one of the machine's logistics ports allows output for that item and has a connected network; if any output has no valid destination, recipe does not start
 7. If all checks pass: calls `take_items` on each input-port network accordingly; reserves catalyst inputs in `CatalystReservationBook`; sets `RecipeSlot.state = Running` and `progress = 0.0` (see `crafting.md §2` for `RecipeProcessor` definition)
 
-**`recipe_progress_system`** — each tick:
-1. If `recipe.energy_cost > 0`: calls `PowerNetworkMembers.take_energy((energy_cost / processing_time) * dt)`; if insufficient energy, skips progress advance for this tick (recipe pauses until buffer refills). Amps remain held while paused — the machine stays online and does not release its amp allocation until the recipe completes or is cancelled.
-2. Advances `MachineActivity.progress` by `dt`
-
-On completion:
-- For each output/byproduct item, resolves the machine's logistics ports that allow output for that item (via `PortPolicy`), calls `give_items` on those ports' networks
-- Special-cases `RESEARCH_POINTS_ID` outputs → adds to `ResearchPool` resource instead of storage
-- Sets `RecipeSlot.state = Idle`, `job = None`, `progress = 0.0`; releases catalyst reservations (see `crafting.md §5`)
-- Fires `NetworkStorageChanged` for the network (triggers next recipe evaluation)
+**`recipe_progress_system`**, **`recipe_completion_system`** — see [`crafting.md §5`](crafting.md#5-recipe-execution). The only network-layer interactions are `PowerNetworkMembers.take_energy` per tick and `give_items` on output ports at completion; all progress tracking, catalyst release, and output production are crafting-layer concerns.
 
 ### Unified Storage
 

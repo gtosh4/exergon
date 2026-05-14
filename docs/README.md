@@ -12,14 +12,14 @@ The canonical design reference. Covers vision, design pillars, all game systems 
 ### [`design-decisions.md`](design-decisions.md) — Design Decisions Log
 Rationale and context behind key decisions — the *why* behind what's in the GDD. Records alternatives considered and reasons they were rejected. Also captures decisions that were tentative or may be revisited. **Update this file whenever a significant design decision is made.**
 
+### [`tech-tree-design.md`](tech-tree-design.md) — Tech Tree Content Design
+Content design layer for the tech tree: node definitions, pacing targets, unlock structure. Sits between `gdd.md §7` (design intent) and implementation. Status: first draft, pacing unvalidated. **Update when tech tree nodes or unlock order changes.**
+
+### [`vertical_slice.md`](vertical_slice.md) — Vertical Slice Signal Spec
+Defines what the vertical slice must prove: the five core signals (first-hour insight, repeat-run discovery, Remote mode feel, 3D factory readability, Standard-length pacing), required features and interfaces per system, playtest protocol, instrumentation, and success criteria. Also lists deeper designs required before implementation plans are written. **Read before scoping or implementing any vertical-slice-targeted feature.**
+
 ### [`milestones.md`](milestones.md) — Milestones
-Defines two pre-release milestones: **Vertical Slice** (core loop playable end-to-end, systems simplified) and **MVP** (all systems at production depth). Includes explicit post-MVP backlog. **Reference when scoping work. Update as scope changes.**
-
-### [`implementation-plan.md`](implementation-plan.md) — Implementation Plan
-The current milestone's implementation plan steps/tasks. **Update this file when implementing features.**
-
-### [`design-todos.md`](design-todos.md) — Design Todos
-Systems that need a `technical/networks.md`-depth spec (ECS components, system logic, events, edge cases) before implementation. Organized by priority: Vertical Slice and MVP. **Check here before starting a new system. Remove entries as specs are written.**
+Milestone ladder: Vertical Slice → Alpha → Demo (MVP) → Release → Post-release. Each milestone states its purpose, gate conditions, and what it explicitly does not require. **Check before asking whether a feature is in scope.**
 
 ---
 
@@ -57,9 +57,6 @@ ECS components, system logic (hotbar, drone inventory, storage units, Terminal s
 ### [`technical/machine-ui.md`](technical/machine-ui.md) — Machine UI Technical Design
 ECS components, system logic (open/close, identity, progress, power status, module slots, port binding editor, recipe table C/P flag editing), events, edge cases. Also defines the **revised `MachineJobPolicy`** (supersedes `crafting.md §4`) with per-recipe `RecipePolicy` carrying independent C/P flags and machine-level `CraftingJobMode`/`passive` defaults. VS and MVP scope noted inline. **Read before implementing the machine panel, `MachineJobPolicy`, `PortPolicy` editing, or `SlotBlockReason`.**
 
-### [`technical/tech-tree-design.md`](technical/tech-tree-design.md) — Tech Tree Content Design
-Content design layer for the tech tree: node definitions, pacing targets, unlock structure. Sits between `gdd.md §7` (design intent) and implementation. Status: first draft, pacing unvalidated. **Update when tech tree nodes or unlock order changes.**
-
 ### [`ui.md`](ui.md) — User Interface
 UI layout and mockups for inventory, machine panel, planner, and tech tree screens.
 
@@ -69,7 +66,6 @@ UI layout and mockups for inventory, machine panel, planner, and tech tree scree
 
 - **Design decision made** → update `gdd.md` (the what) + `design-decisions.md` (the why)
 - **Architecture decision made** → update `technical/technical-design.md`
-- **Scope changes** → update `milestones.md`
 - **Open question resolved** → mark resolved in `gdd.md` §18 open questions register
 - **New open question** → add to `gdd.md` §18 and the relevant section
 
