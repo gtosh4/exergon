@@ -306,6 +306,7 @@ Required:
 Not required:
 - Multiple drone tiers.
 - Digger, flying, or space drones.
+- Full off-surface exploration domains.
 - Autonomous drone commands.
 - Full drone loss economy.
 
@@ -375,7 +376,7 @@ Not required:
 - Full Standard escape type.
 - Full 10-15 hour length.
 - Full procedural tech tree.
-- Full multi-layer world.
+- Full multi-domain world.
 - Full reactivity system.
 
 The Standard Probe should answer:
@@ -544,7 +545,7 @@ Defer:
 - Full world reactivity.
 - Full codex and meta-progression.
 - Multiple drone tiers.
-- Underground, sky, and orbital layers unless explicitly needed for the Standard Probe.
+- Underground, atmospheric, and orbital domains unless explicitly needed for the Standard Probe.
 - Mod loading and mod tooling.
 - Full narrative content.
 - Permadeath and challenge modifiers.

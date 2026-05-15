@@ -144,15 +144,18 @@ The seed is the engine of replayability. It controls every axis of variance simu
 
 ### What the seed controls
 
-**Planet properties.** A set of physical characteristics that apply passive modifiers to the run. These are the most legible layer of variance — in-world explanations for why certain strategies are favored or penalized. Examples:
+**Planet properties.** A set of physical characteristics that apply passive modifiers to the run. These are the most legible layer of variance — in-world explanations for why certain strategies are favored or penalized. They affect power, processing, scouting, and the resource ecology of the world; they are not merely power-generation knobs. Examples:
 - Distance from star → solar efficiency modifier
 - Atmospheric composition → combustion efficiency modifier
 - Geological activity → geothermal availability and efficiency
 - Temperature → affects machine cooling requirements, certain reaction efficiencies
 - Atmospheric pressure → affects fluid dynamics, certain chemical processes
+- Geological activity + domain/biome mix → metallic ore abundance, deep mineral richness, geothermal resource sites
+- Atmospheric and temperature profile → volatile fluids, ice deposits, oxidized/reduced material mixture
+- Pressure + wind + surface conditions → fluid pocket frequency, exposed deposit distribution, erosion-shaped terrain access
 - Environmental hazard type → the mechanism by which the open environment is destructive to AI hardware (EM interference, corrosive particulates, exotic radiation, etc.); cosmetically distinct per run, mechanically identical — determines flavor of warning feedback and lore framing, not gameplay rules
 
-Planet properties are partially visible at run start (broad characteristics) and fully revealed through early scouting. An experienced player reads planet properties at landing and immediately forms a rough power strategy.
+Planet properties are partially visible at run start (broad characteristics) and fully revealed through early scouting. An experienced player reads planet properties at landing and immediately forms rough hypotheses about power, likely resource abundance, likely resource mixture, and which scouting routes are worth prioritizing.
 
 Planet properties should reinforce a **coherent identity** for each run, not feel like a random stat roll. Runs should be describable by character — "the geothermal ice shelf," "the low-oxygen high-pressure world" — and that character should be legible from screenshots and community discussion. Modifier combinations are curated by the seed to feel thematically coherent, not assembled from independent random draws.
 
@@ -162,7 +165,7 @@ Planet properties should reinforce a **coherent identity** for each run, not fee
 
 **Recipe parameters.** Within the constraints of the run's available nodes, specific recipe parameters — efficiency, byproduct rates, processing times — vary within bounded ranges. See Section 8.
 
-**Resource geography.** Ore patch locations, fluid deposits, unique resource sites, and terrain features are procedurally placed. The map's geometry shapes factory layout decisions. See Section 11.
+**Resource geography and mixture.** Ore patch locations, fluid deposits, unique resource sites, and terrain features are procedurally placed. Planet properties bias both abundance and mixture: a hyperactive geothermal world should tend toward deeper metallic richness and geothermal sites, while an anoxic cold world might favor reduced minerals, ices, and volatile pockets. The seed still guarantees solvability, but the planet's physical identity shapes what is common, scarce, and awkwardly located. The map's geometry shapes factory layout decisions. See Section 11.
 
 **World reactivity profile.** The rate and nature of the world's response to factory footprint and experimentation. Some worlds are resilient; others react quickly and severely. See Section 11.
 
@@ -359,14 +362,14 @@ No single power source should be the correct answer across an entire run. Player
 
 ### Variance layers
 
-**Layer 1 — Planet physical modifiers.** The world's physical properties apply passive multipliers to specific generation types. These are legible and in-world:
+**Layer 1 — Planet physical modifiers.** The world's physical properties apply passive multipliers to specific generation types. These are the power-relevant subset of the broader planet identity model:
 - Distance from star → solar efficiency (e.g., 0.4× to 1.6× base)
 - Atmospheric oxygen content → combustion efficiency
 - Geological activity → geothermal availability and output
 - Temperature → affects thermodynamic cycle efficiency
 - Wind patterns → affects wind generation (if present as a node)
 
-These modifiers are revealed through early scouting and are fixed for the run. They give experienced players an immediate read on which power strategies are favored.
+These modifiers are revealed through early scouting and are fixed for the run. They give experienced players an immediate read on which power strategies are favored, alongside the same planet properties' resource and processing implications described in Sections 5 and 11.
 
 **Layer 2 — Tech tree node variance.** Which power generation nodes exist in a given run is seeded. A highly efficient late-game generator that exists in one run may not exist in another. The power meta changes not just in numbers but in what options are available.
 
@@ -491,20 +494,23 @@ The world map is procedurally generated from the seed. Key elements:
 - **Resource deposits** — ore patches, fluid pockets, unique material sites, placed with intention rather than pure randomness (no run should have a critical resource unreachably far from a viable starting location)
 - **Terrain features** — cliffs, water bodies, elevation changes create physical routing constraints and shape factory orientation
 - **Points of interest** — ruins, anomalies, sealed sites, and phenomena that are sources of exploration discoveries and unlock triggers (see §11 Persistent Sites)
-- **Biome regions** — areas with distinct environmental properties that affect machine operation and scouting conditions, distributed across all vertical layers
+- **Biome regions** — areas with distinct environmental properties that affect machine operation and scouting conditions, primarily on the surface and selectively within specialized exploration domains
 
-### Vertical layers
-The world has distinct vertical layers, each with different environmental properties, biome types, and resource affinities:
+### Exploration domains
+The world is surface-first. The surface is the main playable space, factory substrate, and default scouting layer. Former "vertical layers" are reframed as **exploration domains**: specialized destination types that exist when the run's tech tier, escape objective, or resource graph needs them. A domain is not a promise of a complete parallel world; it is a scoped content space with its own access requirements, hazards, resources, and points of interest.
 
-- **Underground** — caves, deep deposits, geothermal phenomena; accessible via digger drones
-- **Surface** — starting layer; most accessible biomes; land and water terrain
-- **Sky/atmosphere** — upper atmospheric biomes; accessible via flying drones
-- **Orbital/space** — extreme-tier layer; accessible via space-capable drones
+Examples:
+- **Surface** — starting domain; main factory space; land, water, and most accessible biomes
+- **Underground sites** — caves, deep deposits, geothermal pockets, sealed chambers; accessible via digger-capable drones or site-specific access tech
+- **Atmospheric sites** — storm layers, floating phenomena, upper-atmosphere samples; accessible via flight-capable drones when a run specifically uses them
+- **Orbital/space sites** — derelicts, debris fields, relay fragments, outer-system structures; accessible through spacecraft or space-capable drones in later tiers
 
-Resources have affinity or hard restriction to specific layers and/or biomes. A resource that only forms in underground geothermal biomes requires both a digger drone and a world with geothermal activity to access. This makes layer+biome combinations meaningful variance axes, and gives experienced players immediate strategic reads from early scan data.
+Resources have affinity or hard restriction to specific domains and/or biomes. Planet properties bias the resource table before placement: geological activity can increase deep metallic ore richness and geothermal-site resources; cold temperatures can increase ice and cryogenic volatile availability; high pressure can increase fluid-pocket density; oxygen level can shift the oxidized/reduced material mix. A resource that only forms in underground geothermal sites requires both the relevant access capability and a world with geothermal activity to access. This makes planet+domain+biome combinations meaningful variance axes, while keeping run scope aligned with the selected difficulty and escape objective.
+
+**Scope rule:** Initiation should be surface-only except for authored POIs. Standard should introduce at most one significant off-surface dependency if the escape objective needs it. Advanced and Pinnacle may use multiple domains, but each should be justified by the tier's production graph or escape condition rather than included because a universal layer stack exists.
 
 ### Biomes
-The world contains multiple biome regions distributed across layers. Biomes affect:
+The world contains multiple biome regions. Most biomes are surface regions; specialized domains may define their own biome-like region types when they need distinct resources, hazards, or machine modifiers. Biomes affect:
 - Local machine efficiency (heat, cold, pressure)
 - Sample types available for analysis
 - World reactivity rate
@@ -514,22 +520,22 @@ The world contains multiple biome regions distributed across layers. Biomes affe
 Biome types are expanded through meta-progression — new biomes unlock across runs, adding variety to the world generation pool.
 
 ### Exploration model — drones
-Exploration is done via deployable drones, not direct player travel. Drone types are tier-gated through the tech tree, making factory progress the key to unlocking new layers and biomes:
+Exploration is done via deployable drones, not direct player travel. Drone capabilities are tier-gated through the tech tree, making factory progress the key to unlocking new domains, sites, and biomes:
 
-| Drone tier | Access |
+| Drone capability | Access |
 |---|---|
 | Land drone | Surface terrain |
-| Amphibious drone | Surface water bodies and underwater biomes |
-| Digger drone | Underground layer |
-| Flying drone | Sky/atmosphere layer |
-| Space drone | Orbital layer |
+| Amphibious drone | Surface water bodies and aquatic sites |
+| Digger capability | Underground sites and buried resources |
+| Flight capability | Vertical traversal and atmospheric sites when present |
+| Space capability | Orbital/space sites in later-tier runs |
 
-Drones are constructed from factory-produced components — the same progression that advances your production graph also advances your exploration reach. This creates a natural pacing gate without arbitrary locks.
+Drones are constructed from factory-produced components — the same progression that advances your production graph also advances your exploration reach. This creates a natural pacing gate without arbitrary locks, but access tech should be introduced only when the current run has destinations worth reaching.
 
 ### Map reveal and scanning
 Fog of war is lifted by drone presence, but the reveal is intentionally imprecise at range. Scanners provide a general read on nearby areas: biome type and broad resource category presence (e.g. "mineral deposits," "fluid pockets") without exact quantities or positions. Precise data requires physical drone proximity or deployed sensor structures.
 
-This means players can plan exploration routes based on scan data ("that region has geothermal activity — worth sending a digger drone") without the world being fully solved from a distance.
+This means players can plan exploration routes based on scan data ("that region has geothermal activity — worth sending a digger-capable drone") without the world being fully solved from a distance.
 
 ### Persistent sites
 Points of interest are persistent structures that remain in the world across the run. Players may discover a sealed door, a ruin, or an anomaly they cannot yet interact with — a visible future goal. Returning to a site with the right tech or resources to unlock it is a concrete mid-run milestone.
@@ -744,7 +750,7 @@ Collected here for easy tracking. Each item links back to the section where it f
 |---|---|---|---|
 | 1 | ~~Should "building blind" be a supported mechanic?~~ **Resolved: post-MVP optional challenge mode** | §6 | ~~Medium~~ |
 | 2 | ~~Exact tier count for tech trees across difficulty levels~~ **Resolved: canonical 10-tier sequence, difficulties use prefix 1–3/1–5/1–7/1–10** | §7 | ~~High~~ |
-| 3 | ~~Visual perspective and movement model (2D, isometric, other)~~ **Resolved: 3D with building-scale prefab machines, heightmap terrain, graph-based underground tunnels** | §10 | ~~High~~ |
+| 3 | ~~Visual perspective and movement model (2D, isometric, other)~~ **Resolved: 3D with building-scale prefab machines, heightmap terrain, and scoped exploration domains rather than a universal vertical layer stack** | §10 | ~~High~~ |
 | 4 | ~~Should world reactivity also create opportunities?~~ **Resolved: yes, post-MVP — considered core to the game's reactivity design, not optional** | §11 | ~~Medium~~ |
 | 5 | ~~Should power transitions have a dramatic in-world expression?~~ **Resolved: post-MVP enhancement, not core** | §9 | ~~Low~~ |
 | 6 | ~~Exact failure conditions for permadeath runs~~ **Resolved: no forced failure conditions; runs always completable; permadeath modes post-MVP** | §16 | ~~High~~ |

@@ -35,9 +35,27 @@ ECS components, system logic (hotbar, drone inventory, storage units, Terminal s
 ### [`machine-ui.md`](machine-ui.md) — Machine UI Technical Design
 ECS components, system logic (open/close, identity, progress, power status, module slots, port binding editor, recipe table C/P flag editing), events, edge cases. Also defines the **revised `MachineJobPolicy`** (supersedes `crafting.md §4`) with per-recipe `RecipePolicy` carrying independent C/P flags and machine-level `CraftingJobMode`/`passive` defaults. VS and MVP scope noted inline. **Read before implementing the machine panel, `MachineJobPolicy`, `PortPolicy` editing, or `SlotBlockReason`.**
 
+### [`planning-ui.md`](planning-ui.md) — Planning UI Technical Design
+ECS components, system logic (Sankey production graph, per-node Inspector rail, Recipe Picker overlay, 3D network topology overlay with per-network filter), events, edge cases, and execution order. Plans future factory additions using ratio math — does not read live machine state. Multiple named plans per run; each is a saved `PlanState` component on a plan entity. Wireframe: `ui_mock/planner-wireframes.html`. VS and MVP scope noted inline. **Read before implementing the planner panel, Sankey graph, Inspector, Recipe Picker, or topology overlay.**
+
+### [`telemetry.md`](telemetry.md) — Telemetry System
+ECS resource structure, event schema (run lifecycle, first-occurrence, repeated), derived metrics, system logic, JSONL log format, and edge cases for development-build telemetry. Covers all VS §6 required events and derived metrics. `#[cfg(debug_assertions)]` gated — no analytics pipeline, no network. **Read before implementing the telemetry plugin, `TelemetryLog` resource, or adding new observable events.**
+
+### [`generation.md`](generation.md) — World & Chunk Generation
+Coordinate system, chunk streaming (spawn/despawn distances, hysteresis), heightmap generation (`HybridMulti<Perlin>`, ±50 m range), underground resource-domain query system (cell grid, biome bands, ellipsoidal veins), surface deposit placement (one per 64×64 m cell, 33% probability), discovery site placement (seeded XZ, drone proximity trigger), chunk boundary conditions (seam-free by construction), seed→geography mapping (all generation domains keyed independently from `DomainSeeds.world`), and 25 integration test invariants. VS vs. MVP scope (biomes, world bounds, core zone guarantee) noted inline. **Read before touching `src/world/generation.rs`, `src/world/ruins.rs`, `src/content/mod.rs` (resource domains/biomes/veins), or anything that places world objects.**
+
+### [`tech-tree-ui.md`](tech-tree-ui.md) — Tech Tree UI Technical Design
+ECS components, node visual states (Shadow/Partial/Revealed/Unlockable/Locked-Out), tier-paged questbook layout (BFS topological X, category Y, gate bridge cards, cross-tier port stubs), inspector rail, reveal overlay (tier ladder, before/after diff, prereq chain), exclusive-group choice modal (resolves `tech-tree-design.md` issue #9 — modal approach), top bar, events, edge cases, and 14 integration test invariants. VS scope: T1–T3, full reveal mechanic, tier gate display. **Read before implementing the tech tree panel, `TechTreePanelState`, reveal overlay, or exclusive-group surfacing.**
+
+### [`planet-identity.md`](planet-identity.md) — Planet Identity & Seed System
+ECS components, archetype-based property generation algorithm (3 VS archetypes; 6 float axes + hazard type), property-to-gameplay effect bindings (solar/combustion/geothermal/wind/thermodynamic/pressure modifiers with exact formulas), property visibility model (Hidden → Qualitative → Revealed with reveal triggers), landing panel UI (`PlayMode::Landing`), in-run Terminal Planet page, and insight beat feedback system (`PropertyDecisionValidated`). Also requires adding `planet` domain to `DomainSeeds`. **Read before implementing planet property generation, the landing panel, or the VS §3.1/§3.2 insight beat.**
+
 ---
 
-## Save Architecture
+## TODO
+These are systems/designs known to be needed **for the vertical slice** but without a doc yet. Write the spec before writing the code.
+
+### Save Architecture
 
 Two save scopes exist in every run:
 
@@ -47,26 +65,4 @@ Two save scopes exist in every run:
 
 **Format and library:** Both scopes use **RON format** via `moonshine-save` (v0.6.1, Bevy 0.18 compatible). Saveable entities are tagged with `moonshine_save::Save`; rendering/aesthetic entities (particle effects, camera rigs, UI) are excluded via `moonshine_save::Unload`. `SQLite` is not used.
 
----
-
-## TODO
-These are systems/designs known to be needed **for the vertical slice** but without a doc yet. Write the spec before writing the code.
-
-### Planet Identity & Seed System
-Detailed spec for: seed parameters, planet property generation (atmospheric, geological, thermal axes), property-to-gameplay effect bindings, visual/UI surface for landing panel and property display, and property-to-decision connection validation. Required for vertical slice signal §3.1 (Seeded Planet Identity) and §3.2 (First-Hour Insight Beat).
-
-**Partial coverage in `technical-design.md §1`:** seed string format, per-domain sub-seed derivation (keyed hash; stable domain keys), lazy chunk generation, backwards-from-terminal validity guarantee, seed versioning strategy, RNG algorithm (`rand` crate, `SmallRng`/`Pcg64`). **Missing:** planet property generation algorithm (atmospheric/geological/thermal axes and parameter ranges), property-to-gameplay effect bindings, visual/UI surface for the landing panel and in-run property display, and property-to-decision connection validation required by VS §3.2.
-
-### Planning UI
-Spec for the recipe browser, escape-item dependency graph view, machine count estimator, bottleneck/blocked-production alerts panel, and 3D network topology overlay. `machine-ui.md` covers the per-machine panel; this doc covers the cross-factory planning surface. Required for vertical slice signal §3.5 (Recipe Graph and Planner UX) and §3.6 (3D factory readability).
-
-### Telemetry
-Event schema (run start, property viewed, tech revealed, drone deployed, etc.), derived metric derivation (time-to-first-insight, blocked-state duration, etc.), and dev-build logging interface. Required for vertical slice §6 (Instrumentation) and playtest protocol §7.
-
-### World & Chunk Generation
-Procedural surface generation, deposit placement, discovery site generation, and how seed parameters shape geography. Required before world generation code can be written with testable invariants.
-
-**Partial coverage in `technical-design.md §4`:** scale (1 unit = 1 m), world extent and bounded-radius model, layer extents (surface/underground/sky/orbital), terrain chunk system (64×64 m heightmap chunks), core zone deposit guarantee, deposit system (surface markers, two-stage discovery, depletion), tunnel graph structure, world generation sequence. **Missing:** discovery site generation (trigger types, placement rules, seeded positions at integration-test depth), biome assignment algorithm, chunk stream boundary conditions, and how seed parameters shape geography — all needed to write testable invariants.
-
-### Tech Tree UI
-Spec for the tech tree page, node reveal panel, and node state display: locked (shadow visible — category, tier, rarity), revealable, revealed, unlocked, and disabled/locked-out. Covers the node reveal interaction flow, blocked-reason display (why a node is not yet revealable), and the proactive choice-surfacing treatment for exclusive-group nodes — the UX form (modal, sidebar, tree highlight) is unresolved in `tech-tree-design.md` issue #9 and must be decided here. `tech-tree-design.md` covers content and data design; this doc covers the UI implementation surface. Required for vertical slice signal §3.3 (Minimal Tech Tree).
+Support for cloud saves (eg, Steam)

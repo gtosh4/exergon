@@ -116,7 +116,7 @@ Each tier has a thematic identity that drives which categories dominate and what
 
 - 1–2 more base materials + first alien material (shallow, seeded)
 - First multi-step processing chains (ore → crushed → dust → ingot)
-- Second layer access via amphibious or digger drone
+- Optional second-domain access via amphibious or digger-capable drone, if the run's resource graph needs a water or underground site
 - Network design pressure begins: channel limits first felt
 - Power efficiency issues emerge; second source type needed
 - **Base/alien ratio:** ~70% base, 30% alien
@@ -127,7 +127,7 @@ Each tier has a thematic identity that drives which categories dominate and what
 
 - 2–3 alien materials; base materials begin feeding alien chains
 - Processing conditions appear: temperature, pressure, catalysts
-- Flying drone → atmosphere layer *(post-MVP; T3 Initiation escape does not require it)*
+- Flight-capable drone *(post-MVP; T3 Initiation escape does not require atmospheric-domain content)*
 - Sub-network segmentation becomes economical
 - **Base/alien ratio:** ~40% base, 60% alien
 - **Gate (terminal):** Construct activation key + sustain gateway power + activate
@@ -137,8 +137,8 @@ Each tier has a thematic identity that drives which categories dominate and what
 *Spacecraft. Orbital access.*
 
 - Deeper alien chains; byproduct routing creates graph interconnections
-- Space drone prerequisites unlock
-- Orbital layer becomes accessible
+- Space-capable drone or spacecraft prerequisites unlock
+- Orbital/space sites become accessible when the run's objective uses them
 - Power Tier 2+ required; first major renegotiation
 - **Base/alien ratio:** ~30% base, 70% alien
 - **Gate:** Achieve first orbital flight
@@ -201,7 +201,7 @@ Eight categories. Each node belongs to exactly one.
 
 | Category | Role | Primary tiers |
 |---|---|---|
-| **Extraction** | Getting raw resources from deposits and layers | 1–3 |
+| **Extraction** | Getting raw resources from deposits, sites, and resource domains | 1–3 |
 | **Smelting & Forming** | Base material transformation: ore → ingot → plate → wire | 1–3 |
 | **Processing** | Chemical, thermal, pressure reactions; deep chains | 3–7 |
 | **Power** | Generation, storage, distribution — renegotiated each tier | 1–10 |
@@ -259,6 +259,29 @@ Every node in the pool defines:
 - **Alternative prerequisites** — pool the seed draws additional prerequisite edges from
 - **Optional** — boolean; if true, this node comes from the optional pool, does not count toward tier completion, and can only serve as a prerequisite for other optional nodes
 - **Exclusive group** — optional identifier; nodes sharing a group are mutually exclusive — unlocking one permanently disables the rest; group spawn behavior (always together vs. conditional) is configured per group
+
+### `TechTreeNode` ECS component
+
+```rust
+pub struct TechTreeNode {
+    pub id: NodeId,
+    pub category: NodeCategory,
+    pub tier: u8,
+    pub rarity: NodeRarity,
+    pub effects: Vec<NodeEffect>,
+    pub primary_vector: UnlockVector,
+    pub alt_vectors: Vec<UnlockVector>,
+    pub primary_prereq: Option<Prereq>,
+    pub alt_prereqs: Vec<Prereq>,
+    pub optional: bool,
+    pub exclusive_group: Option<ExclusiveGroupId>,
+}
+
+pub enum Prereq {
+    Node(NodeId),
+    Group(ExclusiveGroupId),  // any member unlocked satisfies
+}
+```
 
 ### Node types (from GDD §7)
 

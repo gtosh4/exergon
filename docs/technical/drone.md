@@ -34,7 +34,7 @@ Drones are player-piloted exploration and interaction tools — player *attentio
 ```
 Drone entity
 ├── Drone                        ← marker; always present
-├── DroneType                    ← tier + layer access
+├── DroneType                    ← tier + domain access/capability
 ├── DroneState                   ← Idle | ActivelyControlled
 ├── DroneInventory               ← items collected during piloting
 ├── DroneTools                   ← equipped tool capabilities (mining drill, etc.)
@@ -59,7 +59,11 @@ pub enum DroneType {
     Flying,
     Space,
 }
+```
 
+`DroneType` names are capability tiers, not a guarantee that every run contains a complete matching domain. Digger, Flying, and Space content should appear only when the run's tech tier, resource graph, or escape objective includes underground, atmospheric, or orbital/space domains worth accessing.
+
+```rust
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum DroneState {
     #[default]

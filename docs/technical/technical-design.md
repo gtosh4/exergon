@@ -61,7 +61,7 @@ To guarantee validity, generation follows a **backwards-from-terminal** ordering
 1. Generate escape artifact (terminal node)
 2. Generate recipe graph backwards from terminal, ensuring all prerequisites are satisfiable within the run's parameter bounds
 3. Generate tech tree ensuring all recipe-required nodes are present and reachable
-4. Generate world ensuring all resource types required by the recipe graph have valid spawn locations given the world's biome+layer layout
+4. Generate world ensuring all resource types required by the recipe graph have valid spawn locations given the world's biome+domain layout
 5. Generate power sources ensuring sufficient capacity exists for the critical path
 6. Apply planet modifiers (these tune existing content, do not affect graph validity)
 
@@ -239,80 +239,9 @@ A generated tech tree must satisfy:
 
 ## 4. World & Terrain System
 
-### Scale and units
+ECS components, chunk streaming, heightmap generation, underground resource-domain queries, surface deposit placement, discovery site placement, chunk boundary conditions, seed-to-geography mapping, and integration test invariants: [`generation.md`](generation.md).
 
-**1 unit = 1 meter.** Machines are building-scale prefab structures. A basic machine occupies roughly a 5×5×5 meter footprint; high-tier machines are larger. Players and drones are small relative to machines and move through a world that feels physically proportioned.
-
-### World extent
-
-The world is **bounded** — a fixed-radius region generated at run start from the world seed. Bounded worlds avoid LOD complexity while providing ample space for factory expansion and exploration within a run.
-
-World radius is a seeded parameter varying by difficulty. A standard run's world is large enough that players will not exhaust explorable terrain.
-
-Vertically, the world has fixed layer extents seeded at run start. Layer boundaries vary per run within defined ranges:
-
-| Layer | Elevation | Access |
-|---|---|---|
-| Orbital | Very high | Space drone |
-| Sky / atmosphere | Above surface | Flying drone |
-| Surface | Ground level | Starting layer |
-| Underground | Below surface | Digger drone + tunnel graph |
-
-Layer boundaries are legible in-world (atmospheric density changes, visual sky transitions, geological transitions underground).
-
-### Core zone
-
-Critical resources are guaranteed within a **core zone** around the spawn point. The world generator places all recipe-graph-required resource types within a bounded radius. Additional deposits may exist further out.
-
-Core zone radius is a seeded parameter — some runs have compact resource geography, others are more spread out.
-
-### Terrain system
-
-The surface is a **heightmap-based mesh** rendered in chunks. No per-block terrain types — the surface is a continuous mesh with biome-driven appearance handled by terrain shaders, not a block texture atlas.
-
-Terrain chunk size: **64×64 meters**. Chunks are loaded/unloaded based on player proximity. Each chunk is a mesh generated from heightmap data for that region, associated with a biome.
-
-*Implementation: [`WorldConfig`](../src/world/generation.rs#L13), [`BiomeDef`](../src/content/mod.rs#L71), [`LayerDef`](../src/content/mod.rs#L63)*
-
-Terrain generation uses **layered noise** derived from the world sub-seed:
-- Base heightmap (elevation)
-- Biome boundaries (lateral regions with distinct visual appearance)
-- Resource deposit placement (constrained by biome + layer affinity rules)
-- Point of interest placement (ruins, anomalies — seeded positions)
-
-Biome appearance is handled by **terrain shaders**, not block type texture atlases. Different biomes use different surface materials and color variation.
-
-### Deposits
-
-Ore deposits are **persistent surface markers** — visible indicators on the terrain surface (similar to Satisfactory's resource nodes). Each deposit has a position, a seeded weighted ore blend, and a depletion state. Deposits do not spawn inside aegis field boundaries and are removed when aegis expansion covers their location.
-
-**Discovery** is two-stage: drone scan or prospecting tool gives coarse data (resource category, approximate area); physical drone proximity reveals exact location, dominant ore type, and current yield.
-
-**Manual mining** is the early-game extraction method. The player pilots a drone to a deposit and uses its mining tool to extract ore directly into inventory. This is quickly replaced by automatic miners.
-
-**Automatic miners** are the primary extraction method. One miner per deposit. Once placed, the miner extracts continuously and feeds ore into the logistics network. Early miners output one ore per cycle, sampled probabilistically from the deposit's weighted distribution. Advanced miners output multiple items per cycle.
-
-**Depletion** is tracked per deposit as total ore extracted. Yield degrades as extraction accumulates — the degradation curve shape is seeded per deposit for variety. Yield asymptotically approaches zero but never reaches it. Late-game **void miners** bypass depletion entirely, maintaining full yield regardless of extraction history. Miners can also augment base extraction rate.
-
-A deposit produces a **weighted blend of ore items**: a copper-dominant deposit might yield 70% copper_ore, 20% tin_ore, 10% zinc_ore. This reflects mineral co-occurrence and creates incidental supply of secondary materials. Dominant ore type and secondary weights are seeded per deposit.
-
-*Implementation: [`OreSpec`](../src/content/mod.rs), [`DepositDef`](../src/content/mod.rs), [`DepositRegistry`](../src/content/mod.rs)*
-
-### Underground tunnel system
-
-Underground access is provided via a **tunnel graph** — a logical graph of nodes and edges representing excavated passages.
-
-When a player pilots a digger drone through subsurface terrain, passage creates tunnel nodes (positions) and edges (passages with a defined radius) along the path. The resulting tunnel is rendered as a mesh passage. The graph persists across sessions.
-
-Underground deposits are placed at depth during world generation. Discovering them requires drone exploration; extracting them requires a logistics connection routed through the tunnel network.
-
-### World generation sequence
-
-Follows the backwards-from-terminal order established in §1:
-1. Place critical resource deposits within core zone (surface and underground)
-2. Generate surface heightmap and biome layout
-3. Place points of interest (ruins, anomalies — seeded positions)
-4. Apply planet modifier visual effects (atmospheric color, terrain character)
+Key design choices: heightmap-based surface (64×64 m chunks, HybridMulti noise, ±50 m range); surface is the primary world and factory substrate; underground resource queries use a separate 3D cell grid (160×160×64 m cells, 33% vein density per cell, ellipsoidal shape with jitter) without implying a full parallel underground world; surface deposits one-per-chunk at 33% probability; discovery sites spawned unconditionally at run start from seeded positions; all generation domains derive independently from `DomainSeeds.world` via keyed xxh64 so generation order is arbitrary. VS has no world boundary; MVP adds seeded `WorldBounds` radius and core zone guarantee. Surface biome shaders and generic discovery site types are MVP. See `gdd.md §11` for design intent.
 
 ---
 

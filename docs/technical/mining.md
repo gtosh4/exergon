@@ -2,6 +2,8 @@
 
 Ore extraction from surface deposits. Two extraction modes: manual (drone-piloted, early-game) and automatic (miner machine, primary method). Both write to the same depletion counter on the deposit entity.
 
+This spec covers the surface mining path only. Underground, atmospheric, orbital, or other specialized resource domains should define their own extraction entities and access rules when a run's recipe graph needs them; they should not be assumed to exist in every run.
+
 ---
 
 ## Table of Contents
@@ -73,26 +75,7 @@ Higher-tier miners increase `output_count`. `cycle_time` may be tuned per tier t
 
 ## 2. Deposit Placement and Lifecycle
 
-### Spawn
-
-`spawn_deposit_markers` runs when a `TerrainChunk` is first added (via `Added<TerrainChunk>`). For each new chunk:
-
-1. Look up ore distribution for the chunk's world position via `DepositRegistry::ore_at`
-2. If no deposit rolls for this cell (33% spawn probability): skip
-3. **Check for existing deposit** — if an `OreDeposit` already exists with `chunk_pos == chunk.chunk_pos`, skip (prevents double-spawn when player re-enters a chunk whose deposit persisted)
-4. Derive `depletion_seed` from world seed + chunk position via `xxh64`
-5. Spawn deposit entity at terrain surface height + 0.75 m with `OreDeposit { miner: None, total_extracted: 0.0, ... }`
-
-### Despawn
-
-`despawn_deposit_system` reacts to `ChunkUnloaded { chunk_pos: IVec2 }` events emitted by the terrain system when a chunk is unloaded. For each matching `OreDeposit` with `chunk_pos == event.chunk_pos`:
-
-- If `deposit.total_extracted == 0.0 && deposit.miner.is_none()` → despawn the entity (pristine, unoccupied)
-- Otherwise → **keep alive**
-
-A deposit that has been mined — even partially — persists indefinitely. This prevents players from resetting diminishing returns by unloading and reloading a chunk. Miners also keep their target alive even without prior extraction.
-
-When the player returns, `spawn_deposit_markers` skips the chunk because the deposit entity still exists.
+Deposit spawn and despawn are managed by the world generation system. Full spec in `generation.md §6`. Key rule for mining: a deposit that has been mined (`total_extracted > 0.0`) or has a miner attached (`miner.is_some()`) persists indefinitely regardless of chunk state. Pristine unoccupied deposits are cleaned up on chunk unload.
 
 ---
 
@@ -318,5 +301,6 @@ Each machine type provides its own `*TierDef` struct implementing `MachineTierDe
 
 - **Void miners** — bypass `yield_factor`; output at constant 1.0 regardless of `total_extracted`. Requires a new miner tier flag in `MinerTierDef`.
 - **Augments** — modules that increase base extraction rate (multiplier on effective cycle speed).
+- **Domain-specific extraction** — specialized miners or collectors for underground geothermal sites, atmospheric condensates, orbital salvage, or other exploration/resource domains. These are content-driven extensions, not part of the default surface deposit loop.
 - **Reactivity contribution** — active miners contribute continuous reactivity to their region (tracked per-source; see `World Reactivity` spec).
 - **Per-source depletion breakdown** — UI showing manual vs. automatic extraction contribution.
