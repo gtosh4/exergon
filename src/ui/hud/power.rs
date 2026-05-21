@@ -9,6 +9,8 @@ use crate::{
     ui::theme::{COLOR_GOLD, COLOR_OVERLAY_BG},
 };
 
+const COLOR_DEFICIT: Color = Color::srgb(1.0, 0.3, 0.3);
+
 #[derive(Component)]
 struct PowerHudRoot;
 
@@ -53,7 +55,7 @@ fn update(
     recipe_graph: Option<Res<RecipeGraph>>,
     inv_open: Option<Res<InventoryOpen>>,
     mut root_q: Query<&mut Visibility, With<PowerHudRoot>>,
-    mut text_q: Query<&mut Text, With<PowerHudText>>,
+    mut text_q: Query<(&mut Text, &mut TextColor), With<PowerHudText>>,
 ) {
     let hidden = inv_open.is_some_and(|o| o.0);
     for mut v in &mut root_q {
@@ -68,6 +70,9 @@ fn update(
     }
 
     let produced: f32 = gen_q.iter().map(|g| g.watts).sum();
+    let (buf_cur, buf_max): (f32, f32) = gen_q.iter().fold((0.0, 0.0), |(c, m), g| {
+        (c + g.buffer_joules, m + g.max_buffer_joules)
+    });
     let demanded: f32 = recipe_graph
         .as_ref()
         .map(|rg| {
@@ -85,14 +90,30 @@ fn update(
         })
         .unwrap_or(0.0);
 
-    let label = if demanded > 0.0 {
+    let deficit = demanded > 0.0 && produced < demanded;
+    let pwr_line = if demanded > 0.0 {
         let pct = (produced / demanded * 100.0).min(100.0);
-        format!("⚡ {produced:.0}W / {demanded:.0}W ({pct:.0}%)")
+        if deficit {
+            format!("⚡ {produced:.0}W / {demanded:.0}W ({pct:.0}%) !")
+        } else {
+            format!("⚡ {produced:.0}W / {demanded:.0}W ({pct:.0}%)")
+        }
     } else {
         format!("⚡ {produced:.0}W / 0W")
     };
+    let buf_line = if buf_max > 0.0 {
+        format!(
+            "\n▪ buf {:.0}kJ / {:.0}kJ",
+            buf_cur / 1000.0,
+            buf_max / 1000.0
+        )
+    } else {
+        String::new()
+    };
+    let label = format!("{pwr_line}{buf_line}");
 
-    if let Ok(mut text) = text_q.single_mut() {
+    if let Ok((mut text, mut color)) = text_q.single_mut() {
         **text = label;
+        color.0 = if deficit { COLOR_DEFICIT } else { COLOR_GOLD };
     }
 }

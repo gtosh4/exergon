@@ -5,55 +5,56 @@ use bevy::prelude::*;
 
 use crate::inventory::{Hotbar, InventoryOpen};
 use crate::logistics::StorageUnit;
-use crate::machine::{GhostAssets, IoPortMarker, Machine, Platform};
+use bevy::ecs::system::SystemParam;
+
+use crate::machine::{
+    GhostAssets, IoPortMarker, Machine, OrientationSupport, PlaceableColliderCache,
+    PlaceableRegistry, Platform, SnapRule, TileSnap,
+};
 
 use super::player::{MainCamera, Player};
 use super::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
 const MAX_REACH: f32 = 16.0;
-const PLATFORM_TILE: f32 = 8.0;
 
-fn placement_half_extent(item_id: &str) -> f32 {
-    match item_id {
-        "platform" => 0.125,
-        _ => 2.0,
-    }
-}
-
-fn snap_platform_xz(pos: Vec3, y: f32) -> Vec3 {
-    Vec3::new(
-        (pos.x / PLATFORM_TILE).round() * PLATFORM_TILE,
-        y,
-        (pos.z / PLATFORM_TILE).round() * PLATFORM_TILE,
-    )
-}
-
-/// Returns (ix_min, ix_max, iz_min, iz_max) in tile-index space.
-fn platform_tile_range(a: Vec3, b: Vec3) -> (i32, i32, i32, i32) {
-    let ix_a = (a.x / PLATFORM_TILE).round() as i32;
-    let ix_b = (b.x / PLATFORM_TILE).round() as i32;
-    let iz_a = (a.z / PLATFORM_TILE).round() as i32;
-    let iz_b = (b.z / PLATFORM_TILE).round() as i32;
-    (
-        ix_a.min(ix_b),
-        ix_a.max(ix_b),
-        iz_a.min(iz_b),
-        iz_a.max(iz_b),
-    )
+/// Returns (ix_min, ix_max, iz_min, iz_max) as tile offsets relative to `anchor`.
+fn platform_tile_range(anchor: Vec3, cursor: Vec3, step: f32) -> (i32, i32, i32, i32) {
+    let n_x = ((cursor.x - anchor.x) / step).round() as i32;
+    let n_z = ((cursor.z - anchor.z) / step).round() as i32;
+    (n_x.min(0), n_x.max(0), n_z.min(0), n_z.max(0))
 }
 
 #[derive(Resource, Default)]
-pub struct PendingPlatformCorner(pub Option<Vec3>);
+pub enum PendingPlacement {
+    #[default]
+    Idle,
+    TwoEndpoint {
+        item_id: String,
+        anchor: Vec3,
+    },
+    AreaRect {
+        item_id: String,
+        corner_a: Vec3,
+        tile_step: f32,
+    },
+}
 
 #[derive(Component)]
 pub struct PlacementGhost;
 
-/// Holds the first-selected IO port position when the player is mid-way through
-/// a two-click cable connection.
+/// Current pre-placement rotation, applied to single-point placed entities.
+/// Stays sticky across hotbar swaps; forced to IDENTITY for Fixed placeables.
 #[derive(Resource, Default)]
-pub struct PendingCablePort {
-    pub pos: Option<Vec3>,
-    pub item_id: Option<String>,
+pub struct BuildOrientation(pub Quat);
+
+const BUILD_ROT_STEP: f32 = 10.0;
+
+/// Bundled placement metadata params — keeps `object_interaction` under the 16-param limit.
+#[derive(SystemParam)]
+pub(super) struct PlacementMeta<'w> {
+    cache: Option<Res<'w, PlaceableColliderCache>>,
+    registry: Option<Res<'w, PlaceableRegistry>>,
+    orientation: Option<Res<'w, BuildOrientation>>,
 }
 
 #[derive(Resource)]
@@ -82,6 +83,38 @@ pub struct RemovalGhostPreview {
     entity: Entity,
 }
 
+pub(super) fn build_orientation_input_system(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    hotbar: Res<Hotbar>,
+    registry: Option<Res<PlaceableRegistry>>,
+    mut orientation: ResMut<BuildOrientation>,
+) {
+    let support = registry
+        .as_ref()
+        .and_then(|r| r.get(hotbar.active_item_id()?))
+        .map(|d| d.orientation.clone())
+        .unwrap_or(OrientationSupport::Fixed);
+
+    match support {
+        OrientationSupport::Fixed => {
+            orientation.0 = Quat::IDENTITY;
+        }
+        OrientationSupport::AxisY | OrientationSupport::Free => {
+            // VS simplification: Free treated same as AxisY (spec §13)
+            if keyboard.just_pressed(KeyCode::KeyR) {
+                let shift =
+                    keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
+                let step = if shift {
+                    -BUILD_ROT_STEP
+                } else {
+                    BUILD_ROT_STEP
+                };
+                orientation.0 = Quat::from_rotation_y(step.to_radians()) * orientation.0;
+            }
+        }
+    }
+}
+
 pub(super) fn setup_ghost_preview(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -107,8 +140,8 @@ pub(super) fn setup_ghost_preview(
         entity,
         last_item_id: String::new(),
     });
-    commands.init_resource::<PendingCablePort>();
-    commands.init_resource::<PendingPlatformCorner>();
+    commands.init_resource::<PendingPlacement>();
+    commands.init_resource::<BuildOrientation>();
 
     let removal_entity = commands
         .spawn((
@@ -147,8 +180,9 @@ pub(super) fn update_ghost_preview(
         With<PlacementGhost>,
     >,
     ghost_assets: Option<Res<GhostAssets>>,
-    pending_platform: Option<Res<PendingPlatformCorner>>,
+    pending: Option<Res<PendingPlacement>>,
     camera_q: Query<&Transform, (With<MainCamera>, Without<PlacementGhost>)>,
+    placeable_cache: Option<Res<PlaceableColliderCache>>,
 ) {
     let (Some(ghost), Some(ghost_assets)) = (ghost.as_mut(), ghost_assets) else {
         return;
@@ -185,15 +219,25 @@ pub(super) fn update_ghost_preview(
             }
             if item_id == "platform" {
                 let base = pos + normal * 0.125;
-                let snapped = snap_platform_xz(base, base.y);
-                let corner_a = pending_platform.as_ref().and_then(|p| p.0);
-                match corner_a {
-                    Some(ca) => {
-                        let (ix_min, ix_max, iz_min, iz_max) = platform_tile_range(ca, snapped);
+                let corner_info = pending.as_ref().and_then(|p| {
+                    if let PendingPlacement::AreaRect {
+                        corner_a,
+                        tile_step,
+                        ..
+                    } = p.as_ref()
+                    {
+                        Some((*corner_a, *tile_step))
+                    } else {
+                        None
+                    }
+                });
+                match corner_info {
+                    Some((ca, step)) => {
+                        let (ix_min, ix_max, iz_min, iz_max) = platform_tile_range(ca, base, step);
                         transform.translation = Vec3::new(
-                            (ix_min + ix_max) as f32 * 0.5 * PLATFORM_TILE,
+                            ca.x + (ix_min + ix_max) as f32 * 0.5 * step,
                             ca.y,
-                            (iz_min + iz_max) as f32 * 0.5 * PLATFORM_TILE,
+                            ca.z + (iz_min + iz_max) as f32 * 0.5 * step,
                         );
                         transform.scale = Vec3::new(
                             (ix_max - ix_min + 1) as f32,
@@ -202,35 +246,45 @@ pub(super) fn update_ghost_preview(
                         );
                     }
                     None => {
-                        transform.translation = snapped;
+                        transform.translation = base;
                         transform.scale = Vec3::ONE;
                     }
                 }
             } else {
-                transform.translation = pos + normal * placement_half_extent(item_id);
+                let half_y = placeable_cache
+                    .as_ref()
+                    .and_then(|c| c.by_item.get(item_id))
+                    .map(|c| c.aabb_half_extents.y)
+                    .unwrap_or(2.0);
+                transform.translation = pos + normal * half_y;
                 transform.scale = Vec3::ONE;
             }
             *vis = Visibility::Visible;
         }
         _ if show_ghost
             && hotbar.active_item_id() == Some("platform")
-            && pending_platform.as_ref().and_then(|p| p.0).is_some() =>
+            && matches!(pending.as_deref(), Some(PendingPlacement::AreaRect { .. })) =>
         {
-            let Some(corner_a) = pending_platform.as_ref().and_then(|p| p.0) else {
+            let Some(PendingPlacement::AreaRect {
+                corner_a,
+                tile_step,
+                ..
+            }) = pending.as_deref()
+            else {
                 return;
             };
+            let (corner_a, step) = (*corner_a, *tile_step);
             if let Some(air_pos) = air_platform_pos(&camera_q, corner_a) {
-                let snapped = snap_platform_xz(air_pos, corner_a.y);
-                let (ix_min, ix_max, iz_min, iz_max) = platform_tile_range(corner_a, snapped);
+                let (ix_min, ix_max, iz_min, iz_max) = platform_tile_range(corner_a, air_pos, step);
                 if ghost.last_item_id != "platform" {
                     *mesh = Mesh3d(ghost_assets.platform_mesh.clone());
                     *mat = MeshMaterial3d(ghost_assets.platform_material.clone());
                     ghost.last_item_id = "platform".to_string();
                 }
                 transform.translation = Vec3::new(
-                    (ix_min + ix_max) as f32 * 0.5 * PLATFORM_TILE,
+                    corner_a.x + (ix_min + ix_max) as f32 * 0.5 * step,
                     corner_a.y,
-                    (iz_min + iz_max) as f32 * 0.5 * PLATFORM_TILE,
+                    corner_a.z + (iz_min + iz_max) as f32 * 0.5 * step,
                 );
                 transform.scale = Vec3::new(
                     (ix_max - ix_min + 1) as f32,
@@ -387,11 +441,11 @@ pub(super) fn object_interaction(
     player_q: Query<Entity, With<Player>>,
     mut world_events: MessageWriter<WorldObjectEvent>,
     mut cable_events: MessageWriter<CableConnectionEvent>,
-    mut pending_cable: ResMut<PendingCablePort>,
-    mut pending_platform: ResMut<PendingPlatformCorner>,
+    mut pending: ResMut<PendingPlacement>,
     camera_q: Query<&Transform, (With<MainCamera>, Without<PlacementGhost>)>,
     spatial_query: SpatialQuery,
     sensor_q: Query<(), With<Sensor>>,
+    meta: PlacementMeta<'_>,
 ) {
     for ev in scroll.read() {
         let delta = if ev.y > 0.0 { 1i32 } else { -1i32 };
@@ -417,10 +471,20 @@ pub(super) fn object_interaction(
     }
 
     if mouse.just_pressed(MouseButton::Right) {
-        pending_platform.0 = None;
+        *pending = PendingPlacement::Idle;
     }
-    if pending_platform.0.is_some() && hotbar.active_item_id() != Some("platform") {
-        pending_platform.0 = None;
+    match &*pending {
+        PendingPlacement::AreaRect { item_id, .. }
+            if hotbar.active_item_id() != Some(item_id.as_str()) =>
+        {
+            *pending = PendingPlacement::Idle;
+        }
+        PendingPlacement::TwoEndpoint { item_id, .. }
+            if hotbar.active_item_id() != Some(item_id.as_str()) =>
+        {
+            *pending = PendingPlacement::Idle;
+        }
+        _ => {}
     }
 
     let surface: Option<(Vec3, Vec3)> = match *look_target {
@@ -436,23 +500,23 @@ pub(super) fn object_interaction(
                 return;
             };
             world_events.write(WorldObjectEvent {
-                pos,
+                transform: Transform::from_translation(pos),
                 item_id: String::new(),
                 kind: WorldObjectKind::Removed,
             });
-            pending_cable.pos = None;
-            pending_cable.item_id = None;
+            *pending = PendingPlacement::Idle;
         } else if let Some(item_id) = hotbar.active_item_id().map(str::to_owned) {
             if item_id.ends_with("_cable") {
                 let Some((pos, _)) = surface else {
                     return;
                 };
                 let place_pos = pos;
-                match pending_cable.pos {
-                    Some(from)
-                        if pending_cable.item_id.as_deref() == Some(&item_id)
-                            && from.distance(place_pos) > 0.1 =>
-                    {
+                match &*pending {
+                    PendingPlacement::TwoEndpoint {
+                        anchor,
+                        item_id: pending_id,
+                    } if pending_id == &item_id && anchor.distance(place_pos) > 0.1 => {
+                        let from = *anchor;
                         if take_from_any_storage(&mut storage_q, &item_id) {
                             cable_events.write(CableConnectionEvent {
                                 from,
@@ -463,58 +527,88 @@ pub(super) fn object_interaction(
                                 to_port: None,
                             });
                         }
-                        pending_cable.pos = None;
-                        pending_cable.item_id = None;
+                        *pending = PendingPlacement::Idle;
                     }
                     _ => {
-                        pending_cable.pos = Some(place_pos);
-                        pending_cable.item_id = Some(item_id);
+                        *pending = PendingPlacement::TwoEndpoint {
+                            item_id,
+                            anchor: place_pos,
+                        };
                     }
                 }
             } else if item_id == "platform" {
-                // Use surface hit or, when a corner is already set, project into air
+                let existing = if let PendingPlacement::AreaRect {
+                    corner_a,
+                    tile_step,
+                    ..
+                } = &*pending
+                {
+                    Some((*corner_a, *tile_step))
+                } else {
+                    None
+                };
                 let raw = surface
                     .map(|(p, n)| p + n * 0.125)
-                    .or_else(|| air_platform_pos(&camera_q, pending_platform.0?));
+                    .or_else(|| air_platform_pos(&camera_q, existing.map(|(ca, _)| ca)?));
                 let Some(raw) = raw else {
                     return;
                 };
-                let snapped = snap_platform_xz(raw, raw.y);
-                match pending_platform.0 {
+                match existing {
                     None => {
-                        pending_platform.0 = Some(snapped);
+                        let tile_step = meta
+                            .registry
+                            .as_deref()
+                            .and_then(|r| r.get("platform"))
+                            .and_then(|def| match &def.snap {
+                                SnapRule::Tile(TileSnap::Horizontal { step }) => Some(*step),
+                                _ => None,
+                            })
+                            .unwrap_or(8.0);
+                        *pending = PendingPlacement::AreaRect {
+                            item_id,
+                            corner_a: raw,
+                            tile_step,
+                        };
                     }
-                    Some(corner_a) => {
+                    Some((corner_a, tile_step)) => {
                         let (ix_min, ix_max, iz_min, iz_max) =
-                            platform_tile_range(corner_a, snapped);
+                            platform_tile_range(corner_a, raw, tile_step);
                         for ix in ix_min..=ix_max {
                             for iz in iz_min..=iz_max {
                                 if !take_from_any_storage(&mut storage_q, &item_id) {
-                                    pending_platform.0 = None;
+                                    *pending = PendingPlacement::Idle;
                                     return;
                                 }
                                 world_events.write(WorldObjectEvent {
-                                    pos: Vec3::new(
-                                        ix as f32 * PLATFORM_TILE,
+                                    transform: Transform::from_translation(Vec3::new(
+                                        corner_a.x + ix as f32 * tile_step,
                                         corner_a.y,
-                                        iz as f32 * PLATFORM_TILE,
-                                    ),
+                                        corner_a.z + iz as f32 * tile_step,
+                                    )),
                                     item_id: item_id.clone(),
                                     kind: WorldObjectKind::Placed,
                                 });
                             }
                         }
-                        pending_platform.0 = None;
+                        *pending = PendingPlacement::Idle;
                     }
                 }
             } else {
                 let Some((pos, normal)) = surface else {
                     return;
                 };
-                let half = placement_half_extent(&item_id);
-                let place_pos = pos + normal * half;
-                let check_half = (half - 0.05).max(0.05);
-                let check = Collider::cuboid(check_half, check_half, check_half);
+                let footprint = meta
+                    .cache
+                    .as_ref()
+                    .and_then(|c| c.by_item.get(item_id.as_str()))
+                    .map(|c| c.aabb_half_extents)
+                    .unwrap_or(Vec3::splat(2.0));
+                let place_pos = pos + normal * footprint.y;
+                let check = Collider::cuboid(
+                    (footprint.x - 0.05).max(0.05),
+                    (footprint.y - 0.05).max(0.05),
+                    (footprint.z - 0.05).max(0.05),
+                );
                 let mut place_filter = SpatialQueryFilter::default();
                 if let Ok(player) = player_q.single() {
                     place_filter.excluded_entities.insert(player);
@@ -524,8 +618,27 @@ pub(super) fn object_interaction(
                     .iter()
                     .any(|&e| !sensor_q.contains(e));
                 if !blocked && take_from_any_storage(&mut storage_q, &item_id) {
+                    let rotation = {
+                        let support = meta
+                            .registry
+                            .as_deref()
+                            .and_then(|r: &PlaceableRegistry| r.get(&item_id))
+                            .map(|d| &d.orientation);
+                        match support {
+                            Some(OrientationSupport::AxisY | OrientationSupport::Free) => meta
+                                .orientation
+                                .as_deref()
+                                .map(|o: &BuildOrientation| o.0)
+                                .unwrap_or(Quat::IDENTITY),
+                            _ => Quat::IDENTITY,
+                        }
+                    };
                     world_events.write(WorldObjectEvent {
-                        pos: place_pos,
+                        transform: Transform {
+                            translation: place_pos,
+                            rotation,
+                            scale: Vec3::ONE,
+                        },
                         item_id,
                         kind: WorldObjectKind::Placed,
                     });
@@ -540,42 +653,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn placement_half_extent_platform() {
-        assert_eq!(placement_half_extent("platform"), 0.125);
-    }
-
-    #[test]
-    fn placement_half_extent_default() {
-        assert_eq!(placement_half_extent("smelter"), 2.0);
-        assert_eq!(placement_half_extent("anything_else"), 2.0);
-    }
-
-    #[test]
-    fn snap_platform_xz_rounds_to_nearest_tile() {
-        let snapped = snap_platform_xz(Vec3::new(3.0, 5.0, 13.0), 5.0);
-        assert_eq!(snapped, Vec3::new(0.0, 5.0, 16.0));
-
-        let snapped2 = snap_platform_xz(Vec3::new(5.0, 0.0, -1.0), 0.0);
-        assert_eq!(snapped2, Vec3::new(8.0, 0.0, 0.0));
-    }
-
-    #[test]
     fn platform_tile_range_single_tile() {
-        let a = Vec3::new(0.0, 0.0, 0.0);
-        assert_eq!(platform_tile_range(a, a), (0, 0, 0, 0));
+        let a = Vec3::ZERO;
+        assert_eq!(platform_tile_range(a, a, 8.0), (0, 0, 0, 0));
     }
 
     #[test]
     fn platform_tile_range_two_by_three() {
         let a = Vec3::new(0.0, 0.0, 0.0);
         let b = Vec3::new(8.0, 0.0, 16.0);
-        assert_eq!(platform_tile_range(a, b), (0, 1, 0, 2));
+        assert_eq!(platform_tile_range(a, b, 8.0), (0, 1, 0, 2));
     }
 
     #[test]
     fn platform_tile_range_negative_direction() {
-        let a = Vec3::new(16.0, 0.0, 0.0);
-        let b = Vec3::new(0.0, 0.0, 0.0);
-        assert_eq!(platform_tile_range(a, b), (0, 2, 0, 0));
+        let anchor = Vec3::new(16.0, 0.0, 0.0);
+        let cursor = Vec3::new(0.0, 0.0, 0.0);
+        assert_eq!(platform_tile_range(anchor, cursor, 8.0), (-2, 0, 0, 0));
+    }
+
+    #[test]
+    fn platform_tile_range_arbitrary_anchor() {
+        let anchor = Vec3::new(3.5, 0.0, 7.2);
+        let cursor = Vec3::new(3.5 + 16.0, 0.0, 7.2 + 8.0);
+        assert_eq!(platform_tile_range(anchor, cursor, 8.0), (0, 2, 0, 1));
     }
 }

@@ -1,0 +1,12 @@
+(
+    id: "activate_gateway",
+    inputs: [
+        (item: "gateway_key", quantity: 1.0),
+    ],
+    outputs: [],
+    byproducts: [],
+    machine_type: "gateway",
+    machine_tier: 1,
+    processing_time: 120.0,
+    energy_cost: 5000.0,
+)

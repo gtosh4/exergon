@@ -1,11 +1,17 @@
 use bevy::prelude::*;
 
+mod placeables;
 mod placement;
 mod registry;
 mod visuals;
 
+pub use placeables::{
+    GhostHint, InteractionShape, ItemKind, ItemSpec, OrientationSupport, PlaceableCacheReady,
+    PlaceableCollider, PlaceableColliderCache, PlaceableDef, PlaceableRegistry, SnapRule,
+    SurfaceRule, TileSnap,
+};
 pub use placement::MachineBundle;
-pub use registry::{MachineDef, MachineRegistry, MachineTierDef};
+pub use registry::{EnvSource, GeneratorDef, MachineDef, MachineRegistry, MachineTierDef};
 pub(crate) use visuals::GhostAssets;
 pub use visuals::{MachineColliders, MachinePortLayout, MachinePortLayouts, MachineVisualAssets};
 
@@ -85,11 +91,18 @@ impl Plugin for MachinePlugin {
             )
             .add_systems(
                 Startup,
-                (registry::load_machines, visuals::setup_machine_visuals),
+                (
+                    registry::load_machines,
+                    visuals::setup_machine_visuals,
+                    visuals::register_fallback_port_layouts,
+                ),
             )
             .add_systems(
                 Startup,
-                visuals::setup_ghost_assets.after(visuals::setup_machine_visuals),
+                (
+                    visuals::setup_ghost_assets.after(visuals::setup_machine_visuals),
+                    placeables::build_placeable_collider_cache.after(registry::load_machines),
+                ),
             )
             .add_systems(Update, visuals::compute_machine_colliders)
             .add_systems(
@@ -343,7 +356,10 @@ mod tests {
     fn simple_machine(id: &str) -> MachineDef {
         MachineDef {
             id: id.to_string(),
-            tiers: vec![MachineTierDef { tier: 1 }],
+            tiers: vec![MachineTierDef {
+                tier: 1,
+                generator: None,
+            }],
         }
     }
 
@@ -379,7 +395,7 @@ mod tests {
         app.add_systems(Update, place_machine_system);
 
         app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::ZERO,
+            transform: Transform::from_translation(Vec3::ZERO),
             item_id: "smelter".to_string(),
             kind: WorldObjectKind::Placed,
         });
@@ -402,7 +418,7 @@ mod tests {
         app.add_systems(Update, place_machine_system);
 
         app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::ZERO,
+            transform: Transform::from_translation(Vec3::ZERO),
             item_id: "unknown".to_string(),
             kind: WorldObjectKind::Placed,
         });
@@ -416,7 +432,10 @@ mod tests {
     fn place_machine_io_offsets_applied() {
         let def = MachineDef {
             id: "smelter".to_string(),
-            tiers: vec![MachineTierDef { tier: 1 }],
+            tiers: vec![MachineTierDef {
+                tier: 1,
+                generator: None,
+            }],
         };
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
@@ -438,7 +457,7 @@ mod tests {
         app.add_systems(Update, place_machine_system);
 
         app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::new(5.0, 0.0, 5.0),
+            transform: Transform::from_translation(Vec3::new(5.0, 0.0, 5.0)),
             item_id: "smelter".to_string(),
             kind: WorldObjectKind::Placed,
         });
@@ -474,7 +493,7 @@ mod tests {
             .add_systems(Update, place_machine_system);
 
         app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::ZERO,
+            transform: Transform::from_translation(Vec3::ZERO),
             item_id: "smelter".to_string(),
             kind: WorldObjectKind::Placed,
         });
@@ -499,7 +518,7 @@ mod tests {
             .add_systems(Update, (place_machine_system, remove_placed_objects_system));
 
         app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::ZERO,
+            transform: Transform::from_translation(Vec3::ZERO),
             item_id: "smelter".to_string(),
             kind: WorldObjectKind::Placed,
         });
@@ -512,7 +531,7 @@ mod tests {
         }
 
         app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::ZERO,
+            transform: Transform::from_translation(Vec3::ZERO),
             item_id: String::new(),
             kind: WorldObjectKind::Removed,
         });
@@ -534,7 +553,7 @@ mod tests {
         app.add_systems(Update, place_platform_system);
 
         app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::new(1.0, 0.0, 1.0),
+            transform: Transform::from_translation(Vec3::new(1.0, 0.0, 1.0)),
             item_id: "platform".to_string(),
             kind: WorldObjectKind::Placed,
         });
@@ -557,7 +576,7 @@ mod tests {
         );
 
         app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::new(1.0, 0.0, 1.0),
+            transform: Transform::from_translation(Vec3::new(1.0, 0.0, 1.0)),
             item_id: "platform".to_string(),
             kind: WorldObjectKind::Placed,
         });
@@ -568,7 +587,7 @@ mod tests {
         }
 
         app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::new(1.0, 0.0, 1.0),
+            transform: Transform::from_translation(Vec3::new(1.0, 0.0, 1.0)),
             item_id: String::new(),
             kind: WorldObjectKind::Removed,
         });
@@ -597,19 +616,19 @@ mod tests {
         );
 
         app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::new(1.0, 0.5, 1.0),
+            transform: Transform::from_translation(Vec3::new(1.0, 0.5, 1.0)),
             item_id: "smelter".to_string(),
             kind: WorldObjectKind::Placed,
         });
         app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::new(1.0, 0.0, 1.0),
+            transform: Transform::from_translation(Vec3::new(1.0, 0.0, 1.0)),
             item_id: "platform".to_string(),
             kind: WorldObjectKind::Placed,
         });
         app.update();
 
         app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::new(1.0, 0.5, 1.0),
+            transform: Transform::from_translation(Vec3::new(1.0, 0.5, 1.0)),
             item_id: String::new(),
             kind: WorldObjectKind::Removed,
         });

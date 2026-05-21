@@ -94,21 +94,21 @@ Completes the loop. Gateway entity + key recipe already exist.
 ### 2.1 Escape activation
 Design: [`escape-condition.md`](technical/escape-condition.md).
 
-- [ ] `RunState` resource: `InProgress` / `Completed`
-- [ ] Gateway interact: prompt when key in hand, charge progress over power input
-- [ ] `EscapeEvent` (started, charging, completed)
-- [ ] Catalyst recipe input wiring (gateway consumes key)
+- [x] `RunState` resource: `InProgress` / `Completed`
+- [x] Gateway interact: prompt when key in hand, charge progress over power input — player cables gateway machine to network; `activate_gateway` recipe starts when `gateway_key` present
+- [x] `EscapeEvent` — fired by `escape_objective_system` on `JobComplete` for `EscapeObjective` machine
+- [x] Catalyst recipe input wiring (gateway consumes key) — `activate_gateway` recipe takes `gateway_key` as input
 
 ### 2.2 Escape UI
-- [ ] Escape progress display (HUD widget)
-- [ ] Site interaction prompt (proximity-triggered)
-- [ ] Missing-requirement display (key? power? location?)
-- [ ] Completion screen: seed, elapsed time, archetype, "Start new run" button
+- [x] Escape progress display (HUD widget) — bottom-right progress bar while gateway running
+- [~] Site interaction prompt — gateway spawned at ruins; cable connection provides implicit prompt; dedicated proximity UI deferred
+- [~] Missing-requirement display — HUD hidden until gateway running; explicit checklist deferred
+- [x] Completion screen: seed, elapsed time, archetype, "Main Menu" button
 - [ ] Visible in-world completion moment (simple VFX placeholder OK)
 
 ### 2.3 Telemetry hooks
-- [ ] Emit `escape_item_produced` when key crafted
-- [ ] Emit `escape_completed` on gateway activation
+- [x] Emit `escape_item_produced` when key crafted (`forge_gateway_key` job complete)
+- [x] Emit `escape_completed` on gateway activation
 
 ---
 
@@ -143,16 +143,16 @@ Currently 1 generator type. Need 2 with planet-dependent viability + diagnostics
 ### 4.1 Second generator
 Design: [`power.md`](technical/power.md).
 
-- [ ] Define solar + combustion generators (assets/machines/)
-- [ ] `GeneratorDef` per type with env-port hookup
-- [ ] `EnvFactorRegistry`: Solar, Combustion (atmospheric oxygen)
-- [ ] Recipe output `RecipeOutput::Energy` for each
-- [ ] Variance application to energy output
+- [x] Define solar + combustion generators (assets/machines/)
+- [x] `GeneratorDef` per type with env-port hookup
+- [x] `EnvFactorRegistry`: Solar, Combustion (atmospheric oxygen)
+- [x] Recipe output energy for combustion (`energy_output` field on `ConcreteRecipe`, deposited into buffer on completion)
+- [x] Variance application via `EnvFactorRegistry` initialized from planet properties at run start
 
 ### 4.2 Power diagnostics
-- [ ] Per-machine power-blocked reason exposed via `SlotBlockReason`
-- [ ] HUD: supply/demand totals, deficit warning
-- [ ] Generator output display (current watts / max)
+- [x] Per-machine power-blocked reason via `SlotBlocked(SlotBlockReason::NoPower)`
+- [x] HUD: supply/demand totals, deficit warning (red text when demand > supply)
+- [x] Generator buffer display (current kJ / max kJ)
 
 ---
 
@@ -227,10 +227,10 @@ Code present; verify against design.
 
 Do-not-stub: delivery surface required, persona deferred.
 
-- [ ] `FieldComputerMessage` event
-- [ ] HUD widget: bottom-corner message log
-- [ ] Placeholder text for: arrival, first property reveal, first research spend, first drone deploy, first discovery, escape unlock
-- [ ] Dismiss + history pane
+- [x] `FieldComputerMessage` event
+- [x] HUD widget: bottom-corner message log
+- [x] Placeholder text for: arrival, first property reveal, first research spend, first drone deploy, first discovery, escape unlock
+- [x] Dismiss + history pane
 
 ---
 

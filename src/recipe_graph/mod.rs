@@ -86,6 +86,10 @@ pub struct ConcreteRecipe {
     pub machine_tier: u8,
     pub processing_time: f32,
     pub energy_cost: f32,
+    /// Joules deposited into the machine's `GeneratorUnit` buffer on completion.
+    /// Zero for non-generator recipes.
+    #[serde(default)]
+    pub energy_output: f32,
 }
 
 #[derive(Resource, Clone, Debug)]
@@ -177,6 +181,7 @@ pub(crate) fn expand_templates(
                 machine_tier: 1,
                 processing_time: template.base_time,
                 energy_cost: template.base_energy,
+                energy_output: 0.0,
             });
         }
     }
@@ -257,12 +262,28 @@ impl RecipeGraph {
     }
 }
 
+#[derive(Deserialize)]
+struct MachineItemEntry {
+    id: String,
+    name: String,
+}
+
 fn load_recipe_graph(mut commands: Commands) {
     let form_groups = load_ron_dir::<FormGroup>("assets/form_groups", "form_group");
     let materials = load_ron_dir::<MaterialDef>("assets/materials", "material");
     let templates = load_ron_dir::<RecipeTemplate>("assets/recipe_templates", "recipe_template");
     let concrete_recipes = load_ron_dir::<ConcreteRecipe>("assets/recipes", "recipe");
-    let item_defs = load_ron_dir::<ItemDef>("assets/items", "item");
+    let mut item_defs = load_ron_dir::<ItemDef>("assets/items", "item");
+    item_defs.extend(
+        load_ron_dir::<MachineItemEntry>("assets/machines", "machine_item")
+            .into_iter()
+            .map(|m| ItemDef {
+                id: m.id,
+                name: m.name,
+                kind: ItemKind::Unique,
+                is_terminal: false,
+            }),
+    );
 
     let graph = RecipeGraph::from_vecs(
         form_groups,
@@ -334,6 +355,7 @@ mod tests {
             machine_tier: 1,
             processing_time: 1.0,
             energy_cost: 10.0,
+            energy_output: 0.0,
         }
     }
 

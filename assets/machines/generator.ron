@@ -1,6 +1,14 @@
 (
     id: "generator",
+    name: "Generator",
+    stack_size: 10,
     tiers: [
-        (tier: 1),
+        (tier: 1, generator: Some((watts: 50.0, env_source: Solar))),
     ],
+    interaction: Single,
+    surface: Ground,
+    snap: Free,
+    orientation: AxisY,
+    ghost: Scene,
+    footprint: (2.0, 2.0, 2.0),
 )

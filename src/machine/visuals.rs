@@ -59,6 +59,8 @@ pub(super) fn setup_machine_visuals(
         "storage_crate",
         "refinery",
         "gateway",
+        "solar_generator",
+        "combustion_generator",
     ];
     let mut scenes: HashMap<String, Handle<Scene>> = HashMap::new();
     let mut gltf_handles: HashMap<String, Handle<Gltf>> = HashMap::new();
@@ -106,6 +108,8 @@ pub(super) fn setup_ghost_assets(
         ("analysis_station", Color::srgba(0.1, 0.75, 0.55, 0.5)),
         ("generator", Color::srgba(0.9, 0.8, 0.1, 0.5)),
         ("storage_crate", Color::srgba(0.55, 0.6, 0.65, 0.5)),
+        ("solar_generator", Color::srgba(0.15, 0.55, 0.95, 0.5)),
+        ("combustion_generator", Color::srgba(0.7, 0.35, 0.1, 0.5)),
     ] {
         ghost_materials.insert(id.to_string(), materials.add(ghost_mat(color)));
     }
@@ -194,6 +198,19 @@ pub(super) fn compute_machine_colliders(
             layout.logistics.len()
         );
         port_layouts.by_machine.insert(machine_id.clone(), layout);
+    }
+}
+
+/// Register port layouts for machine types that have no GLTF model.
+pub(super) fn register_fallback_port_layouts(mut port_layouts: ResMut<MachinePortLayouts>) {
+    for machine_id in ["solar_generator", "combustion_generator"] {
+        port_layouts
+            .by_machine
+            .entry(machine_id.to_string())
+            .or_insert_with(|| MachinePortLayout {
+                energy: vec![Vec3::new(1.0, 0.0, 0.0)],
+                logistics: vec![Vec3::new(-1.0, 0.0, 0.0)],
+            });
     }
 }
 

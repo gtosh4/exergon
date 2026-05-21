@@ -1,20 +1,18 @@
 use std::collections::HashSet;
 
-use bevy::ecs::message::{Message, MessageReader, MessageWriter};
+use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
 use crate::tech_tree::{NodeEffect, NodeId, TechTree, UnlockVector};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Message)]
 pub struct DiscoveryEvent(pub String);
-impl Message for DiscoveryEvent {}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Message)]
 pub struct TechNodeUnlocked {
     pub node_id: String,
     pub via_research: bool,
 }
-impl Message for TechNodeUnlocked {}
 
 /// Marker: prevents re-firing discovery events for an already-discovered entity.
 #[derive(Component)]

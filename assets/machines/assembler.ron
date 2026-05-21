@@ -1,7 +1,15 @@
 (
     id: "assembler",
+    name: "Assembler",
+    stack_size: 10,
     tiers: [
         (tier: 1),
         (tier: 2),
     ],
+    interaction: Single,
+    surface: Ground,
+    snap: Free,
+    orientation: AxisY,
+    ghost: Scene,
+    footprint: (2.0, 2.0, 2.0),
 )

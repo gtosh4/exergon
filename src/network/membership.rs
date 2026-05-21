@@ -192,6 +192,39 @@ pub(super) fn cable_placed_system<N: NetworkKind>(
     }
 }
 
+/// Connects newly spawned port entities to any existing cable endpoint within snap radius.
+/// Symmetric counterpart to `cable_placed_system` — handles the case where a machine is
+/// placed after cables already exist.
+pub(super) fn port_placed_system<N: NetworkKind>(
+    mut commands: Commands,
+    new_ports: Query<
+        (Entity, &Transform, &N::PortOf),
+        (Added<N::PortOf>, Without<MachineUnformed>),
+    >,
+    cable_q: Query<(&N::CableSegment, &N::Member)>,
+    mut changed: MessageWriter<NetworkChanged<N>>,
+) {
+    for (port_e, t, _) in &new_ports {
+        let pos = t.translation;
+        for (seg, member) in &cable_q {
+            for ep in seg.endpoints() {
+                if port_near_endpoint(pos, ep) {
+                    debug!(
+                        "port_placed: port {:?} joined existing network {:?}",
+                        port_e,
+                        member.network()
+                    );
+                    commands
+                        .entity(port_e)
+                        .insert(N::Member::new(member.network()));
+                    changed.write(NetworkChanged::new(member.network()));
+                    break;
+                }
+            }
+        }
+    }
+}
+
 /// Despawns cable segments and splits/reassigns networks when IO-port positions are removed.
 pub fn cable_removed_system<N: NetworkKind>(
     mut commands: Commands,
@@ -209,7 +242,7 @@ pub fn cable_removed_system<N: NetworkKind>(
     let mut removed_positions: Vec<IVec3> = all_removals
         .iter()
         .filter(|ev| ev.item_id == N::CABLE_ITEM_ID)
-        .map(|ev| ev.pos.round().as_ivec3())
+        .map(|ev| ev.transform.translation.round().as_ivec3())
         .collect();
 
     // Generic shift-click: find nearest cable segment to the click position
@@ -217,13 +250,13 @@ pub fn cable_removed_system<N: NetworkKind>(
         let nearest = cable_q.iter().min_by(|(_, sa, _), (_, sb, _)| {
             let [a0, a1] = sa.endpoints();
             let [b0, b1] = sb.endpoints();
-            pt_seg_dist_sq(ev.pos, a0, a1)
-                .partial_cmp(&pt_seg_dist_sq(ev.pos, b0, b1))
+            pt_seg_dist_sq(ev.transform.translation, a0, a1)
+                .partial_cmp(&pt_seg_dist_sq(ev.transform.translation, b0, b1))
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
         if let Some((_, seg, _)) = nearest {
             let [p0, p1] = seg.endpoints();
-            if pt_seg_dist_sq(ev.pos, p0, p1) < 2.0f32 * 2.0 {
+            if pt_seg_dist_sq(ev.transform.translation, p0, p1) < 2.0f32 * 2.0 {
                 removed_positions.push(key(p0));
             }
         }

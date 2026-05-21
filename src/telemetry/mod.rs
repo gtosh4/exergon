@@ -18,11 +18,14 @@
 #![cfg(debug_assertions)]
 
 use std::collections::HashSet;
+use std::io::Write as _;
 use std::path::PathBuf;
 
 use bevy::prelude::*;
 use serde_json::json;
 
+use crate::escape::EscapeEvent;
+use crate::logistics::JobComplete;
 use crate::research::TechTreeProgress;
 use crate::save::{Run, RunSaveHeader, SaveRoot};
 use crate::world::{WorldObjectEvent, WorldObjectKind};
@@ -67,8 +70,14 @@ pub struct TelemetryPlugin;
 impl Plugin for TelemetryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TelemetryRoot>()
-            .add_systems(OnEnter(GameState::Playing), telemetry_run_start)
-            .add_systems(OnExit(GameState::Playing), telemetry_run_end)
+            .add_message::<JobComplete>()
+            .add_message::<EscapeEvent>()
+            .add_systems(
+                OnEnter(GameState::Playing),
+                telemetry_run_start.run_if(not(resource_exists::<TelemetryLog>)),
+            )
+            .add_systems(OnEnter(GameState::MainMenu), telemetry_run_end)
+            .add_systems(OnEnter(GameState::Escaped), telemetry_run_end)
             .add_systems(OnEnter(PlayMode::DronePilot), telemetry_remote_enter)
             .add_systems(OnExit(PlayMode::DronePilot), telemetry_remote_exit)
             .add_systems(
@@ -78,16 +87,42 @@ impl Plugin for TelemetryPlugin {
                     telemetry_observe_machines,
                     telemetry_observe_discovery,
                     telemetry_observe_research,
+                    telemetry_observe_escape_item,
+                    telemetry_observe_escape_complete,
                 )
                     .run_if(in_state(GameState::Playing)),
             );
     }
 }
 
-fn telemetry_run_start(mut commands: Commands, header_q: Query<&RunSaveHeader, With<Run>>) {
-    let (run_id, unix_ts, profile) = match header_q.single() {
-        Ok(h) => (h.run_id.clone(), h.start_time_secs, "Unknown".to_owned()),
-        Err(_) => ("unknown".to_owned(), 0, "Unknown".to_owned()),
+fn telemetry_path(telemetry_root: &TelemetryRoot, save_root: &SaveRoot, run_id: &str) -> PathBuf {
+    telemetry_root
+        .0
+        .clone()
+        .unwrap_or_else(|| save_root.0.join("telemetry"))
+        .join(format!("{run_id}.jsonl"))
+}
+
+fn telemetry_run_start(
+    mut commands: Commands,
+    header_q: Query<&RunSaveHeader, With<Run>>,
+    telemetry_root: Res<TelemetryRoot>,
+    save_root: Res<SaveRoot>,
+) {
+    let (run_id, unix_ts) = match header_q.single() {
+        Ok(h) => (h.run_id.clone(), h.start_time_secs),
+        Err(_) => ("unknown".to_owned(), 0),
+    };
+    let path = telemetry_path(&telemetry_root, &save_root, &run_id);
+    let session_n = if path.exists() {
+        std::fs::read_to_string(&path)
+            .unwrap_or_default()
+            .lines()
+            .filter(|l| l.contains("\"RunStarted\"") || l.contains("\"RunResumed\""))
+            .count() as u32
+            + 1
+    } else {
+        1
     };
     let mut log = TelemetryLog {
         run_id: run_id.clone(),
@@ -98,10 +133,14 @@ fn telemetry_run_start(mut commands: Commands, header_q: Query<&RunSaveHeader, W
         remote_trips: 0,
         remote_entry_t: None,
     };
-    log.append(
-        "RunStarted",
-        json!({ "seed": run_id, "profile": profile, "unix_ts": unix_ts }),
-    );
+    if session_n == 1 {
+        log.append("RunStarted", json!({ "seed": run_id, "unix_ts": unix_ts }));
+    } else {
+        log.append(
+            "RunResumed",
+            json!({ "seed": run_id, "session_n": session_n, "unix_ts": unix_ts }),
+        );
+    }
     commands.insert_resource(log);
 }
 
@@ -125,7 +164,7 @@ fn telemetry_observe_machines(
             event_name,
             json!({
                 "machine_type": e.item_id,
-                "grid_pos": [e.pos.x, e.pos.y, e.pos.z],
+                "grid_pos": [e.transform.translation.x, e.transform.translation.y, e.transform.translation.z],
             }),
         );
     }
@@ -176,6 +215,32 @@ fn telemetry_remote_exit(log: Option<ResMut<TelemetryLog>>) {
     );
 }
 
+fn telemetry_observe_escape_item(
+    mut job_complete: MessageReader<JobComplete>,
+    log: Option<ResMut<TelemetryLog>>,
+) {
+    let Some(mut log) = log else { return };
+    for job in job_complete.read() {
+        if job.recipe_id == "forge_gateway_key" {
+            log.append("EscapeItemProduced", json!({ "recipe_id": job.recipe_id }));
+        }
+    }
+}
+
+fn telemetry_observe_escape_complete(
+    mut escape_events: MessageReader<EscapeEvent>,
+    log: Option<ResMut<TelemetryLog>>,
+) {
+    let Some(mut log) = log else { return };
+    for ev in escape_events.read() {
+        log.escaped = true;
+        log.append(
+            "EscapeCompleted",
+            json!({ "escape_time_secs": ev.escape_time_secs }),
+        );
+    }
+}
+
 fn telemetry_run_end(
     mut commands: Commands,
     log: Option<ResMut<TelemetryLog>>,
@@ -186,19 +251,23 @@ fn telemetry_run_end(
     if !log.escaped {
         log.append("RunAbandoned", json!({}));
     }
-    let dir = telemetry_root
-        .0
-        .clone()
-        .unwrap_or_else(|| save_root.0.join("telemetry"));
-    let _ = std::fs::create_dir_all(&dir);
-    let path = dir.join(format!("{}.jsonl", log.run_id));
+    let path = telemetry_path(&telemetry_root, &save_root, &log.run_id);
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
     let lines: Vec<String> = log
         .records
         .iter()
         .filter_map(|r| serde_json::to_string(r).ok())
         .collect();
     let body = lines.join("\n") + "\n";
-    let _ = std::fs::write(&path, body);
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
+        let _ = f.write_all(body.as_bytes());
+    }
     commands.remove_resource::<TelemetryLog>();
 }
 
@@ -251,6 +320,7 @@ mod tests {
             .resource_mut::<Messages<NewRunEvent>>()
             .write(NewRunEvent {
                 seed_text: "t-rs".into(),
+                test_mode: false,
             });
         app.update();
         enter_playing(&mut app);
@@ -267,6 +337,7 @@ mod tests {
             .resource_mut::<Messages<NewRunEvent>>()
             .write(NewRunEvent {
                 seed_text: "t-mp".into(),
+                test_mode: false,
             });
         app.update();
         enter_playing(&mut app);
@@ -274,7 +345,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<Messages<WorldObjectEvent>>()
             .write(WorldObjectEvent {
-                pos: Vec3::new(1.0, 2.0, 3.0),
+                transform: Transform::from_translation(Vec3::new(1.0, 2.0, 3.0)),
                 item_id: "smelter".into(),
                 kind: WorldObjectKind::Placed,
             });
@@ -296,6 +367,7 @@ mod tests {
             .resource_mut::<Messages<NewRunEvent>>()
             .write(NewRunEvent {
                 seed_text: "t-dis".into(),
+                test_mode: false,
             });
         app.update();
         enter_playing(&mut app);
@@ -321,6 +393,7 @@ mod tests {
             .resource_mut::<Messages<NewRunEvent>>()
             .write(NewRunEvent {
                 seed_text: "t-tr".into(),
+                test_mode: false,
             });
         app.update();
         enter_playing(&mut app);
@@ -357,6 +430,7 @@ mod tests {
             .resource_mut::<Messages<NewRunEvent>>()
             .write(NewRunEvent {
                 seed_text: "t-re".into(),
+                test_mode: false,
             });
         app.update();
         let run_id = {
@@ -378,5 +452,102 @@ mod tests {
         assert!(body.contains("\"event\":\"RunStarted\""));
         assert!(body.contains("\"event\":\"RunAbandoned\""));
         assert!(!app.world().contains_resource::<TelemetryLog>());
+    }
+
+    #[test]
+    fn multi_session_appends_and_emits_run_resumed() {
+        let save_dir = tmp_root("ms_save");
+        let tel_dir = tmp_root("ms_tel");
+        let mut app = make_app(save_dir.clone(), tel_dir.clone());
+        app.world_mut()
+            .resource_mut::<Messages<NewRunEvent>>()
+            .write(NewRunEvent {
+                seed_text: "t-ms".into(),
+                test_mode: false,
+            });
+        app.update();
+        let run_id = {
+            let world = app.world_mut();
+            let mut q = world.query_filtered::<&RunSaveHeader, With<Run>>();
+            q.single(world).unwrap().run_id.clone()
+        };
+
+        // Session 1: play then quit to main menu
+        enter_playing(&mut app);
+        app.world_mut()
+            .resource_mut::<NextState<GameState>>()
+            .set(GameState::MainMenu);
+        app.update();
+
+        let path = tel_dir.join(format!("{run_id}.jsonl"));
+        let s1 = std::fs::read_to_string(&path).unwrap();
+        assert!(s1.contains("\"RunStarted\""));
+
+        // Session 2: load same run (re-enter Playing; Run entity still exists)
+        enter_playing(&mut app);
+        app.world_mut()
+            .resource_mut::<NextState<GameState>>()
+            .set(GameState::MainMenu);
+        app.update();
+
+        let s12 = std::fs::read_to_string(&path).unwrap();
+        let events: Vec<&str> = s12
+            .lines()
+            .filter_map(|l| {
+                serde_json::from_str::<serde_json::Value>(l)
+                    .ok()
+                    .and_then(|v| v["event"].as_str().map(str::to_owned))
+                    .map(|s| Box::leak(s.into_boxed_str()) as &str)
+            })
+            .collect();
+        assert_eq!(events.iter().filter(|&&e| e == "RunStarted").count(), 1);
+        assert_eq!(events.iter().filter(|&&e| e == "RunResumed").count(), 1);
+        // session 2 RunResumed has session_n = 2
+        let resumed = s12.lines().find(|l| l.contains("\"RunResumed\"")).unwrap();
+        assert!(resumed.contains("\"session_n\":2"));
+    }
+
+    #[test]
+    fn pause_and_resume_does_not_restart_run() {
+        let mut app = make_app(tmp_root("pr_save"), tmp_root("pr_tel"));
+        app.world_mut()
+            .resource_mut::<Messages<NewRunEvent>>()
+            .write(NewRunEvent {
+                seed_text: "t-pr".into(),
+                test_mode: false,
+            });
+        app.update();
+        enter_playing(&mut app);
+
+        let elapsed_before = app.world().resource::<TelemetryLog>().elapsed_secs;
+
+        // Pause
+        app.world_mut()
+            .resource_mut::<NextState<PlayMode>>()
+            .set(PlayMode::Paused);
+        app.update();
+
+        // TelemetryLog must still exist (run not ended)
+        assert!(app.world().contains_resource::<TelemetryLog>());
+
+        // Resume
+        app.world_mut()
+            .resource_mut::<NextState<PlayMode>>()
+            .set(PlayMode::Exploring);
+        app.update();
+
+        let log = app.world().resource::<TelemetryLog>();
+        // Still same run — no extra RunStarted
+        let run_started_count = log
+            .records
+            .iter()
+            .filter(|r| r["event"] == "RunStarted")
+            .count();
+        assert_eq!(run_started_count, 1, "RunStarted must fire exactly once");
+        // elapsed not reset to 0
+        assert!(
+            log.elapsed_secs >= elapsed_before,
+            "elapsed must not reset on unpause"
+        );
     }
 }

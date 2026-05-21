@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::marker::PhantomData;
 
-use bevy::ecs::message::Message;
 use bevy::prelude::*;
 
 use crate::machine::{Machine, MachineScanSet, PortOfMachine};
@@ -12,7 +11,7 @@ pub mod bfs;
 pub mod membership;
 pub mod visuals;
 
-use membership::{cable_placed_system, cable_removed_system};
+use membership::{cable_placed_system, cable_removed_system, port_placed_system};
 
 /// The six axis-aligned directions in 3D space.
 pub const DIRS: [IVec3; 6] = [
@@ -71,6 +70,7 @@ pub trait NetworkKind: Send + Sync + 'static {
 // -- Generic message ---------------------------------------------------------
 
 /// Sent whenever a network's membership changes (cables placed/removed, machines joined/left).
+#[derive(Message)]
 pub struct NetworkChanged<N: Send + Sync + 'static> {
     pub network: Entity,
     _n: PhantomData<N>,
@@ -93,8 +93,6 @@ impl<N: Send + Sync + 'static> Clone for NetworkChanged<N> {
         }
     }
 }
-
-impl<N: Send + Sync + 'static> Message for NetworkChanged<N> {}
 
 // -- Auto-routing ------------------------------------------------------------
 
@@ -247,8 +245,11 @@ impl<N: NetworkKind> Plugin for NetworkPlugin<N> {
         );
         app.add_systems(
             Update,
-            (cable_placed_system::<N>, cable_removed_system::<N>)
-                .chain()
+            (
+                cable_placed_system::<N>,
+                cable_removed_system::<N>,
+                port_placed_system::<N>,
+            )
                 .in_set(NetworkSystems::of::<N>()),
         );
     }
@@ -383,7 +384,7 @@ mod tests {
 
     fn disconnect_at(app: &mut App, pos: Vec3) {
         app.world_mut().write_message(WorldObjectEvent {
-            pos,
+            transform: Transform::from_translation(pos),
             item_id: TEST_CABLE_ID.to_string(),
             kind: WorldObjectKind::Removed,
         });
@@ -391,7 +392,7 @@ mod tests {
 
     fn generic_remove_at(app: &mut App, pos: Vec3) {
         app.world_mut().write_message(WorldObjectEvent {
-            pos,
+            transform: Transform::from_translation(pos),
             item_id: String::new(),
             kind: WorldObjectKind::Removed,
         });

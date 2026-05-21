@@ -1,9 +1,9 @@
 (
-    id: "storage_crate",
-    name: "Storage Crate",
+    id: "solar_generator",
+    name: "Solar Generator",
     stack_size: 10,
     tiers: [
-        (tier: 1),
+        (tier: 1, generator: Some((watts: 100.0, env_source: Solar))),
     ],
     interaction: Single,
     surface: Ground,

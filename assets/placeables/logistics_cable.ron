@@ -1,0 +1,14 @@
+(
+    item: (
+        id: "logistics_cable",
+        name: "Logistics Cable",
+        stack_size: 100,
+        kind: Cable(network: "logistics"),
+    ),
+    interaction: TwoEndpoint(item_id: "logistics_cable"),
+    surface: Port,
+    snap: PortRaycast,
+    orientation: Fixed,
+    ghost: Routed,
+    footprint: (0.1, 0.1, 0.1),
+)

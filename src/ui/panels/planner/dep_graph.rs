@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use bevy::ecs::message::{Message, MessageReader};
+use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;
 
 use crate::{
@@ -69,27 +69,23 @@ pub struct PlanList {
 // Messages
 // ---------------------------------------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Message)]
 pub struct SetDepGraphTarget(pub ItemId);
-impl Message for SetDepGraphTarget {}
 
-#[derive(Clone)]
+#[derive(Clone, Message)]
 pub struct SelectSankeyNode(pub ItemId);
-impl Message for SelectSankeyNode {}
 
-#[derive(Clone)]
+#[derive(Clone, Message)]
 pub struct ApplyAltRecipe {
     pub node: ItemId,
     pub recipe: RecipeId,
 }
-impl Message for ApplyAltRecipe {}
 
-#[derive(Clone)]
+#[derive(Clone, Message)]
 pub struct LockMachineCount {
     pub node: ItemId,
     pub count: u32,
 }
-impl Message for LockMachineCount {}
 
 // ---------------------------------------------------------------------------
 // Pure build function
@@ -450,6 +446,7 @@ mod tests {
             machine_tier: 1,
             processing_time: 1.0,
             energy_cost: 10.0,
+            energy_output: 0.0,
         };
         let recipe_c = ConcreteRecipe {
             id: "recipe_c".into(),
@@ -466,6 +463,7 @@ mod tests {
             machine_tier: 1,
             processing_time: 1.0,
             energy_cost: 10.0,
+            energy_output: 0.0,
         };
         RecipeGraph::from_vecs(
             vec![],

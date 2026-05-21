@@ -8,13 +8,10 @@ use serde::Deserialize;
 
 use crate::content::load_ron_dir;
 use crate::machine::{MachineBuilt, MachineClass, PowerProducerKind};
+use crate::power::EnvFactorRegistry;
 use crate::seed::DomainSeeds;
 use crate::world::Player;
 use crate::{GameState, PlayMode};
-
-mod landing_panel;
-
-pub use landing_panel::PlanetLandingPanel;
 
 pub struct PlanetPlugin;
 
@@ -32,21 +29,19 @@ impl Plugin for PlanetPlugin {
             .add_message::<PlanetPropertyRevealed>()
             .add_message::<PlanetPropertyViewed>()
             .add_message::<PropertyDecisionValidated>()
-            .add_message::<LandingPanelDismissed>()
             .add_systems(Startup, load_archetypes)
             .add_systems(
                 OnTransition {
                     exited: GameState::Loading,
                     entered: GameState::Playing,
                 },
-                generate_planet_properties,
+                (generate_planet_properties, init_env_factor_registry).chain(),
             )
             .add_systems(
                 Update,
                 insight_beat_check
                     .run_if(in_state(PlayMode::Exploring).or(in_state(PlayMode::Building))),
-            )
-            .add_plugins(landing_panel::LandingPanelPlugin);
+            );
     }
 }
 
@@ -254,9 +249,6 @@ pub struct PropertyDecisionValidated {
     pub modifier: f32,
 }
 
-#[derive(bevy::ecs::message::Message, Debug, Clone, Default)]
-pub struct LandingPanelDismissed;
-
 // ---------------------------------------------------------------------------
 // Archetype asset
 // ---------------------------------------------------------------------------
@@ -444,6 +436,16 @@ pub fn generate_properties_from<R: Rng>(
         wind_intensity,
         hazard_type,
         name,
+    }
+}
+
+fn init_env_factor_registry(
+    mut registry: ResMut<EnvFactorRegistry>,
+    planet_q: Query<&PlanetProperties, With<Planet>>,
+) {
+    if let Ok(props) = planet_q.single() {
+        registry.solar = solar_modifier(props.stellar_distance);
+        registry.combustion = combustion_modifier(props.atmospheric_oxygen);
     }
 }
 

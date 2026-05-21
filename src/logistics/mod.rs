@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use bevy::ecs::message::Message;
 use bevy::prelude::*;
 
 use crate::machine::{LogisticsPortOf, Machine};
@@ -9,7 +8,6 @@ use crate::network::{
     NetworkPlugin, NetworkSystems, route_avoiding,
 };
 use crate::power::PowerSimSystems;
-use crate::recipe_graph::RecipeGraph;
 
 mod items;
 mod miner;
@@ -35,8 +33,11 @@ pub struct LogisticsSimPlugin;
 impl Plugin for LogisticsSimPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(NetworkPlugin::<Logistics>::default());
-        app.add_message::<NetworkStorageChanged>()
+        app.add_message::<JobComplete>()
+            .add_message::<NetworkStorageChanged>()
             .add_message::<crate::network::NetworkChanged<crate::network::Power>>()
+            .add_message::<recipes::RecipeToStart>()
+            .add_message::<recipes::RecipeCompleted>()
             .add_systems(
                 Update,
                 (
@@ -44,8 +45,10 @@ impl Plugin for LogisticsSimPlugin {
                     storage::storage_unit_system,
                     ApplyDeferred,
                     miner::miner_tick_system,
-                    recipes::recipe_start_system.run_if(resource_exists::<RecipeGraph>),
-                    recipes::recipe_progress_system.run_if(resource_exists::<RecipeGraph>),
+                    recipes::recipe_check_system,
+                    recipes::recipe_execute_system,
+                    recipes::recipe_advance_system,
+                    recipes::recipe_finish_system,
                 )
                     .chain()
                     .after(NetworkSystems::of::<Logistics>())
@@ -82,12 +85,17 @@ impl Plugin for LogisticsPlugin {
 
 // -- Messages ----------------------------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Message)]
 pub struct NetworkStorageChanged {
     pub network: Entity,
 }
 
-impl Message for NetworkStorageChanged {}
+/// Fired by `recipe_finish_system` when a machine finishes a recipe.
+#[derive(Clone, Debug, Message)]
+pub struct JobComplete {
+    pub machine: Entity,
+    pub recipe_id: String,
+}
 
 // -- Components --------------------------------------------------------------
 
@@ -203,7 +211,10 @@ mod tests {
 
     use bevy::prelude::*;
 
-    use super::recipes::{recipe_progress_system, recipe_start_system};
+    use super::recipes::{
+        RecipeCompleted, RecipeToStart, recipe_advance_system, recipe_check_system,
+        recipe_execute_system, recipe_finish_system,
+    };
     use super::storage::storage_unit_system;
     use super::*;
     use crate::machine::{
@@ -243,7 +254,7 @@ mod tests {
 
     fn disconnect_at(app: &mut App, pos: Vec3) {
         app.world_mut().write_message(WorldObjectEvent {
-            pos,
+            transform: Transform::from_translation(pos),
             item_id: LOGISTICS_CABLE_ID.to_string(),
             kind: WorldObjectKind::Removed,
         });
@@ -450,10 +461,18 @@ mod tests {
             .add_message::<NetworkChanged<Logistics>>()
             .add_message::<NetworkChanged<crate::network::Power>>()
             .add_message::<NetworkStorageChanged>()
+            .add_message::<RecipeToStart>()
+            .add_message::<RecipeCompleted>()
             .insert_resource(rg)
             .add_systems(
                 Update,
-                (recipe_start_system, ApplyDeferred, recipe_progress_system).chain(),
+                (
+                    recipe_check_system,
+                    recipe_execute_system,
+                    recipe_advance_system,
+                    recipe_finish_system,
+                )
+                    .chain(),
             );
         app
     }
@@ -484,6 +503,7 @@ mod tests {
             machine_tier: 1,
             processing_time: 1.0,
             energy_cost: 0.0,
+            energy_output: 0.0,
         }
     }
 
@@ -522,10 +542,18 @@ mod tests {
             .add_message::<NetworkChanged<Logistics>>()
             .add_message::<NetworkChanged<crate::network::Power>>()
             .add_message::<NetworkStorageChanged>()
+            .add_message::<RecipeToStart>()
+            .add_message::<RecipeCompleted>()
             .insert_resource(rg)
             .add_systems(
                 Update,
-                (recipe_start_system, ApplyDeferred, recipe_progress_system).chain(),
+                (
+                    recipe_check_system,
+                    recipe_execute_system,
+                    recipe_advance_system,
+                    recipe_finish_system,
+                )
+                    .chain(),
             );
         app
     }
@@ -762,6 +790,7 @@ mod tests {
     #[test]
     fn idle_machine_starts_recipe_when_power_network_gains_capacity() {
         use crate::machine::EnergyPortOf;
+        use crate::machine::EnvSource;
         use crate::network::{NetworkChanged, Power};
         use crate::power::{GeneratorUnit, PowerNetwork, PowerNetworkMember};
 
@@ -801,6 +830,7 @@ mod tests {
                 watts: 50.0,
                 buffer_joules: 1000.0,
                 max_buffer_joules: 1000.0,
+                env_source: EnvSource::Solar,
             })
             .id();
         app.world_mut()
@@ -811,7 +841,7 @@ mod tests {
             .insert(PowerNetworkMember(power_net_e));
 
         // Trigger via power network change (not storage change) — regression for bug where
-        // connecting a generator via power cable never re-triggered recipe_start_system
+        // connecting a generator via power cable never re-triggered recipe_check_system
         app.world_mut()
             .write_message(NetworkChanged::<Power>::new(power_net_e));
         app.update();
@@ -875,6 +905,7 @@ mod tests {
     #[test]
     fn recipe_progress_pauses_when_power_buffer_empty() {
         use crate::machine::EnergyPortOf;
+        use crate::machine::EnvSource;
         use crate::power::{GeneratorUnit, PowerNetwork, PowerNetworkMember};
 
         let mut recipe = test_recipe_def("smelter", &[], &[]);
@@ -922,6 +953,7 @@ mod tests {
                 watts: 0.0,
                 buffer_joules: 0.0, // empty — take_energy must fail
                 max_buffer_joules: 500.0,
+                env_source: EnvSource::Solar,
             })
             .id();
         app.world_mut()
@@ -947,6 +979,7 @@ mod tests {
     #[test]
     fn recipe_progress_withdraws_energy_per_tick() {
         use crate::machine::EnergyPortOf;
+        use crate::machine::EnvSource;
         use crate::power::{GeneratorUnit, PowerNetwork, PowerNetworkMember};
 
         let mut recipe = test_recipe_def("smelter", &[], &[]);
@@ -993,6 +1026,7 @@ mod tests {
                 watts: 0.0,
                 buffer_joules: 1000.0, // full buffer
                 max_buffer_joules: 1000.0,
+                env_source: EnvSource::Solar,
             })
             .id();
         app.world_mut()

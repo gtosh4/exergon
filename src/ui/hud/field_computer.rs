@@ -1,10 +1,10 @@
-use bevy::ecs::message::{Message, MessageReader, MessageWriter};
+use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
 use crate::{
     GameState, PlayMode,
     inventory::InventoryOpen,
-    planet::{LandingPanelDismissed, PlanetPropertyRevealed},
+    planet::PlanetPropertyRevealed,
     research::{DiscoveryEvent, TechNodeUnlocked},
     ui::theme::{font_size, palette, space},
 };
@@ -16,12 +16,11 @@ const MAX_VISIBLE: usize = 4;
 // Public types
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Message)]
 pub struct FieldComputerMessage {
     pub text: String,
     pub category: MessageCategory,
 }
-impl Message for FieldComputerMessage {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MessageCategory {
@@ -99,7 +98,6 @@ struct FcActiveMsg {
 
 #[derive(Resource, Default)]
 struct FcTriggers {
-    arrival: bool,
     property_reveal: bool,
     research: bool,
     drone_deploy: bool,
@@ -138,7 +136,7 @@ pub fn plugin(app: &mut App) {
         .init_resource::<FieldComputerLog>()
         .init_resource::<FcState>()
         .init_resource::<FcTriggers>()
-        .add_systems(OnEnter(GameState::Playing), spawn)
+        .add_systems(OnEnter(GameState::Playing), (spawn, fire_arrival))
         .add_systems(
             Update,
             (
@@ -298,27 +296,24 @@ fn receive_messages(
     }
 }
 
+fn fire_arrival(mut writer: MessageWriter<FieldComputerMessage>) {
+    writer.write(FieldComputerMessage {
+        text: "Systems online. Begin survey of planetary conditions.".into(),
+        category: MessageCategory::System,
+    });
+}
+
 fn trigger_messages(
     mut writer: MessageWriter<FieldComputerMessage>,
     mut triggers: ResMut<FcTriggers>,
-    mut landing: MessageReader<LandingPanelDismissed>,
     mut property_revealed: MessageReader<PlanetPropertyRevealed>,
     mut node_unlocked: MessageReader<TechNodeUnlocked>,
     mut discovery: MessageReader<DiscoveryEvent>,
     mode: Res<State<PlayMode>>,
 ) {
-    let has_landing = landing.read().count() > 0;
     let has_property = property_revealed.read().count() > 0;
     let has_research = node_unlocked.read().filter(|n| n.via_research).count() > 0;
     let discoveries: Vec<String> = discovery.read().map(|e| e.0.clone()).collect();
-
-    if !triggers.arrival && has_landing {
-        triggers.arrival = true;
-        writer.write(FieldComputerMessage {
-            text: "Systems online. Begin survey of planetary conditions.".into(),
-            category: MessageCategory::System,
-        });
-    }
 
     if !triggers.property_reveal && has_property {
         triggers.property_reveal = true;

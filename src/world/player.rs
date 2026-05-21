@@ -5,10 +5,10 @@ use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
+use crate::PlayMode;
 use crate::inventory::InventoryOpen;
 use crate::ui::panels::planner::{PlannerOpen, RecipePickerState};
 use crate::ui::{MachineStatusPanel, StorageStatusPanel, TechTreePanelOpen};
-use crate::{GameState, PlayMode};
 
 #[derive(Component)]
 pub struct MainCamera;
@@ -68,7 +68,7 @@ pub(super) fn unlock_cursor(mut cursor_q: Query<&mut CursorOptions, With<Primary
 
 pub(super) fn toggle_pause(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut next_state: ResMut<NextState<GameState>>,
+    mut next_mode: ResMut<NextState<PlayMode>>,
     mut inv_open: Option<ResMut<InventoryOpen>>,
     mut machine: Option<ResMut<MachineStatusPanel>>,
     mut storage: Option<ResMut<StorageStatusPanel>>,
@@ -112,7 +112,7 @@ pub(super) fn toggle_pause(
         }
         return;
     }
-    next_state.set(GameState::Paused);
+    next_mode.set(PlayMode::Paused);
 }
 
 pub(super) fn toggle_planner(
@@ -135,10 +135,10 @@ pub(super) fn toggle_planner(
 
 pub(super) fn resume_on_escape(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut next_state: ResMut<NextState<GameState>>,
+    mut next_mode: ResMut<NextState<PlayMode>>,
 ) {
     if keyboard.just_pressed(KeyCode::Escape) {
-        next_state.set(GameState::Playing);
+        next_mode.set(PlayMode::Exploring);
     }
 }
 
@@ -173,12 +173,9 @@ pub(super) fn sync_cursor(
     storage: Option<Res<StorageStatusPanel>>,
     tech: Option<Res<TechTreePanelOpen>>,
     planner: Option<Res<PlannerOpen>>,
-    play_mode: Option<Res<State<PlayMode>>>,
     mut cursor_q: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    let landing = play_mode.is_some_and(|m| *m.get() == PlayMode::Landing);
-    let ui_open = landing
-        || inv.is_some_and(|o| o.0)
+    let ui_open = inv.is_some_and(|o| o.0)
         || machine.is_some_and(|m| m.entity.is_some())
         || storage.is_some_and(|s| s.0.is_some())
         || tech.is_some_and(|t| t.open)
@@ -263,14 +260,15 @@ mod tests {
     use bevy::state::app::StatesPlugin;
 
     use super::*;
-    use crate::GameState;
     use crate::inventory::InventoryOpen;
+    use crate::{GameState, PlayMode};
 
     #[test]
     fn toggle_pause_escape_transitions_to_paused() {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, StatesPlugin))
             .init_state::<GameState>()
+            .add_sub_state::<PlayMode>()
             .init_resource::<ButtonInput<KeyCode>>()
             .add_systems(Update, toggle_pause.run_if(in_state(GameState::Playing)));
 
@@ -286,8 +284,8 @@ mod tests {
         app.update();
 
         assert_eq!(
-            *app.world().resource::<State<GameState>>().get(),
-            GameState::Paused
+            *app.world().resource::<State<PlayMode>>().get(),
+            PlayMode::Paused
         );
     }
 
@@ -296,6 +294,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, StatesPlugin))
             .init_state::<GameState>()
+            .add_sub_state::<PlayMode>()
             .init_resource::<ButtonInput<KeyCode>>()
             .insert_resource(InventoryOpen(true))
             .add_systems(Update, toggle_pause.run_if(in_state(GameState::Playing)));
@@ -312,8 +311,8 @@ mod tests {
         app.update();
 
         assert_eq!(
-            *app.world().resource::<State<GameState>>().get(),
-            GameState::Playing
+            *app.world().resource::<State<PlayMode>>().get(),
+            PlayMode::Exploring
         );
     }
 
@@ -351,6 +350,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, StatesPlugin))
             .init_state::<GameState>()
+            .add_sub_state::<PlayMode>()
             .init_resource::<ButtonInput<KeyCode>>()
             .insert_resource(InventoryOpen(true))
             .add_systems(Update, toggle_pause.run_if(in_state(GameState::Playing)));
@@ -368,8 +368,8 @@ mod tests {
 
         assert!(!app.world().resource::<InventoryOpen>().0);
         assert_eq!(
-            *app.world().resource::<State<GameState>>().get(),
-            GameState::Playing
+            *app.world().resource::<State<PlayMode>>().get(),
+            PlayMode::Exploring
         );
     }
 
@@ -388,16 +388,21 @@ mod tests {
     }
 
     #[test]
-    fn resume_on_escape_sets_playing() {
+    fn resume_on_escape_sets_exploring() {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, StatesPlugin))
             .init_state::<GameState>()
+            .add_sub_state::<PlayMode>()
             .init_resource::<ButtonInput<KeyCode>>()
-            .add_systems(Update, resume_on_escape.run_if(in_state(GameState::Paused)));
+            .add_systems(Update, resume_on_escape.run_if(in_state(PlayMode::Paused)));
 
         app.world_mut()
             .resource_mut::<NextState<GameState>>()
-            .set(GameState::Paused);
+            .set(GameState::Playing);
+        app.update();
+        app.world_mut()
+            .resource_mut::<NextState<PlayMode>>()
+            .set(PlayMode::Paused);
         app.update();
 
         app.world_mut()
@@ -407,8 +412,8 @@ mod tests {
         app.update();
 
         assert_eq!(
-            *app.world().resource::<State<GameState>>().get(),
-            GameState::Playing
+            *app.world().resource::<State<PlayMode>>().get(),
+            PlayMode::Exploring
         );
     }
 

@@ -1,24 +1,55 @@
-use std::collections::{HashMap, HashSet};
-
-use bevy::ecs::message::{MessageReader, MessageWriter};
+use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 
-use crate::machine::{EnergyPortOf, Machine};
+use crate::machine::{EnergyPortOf, EnvSource, Machine, MachineEnergyPorts};
 use crate::network::visuals::spawn_cable_children;
 use crate::network::{
     HasEndpoints, NetworkChanged, NetworkKind, NetworkMemberComponent, NetworkMembersComponent,
     NetworkPlugin, NetworkSystems, Power, route_avoiding,
 };
-use crate::world::{WorldObjectEvent, WorldObjectKind};
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PowerSimSystems;
+
+/// Per-run environmental output modifiers, derived from planet properties.
+/// Initialized when the planet is generated; read by generator placement and
+/// recipe completion to scale energy output.
+#[derive(Resource, Default, Clone, Copy)]
+pub struct EnvFactorRegistry {
+    pub solar: f32,
+    pub combustion: f32,
+}
+
+impl EnvFactorRegistry {
+    pub fn new(solar: f32, combustion: f32) -> Self {
+        Self { solar, combustion }
+    }
+
+    pub fn factor_for(&self, source: &EnvSource) -> f32 {
+        match source {
+            EnvSource::Solar => self.solar,
+            EnvSource::Combustion => self.combustion,
+        }
+    }
+}
+
+/// Why a machine slot is blocked from starting a recipe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SlotBlockReason {
+    NoPower,
+}
+
+/// Attached to idle machines that cannot start any recipe due to `reason`.
+/// Removed when the machine starts a recipe.
+#[derive(Component)]
+pub struct SlotBlocked(pub SlotBlockReason);
 
 pub struct PowerPlugin;
 
 impl Plugin for PowerPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(NetworkPlugin::<Power>::default());
+        app.init_resource::<EnvFactorRegistry>();
         app.configure_sets(
             Update,
             NetworkSystems::of::<Power>().run_if(in_state(crate::GameState::Playing)),
@@ -26,7 +57,7 @@ impl Plugin for PowerPlugin {
         app.add_systems(Startup, setup_power_visuals);
         app.add_systems(
             Update,
-            (generator_system, generator_tick_system)
+            (generator_tick_system, slot_blocked_system)
                 .chain()
                 .after(NetworkSystems::of::<Power>())
                 .in_set(PowerSimSystems)
@@ -43,7 +74,6 @@ impl Plugin for PowerPlugin {
 }
 
 const POWER_CABLE_ID: &str = "power_cable";
-const GENERATOR_ID: &str = "generator";
 pub const GENERATOR_DEFAULT_WATTS: f32 = 50.0;
 const CABLE_RADIUS: f32 = 0.04;
 
@@ -178,6 +208,9 @@ pub struct GeneratorUnit {
     pub watts: f32,
     pub buffer_joules: f32,
     pub max_buffer_joules: f32,
+    /// Environmental source type. Combustion generators are filled by recipe
+    /// completion, not by the tick system.
+    pub env_source: EnvSource,
 }
 
 #[derive(Component)]
@@ -315,66 +348,6 @@ impl PowerNetworkMembers {
 
 // -- Systems -----------------------------------------------------------------
 
-fn generator_system(
-    mut commands: Commands,
-    mut world_events: MessageReader<WorldObjectEvent>,
-    cable_q: Query<(&PowerCableSegment, &PowerNetworkMember)>,
-    gen_q: Query<(Entity, &GeneratorUnit)>,
-    mut changed: MessageWriter<NetworkChanged<Power>>,
-) {
-    // endpoint → network (keys are rounded IVec3)
-    let endpoint_to_net: HashMap<IVec3, Entity> = cable_q
-        .iter()
-        .flat_map(|(seg, m)| seg.endpoints().map(|ep| (ep.round().as_ivec3(), m.0)))
-        .collect();
-
-    let mut affected_nets: HashSet<Entity> = HashSet::new();
-
-    for ev in world_events.read() {
-        if ev.item_id != GENERATOR_ID {
-            continue;
-        }
-
-        let grid_pos = ev.pos.round().as_ivec3();
-
-        if ev.kind == WorldObjectKind::Removed
-            && let Some((gen_e, _)) = gen_q
-                .iter()
-                .find(|(_, g)| g.pos.round().as_ivec3() == grid_pos)
-        {
-            for &dir in &crate::network::DIRS {
-                if let Some(&net) = endpoint_to_net.get(&(grid_pos + dir)) {
-                    affected_nets.insert(net);
-                    break;
-                }
-            }
-            commands.entity(gen_e).despawn();
-        }
-
-        if ev.kind == WorldObjectKind::Placed {
-            let gen_e = commands
-                .spawn(GeneratorUnit {
-                    pos: ev.pos,
-                    watts: GENERATOR_DEFAULT_WATTS,
-                    buffer_joules: 0.0,
-                    max_buffer_joules: GENERATOR_DEFAULT_WATTS * 10.0,
-                })
-                .id();
-            for &dir in &crate::network::DIRS {
-                if let Some(&net) = endpoint_to_net.get(&(grid_pos + dir)) {
-                    commands.entity(gen_e).insert(PowerNetworkMember(net));
-                    affected_nets.insert(net);
-                    break;
-                }
-            }
-        }
-    }
-
-    for net in affected_nets {
-        changed.write(NetworkChanged::new(net));
-    }
-}
-
 fn generator_tick_system(
     time: Res<Time>,
     net_q: Query<(Entity, &PowerNetworkMembers)>,
@@ -407,6 +380,10 @@ fn generator_tick_system(
         let mut went_positive = false;
         for ge in gen_entities {
             if let Ok(mut unit) = gen_q.get_mut(ge) {
+                // Combustion generators fill their buffer via recipe completion, not here.
+                if unit.env_source == EnvSource::Combustion {
+                    continue;
+                }
                 let prev = unit.buffer_joules;
                 unit.buffer_joules =
                     (unit.buffer_joules + unit.watts * dt).min(unit.max_buffer_joules);
@@ -417,6 +394,42 @@ fn generator_tick_system(
         }
         if went_positive {
             changed.write(NetworkChanged::new(net_e));
+        }
+    }
+}
+
+/// Marks idle machines as `SlotBlocked(NoPower)` when they have energy-port
+/// connections but no energy available on any connected power network.
+/// Clears the component when power becomes available.
+fn slot_blocked_system(
+    mut commands: Commands,
+    machine_q: Query<
+        (Entity, Option<&MachineEnergyPorts>),
+        Without<crate::machine::MachineActivity>,
+    >,
+    port_power_q: Query<&PowerNetworkMember>,
+    power_members_q: Query<&PowerNetworkMembers>,
+    gen_q: Query<&GeneratorUnit>,
+    port_of_q: Query<&EnergyPortOf>,
+) {
+    for (entity, energy_ports_opt) in &machine_q {
+        let Some(energy_ports) = energy_ports_opt else {
+            commands.entity(entity).remove::<SlotBlocked>();
+            continue;
+        };
+        let has_power = energy_ports.ports().iter().any(|&ep| {
+            port_power_q
+                .get(ep)
+                .ok()
+                .and_then(|pm| power_members_q.get(pm.0).ok())
+                .is_some_and(|members| members.has_energy(&gen_q, &port_of_q, 0.001))
+        });
+        if has_power {
+            commands.entity(entity).remove::<SlotBlocked>();
+        } else {
+            commands
+                .entity(entity)
+                .insert(SlotBlocked(SlotBlockReason::NoPower));
         }
     }
 }
@@ -435,12 +448,11 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .add_message::<WorldObjectEvent>()
             .add_message::<CableConnectionEvent>()
+            .init_resource::<EnvFactorRegistry>()
             .add_plugins(NetworkPlugin::<Power>::default())
             .add_systems(
                 Update,
-                (generator_system, generator_tick_system)
-                    .chain()
-                    .after(NetworkSystems::of::<Power>()),
+                generator_tick_system.after(NetworkSystems::of::<Power>()),
             );
         app
     }
@@ -458,7 +470,7 @@ mod tests {
 
     fn disconnect_at(app: &mut App, pos: Vec3) {
         app.world_mut().write_message(WorldObjectEvent {
-            pos,
+            transform: Transform::from_translation(pos),
             item_id: POWER_CABLE_ID.to_string(),
             kind: WorldObjectKind::Removed,
         });
@@ -470,49 +482,6 @@ mod tests {
             .query_filtered::<(), With<PowerNetwork>>()
             .iter(world)
             .count()
-    }
-
-    #[test]
-    fn generator_adjacent_to_cable_endpoint_spawns_and_charges_buffer() {
-        // Generator placed adjacent to cable endpoint: spawns with correct watts
-        // and its buffer fills up over ticks (generator_tick_system runs same frame).
-        let mut app = power_app();
-        connect_cable(&mut app, Vec3::ZERO, Vec3::new(0.0, 0.0, 5.0));
-        app.update();
-        app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::new(1.0, 0.0, 0.0),
-            item_id: GENERATOR_ID.to_string(),
-            kind: WorldObjectKind::Placed,
-        });
-        app.update();
-        let world = app.world_mut();
-        let gens: Vec<&GeneratorUnit> = world.query::<&GeneratorUnit>().iter(world).collect();
-        assert_eq!(gens.len(), 1);
-        assert_eq!(gens[0].watts, GENERATOR_DEFAULT_WATTS);
-        // Buffer starts at 0 and is filled by tick; after one update it is ≥ 0
-        assert!(gens[0].buffer_joules >= 0.0);
-        assert!(gens[0].buffer_joules <= gens[0].max_buffer_joules);
-    }
-
-    #[test]
-    fn generator_removed_despawns_generator_entity() {
-        let mut app = power_app();
-        connect_cable(&mut app, Vec3::ZERO, Vec3::new(0.0, 0.0, 5.0));
-        app.update();
-        app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::new(1.0, 0.0, 0.0),
-            item_id: GENERATOR_ID.to_string(),
-            kind: WorldObjectKind::Placed,
-        });
-        app.update();
-        app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::new(1.0, 0.0, 0.0),
-            item_id: GENERATOR_ID.to_string(),
-            kind: WorldObjectKind::Removed,
-        });
-        app.update();
-        let world = app.world_mut();
-        assert_eq!(world.query::<&GeneratorUnit>().iter(world).count(), 0);
     }
 
     #[test]
@@ -646,7 +615,7 @@ mod tests {
 
         // Generic removal: item_id="" → finds nearest cable by distance
         app.world_mut().write_message(WorldObjectEvent {
-            pos: Vec3::new(2.5, 0.0, 0.0),
+            transform: Transform::from_translation(Vec3::new(2.5, 0.0, 0.0)),
             item_id: String::new(),
             kind: WorldObjectKind::Removed,
         });
@@ -665,6 +634,7 @@ mod tests {
                 watts: 0.0,
                 buffer_joules: 100.0,
                 max_buffer_joules: 100.0,
+                env_source: EnvSource::Solar,
             })
             .id();
         let net_e = world.spawn_empty().id();
@@ -699,6 +669,7 @@ mod tests {
                 watts: 0.0,
                 buffer_joules: 100.0,
                 max_buffer_joules: 100.0,
+                env_source: EnvSource::Solar,
             })
             .id();
         let net_e = world.spawn_empty().id();

@@ -4,6 +4,7 @@
 pub mod content;
 pub mod debug;
 pub mod drone;
+pub mod escape;
 pub mod inventory;
 pub mod logistics;
 pub mod machine;
@@ -28,20 +29,21 @@ use bevy::prelude::*;
 pub enum GameState {
     #[default]
     MainMenu,
+    NewRunWizard,
     Loading,
     Playing,
-    Paused,
+    Escaped,
 }
 
 #[derive(SubStates, Default, Clone, Eq, PartialEq, Debug, Hash)]
 #[source(GameState = GameState::Playing)]
 pub enum PlayMode {
     #[default]
-    Landing,
     Exploring,
     Building,
     DronePilot,
     Research,
+    Paused,
 }
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]

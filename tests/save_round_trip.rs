@@ -49,6 +49,7 @@ fn new_run_event_spawns_run_entity_with_expected_components() {
         .resource_mut::<Messages<NewRunEvent>>()
         .write(NewRunEvent {
             seed_text: "alpha-beta".into(),
+            test_mode: false,
         });
     app.update();
 
@@ -57,7 +58,7 @@ fn new_run_event_spawns_run_entity_with_expected_components() {
     let (header, seed, domains) = q.single(world).expect("run entity should exist");
 
     assert_eq!(header.status, RunStatus::InProgress);
-    assert_eq!(header.difficulty, DifficultyTier::Standard);
+    assert_eq!(header.difficulty, DifficultyTier::Initiation);
     assert!(!header.run_id.is_empty());
     assert_eq!(header.seed_text, "alpha-beta");
     assert_eq!(seed.text, "alpha-beta");
@@ -77,6 +78,7 @@ fn save_then_load_round_trip_preserves_run_state() {
         .resource_mut::<Messages<NewRunEvent>>()
         .write(NewRunEvent {
             seed_text: "round-trip".into(),
+            test_mode: false,
         });
     app.update();
 

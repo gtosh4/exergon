@@ -1,9 +1,9 @@
 (
-    id: "storage_crate",
-    name: "Storage Crate",
+    id: "combustion_generator",
+    name: "Combustion Generator",
     stack_size: 10,
     tiers: [
-        (tier: 1),
+        (tier: 1, generator: Some((watts: 0.0, env_source: Combustion, max_buffer_joules: 5000.0))),
     ],
     interaction: Single,
     surface: Ground,

@@ -37,6 +37,7 @@ fn make_recipe(
         machine_tier: 1,
         processing_time: 1.0,
         energy_cost: 0.0,
+        energy_output: 0.0,
     }
 }
 

@@ -73,13 +73,21 @@ pub enum RunStatus {
 #[derive(Reflect, Clone, Default, Debug, PartialEq, Eq)]
 pub enum DifficultyTier {
     #[default]
+    Initiation,
     Standard,
+    Advanced,
+    Pinnacle,
 }
+
+/// Marker resource: current run started with the dev test loadout modifier.
+#[derive(Resource, Default)]
+pub struct DevTestMode;
 
 /// Player submitted a new run from the menu.
 #[derive(Message)]
 pub struct NewRunEvent {
     pub seed_text: String,
+    pub test_mode: bool,
 }
 
 /// Player chose to load a run from the run-select screen.
@@ -178,6 +186,11 @@ fn spawn_run_on_new_event(
     let Some(event) = events.read().last() else {
         return;
     };
+    if event.test_mode {
+        commands.insert_resource(DevTestMode);
+    } else {
+        commands.remove_resource::<DevTestMode>();
+    }
     let start = now_unix_secs();
     let run_id = derive_run_id(start);
     let hash = hash_text(&event.seed_text);
@@ -186,7 +199,7 @@ fn spawn_run_on_new_event(
         RunSaveHeader {
             run_id: run_id.clone(),
             seed_text: event.seed_text.clone(),
-            difficulty: DifficultyTier::Standard,
+            difficulty: DifficultyTier::Initiation,
             status: RunStatus::InProgress,
             start_time_secs: start,
             end_time_secs: None,

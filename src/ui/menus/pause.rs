@@ -1,91 +1,139 @@
-use bevy::{app::AppExit, ecs::message::MessageWriter, prelude::*};
+use bevy::{app::AppExit, prelude::*};
 
 use crate::{
-    GameState,
-    ui::theme::{COLOR_DIM, COLOR_GOLD, COLOR_OVERLAY_BG},
+    GameState, PlayMode,
+    save::{Run, RunSaveHeader},
+    ui::{
+        theme::{font_size, palette, space},
+        widgets::{UiButton, button_label, caption, divider, panel},
+    },
 };
 
 #[derive(Component)]
 enum PauseButton {
     Resume,
+    SaveQuit,
     Quit,
 }
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(OnEnter(GameState::Paused), spawn)
-        .add_systems(Update, handle_buttons.run_if(in_state(GameState::Paused)));
+    app.add_systems(OnEnter(PlayMode::Paused), spawn)
+        .add_systems(Update, handle_buttons.run_if(in_state(PlayMode::Paused)));
 }
 
-fn spawn(mut commands: Commands) {
+fn spawn(mut commands: Commands, run_q: Query<&RunSaveHeader, With<Run>>) {
+    let header = run_q.single().ok();
+
     commands
         .spawn((
             Node {
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
-                flex_direction: FlexDirection::Column,
+                flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                row_gap: Val::Px(16.0),
+                column_gap: Val::Px(48.0),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
-            DespawnOnExit(GameState::Paused),
+            BackgroundColor(palette::OVERLAY_SCRIM),
+            DespawnOnExit(PlayMode::Paused),
         ))
-        .with_children(|p| {
-            p.spawn((
-                Text::new("Paused"),
-                TextFont {
-                    font_size: 36.0,
-                    ..default()
-                },
-                TextColor(COLOR_GOLD),
-            ));
+        .with_children(|root| {
+            // Left: pause title + action buttons
+            root.spawn(Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::MD),
+                width: Val::Px(240.0),
+                ..default()
+            })
+            .with_children(|left| {
+                left.spawn((
+                    Text::new("PAUSED"),
+                    TextFont {
+                        font_size: font_size::H_XL,
+                        ..default()
+                    },
+                    TextColor(palette::ACCENT),
+                ));
 
-            p.spawn((
-                Button,
-                Node {
-                    padding: UiRect::axes(Val::Px(32.0), Val::Px(10.0)),
-                    border: UiRect::all(Val::Px(1.0)),
-                    ..default()
-                },
-                BorderColor::all(COLOR_DIM),
-                BackgroundColor(COLOR_OVERLAY_BG),
-                PauseButton::Resume,
-            ))
-            .with_child((
-                Text::new("Resume"),
-                TextFont {
-                    font_size: 16.0,
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-            ));
+                left.spawn(divider());
 
-            p.spawn((
-                Button,
-                Node {
-                    padding: UiRect::axes(Val::Px(32.0), Val::Px(10.0)),
-                    border: UiRect::all(Val::Px(1.0)),
-                    ..default()
-                },
-                BorderColor::all(COLOR_DIM),
-                BackgroundColor(COLOR_OVERLAY_BG),
-                PauseButton::Quit,
-            ))
-            .with_child((
-                Text::new("Quit"),
-                TextFont {
-                    font_size: 16.0,
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-            ));
+                left.spawn((UiButton::accent(), PauseButton::Resume))
+                    .with_children(|b| {
+                        b.spawn((
+                            Text::new("RESUME"),
+                            TextFont {
+                                font_size: font_size::BUTTON,
+                                ..default()
+                            },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
+                left.spawn((UiButton::default(), PauseButton::SaveQuit))
+                    .with_children(|b| {
+                        b.spawn(button_label("SAVE & QUIT TO MENU"));
+                    });
+                left.spawn((UiButton::default(), PauseButton::Quit))
+                    .with_children(|b| {
+                        b.spawn(button_label("QUIT TO DESKTOP"));
+                    });
+            });
+
+            // Right: run-at-a-glance panel
+            root.spawn(panel()).with_children(|right| {
+                right
+                    .spawn(Node {
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(space::SM),
+                        min_width: Val::Px(180.0),
+                        ..default()
+                    })
+                    .with_children(|info| {
+                        if let Some(h) = header {
+                            let seed = if h.seed_text.is_empty() {
+                                "—"
+                            } else {
+                                &h.seed_text
+                            };
+                            info.spawn(caption("SEED"));
+                            info.spawn((
+                                Text::new(seed.to_string()),
+                                TextFont {
+                                    font_size: font_size::H_SM,
+                                    ..default()
+                                },
+                                TextColor(palette::TEXT),
+                            ));
+
+                            info.spawn(divider());
+
+                            let secs = h.total_playtime_secs as u64;
+                            let playtime = if secs >= 3600 {
+                                format!("{}h {:02}m", secs / 3600, (secs % 3600) / 60)
+                            } else {
+                                format!("{}m {:02}s", secs / 60, secs % 60)
+                            };
+                            info.spawn(caption("PLAYTIME"));
+                            info.spawn((
+                                Text::new(playtime),
+                                TextFont {
+                                    font_size: font_size::H_SM,
+                                    ..default()
+                                },
+                                TextColor(palette::TEXT),
+                            ));
+                        } else {
+                            info.spawn(caption("NO ACTIVE RUN"));
+                        }
+                    });
+            });
         });
 }
 
 fn handle_buttons(
     q: Query<(&Interaction, &PauseButton), Changed<Interaction>>,
     mut next_state: ResMut<NextState<GameState>>,
+    mut next_mode: ResMut<NextState<PlayMode>>,
     mut app_exit: MessageWriter<AppExit>,
 ) {
     for (interaction, btn) in &q {
@@ -93,7 +141,8 @@ fn handle_buttons(
             continue;
         }
         match btn {
-            PauseButton::Resume => next_state.set(GameState::Playing),
+            PauseButton::Resume => next_mode.set(PlayMode::Exploring),
+            PauseButton::SaveQuit => next_state.set(GameState::MainMenu),
             PauseButton::Quit => {
                 app_exit.write(AppExit::Success);
             }

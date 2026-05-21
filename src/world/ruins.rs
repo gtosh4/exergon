@@ -2,6 +2,8 @@ use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 
 use crate::drone::Drone;
+use crate::escape::EscapeObjective;
+use crate::machine::{Machine, MachineState, Mirror, Orientation, Rotation};
 use crate::research::{Discovered, DiscoveryEvent};
 use crate::save::Run;
 use crate::seed::{DomainSeeds, derive};
@@ -27,6 +29,24 @@ pub fn spawn_gateway_ruins_system(mut commands: Commands, run_q: Query<&DomainSe
 
     commands.insert_resource(GatewayRuinsPosition(pos));
     commands.spawn((GatewayRuins, Transform::from_translation(pos)));
+
+    // Spawn gateway machine at ruins — players cable it into their network to activate escape.
+    // Hardcode one logistics port (+X) and one energy port (-X) relative to machine center.
+    commands.spawn((
+        Machine {
+            machine_type: "gateway".to_string(),
+            tier: 1,
+            orientation: Orientation {
+                rotation: Rotation::North,
+                mirror: Mirror::Normal,
+            },
+            energy_ports: vec![Vec3::new(pos.x - 2.0, pos.y, pos.z)],
+            logistics_ports: vec![Vec3::new(pos.x + 2.0, pos.y, pos.z)],
+        },
+        MachineState::Idle,
+        Transform::from_translation(pos),
+        EscapeObjective,
+    ));
 }
 
 pub fn ruins_discovery_system(

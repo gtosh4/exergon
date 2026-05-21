@@ -1,0 +1,14 @@
+(
+    item: (
+        id: "platform",
+        name: "Platform",
+        stack_size: 100,
+        kind: Platform,
+    ),
+    interaction: AreaRect(tile_size: 8.0),
+    surface: Ground,
+    snap: Tile(Horizontal(step: 8.0)),
+    orientation: Free,
+    ghost: TiledScene,
+    footprint: (4.0, 0.125, 4.0),
+)

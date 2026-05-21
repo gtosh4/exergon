@@ -5,6 +5,7 @@ use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
 use crate::logistics::{LogisticsNetworkMember, LogisticsNetworkMembers, StorageUnit, give_items};
+use crate::machine::{EnvSource, GeneratorDef};
 use crate::power::{GENERATOR_DEFAULT_WATTS, GeneratorUnit};
 use crate::recipe_graph::RecipeGraph;
 use crate::world::{WorldObjectEvent, WorldObjectKind};
@@ -128,21 +129,29 @@ pub(super) fn place_machine_system(
             .unwrap_or(&empty_layout);
 
         let tier = def.tiers.iter().map(|t| t.tier).max().unwrap_or(1);
-        let bundle = MachineBundle::new(ev.pos, def, tier, layout);
+        let bundle = MachineBundle::new(ev.transform.translation, def, tier, layout);
         let machine_entity = commands.spawn(bundle).id();
 
         let cached = machine_colliders
             .as_deref()
             .and_then(|mc| mc.colliders.get(&def.id))
             .cloned();
+        let has_scene = visuals
+            .as_deref()
+            .and_then(|v| v.scenes.get(&def.id))
+            .is_some();
         if let Some(collider) = cached {
             commands.entity(machine_entity).insert(collider);
-        } else {
+        } else if has_scene {
             commands
                 .entity(machine_entity)
                 .insert(ColliderConstructorHierarchy::new(
                     ColliderConstructor::ConvexHullFromMesh,
                 ));
+        } else {
+            commands
+                .entity(machine_entity)
+                .insert(Collider::cuboid(2.0, 2.0, 2.0));
         }
 
         if let Some(ref v) = visuals
@@ -153,20 +162,43 @@ pub(super) fn place_machine_system(
                 .insert(SceneRoot(scene.clone()));
         }
 
-        if def.id == "generator" {
-            // VS: existing generator is treated as solar — multiply watts by
-            // planet solar_modifier when a Planet entity is present.
-            let modifier = planet_q
-                .single()
-                .ok()
-                .map(|p| crate::planet::solar_modifier(p.stellar_distance))
-                .unwrap_or(1.0);
-            let watts = GENERATOR_DEFAULT_WATTS * modifier;
+        let tier_def = def.tiers.iter().find(|t| t.tier == tier);
+        let explicit_gen = tier_def.and_then(|t| t.generator.as_ref());
+        let fallback_gen;
+        let gen_def: Option<&GeneratorDef> = if let Some(d) = explicit_gen {
+            Some(d)
+        } else if def.id == "generator" {
+            fallback_gen = GeneratorDef {
+                watts: GENERATOR_DEFAULT_WATTS,
+                env_source: EnvSource::Solar,
+                max_buffer_joules: 0.0,
+            };
+            Some(&fallback_gen)
+        } else {
+            None
+        };
+        if let Some(gd) = gen_def {
+            let planet = planet_q.single().ok();
+            let modifier = match &gd.env_source {
+                EnvSource::Solar => planet
+                    .map(|p| crate::planet::solar_modifier(p.stellar_distance))
+                    .unwrap_or(1.0),
+                EnvSource::Combustion => planet
+                    .map(|p| crate::planet::combustion_modifier(p.atmospheric_oxygen))
+                    .unwrap_or(1.0),
+            };
+            let watts = gd.watts * modifier;
+            let max_buffer = if gd.max_buffer_joules > 0.0 {
+                gd.max_buffer_joules
+            } else {
+                (watts * 10.0).max(500.0)
+            };
             commands.entity(machine_entity).insert(GeneratorUnit {
-                pos: ev.pos,
+                pos: ev.transform.translation,
                 watts,
                 buffer_joules: 0.0,
-                max_buffer_joules: watts * 10.0,
+                max_buffer_joules: max_buffer,
+                env_source: gd.env_source.clone(),
             });
         }
 
@@ -175,9 +207,12 @@ pub(super) fn place_machine_system(
             entity: machine_entity,
             machine_type: def.id.clone(),
             class: machine_class_for(&def.id),
-            pos: ev.pos,
+            pos: ev.transform.translation,
         });
-        info!("Machine '{}' tier {} placed at {:?}", def.id, tier, ev.pos);
+        info!(
+            "Machine '{}' tier {} placed at {:?}",
+            def.id, tier, ev.transform.translation
+        );
     }
 }
 
@@ -192,7 +227,7 @@ pub(super) fn place_platform_system(
         }
         let mut entity_cmd = commands.spawn((
             Platform,
-            Transform::from_translation(ev.pos),
+            Transform::from_translation(ev.transform.translation),
             RigidBody::Static,
         ));
         if let Some(ref v) = visuals {
@@ -203,7 +238,7 @@ pub(super) fn place_platform_system(
         } else {
             entity_cmd.insert(Collider::cuboid(8.0, 0.25, 8.0));
         }
-        info!("Platform placed at {:?}", ev.pos);
+        info!("Platform placed at {:?}", ev.transform.translation);
     }
 }
 
@@ -227,7 +262,7 @@ pub(super) fn remove_placed_objects_system(
         }
         if let Some((entity, machine, _)) = machine_q
             .iter()
-            .find(|(_, _, t)| t.translation.distance(ev.pos) < 1.5)
+            .find(|(_, _, t)| t.translation.distance(ev.transform.translation) < 1.5)
         {
             // Return recipe inputs to the network if a recipe was in progress.
             if let Ok((activity, logistics_ports)) = activity_q.get(entity)
@@ -262,13 +297,16 @@ pub(super) fn remove_placed_objects_system(
             }
             commands.entity(entity).despawn();
             network_changed.write(MachineNetworkChanged);
-            info!("Machine '{}' removed near {:?}", machine_type, ev.pos);
+            info!(
+                "Machine '{}' removed near {:?}",
+                machine_type, ev.transform.translation
+            );
         } else if let Some((entity, _)) = platform_q
             .iter()
-            .find(|(_, t)| t.translation.distance(ev.pos) < 1.5)
+            .find(|(_, t)| t.translation.distance(ev.transform.translation) < 1.5)
         {
             commands.entity(entity).despawn();
-            info!("Platform removed near {:?}", ev.pos);
+            info!("Platform removed near {:?}", ev.transform.translation);
         }
     }
 }
@@ -318,6 +356,7 @@ mod tests {
             machine_tier: 1,
             processing_time: 5.0,
             energy_cost: 0.0,
+            energy_output: 0.0,
         }));
 
         let net_e = app.world_mut().spawn(LogisticsNetwork).id();
@@ -363,7 +402,7 @@ mod tests {
         ));
 
         app.world_mut().write_message(WorldObjectEvent {
-            pos: machine_pos,
+            transform: Transform::from_translation(machine_pos),
             item_id: String::new(),
             kind: WorldObjectKind::Removed,
         });
@@ -415,7 +454,7 @@ mod tests {
         ));
 
         app.world_mut().write_message(WorldObjectEvent {
-            pos: machine_pos,
+            transform: Transform::from_translation(machine_pos),
             item_id: String::new(),
             kind: WorldObjectKind::Removed,
         });
@@ -428,7 +467,10 @@ mod tests {
     fn def_with_tier(id: &str, tier: u8) -> MachineDef {
         MachineDef {
             id: id.to_string(),
-            tiers: vec![MachineTierDef { tier }],
+            tiers: vec![MachineTierDef {
+                tier,
+                generator: None,
+            }],
         }
     }
 

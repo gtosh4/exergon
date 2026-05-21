@@ -2,7 +2,6 @@ use bevy::ecs::message::MessageWriter;
 use bevy::log::{BoxedLayer, LogPlugin};
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
-use clap::Parser;
 use tracing_subscriber::Layer;
 
 use exergon::inventory::{Hotbar, HotbarSlot};
@@ -12,15 +11,6 @@ use exergon::machine::{
 };
 use exergon::research::{ResearchPool, TechTreeProgress};
 use exergon::{GameState, GameSystems, PlayMode};
-
-#[derive(Parser)]
-#[command(version, about, long_about = None)]
-struct Cli {
-    #[cfg(debug_assertions)]
-    /// Start with test items in inventory
-    #[arg(short, long)]
-    test: bool,
-}
 
 fn file_log_layer(_app: &mut App) -> Option<BoxedLayer> {
     let file = std::fs::File::create("game.log").ok()?;
@@ -33,8 +23,6 @@ fn file_log_layer(_app: &mut App) -> Option<BoxedLayer> {
 }
 
 fn main() {
-    let cli = Cli::parse();
-
     #[cfg(debug_assertions)]
     let log_plugin = LogPlugin {
         level: bevy::log::Level::DEBUG,
@@ -83,6 +71,8 @@ fn main() {
         exergon::debug::DebugPlugin,
         exergon::recipe_graph::RecipeGraphPlugin,
         exergon::tech_tree::TechTreePlugin,
+    ))
+    .add_plugins((
         exergon::machine::MachinePlugin,
         exergon::logistics::LogisticsPlugin,
         exergon::power::PowerPlugin,
@@ -90,6 +80,7 @@ fn main() {
         exergon::research::ResearchPlugin,
         exergon::reactivity::ReactivityPlugin,
         exergon::planet::PlanetPlugin,
+        exergon::escape::EscapePlugin,
     ))
     .add_plugins((exergon::meta::MetaPlugin, exergon::ui::UiPlugin));
 
@@ -97,15 +88,15 @@ fn main() {
     app.add_plugins(exergon::telemetry::TelemetryPlugin);
 
     #[cfg(debug_assertions)]
-    if cli.test {
-        app.add_systems(
-            OnTransition {
-                exited: GameState::Loading,
-                entered: GameState::Playing,
-            },
-            (give_test_items, give_test_research).chain(),
-        );
-    }
+    app.add_systems(
+        OnTransition {
+            exited: GameState::Loading,
+            entered: GameState::Playing,
+        },
+        (give_test_items, give_test_research)
+            .chain()
+            .run_if(resource_exists::<exergon::save::DevTestMode>),
+    );
     app.run();
 }
 
@@ -169,7 +160,7 @@ fn give_test_items(
                 ("storage_crate".to_owned(), 8u32),
                 ("logistics_cable".to_owned(), 64u32),
                 ("power_cable".to_owned(), 64u32),
-                ("platform".to_owned(), 8u32),
+                ("platform".to_owned(), 64u32),
             ]
             .into_iter()
             .collect(),
@@ -189,6 +180,9 @@ fn give_test_research(mut pool: ResMut<ResearchPool>, mut progress: ResMut<TechT
     progress
         .unlocked_recipes
         .insert("basic_smelting".to_string());
+    progress
+        .unlocked_recipes
+        .insert("activate_gateway".to_string());
     info!(
         "Test mode: +50 research points, {0:?} unlocked",
         progress.unlocked_recipes

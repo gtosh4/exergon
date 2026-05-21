@@ -1,0 +1,13 @@
+(
+    id: "combust_coal",
+    inputs: [
+        (item: "coal", quantity: 1.0),
+    ],
+    outputs: [],
+    byproducts: [],
+    machine_type: "combustion_generator",
+    machine_tier: 1,
+    processing_time: 10.0,
+    energy_cost: 0.0,
+    energy_output: 400.0,
+)

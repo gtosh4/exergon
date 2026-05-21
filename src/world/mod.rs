@@ -3,7 +3,7 @@ mod interaction;
 mod player;
 pub(crate) mod ruins;
 
-pub use interaction::LookTarget;
+pub use interaction::{BuildOrientation, LookTarget};
 pub use player::{MainCamera, Player};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -14,7 +14,7 @@ pub enum WorldObjectKind {
 
 #[derive(bevy::ecs::message::Message, Debug, Clone)]
 pub struct WorldObjectEvent {
-    pub pos: Vec3,
+    pub transform: Transform,
     pub item_id: String,
     pub kind: WorldObjectKind,
 }
@@ -76,12 +76,12 @@ impl Plugin for WorldPlugin {
                 ),
             )
             .add_systems(
-                OnEnter(GameState::Paused),
+                OnEnter(PlayMode::Paused),
                 (player::unlock_cursor, interaction::hide_ghost_preview),
             )
             .add_systems(
                 Update,
-                player::resume_on_escape.run_if(in_state(GameState::Paused)),
+                player::resume_on_escape.run_if(in_state(PlayMode::Paused)),
             )
             .add_systems(
                 FixedUpdate,
@@ -101,6 +101,10 @@ impl Plugin for WorldPlugin {
                         .run_if(not(player::any_ui_open))
                         .run_if(in_state(PlayMode::Exploring)),
                     interaction::update_look_target.after(player::camera_input),
+                    interaction::build_orientation_input_system
+                        .before(interaction::object_interaction)
+                        .in_set(crate::GameSystems::Input)
+                        .run_if(not(player::any_ui_open)),
                     interaction::object_interaction
                         .after(interaction::update_look_target)
                         .in_set(crate::GameSystems::Input)
@@ -109,7 +113,8 @@ impl Plugin for WorldPlugin {
                     interaction::update_removal_ghost.after(interaction::update_look_target),
                     ruins::ruins_discovery_system.run_if(in_state(PlayMode::DronePilot)),
                 )
-                    .run_if(in_state(GameState::Playing)),
+                    .run_if(in_state(GameState::Playing))
+                    .run_if(not(in_state(PlayMode::Paused))),
             );
     }
 }

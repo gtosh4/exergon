@@ -1,0 +1,14 @@
+(
+    item: (
+        id: "power_cable",
+        name: "Power Cable",
+        stack_size: 100,
+        kind: Cable(network: "power"),
+    ),
+    interaction: TwoEndpoint(item_id: "power_cable"),
+    surface: Port,
+    snap: PortRaycast,
+    orientation: Fixed,
+    ghost: Routed,
+    footprint: (0.1, 0.1, 0.1),
+)

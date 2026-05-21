@@ -1,6 +1,6 @@
 use std::f32::consts::FRAC_PI_2;
 
-use bevy::ecs::message::{Message, MessageReader};
+use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;
 
 use crate::{
@@ -37,9 +37,8 @@ pub struct TopologyOverlay {
 // Messages
 // ---------------------------------------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Message)]
 pub struct ToggleTopologyOverlay;
-impl Message for ToggleTopologyOverlay {}
 
 // ---------------------------------------------------------------------------
 // Marker components
@@ -340,7 +339,7 @@ mod tests {
         // alpha = 0.3 + 0.6 * (0.5 + 0.5 * sin(x))
         // min when sin = -1: 0.3 + 0.6 * 0.0 = 0.3
         // max when sin =  1: 0.3 + 0.6 * 1.0 = 0.9
-        let min_alpha = 0.3_f32 + 0.6 * (0.5 + 0.5 * (-1.0_f32));
+        let min_alpha = 0.3_f32 + 0.6 * (0.5 + -0.5);
         let max_alpha = 0.3_f32 + 0.6 * (0.5 + 0.5 * 1.0_f32);
         assert!((min_alpha - 0.3).abs() < 1e-6);
         assert!((max_alpha - 0.9).abs() < 1e-6);

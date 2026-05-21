@@ -91,6 +91,10 @@ Systems explicitly deferred from the vertical slice (`vertical_slice.md §8`). W
 
 `codex.md` — codex entry types (biome, node type, planet modifier, machine type, alien material), creation triggers (first-encounter via drone/presence), type-level vs. run-specific data distinction, accumulated observations across runs. Meta-progression: unlock triggers (run completion by difficulty tier, in-run milestones), grant types (biome, run modifier, narrative, blueprint slot, starting boon). Blueprints: layout-only templates (machines, tiers, positions, orientations, logistics connections), not recipe solutions, finite slots expandable via meta-progression. Note: save file format covered in Save Architecture above.
 
+### Run Modifier System
+
+`run-modifiers.md` — `RunModifierDef` asset schema (id, display name, cost, description, `#[cfg(debug_assertions)]` guard flag, mutually-exclusive group), `ModifierRegistry` resource, `WizardDraft` modifier selection (multi-select, group exclusion enforcement), `NewRunEvent` modifier payload (replaces ad-hoc `test_mode: bool`), `ActiveModifiers` run-scoped resource, system hook protocol (each modifier registers an `OnAdd<ActiveModifiers>` observer or `run_if` condition), cost ledger (sum of selected costs, shown in wizard summary step). **Write before replacing the current `test_mode` field with a general modifier list, adding any new modifier, or changing how the wizard surfaces modifier selection.**
+
 ### Recipe Graph Generation Algorithm
 
 Once curated seeds are replaced by procedural generation: backwards-from-terminal generation ordering, template expansion, parameter variance bounds (inputs 50–200%, yield 60–150%, time 50–300%, energy 50–250%), byproduct routing, validity invariants, and the standalone generator validator required before shipping procedural seeds (`vertical_slice.md §10.6`).
