@@ -41,3 +41,4 @@ assets/**/*.gltf
 
 # Other ignored files
 game.log
+/saves/

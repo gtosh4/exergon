@@ -13,32 +13,36 @@ Required before most VS features land. Other phases may proceed in parallel wher
 ### 0.1 Save / Load — `src/save/`
 Design: [`save.md`](technical/save.md). Do-not-stub (blocks Standard Probe gate).
 
-- [ ] Add `moonshine_save` crate
-- [ ] `Run` marker component + `RunSaveHeader` (seed, profile, elapsed, timestamp)
-- [ ] Tag saveable entities with `Save` / `Unload`
-- [ ] Run save: serialize to local RON, one file per run
-- [ ] Header-only read path for menu list
-- [ ] Load flow: deserialize → restore world → resume `GameState::Playing`
-- [ ] New-run flow: tear down current `Run`, spawn fresh
-- [ ] Meta save stub (codex/blueprints empty for VS)
-- [ ] Integration test: save mid-run, load, verify world + factory + research + drone state match
+- [x] Add `moonshine_save` crate
+- [x] `Run` marker component + `RunSaveHeader` (seed, profile, elapsed, timestamp)
+- [~] Tag saveable entities with `Save` / `Unload` — Run entity tagged; gameplay entities (Machine, cables, networks, Drone, MinedDeposit, Outpost, Player) deferred pending `Reflect` + `MapEntities` work
+- [x] Run save: serialize to local RON, one file per run
+- [x] Header-only read path for menu list
+- [x] Load flow: deserialize → restore world → resume `GameState::Playing`
+- [x] New-run flow: tear down current `Run`, spawn fresh
+- [x] Meta save stub (codex/blueprints empty for VS)
+- [~] Integration test: save mid-run, load, verify world + factory + research + drone state match — covers Run entity + seed components + `TechTreeProgress`/`ResearchPool` via `include_resource`; factory/drone deferred with entity tagging
+
+Deviations from design:
+- `TechTreeProgress` and `ResearchPool` remain Resources, saved via `SaveWorld::include_resource` instead of being migrated to Run-entity components.
+- Checkpoints, rolling backups, and HardcoreMode remain post-VS.
 
 ### 0.2 Telemetry — `src/telemetry/`
 Design: [`telemetry.md`](technical/telemetry.md). VS §6 gate requirement.
 
-- [ ] `TelemetryLog` resource, JSONL writer (`#[cfg(debug_assertions)]` gated)
-- [ ] `RunStarted` event (seed, profile, timestamp)
-- [ ] First-occurrence events: planet_property_viewed, tech_node_revealed, research_spent, machine_placed, stable_production, power_failure, power_failure_resolved, drone_deployed, remote_mode_entry/exit, discovery_event, escape_item_produced, escape_completed
-- [ ] Repeated events: blocked_state_enter/exit, tutorial_trigger
+- [x] `TelemetryLog` resource, JSONL writer (`#[cfg(debug_assertions)]` gated)
+- [x] `RunStarted` event (seed, profile, timestamp)
+- [~] First-occurrence events: `tech_node_revealed`, `machine_placed`, `discovery_event`, `remote_mode_entry`/`exit` wired; `planet_property_viewed`, `research_spent`, `power_failure`/`resolved`, `drone_deployed`, `escape_item_produced`, `escape_completed`, `stable_production` deferred until source events exist
+- [ ] Repeated events: `blocked_state_enter`/`exit`, `tutorial_trigger` — source events not yet implemented
 - [ ] Derived metrics calculator: time-to-first-insight, time-to-first-research-unlock, time-to-stable-production, time-to-first-discovery, blocked-state count + duration, remote trips, re-engage time, total run time
-- [ ] Event integration points wired across systems (one PR per source system to keep diffs small)
+- [~] Event integration points wired across systems — wired for existing emitters; gated behind future event additions for the rest
 
 ### 0.3 Seed System — `planet` domain
 Design: [`seed.md`](technical/seed.md), [`planet-identity.md`](technical/planet-identity.md).
 
-- [ ] Add `planet` field to `DomainSeeds`
-- [ ] Pcg64 RNG factory for planet domain
-- [ ] Unit test: same `RunSeed` → identical planet domain stream
+- [x] Add `planet` field to `DomainSeeds`
+- [x] Pcg64 RNG factory for planet domain (`DomainSeeds::planet_rng`)
+- [x] Unit test: same `RunSeed` → identical planet domain stream
 
 ---
 
