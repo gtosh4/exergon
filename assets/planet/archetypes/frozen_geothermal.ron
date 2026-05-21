@@ -1,0 +1,9 @@
+(
+    name: "FrozenGeothermal",
+    temperature: (0.00, 0.35),
+    geological_activity: (0.60, 1.00),
+    stellar_distance: (0.55, 1.00),
+    atmospheric_oxygen: (0.20, 0.60),
+    atmospheric_pressure: (0.40, 0.80),
+    wind_intensity: (0.10, 0.50),
+)

@@ -18,6 +18,44 @@ pub struct MachineScanSet;
 #[derive(bevy::ecs::message::Message, Clone, Copy)]
 pub struct MachineNetworkChanged;
 
+/// Emitted when a machine is placed in the world.
+#[derive(bevy::ecs::message::Message, Clone, Debug)]
+pub struct MachineBuilt {
+    pub entity: Entity,
+    pub machine_type: String,
+    pub class: MachineClass,
+    pub pos: Vec3,
+}
+
+/// Broad class of machine. Drives gameplay hooks (insight beat, telemetry).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineClass {
+    PowerProducer(PowerProducerKind),
+    Other,
+}
+
+/// Subtype of `PowerProducer`. Treated as the source-of-truth for insight-beat
+/// property mapping. The VS ships only `Solar` (the existing `generator`);
+/// other variants land with Phase 4.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PowerProducerKind {
+    Solar,
+    Combustion,
+    Geothermal,
+    Wind,
+}
+
+/// Map a machine asset id to its class. VS treats `generator` as solar.
+pub fn machine_class_for(id: &str) -> MachineClass {
+    match id {
+        "generator" | "solar_generator" => MachineClass::PowerProducer(PowerProducerKind::Solar),
+        "combustion_generator" => MachineClass::PowerProducer(PowerProducerKind::Combustion),
+        "geothermal_generator" => MachineClass::PowerProducer(PowerProducerKind::Geothermal),
+        "wind_generator" => MachineClass::PowerProducer(PowerProducerKind::Wind),
+        _ => MachineClass::Other,
+    }
+}
+
 /// Active recipe processing state on a running machine.
 // SparseSet: added/removed every recipe cycle; avoids archetype churn from TableStorage moves.
 #[derive(Component, Clone)]
@@ -35,6 +73,7 @@ impl Plugin for MachinePlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(placement::on_machine_added)
             .add_message::<MachineNetworkChanged>()
+            .add_message::<MachineBuilt>()
             .init_resource::<MachineColliders>()
             .init_resource::<MachinePortLayouts>()
             .configure_sets(
@@ -334,6 +373,7 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .add_message::<WorldObjectEvent>()
             .add_message::<MachineNetworkChanged>()
+            .add_message::<MachineBuilt>()
             .insert_resource(MachineRegistry::new(vec![simple_machine("smelter")]));
 
         app.add_systems(Update, place_machine_system);
@@ -356,6 +396,7 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .add_message::<WorldObjectEvent>()
             .add_message::<MachineNetworkChanged>()
+            .add_message::<MachineBuilt>()
             .insert_resource(MachineRegistry::new(vec![]));
 
         app.add_systems(Update, place_machine_system);
@@ -381,6 +422,7 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .add_message::<WorldObjectEvent>()
             .add_message::<MachineNetworkChanged>()
+            .add_message::<MachineBuilt>()
             .insert_resource(MachineRegistry::new(vec![def]));
 
         let mut layouts = MachinePortLayouts::default();
@@ -424,6 +466,7 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .add_message::<WorldObjectEvent>()
             .add_message::<MachineNetworkChanged>()
+            .add_message::<MachineBuilt>()
             .insert_resource(MachineRegistry::new(vec![simple_machine("smelter")]));
         seed_simple_layout(&mut app, "smelter");
 
@@ -448,6 +491,7 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .add_message::<WorldObjectEvent>()
             .add_message::<MachineNetworkChanged>()
+            .add_message::<MachineBuilt>()
             .insert_resource(MachineRegistry::new(vec![simple_machine("smelter")]));
         seed_simple_layout(&mut app, "smelter");
 
@@ -540,6 +584,7 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .add_message::<WorldObjectEvent>()
             .add_message::<MachineNetworkChanged>()
+            .add_message::<MachineBuilt>()
             .insert_resource(MachineRegistry::new(vec![simple_machine("smelter")]));
 
         app.add_systems(

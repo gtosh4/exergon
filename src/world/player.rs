@@ -5,9 +5,10 @@ use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use crate::GameState;
 use crate::inventory::InventoryOpen;
+use crate::ui::panels::planner::{PlannerOpen, RecipePickerState};
 use crate::ui::{MachineStatusPanel, StorageStatusPanel, TechTreePanelOpen};
+use crate::{GameState, PlayMode};
 
 #[derive(Component)]
 pub struct MainCamera;
@@ -25,7 +26,7 @@ pub(super) fn spawn_camera(mut commands: Commands) {
 
 pub(super) fn spawn_player(mut commands: Commands) {
     commands.spawn((
-        Transform::from_xyz(0.0, 100.0, 0.0),
+        Transform::from_xyz(0.0, 20.0, 0.0),
         RigidBody::Dynamic,
         Collider::capsule(0.4, 0.8),
         GravityScale(0.0),
@@ -72,6 +73,8 @@ pub(super) fn toggle_pause(
     mut machine: Option<ResMut<MachineStatusPanel>>,
     mut storage: Option<ResMut<StorageStatusPanel>>,
     mut tech: Option<ResMut<TechTreePanelOpen>>,
+    mut planner: Option<ResMut<PlannerOpen>>,
+    mut picker: Option<ResMut<RecipePickerState>>,
 ) {
     if !keyboard.just_pressed(KeyCode::Escape) {
         return;
@@ -79,6 +82,18 @@ pub(super) fn toggle_pause(
     if inv_open.as_ref().is_some_and(|o| o.0) {
         if let Some(ref mut o) = inv_open {
             o.0 = false;
+        }
+        return;
+    }
+    if picker.as_ref().is_some_and(|p| p.open) {
+        if let Some(ref mut p) = picker {
+            p.open = false;
+        }
+        return;
+    }
+    if planner.as_ref().is_some_and(|p| p.open) {
+        if let Some(ref mut p) = planner {
+            p.open = false;
         }
         return;
     }
@@ -98,6 +113,24 @@ pub(super) fn toggle_pause(
         return;
     }
     next_state.set(GameState::Paused);
+}
+
+pub(super) fn toggle_planner(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut planner: Option<ResMut<PlannerOpen>>,
+    mut picker: Option<ResMut<RecipePickerState>>,
+) {
+    let Some(ref mut planner) = planner else {
+        return;
+    };
+    if keyboard.just_pressed(KeyCode::KeyP) {
+        planner.open = !planner.open;
+        if !planner.open
+            && let Some(ref mut p) = picker
+        {
+            p.open = false;
+        }
+    }
 }
 
 pub(super) fn resume_on_escape(
@@ -125,11 +158,13 @@ pub(super) fn any_ui_open(
     machine: Option<Res<MachineStatusPanel>>,
     storage: Option<Res<StorageStatusPanel>>,
     tech: Option<Res<TechTreePanelOpen>>,
+    planner: Option<Res<PlannerOpen>>,
 ) -> bool {
     inv.is_some_and(|o| o.0)
         || machine.is_some_and(|m| m.entity.is_some())
         || storage.is_some_and(|s| s.0.is_some())
         || tech.is_some_and(|t| t.open)
+        || planner.is_some_and(|p| p.open)
 }
 
 pub(super) fn sync_cursor(
@@ -137,12 +172,17 @@ pub(super) fn sync_cursor(
     machine: Option<Res<MachineStatusPanel>>,
     storage: Option<Res<StorageStatusPanel>>,
     tech: Option<Res<TechTreePanelOpen>>,
+    planner: Option<Res<PlannerOpen>>,
+    play_mode: Option<Res<State<PlayMode>>>,
     mut cursor_q: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    let ui_open = inv.is_some_and(|o| o.0)
+    let landing = play_mode.is_some_and(|m| *m.get() == PlayMode::Landing);
+    let ui_open = landing
+        || inv.is_some_and(|o| o.0)
         || machine.is_some_and(|m| m.entity.is_some())
         || storage.is_some_and(|s| s.0.is_some())
-        || tech.is_some_and(|t| t.open);
+        || tech.is_some_and(|t| t.open)
+        || planner.is_some_and(|p| p.open);
     if let Ok(mut cursor) = cursor_q.single_mut() {
         if ui_open {
             cursor.grab_mode = CursorGrabMode::None;

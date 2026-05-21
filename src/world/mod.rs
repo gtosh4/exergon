@@ -95,6 +95,7 @@ impl Plugin for WorldPlugin {
                 (
                     player::toggle_pause,
                     player::toggle_inventory,
+                    player::toggle_planner,
                     player::sync_cursor,
                     player::camera_input
                         .run_if(not(player::any_ui_open))

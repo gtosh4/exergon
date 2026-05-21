@@ -9,6 +9,7 @@ pub mod logistics;
 pub mod machine;
 pub mod meta;
 pub mod network;
+pub mod planet;
 pub mod power;
 pub mod reactivity;
 pub mod recipe_graph;
@@ -36,6 +37,7 @@ pub enum GameState {
 #[source(GameState = GameState::Playing)]
 pub enum PlayMode {
     #[default]
+    Landing,
     Exploring,
     Building,
     DronePilot,

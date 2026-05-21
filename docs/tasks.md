@@ -4,6 +4,10 @@
 
 Legend: `[ ]` not started · `[~]` in progress / partial · `[x]` done
 
+- Update task status as completed
+- Ask questions on ambiguity, options, opinions
+- Commit between sub-phases
+
 ---
 
 ## Phase 0 — Foundation
@@ -53,33 +57,33 @@ Foundation for first-hour insight signal and planet-dependent power choice.
 ### 1.1 Data model — `src/planet/`
 Design: [`planet-identity.md`](technical/planet-identity.md).
 
-- [ ] `PlanetProperties` component: 6 float axes (solar, thermal, wind, geological, atmospheric, pressure) + hazard type enum
-- [ ] `PlanetPropertyVisibility` component: per-axis `Hidden`/`Qualitative`/`Revealed`
-- [ ] `PlanetArchetype` asset (RON): axis means/variances, hazard, descriptive text
-- [ ] Curate 3 VS archetypes in `assets/planet/archetypes/` (low-solar/oxygen-rich, high-geothermal, windy/cold)
-- [ ] Archetype-based property generation system (planet domain RNG)
-- [ ] Property reveal triggers (research spend, drone scan, time-on-planet — per design)
+- [x] `PlanetProperties` component: 6 float axes (solar, thermal, wind, geological, atmospheric, pressure) + hazard type enum
+- [x] `PlanetPropertyVisibility` component: per-axis `Hidden`/`Qualitative`/`Revealed`
+- [x] `PlanetArchetype` asset (RON): axis means/variances, hazard, descriptive text
+- [x] Curate 3 VS archetypes in `assets/planet/archetypes/` (frozen_geothermal, desert_radiant, humid_jungle)
+- [x] Archetype-based property generation system (planet domain RNG)
+- [ ] Property reveal triggers (research spend, drone scan, time-on-planet) — `PlanetPropertyRevealed` event defined; source emitters deferred until scan/sample systems land
 
 ### 1.2 Property-to-gameplay bindings
-- [ ] Solar efficiency modifier on solar generator output
-- [ ] Combustion efficiency modifier on combustion generator output
-- [ ] Geothermal modifier on geothermal generator
-- [ ] Wind modifier on wind generator
-- [ ] Hazard effect hook (thermal/pressure → recipe/machine modifier)
+- [x] Solar efficiency modifier on solar generator output — applied to existing `generator` via `solar_modifier` at placement
+- [~] Combustion efficiency modifier on combustion generator output — `combustion_modifier` helper ready; awaits Phase 4 generator type
+- [~] Geothermal modifier on geothermal generator — `geothermal_modifier` helper ready; awaits Phase 4
+- [~] Wind modifier on wind generator — `wind_modifier` helper ready; awaits Phase 4
+- [ ] Hazard effect hook (thermal/pressure → recipe/machine modifier) — hazard variant cosmetic in VS per design
 
 ### 1.3 Landing panel — `PlayMode::Landing`
-- [ ] Add `Landing` to `PlayMode` substate
-- [ ] Landing panel UI: archetype name, visible properties, descriptive text, "Begin" button
-- [ ] Transition Landing → Exploring on confirm
+- [x] Add `Landing` to `PlayMode` substate (default)
+- [x] Landing panel UI: archetype name, visible properties, descriptive text, "Begin" button
+- [x] Transition Landing → Exploring on confirm
 
 ### 1.4 In-run Terminal Planet page
-- [ ] Terminal screen tab: planet properties (visible only)
-- [ ] Per-property "how this affects play" tooltip
+- [x] Terminal screen tab: planet properties (Network / Planet tabs in inventory panel)
+- [~] Per-property "how this affects play" tooltip — landing panel rows carry hints; terminal-tab tooltips deferred
 
 ### 1.5 Insight beat feedback
-- [ ] `PropertyDecisionValidated` event (fires when player action matches planet hint)
-- [ ] Field-computer message on validation
-- [ ] Telemetry: emit insight-candidate event
+- [x] `PropertyDecisionValidated` event (fires when player action matches planet hint)
+- [ ] Field-computer message on validation — surface lands with Phase 9
+- [ ] Telemetry: emit insight-candidate event — awaits telemetry-event additions
 
 ---
 
@@ -110,27 +114,25 @@ Design: [`escape-condition.md`](technical/escape-condition.md).
 
 ## Phase 3 — Planning UI (VS §3.5)
 
-No planner panel exists. Bulk of UI work.
-
 ### 3.1 Recipe browser
 Design: [`planning-ui.md`](technical/planning-ui.md).
 
-- [ ] `RecipePicker` overlay panel
-- [ ] List known/revealed recipes with filter
-- [ ] Recipe detail view: inputs, outputs, machine, time, energy
+- [x] `RecipePicker` overlay panel
+- [x] List known/revealed recipes with filter (unlocked-only toggle, search)
+- [x] Recipe detail view: inputs, outputs, machine, compare panel
 
 ### 3.2 Escape dependency graph
-- [ ] Sankey production graph component (from escape item backward)
-- [ ] Per-node Inspector rail: ratios, machine count estimate, time-to-N
+- [x] Sankey production graph component (BFS from escape item, column layout)
+- [x] Per-node Inspector rail: ratios, machine count, under-planned alert, lock count
 
 ### 3.3 Multi-plan support
-- [ ] `PlanState` component on plan entity
-- [ ] Named plans per run, list + create/delete
-- [ ] Save plans via `Save` tag
+- [x] `PlanState` component on plan entity
+- [x] Named plans per run (`PlanName`), `PlanList` resource, single active plan (VS scope)
+- [~] Save plans via `Save` tag — entity exists; `Save`/`Reflect` deferred with entity tagging work
 
 ### 3.4 Alerts panel
-- [ ] Aggregated machine-blocked alerts list
-- [ ] Per-alert: machine, blocked-reason, jump-to action
+- [~] Under-planned alerts shown inline in Inspector (ratio math); dedicated aggregated panel blocked on `SlotBlockReason`
+- [ ] Per-alert: machine, blocked-reason, jump-to action (blocked on `SlotBlockReason`)
 
 ---
 
@@ -160,11 +162,11 @@ Logic exists; surface missing.
 
 Design: [`research.md`](technical/research.md).
 
-- [ ] Research balance HUD widget (current points)
-- [ ] Reveal cost surface on tech-tree node hover
-- [ ] Blocked-reason display for unaffordable reveals
-- [ ] Research-source display: which machines produce this currency
-- [ ] VS uses single currency; defer second type
+- [x] Research balance HUD widget (current points) — `src/ui/hud/research.rs`, stacked above power HUD
+- [x] Reveal cost surface on tech-tree node hover — cost shown on node card (`{cost} RP`), green if affordable
+- [x] Blocked-reason display for unaffordable reveals — "Need N more RP" (WARN) or "↑ Prereqs not met" (ERR) in detail panel
+- [x] Research-source display: which machines produce this currency — SOURCE section in detail for ResearchSpend nodes, derived from RecipeGraph producers
+- [x] VS uses single currency; defer second type — `ResearchPool { points: f32 }`, single-currency throughout
 
 ---
 

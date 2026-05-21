@@ -237,10 +237,14 @@ mod tests {
                 toggle_drone_mode.run_if(in_state(GameState::Playing)),
             );
 
-        // Enter Playing state
+        // Enter Playing state, then advance from Landing → Exploring
         app.world_mut()
             .resource_mut::<NextState<GameState>>()
             .set(GameState::Playing);
+        app.update();
+        app.world_mut()
+            .resource_mut::<NextState<PlayMode>>()
+            .set(PlayMode::Exploring);
         app.update();
 
         // F press → system runs → state applies next frame
@@ -268,10 +272,14 @@ mod tests {
                 toggle_drone_mode.run_if(in_state(GameState::Playing)),
             );
 
-        // Enter Playing → DronePilot
+        // Enter Playing → Exploring → DronePilot
         app.world_mut()
             .resource_mut::<NextState<GameState>>()
             .set(GameState::Playing);
+        app.update();
+        app.world_mut()
+            .resource_mut::<NextState<PlayMode>>()
+            .set(PlayMode::Exploring);
         app.update();
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()

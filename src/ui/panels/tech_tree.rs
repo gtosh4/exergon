@@ -2,12 +2,13 @@ use bevy::prelude::*;
 
 use crate::{
     GameState,
+    recipe_graph::RecipeGraph,
     research::{ResearchPool, TechTreeProgress},
     tech_tree::{NodeEffect, TechTree, UnlockVector},
     ui::{
         TechTreePanelOpen,
-        theme::{COLOR_DIM, COLOR_GOLD, COLOR_GREEN, COLOR_OVERLAY_BG},
-        widgets::ScrollableContent,
+        theme::{COLOR_DIM, COLOR_GOLD, COLOR_GREEN, COLOR_OVERLAY_BG, font_size, palette},
+        widgets::{ScrollableContent, caption, divider, label},
     },
 };
 
@@ -216,6 +217,7 @@ fn rebuild(
     tier: Res<TechCurrentTier>,
     tech_tree: Option<Res<TechTree>>,
     progress: Option<Res<TechTreeProgress>>,
+    pool: Option<Res<ResearchPool>>,
     tabs_q: Query<Entity, With<TierTabsRoot>>,
     canvas_q: Query<Entity, With<TechNodeCanvas>>,
     mut commands: Commands,
@@ -223,6 +225,7 @@ fn rebuild(
     let changed = panel.is_changed()
         || tier.is_changed()
         || progress.as_ref().map(|r| r.is_changed()).unwrap_or(false)
+        || pool.as_ref().map(|r| r.is_changed()).unwrap_or(false)
         || tech_tree.as_ref().map(|r| r.is_changed()).unwrap_or(false);
     if !changed {
         return;
@@ -376,6 +379,21 @@ fn rebuild(
                             },
                             TextColor(COLOR_GREEN),
                         ));
+                    } else if let UnlockVector::ResearchSpend(cost) = &node.primary_unlock {
+                        let pts = pool.as_ref().map(|p| p.points).unwrap_or(0.0);
+                        let can_afford = prereqs_met && pts >= *cost as f32;
+                        btn.spawn((
+                            Text::new(format!("{cost} RP")),
+                            TextFont {
+                                font_size: font_size::MONO_XS,
+                                ..default()
+                            },
+                            TextColor(if can_afford {
+                                palette::OK
+                            } else {
+                                palette::DIM
+                            }),
+                        ));
                     }
                 });
         }
@@ -387,6 +405,7 @@ fn rebuild_detail(
     tech_tree: Option<Res<TechTree>>,
     progress: Option<Res<TechTreeProgress>>,
     pool: Option<Res<ResearchPool>>,
+    recipe_graph: Option<Res<RecipeGraph>>,
     detail_root_q: Query<Entity, With<TechDetailRoot>>,
     detail_content_q: Query<Entity, With<TechDetailContent>>,
     mut visibility_q: Query<&mut Visibility, With<TechDetailRoot>>,
@@ -395,6 +414,7 @@ fn rebuild_detail(
     if !panel.is_changed()
         && !tech_tree.as_ref().map(|r| r.is_changed()).unwrap_or(false)
         && !progress.as_ref().map(|r| r.is_changed()).unwrap_or(false)
+        && !pool.as_ref().map(|r| r.is_changed()).unwrap_or(false)
     {
         return;
     }
@@ -481,12 +501,14 @@ fn rebuild_detail(
             },
             TextColor(COLOR_DIM),
         ));
+        let prereqs_met = node
+            .prerequisites
+            .iter()
+            .all(|p| prog.unlocked_nodes.contains(p));
         let unlock_text = match &node.primary_unlock {
             UnlockVector::ResearchSpend(cost) => {
                 let pts = pool.as_ref().map(|p| p.points).unwrap_or(0.0);
-                let can = pts >= *cost as f32;
-                let _ = can;
-                format!("{:.0} / {} RP", pts, cost)
+                format!("{pts:.0} / {cost} RP")
             }
             UnlockVector::ExplorationDiscovery(loc) => format!("Discover: {loc}"),
             UnlockVector::PrerequisiteChain => "Complete prerequisites".to_string(),
@@ -503,6 +525,30 @@ fn rebuild_detail(
             },
             TextColor(Color::WHITE),
         ));
+
+        if !unlocked && let UnlockVector::ResearchSpend(cost) = &node.primary_unlock {
+            let pts = pool.as_ref().map(|p| p.points).unwrap_or(0.0);
+            if !prereqs_met {
+                c.spawn((
+                    Text::new("↑ Prereqs not met"),
+                    TextFont {
+                        font_size: font_size::LABEL_SM,
+                        ..default()
+                    },
+                    TextColor(palette::ERR),
+                ));
+            } else if pts < *cost as f32 {
+                let deficit = *cost as f32 - pts;
+                c.spawn((
+                    Text::new(format!("Need {deficit:.0} more RP")),
+                    TextFont {
+                        font_size: font_size::LABEL_SM,
+                        ..default()
+                    },
+                    TextColor(palette::WARN),
+                ));
+            }
+        }
 
         if !node.prerequisites.is_empty() {
             c.spawn(Node {
@@ -580,7 +626,47 @@ fn rebuild_detail(
                 }
             }
         }
+
+        if let UnlockVector::ResearchSpend(_) = &node.primary_unlock
+            && let Some(rg) = &recipe_graph
+        {
+            let sources: Vec<String> = rg
+                .producers
+                .get("research_points")
+                .map(|ids| {
+                    let mut machine_types: Vec<String> = ids
+                        .iter()
+                        .filter_map(|id| rg.recipes.get(id))
+                        .map(|r| humanize_id(&r.machine_type))
+                        .collect();
+                    machine_types.sort();
+                    machine_types.dedup();
+                    machine_types
+                })
+                .unwrap_or_default();
+
+            if !sources.is_empty() {
+                c.spawn(divider());
+                c.spawn(caption("SOURCE"));
+                for src in &sources {
+                    c.spawn(label(src.as_str()));
+                }
+            }
+        }
     });
+}
+
+fn humanize_id(id: &str) -> String {
+    id.split('_')
+        .map(|w| {
+            let mut chars = w.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn update_rp(pool: Option<Res<ResearchPool>>, mut text_q: Query<&mut Text, With<TechRPText>>) {

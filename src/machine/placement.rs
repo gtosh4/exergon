@@ -14,8 +14,9 @@ use super::visuals::{
     MachineColliders, MachinePortLayout, MachinePortLayouts, MachineVisualAssets,
 };
 use super::{
-    EnergyPortOf, IoPortMarker, LogisticsPortOf, Machine, MachineActivity, MachineLogisticsPorts,
-    MachineNetworkChanged, MachineState, Mirror, Orientation, Platform, Rotation,
+    EnergyPortOf, IoPortMarker, LogisticsPortOf, Machine, MachineActivity, MachineBuilt,
+    MachineLogisticsPorts, MachineNetworkChanged, MachineState, Mirror, Orientation, Platform,
+    Rotation, machine_class_for,
 };
 
 #[derive(Bundle)]
@@ -106,9 +107,11 @@ pub(super) fn place_machine_system(
     mut events: MessageReader<WorldObjectEvent>,
     registry: Res<MachineRegistry>,
     mut network_changed: MessageWriter<MachineNetworkChanged>,
+    mut machine_built: MessageWriter<MachineBuilt>,
     visuals: Option<Res<MachineVisualAssets>>,
     machine_colliders: Option<Res<MachineColliders>>,
     port_layouts: Option<Res<MachinePortLayouts>>,
+    planet_q: Query<&crate::planet::PlanetProperties>,
 ) {
     let empty_layout = MachinePortLayout::default();
     for ev in events.read() {
@@ -151,15 +154,29 @@ pub(super) fn place_machine_system(
         }
 
         if def.id == "generator" {
+            // VS: existing generator is treated as solar — multiply watts by
+            // planet solar_modifier when a Planet entity is present.
+            let modifier = planet_q
+                .single()
+                .ok()
+                .map(|p| crate::planet::solar_modifier(p.stellar_distance))
+                .unwrap_or(1.0);
+            let watts = GENERATOR_DEFAULT_WATTS * modifier;
             commands.entity(machine_entity).insert(GeneratorUnit {
                 pos: ev.pos,
-                watts: GENERATOR_DEFAULT_WATTS,
+                watts,
                 buffer_joules: 0.0,
-                max_buffer_joules: GENERATOR_DEFAULT_WATTS * 10.0,
+                max_buffer_joules: watts * 10.0,
             });
         }
 
         network_changed.write(MachineNetworkChanged);
+        machine_built.write(MachineBuilt {
+            entity: machine_entity,
+            machine_type: def.id.clone(),
+            class: machine_class_for(&def.id),
+            pos: ev.pos,
+        });
         info!("Machine '{}' tier {} placed at {:?}", def.id, tier, ev.pos);
     }
 }

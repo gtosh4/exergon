@@ -1,0 +1,9 @@
+(
+    name: "DesertRadiant",
+    temperature: (0.65, 1.00),
+    geological_activity: (0.00, 0.35),
+    stellar_distance: (0.00, 0.45),
+    atmospheric_oxygen: (0.00, 0.35),
+    atmospheric_pressure: (0.00, 0.45),
+    wind_intensity: (0.00, 0.30),
+)

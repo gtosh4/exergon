@@ -3,6 +3,7 @@ use bevy::prelude::*;
 pub mod hotbar;
 pub mod inventory;
 pub mod machine;
+pub mod planner;
 pub mod storage;
 pub mod tech_tree;
 
@@ -15,5 +16,6 @@ impl Plugin for PanelsPlugin {
         machine::plugin(app);
         storage::plugin(app);
         tech_tree::plugin(app);
+        app.add_plugins(planner::PlannerPlugin);
     }
 }

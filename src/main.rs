@@ -89,6 +89,7 @@ fn main() {
         exergon::drone::DronePlugin,
         exergon::research::ResearchPlugin,
         exergon::reactivity::ReactivityPlugin,
+        exergon::planet::PlanetPlugin,
     ))
     .add_plugins((exergon::meta::MetaPlugin, exergon::ui::UiPlugin));
 

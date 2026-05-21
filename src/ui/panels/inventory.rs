@@ -1,10 +1,16 @@
+use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 
+use crate::planet::{
+    PlanetProperties, PlanetPropertyKey, PlanetPropertyViewLog, PlanetPropertyViewed,
+    PlanetPropertyVisibility, PropertyVisibility, ViewContext, qualitative_label,
+};
+use crate::world::Player;
 use crate::{
     GameState,
     inventory::{Hotbar, HotbarSlot, InventoryOpen, ItemRegistry},
     logistics::StorageUnit,
-    ui::theme::{COLOR_DIM, COLOR_GOLD, COLOR_OVERLAY_BG},
+    ui::theme::{COLOR_DIM, COLOR_GOLD, COLOR_OVERLAY_BG, palette},
 };
 
 #[derive(Component)]
@@ -12,6 +18,25 @@ struct InventoryPanel;
 
 #[derive(Component)]
 struct NetworkListRoot;
+
+#[derive(Component)]
+struct PlanetTabRoot;
+
+#[derive(Component)]
+struct TabButton(TerminalTab);
+
+#[derive(Component)]
+struct PlanetRow(PlanetPropertyKey);
+
+#[derive(Resource, Default)]
+struct TerminalTabState(TerminalTab);
+
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+enum TerminalTab {
+    #[default]
+    Network,
+    Planet,
+}
 
 #[derive(Component)]
 struct HotbarSlotDrop(usize);
@@ -30,15 +55,19 @@ struct InventoryDrag(Option<String>);
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<InventoryDrag>()
+        .init_resource::<TerminalTabState>()
         .add_systems(OnEnter(GameState::Playing), spawn)
         .add_systems(
             Update,
             (
                 sync_visibility,
+                handle_tab_click,
                 start_drag,
                 handle_drop,
                 update_drag_cursor,
                 update_items,
+                update_planet_tab,
+                planet_view_tracker,
             )
                 .run_if(in_state(GameState::Playing)),
         );
@@ -84,7 +113,7 @@ fn spawn(mut commands: Commands) {
                     })
                     .with_children(|h| {
                         h.spawn((
-                            Text::new("NETWORK STORAGE"),
+                            Text::new("TERMINAL"),
                             TextFont {
                                 font_size: 18.0,
                                 ..default()
@@ -101,6 +130,18 @@ fn spawn(mut commands: Commands) {
                         ));
                     });
 
+                    // Tab strip
+                    root.spawn(Node {
+                        flex_direction: FlexDirection::Row,
+                        column_gap: Val::Px(4.0),
+                        margin: UiRect::bottom(Val::Px(8.0)),
+                        ..default()
+                    })
+                    .with_children(|tabs| {
+                        spawn_tab(tabs, TerminalTab::Network, "NETWORK");
+                        spawn_tab(tabs, TerminalTab::Planet, "PLANET");
+                    });
+
                     // Network item list
                     root.spawn((
                         Node {
@@ -112,6 +153,21 @@ fn spawn(mut commands: Commands) {
                         crate::ui::widgets::ScrollableContent,
                         ScrollPosition::default(),
                         NetworkListRoot,
+                    ));
+
+                    // Planet tab content (hidden until active)
+                    root.spawn((
+                        Node {
+                            overflow: Overflow::scroll_y(),
+                            flex_grow: 1.0,
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(6.0),
+                            display: Display::None,
+                            ..default()
+                        },
+                        crate::ui::widgets::ScrollableContent,
+                        ScrollPosition::default(),
+                        PlanetTabRoot,
                     ));
 
                     // Separator
@@ -285,6 +341,215 @@ fn update_drag_cursor(
         }
         None => {
             *vis = Visibility::Hidden;
+        }
+    }
+}
+
+fn spawn_tab(parent: &mut ChildSpawnerCommands<'_>, tab: TerminalTab, label: &str) {
+    parent
+        .spawn((
+            Node {
+                padding: UiRect::axes(Val::Px(10.0), Val::Px(4.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            Button,
+            BackgroundColor(palette::P2),
+            BorderColor::all(palette::BORDER),
+            TabButton(tab),
+        ))
+        .with_child((
+            Text::new(label),
+            TextFont {
+                font_size: 12.0,
+                ..default()
+            },
+            TextColor(COLOR_DIM),
+            Pickable::IGNORE,
+        ));
+}
+
+fn handle_tab_click(
+    mut interactions: Query<(&Interaction, &TabButton), Changed<Interaction>>,
+    mut state: ResMut<TerminalTabState>,
+) {
+    for (interaction, btn) in &mut interactions {
+        if *interaction == Interaction::Pressed {
+            state.0 = btn.0;
+        }
+    }
+}
+
+fn update_planet_tab(
+    inv_open: Option<Res<InventoryOpen>>,
+    tab_state: Res<TerminalTabState>,
+    planet_q: Query<(&PlanetProperties, &PlanetPropertyVisibility)>,
+    mut net_root_q: Query<&mut Node, (With<NetworkListRoot>, Without<PlanetTabRoot>)>,
+    mut planet_root_q: Query<(Entity, &mut Node), (With<PlanetTabRoot>, Without<NetworkListRoot>)>,
+    mut tab_buttons: Query<(&TabButton, &mut BorderColor, &Children)>,
+    mut text_q: Query<&mut TextColor>,
+    mut commands: Commands,
+) {
+    if !inv_open.is_some_and(|o| o.0) {
+        return;
+    }
+    let planet_active = matches!(tab_state.0, TerminalTab::Planet);
+
+    if let Ok(mut net_node) = net_root_q.single_mut() {
+        net_node.display = if planet_active {
+            Display::None
+        } else {
+            Display::Flex
+        };
+    }
+    let Ok((planet_entity, mut planet_node)) = planet_root_q.single_mut() else {
+        return;
+    };
+    planet_node.display = if planet_active {
+        Display::Flex
+    } else {
+        Display::None
+    };
+
+    // Highlight active tab
+    for (btn, mut border, children) in &mut tab_buttons {
+        let active = btn.0 == tab_state.0;
+        *border = if active {
+            BorderColor::all(COLOR_GOLD)
+        } else {
+            BorderColor::all(palette::BORDER)
+        };
+        if let Some(&child) = children.first()
+            && let Ok(mut tc) = text_q.get_mut(child)
+        {
+            tc.0 = if active { COLOR_GOLD } else { COLOR_DIM };
+        }
+    }
+
+    if !planet_active {
+        return;
+    }
+
+    commands.entity(planet_entity).despawn_children();
+    let Ok((props, vis)) = planet_q.single() else {
+        commands.entity(planet_entity).with_child((
+            Text::new("(no planet data)"),
+            TextFont {
+                font_size: 14.0,
+                ..default()
+            },
+            TextColor(COLOR_DIM),
+        ));
+        return;
+    };
+
+    commands.entity(planet_entity).with_children(|root| {
+        let title = if props.name.epithet.is_empty() {
+            props.name.catalog.clone()
+        } else {
+            format!("{}  \"{}\"", props.name.catalog, props.name.epithet)
+        };
+        root.spawn((
+            Text::new(title),
+            TextFont {
+                font_size: 16.0,
+                ..default()
+            },
+            TextColor(COLOR_GOLD),
+        ));
+        for key in PlanetPropertyKey::ALL {
+            spawn_planet_row(root, key, props, vis);
+        }
+    });
+}
+
+fn spawn_planet_row(
+    parent: &mut ChildSpawnerCommands<'_>,
+    key: PlanetPropertyKey,
+    props: &PlanetProperties,
+    vis: &PlanetPropertyVisibility,
+) {
+    let visibility = vis.get(key);
+    let (value, value_text, color) = match (visibility, key) {
+        (PropertyVisibility::Hidden, _) => (0.0, key.hidden_hint().to_string(), COLOR_DIM),
+        (_, PlanetPropertyKey::HazardType) => {
+            (0.0, props.hazard_type.display().to_string(), palette::TEXT)
+        }
+        (PropertyVisibility::Qualitative, k) => {
+            let v = planet_value(k, props);
+            (v, qualitative_label(k, v).to_string(), palette::TEXT)
+        }
+        (PropertyVisibility::Revealed, k) => {
+            let v = planet_value(k, props);
+            (
+                v,
+                format!("{} [{:.2}]", qualitative_label(k, v), v),
+                palette::TEXT,
+            )
+        }
+    };
+    let _ = value;
+
+    parent
+        .spawn((
+            Node {
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::axes(Val::Px(4.0), Val::Px(2.0)),
+                ..default()
+            },
+            Button,
+            BackgroundColor(Color::NONE),
+            Interaction::None,
+            PlanetRow(key),
+        ))
+        .with_children(|row| {
+            row.spawn((
+                Text::new(key.display_name()),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextColor(palette::TEXT),
+                Pickable::IGNORE,
+            ));
+            row.spawn((
+                Text::new(value_text),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextColor(color),
+                Pickable::IGNORE,
+            ));
+        });
+}
+
+fn planet_value(key: PlanetPropertyKey, props: &PlanetProperties) -> f32 {
+    match key {
+        PlanetPropertyKey::StellarDistance => props.stellar_distance,
+        PlanetPropertyKey::AtmosphericOxygen => props.atmospheric_oxygen,
+        PlanetPropertyKey::GeologicalActivity => props.geological_activity,
+        PlanetPropertyKey::Temperature => props.temperature,
+        PlanetPropertyKey::AtmosphericPressure => props.atmospheric_pressure,
+        PlanetPropertyKey::WindIntensity => props.wind_intensity,
+        PlanetPropertyKey::HazardType => 0.0,
+    }
+}
+
+fn planet_view_tracker(
+    rows: Query<(&Interaction, &PlanetRow), Changed<Interaction>>,
+    mut viewed: MessageWriter<PlanetPropertyViewed>,
+    mut player_q: Query<&mut PlanetPropertyViewLog, With<Player>>,
+) {
+    for (interaction, row) in &rows {
+        if matches!(interaction, Interaction::Hovered | Interaction::Pressed) {
+            viewed.write(PlanetPropertyViewed {
+                property: row.0,
+                context: ViewContext::Terminal,
+            });
+            if let Ok(mut log) = player_q.single_mut() {
+                log.record(row.0);
+            }
         }
     }
 }

@@ -1,0 +1,9 @@
+(
+    name: "HumidJungle",
+    temperature: (0.45, 0.70),
+    geological_activity: (0.30, 0.65),
+    stellar_distance: (0.30, 0.65),
+    atmospheric_oxygen: (0.60, 1.00),
+    atmospheric_pressure: (0.55, 1.00),
+    wind_intensity: (0.20, 0.60),
+)
