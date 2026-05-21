@@ -10,7 +10,9 @@ use crate::recipe_graph::RecipeGraph;
 use crate::world::{WorldObjectEvent, WorldObjectKind};
 
 use super::registry::{MachineDef, MachineRegistry, MachineTierDef};
-use super::visuals::{MachineColliders, MachineVisualAssets};
+use super::visuals::{
+    MachineColliders, MachinePortLayout, MachinePortLayouts, MachineVisualAssets,
+};
 use super::{
     EnergyPortOf, IoPortMarker, LogisticsPortOf, Machine, MachineActivity, MachineLogisticsPorts,
     MachineNetworkChanged, MachineState, Mirror, Orientation, Platform, Rotation,
@@ -25,7 +27,7 @@ pub struct MachineBundle {
 }
 
 impl MachineBundle {
-    pub fn new(pos: Vec3, def: &MachineDef, tier: u8) -> Self {
+    pub fn new(pos: Vec3, def: &MachineDef, tier: u8, layout: &MachinePortLayout) -> Self {
         let fallback = MachineTierDef::default();
         let tier_def = def
             .tiers
@@ -36,21 +38,17 @@ impl MachineBundle {
             rotation: Rotation::North,
             mirror: Mirror::Normal,
         };
+        let rotate = |offset: Vec3| -> Vec3 {
+            let i = offset.round().as_ivec3();
+            pos + orientation.transform(i).as_vec3()
+        };
         Self {
             machine: Machine {
                 machine_type: def.id.clone(),
                 tier: tier_def.tier,
                 orientation,
-                energy_ports: tier_def
-                    .energy_io_offsets
-                    .iter()
-                    .map(|&o| pos + orientation.transform(o).as_vec3())
-                    .collect(),
-                logistics_ports: tier_def
-                    .logistics_io_offsets
-                    .iter()
-                    .map(|&o| pos + orientation.transform(o).as_vec3())
-                    .collect(),
+                energy_ports: layout.energy.iter().copied().map(rotate).collect(),
+                logistics_ports: layout.logistics.iter().copied().map(rotate).collect(),
             },
             state: MachineState::Idle,
             transform: Transform::from_translation(pos),
@@ -64,10 +62,9 @@ fn spawn_port_markers(
     machine_entity: Entity,
     energy_ports: &[Vec3],
     logistics_ports: &[Vec3],
-    visuals: Option<&MachineVisualAssets>,
 ) {
     for &port_pos in energy_ports {
-        let mut cmd = commands.spawn((
+        commands.spawn((
             IoPortMarker {
                 owner: machine_entity,
             },
@@ -76,15 +73,9 @@ fn spawn_port_markers(
             Collider::sphere(0.4),
             Sensor,
         ));
-        if let Some(v) = visuals {
-            cmd.insert((
-                Mesh3d(v.port_mesh.clone()),
-                MeshMaterial3d(v.energy_port_mat.clone()),
-            ));
-        }
     }
     for &port_pos in logistics_ports {
-        let mut cmd = commands.spawn((
+        commands.spawn((
             IoPortMarker {
                 owner: machine_entity,
             },
@@ -93,19 +84,12 @@ fn spawn_port_markers(
             Collider::sphere(0.4),
             Sensor,
         ));
-        if let Some(v) = visuals {
-            cmd.insert((
-                Mesh3d(v.port_mesh.clone()),
-                MeshMaterial3d(v.logistics_port_mat.clone()),
-            ));
-        }
     }
 }
 
 pub(super) fn on_machine_added(
     trigger: On<Add, Machine>,
     machines: Query<&Machine>,
-    visuals: Option<Res<MachineVisualAssets>>,
     mut commands: Commands,
 ) {
     let entity = trigger.event_target();
@@ -114,13 +98,7 @@ pub(super) fn on_machine_added(
     };
     let energy_ports = machine.energy_ports.clone();
     let logistics_ports = machine.logistics_ports.clone();
-    spawn_port_markers(
-        &mut commands,
-        entity,
-        &energy_ports,
-        &logistics_ports,
-        visuals.as_deref(),
-    );
+    spawn_port_markers(&mut commands, entity, &energy_ports, &logistics_ports);
 }
 
 pub(super) fn place_machine_system(
@@ -130,7 +108,9 @@ pub(super) fn place_machine_system(
     mut network_changed: MessageWriter<MachineNetworkChanged>,
     visuals: Option<Res<MachineVisualAssets>>,
     machine_colliders: Option<Res<MachineColliders>>,
+    port_layouts: Option<Res<MachinePortLayouts>>,
 ) {
+    let empty_layout = MachinePortLayout::default();
     for ev in events.read() {
         if ev.kind != WorldObjectKind::Placed {
             continue;
@@ -139,8 +119,13 @@ pub(super) fn place_machine_system(
             continue;
         };
 
+        let layout = port_layouts
+            .as_deref()
+            .and_then(|p| p.by_machine.get(&def.id))
+            .unwrap_or(&empty_layout);
+
         let tier = def.tiers.iter().map(|t| t.tier).max().unwrap_or(1);
-        let bundle = MachineBundle::new(ev.pos, def, tier);
+        let bundle = MachineBundle::new(ev.pos, def, tier, layout);
         let machine_entity = commands.spawn(bundle).id();
 
         let cached = machine_colliders
@@ -423,26 +408,29 @@ mod tests {
         assert!(storage.items.is_empty());
     }
 
-    fn def_with_tier(id: &str, tier: u8, energy: Vec<IVec3>, logistics: Vec<IVec3>) -> MachineDef {
+    fn def_with_tier(id: &str, tier: u8) -> MachineDef {
         MachineDef {
             id: id.to_string(),
-            tiers: vec![MachineTierDef {
-                tier,
-                energy_io_offsets: energy,
-                logistics_io_offsets: logistics,
-            }],
+            tiers: vec![MachineTierDef { tier }],
         }
+    }
+
+    fn layout(energy: Vec<Vec3>, logistics: Vec<Vec3>) -> MachinePortLayout {
+        MachinePortLayout { energy, logistics }
     }
 
     #[test]
     fn machine_bundle_new_uses_matching_tier() {
-        let def = def_with_tier(
-            "smelter",
+        let def = def_with_tier("smelter", 1);
+        let bundle = MachineBundle::new(
+            Vec3::ZERO,
+            &def,
             1,
-            vec![IVec3::new(1, 0, 0)],
-            vec![IVec3::new(-1, 0, 0)],
+            &layout(
+                vec![Vec3::new(1.0, 0.0, 0.0)],
+                vec![Vec3::new(-1.0, 0.0, 0.0)],
+            ),
         );
-        let bundle = MachineBundle::new(Vec3::ZERO, &def, 1);
         assert_eq!(bundle.machine.tier, 1);
         assert_eq!(bundle.machine.energy_ports.len(), 1);
         assert_eq!(bundle.machine.logistics_ports.len(), 1);
@@ -451,16 +439,21 @@ mod tests {
 
     #[test]
     fn machine_bundle_new_falls_back_when_tier_missing() {
-        let def = def_with_tier("smelter", 1, vec![], vec![]);
-        let bundle = MachineBundle::new(Vec3::ZERO, &def, 9);
+        let def = def_with_tier("smelter", 1);
+        let bundle = MachineBundle::new(Vec3::ZERO, &def, 9, &layout(vec![], vec![]));
         assert_eq!(bundle.machine.tier, 0); // MachineTierDef::default() has tier 0
     }
 
     #[test]
     fn machine_bundle_new_offsets_ports_by_position() {
-        let def = def_with_tier("smelter", 1, vec![IVec3::new(2, 0, 0)], vec![]);
+        let def = def_with_tier("smelter", 1);
         let pos = Vec3::new(10.0, 0.0, 0.0);
-        let bundle = MachineBundle::new(pos, &def, 1);
+        let bundle = MachineBundle::new(
+            pos,
+            &def,
+            1,
+            &layout(vec![Vec3::new(2.0, 0.0, 0.0)], vec![]),
+        );
         assert_eq!(bundle.machine.energy_ports[0], Vec3::new(12.0, 0.0, 0.0));
         assert_eq!(bundle.transform.translation, pos);
     }

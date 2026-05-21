@@ -59,11 +59,7 @@ pub(super) fn generate_chunk_mesh(seed: u64, cx: i32, cz: i32) -> Mesh {
     let verts = n + 1;
 
     let sampler = TerrainSampler::new(seed);
-    let height = |lx: usize, lz: usize| -> f32 {
-        let wx = (cx * CHUNK_SIZE + lx as i32) as f64;
-        let wz = (cz * CHUNK_SIZE + lz as i32) as f64;
-        sampler.height_at(wx, wz)
-    };
+    let height_world = |wx: i32, wz: i32| -> f32 { sampler.height_at(wx as f64, wz as f64) };
 
     let mut positions: Vec<[f32; 3]> = Vec::with_capacity(verts * verts);
     let mut normals: Vec<[f32; 3]> = Vec::with_capacity(verts * verts);
@@ -71,16 +67,14 @@ pub(super) fn generate_chunk_mesh(seed: u64, cx: i32, cz: i32) -> Mesh {
 
     for lz in 0..=n {
         for lx in 0..=n {
-            let h = height(lx, lz);
+            let wx = cx * CHUNK_SIZE + lx as i32;
+            let wz = cz * CHUNK_SIZE + lz as i32;
+            let h = height_world(wx, wz);
             positions.push([lx as f32, h, lz as f32]);
 
-            // Compute normal from neighboring heights.
-            let h_px = height(lx + 1, lz);
-            let h_nx = if lx > 0 { height(lx - 1, lz) } else { h };
-            let h_pz = height(lx, lz + 1);
-            let h_nz = if lz > 0 { height(lx, lz - 1) } else { h };
-            let dx = h_px - h_nx;
-            let dz = h_pz - h_nz;
+            // Central difference across chunk boundary for seamless normals.
+            let dx = height_world(wx + 1, wz) - height_world(wx - 1, wz);
+            let dz = height_world(wx, wz + 1) - height_world(wx, wz - 1);
             let n_vec = Vec3::new(-dx, 2.0, -dz).normalize();
             normals.push(n_vec.to_array());
 

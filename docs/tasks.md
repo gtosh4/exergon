@@ -2,7 +2,7 @@
 
 > Work plan derived from [`vertical_slice.md`](vertical_slice.md) and [`milestones.md`](milestones.md). Designs in [`technical/`](technical/) are complete; this file lists code work only. Order roughly top-down: foundation before features, blockers before polish.
 
-Legend: `[ ]` not started · `[~]` in progress · `[x]` done
+Legend: `[ ]` not started · `[~]` in progress / partial · `[x]` done
 
 ---
 

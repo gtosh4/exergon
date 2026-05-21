@@ -7,7 +7,7 @@ mod visuals;
 pub use placement::MachineBundle;
 pub use registry::{MachineDef, MachineRegistry, MachineTierDef};
 pub(crate) use visuals::GhostAssets;
-pub use visuals::{MachineColliders, MachineVisualAssets};
+pub use visuals::{MachineColliders, MachinePortLayout, MachinePortLayouts, MachineVisualAssets};
 
 /// System set that contains machine placement. Logistics/power run after this.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -36,6 +36,7 @@ impl Plugin for MachinePlugin {
         app.add_observer(placement::on_machine_added)
             .add_message::<MachineNetworkChanged>()
             .init_resource::<MachineColliders>()
+            .init_resource::<MachinePortLayouts>()
             .configure_sets(
                 Update,
                 MachineScanSet
@@ -303,12 +304,20 @@ mod tests {
     fn simple_machine(id: &str) -> MachineDef {
         MachineDef {
             id: id.to_string(),
-            tiers: vec![MachineTierDef {
-                tier: 1,
-                energy_io_offsets: vec![IVec3::new(0, 0, 1)],
-                logistics_io_offsets: vec![IVec3::new(1, 0, 0)],
-            }],
+            tiers: vec![MachineTierDef { tier: 1 }],
         }
+    }
+
+    fn seed_simple_layout(app: &mut App, id: &str) {
+        let mut layouts = MachinePortLayouts::default();
+        layouts.by_machine.insert(
+            id.to_string(),
+            MachinePortLayout {
+                energy: vec![Vec3::new(0.0, 0.0, 1.0)],
+                logistics: vec![Vec3::new(1.0, 0.0, 0.0)],
+            },
+        );
+        app.insert_resource(layouts);
     }
 
     #[test]
@@ -366,17 +375,23 @@ mod tests {
     fn place_machine_io_offsets_applied() {
         let def = MachineDef {
             id: "smelter".to_string(),
-            tiers: vec![MachineTierDef {
-                tier: 1,
-                energy_io_offsets: vec![IVec3::new(0, 0, 1)],
-                logistics_io_offsets: vec![IVec3::new(1, 0, 0)],
-            }],
+            tiers: vec![MachineTierDef { tier: 1 }],
         };
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .add_message::<WorldObjectEvent>()
             .add_message::<MachineNetworkChanged>()
             .insert_resource(MachineRegistry::new(vec![def]));
+
+        let mut layouts = MachinePortLayouts::default();
+        layouts.by_machine.insert(
+            "smelter".to_string(),
+            MachinePortLayout {
+                energy: vec![Vec3::new(0.0, 0.0, 1.0)],
+                logistics: vec![Vec3::new(1.0, 0.0, 0.0)],
+            },
+        );
+        app.insert_resource(layouts);
 
         app.add_systems(Update, place_machine_system);
 
@@ -410,6 +425,7 @@ mod tests {
             .add_message::<WorldObjectEvent>()
             .add_message::<MachineNetworkChanged>()
             .insert_resource(MachineRegistry::new(vec![simple_machine("smelter")]));
+        seed_simple_layout(&mut app, "smelter");
 
         app.add_observer(placement::on_machine_added)
             .add_systems(Update, place_machine_system);
@@ -433,6 +449,7 @@ mod tests {
             .add_message::<WorldObjectEvent>()
             .add_message::<MachineNetworkChanged>()
             .insert_resource(MachineRegistry::new(vec![simple_machine("smelter")]));
+        seed_simple_layout(&mut app, "smelter");
 
         app.add_observer(placement::on_machine_added)
             .add_systems(Update, (place_machine_system, remove_placed_objects_system));

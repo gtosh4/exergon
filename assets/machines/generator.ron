@@ -1,9 +1,6 @@
 (
     id: "generator",
     tiers: [
-        (
-            tier: 1,
-            energy_io_offsets: [(0, 0, 3), (0, 0, -3), (3, 0, 0), (-3, 0, 0)],
-        ),
+        (tier: 1),
     ],
 )

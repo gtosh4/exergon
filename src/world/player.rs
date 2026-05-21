@@ -35,25 +35,20 @@ pub(super) fn spawn_player(mut commands: Commands) {
     ));
 }
 
-pub(super) fn setup_world_once(
-    mut commands: Commands,
-    existing_lights: Query<(), With<DirectionalLight>>,
-) {
-    if existing_lights.is_empty() {
-        commands.spawn((
-            DirectionalLight {
-                illuminance: 10_000.0,
-                shadows_enabled: true,
-                ..default()
-            },
-            Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.8, 0.5, 0.0)),
-        ));
-        commands.insert_resource(GlobalAmbientLight {
-            color: Color::srgb(0.4, 0.45, 0.6),
-            brightness: 200.0,
+pub(super) fn setup_world_once(mut commands: Commands) {
+    commands.spawn((
+        DirectionalLight {
+            illuminance: 10_000.0,
+            shadows_enabled: true,
             ..default()
-        });
-    }
+        },
+        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.8, 0.5, 0.0)),
+    ));
+    commands.insert_resource(GlobalAmbientLight {
+        color: Color::srgb(0.4, 0.45, 0.6),
+        brightness: 200.0,
+        ..default()
+    });
 }
 
 pub(super) fn lock_cursor(mut cursor_q: Query<&mut CursorOptions, With<PrimaryWindow>>) {
@@ -293,21 +288,6 @@ mod tests {
         let light_count = world.query::<&DirectionalLight>().iter(world).count();
         assert_eq!(light_count, 1);
         assert!(world.get_resource::<GlobalAmbientLight>().is_some());
-    }
-
-    #[test]
-    fn setup_world_once_does_not_duplicate_light() {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins)
-            .add_systems(Startup, setup_world_once);
-
-        // Pre-spawn a light so the system skips
-        app.world_mut().spawn(DirectionalLight::default());
-        app.update();
-
-        let world = app.world_mut();
-        let light_count = world.query::<&DirectionalLight>().iter(world).count();
-        assert_eq!(light_count, 1);
     }
 
     #[test]

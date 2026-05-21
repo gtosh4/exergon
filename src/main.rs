@@ -111,6 +111,7 @@ fn give_test_items(
     mut commands: Commands,
     registry: Res<MachineRegistry>,
     visuals: Option<Res<MachineVisualAssets>>,
+    port_layouts: Res<exergon::machine::MachinePortLayouts>,
     mut network_changed: MessageWriter<MachineNetworkChanged>,
 ) {
     hotbar.slots[0] = Some(HotbarSlot {
@@ -139,9 +140,14 @@ fn give_test_items(
     });
 
     let crate_pos = Vec3::new(5.0, 15.0, 5.0);
+    let fallback_layout = exergon::machine::MachinePortLayout::default();
     if let Some(def) = registry.machine_def("storage_crate") {
         let tier = def.tiers.iter().map(|t| t.tier).max().unwrap_or(1);
-        let bundle = MachineBundle::new(crate_pos, def, tier);
+        let layout = port_layouts
+            .by_machine
+            .get(&def.id)
+            .unwrap_or(&fallback_layout);
+        let bundle = MachineBundle::new(crate_pos, def, tier, layout);
         let crate_e = commands.spawn(bundle).id();
         if let Some(ref v) = visuals
             && let Some(scene) = v.scenes.get(&def.id)

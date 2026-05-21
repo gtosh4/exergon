@@ -1,15 +1,12 @@
 use std::collections::HashMap;
 
 use avian3d::prelude::Collider;
-use bevy::gltf::{Gltf, GltfMesh};
+use bevy::gltf::{Gltf, GltfMesh, GltfNode};
 use bevy::prelude::*;
 
 #[derive(Resource)]
 pub struct MachineVisualAssets {
     pub(super) mesh: Handle<Mesh>,
-    pub(super) port_mesh: Handle<Mesh>,
-    pub(super) energy_port_mat: Handle<StandardMaterial>,
-    pub(super) logistics_port_mat: Handle<StandardMaterial>,
     pub(super) platform_mesh: Handle<Mesh>,
     pub scenes: HashMap<String, Handle<Scene>>,
     pub(crate) platform_scene: Handle<Scene>,
@@ -20,6 +17,20 @@ pub struct MachineVisualAssets {
 #[derive(Resource, Default)]
 pub struct MachineColliders {
     pub colliders: HashMap<String, Collider>,
+}
+
+/// Per-machine port positions (canonical-space, pre-orientation) extracted from
+/// GLTF named child nodes (`Port_Energy_<i>`, `Port_Logistics_<i>`). Populated
+/// by `extract_machine_port_layouts` as each machine GLB finishes loading.
+#[derive(Resource, Default, Debug)]
+pub struct MachinePortLayouts {
+    pub by_machine: HashMap<String, MachinePortLayout>,
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct MachinePortLayout {
+    pub energy: Vec<Vec3>,
+    pub logistics: Vec<Vec3>,
 }
 
 #[derive(Resource)]
@@ -35,21 +46,9 @@ pub(crate) struct GhostAssets {
 pub(super) fn setup_machine_visuals(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
     let mesh = meshes.add(Cuboid::new(4.0, 4.0, 4.0));
-    let port_mesh = meshes.add(Sphere::new(0.4));
-    let energy_port_mat = materials.add(StandardMaterial {
-        base_color: Color::srgb(1.0, 0.85, 0.0),
-        unlit: true,
-        ..default()
-    });
-    let logistics_port_mat = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.1, 0.9, 0.2),
-        unlit: true,
-        ..default()
-    });
     let platform_mesh = meshes.add(Cuboid::new(8.0, 0.25, 8.0));
 
     let machine_ids = [
@@ -78,9 +77,6 @@ pub(super) fn setup_machine_visuals(
 
     commands.insert_resource(MachineVisualAssets {
         mesh,
-        port_mesh,
-        energy_port_mat,
-        logistics_port_mat,
         platform_mesh,
         scenes,
         platform_scene,
@@ -127,9 +123,11 @@ pub(super) fn compute_machine_colliders(
     mut events: bevy::ecs::message::MessageReader<AssetEvent<Gltf>>,
     gltf_assets: Res<Assets<Gltf>>,
     gltf_mesh_assets: Res<Assets<GltfMesh>>,
+    gltf_node_assets: Res<Assets<GltfNode>>,
     mesh_assets: Res<Assets<Mesh>>,
     visuals: Res<MachineVisualAssets>,
     mut machine_colliders: ResMut<MachineColliders>,
+    mut port_layouts: ResMut<MachinePortLayouts>,
 ) {
     for event in events.read() {
         let AssetEvent::LoadedWithDependencies { id } = event else {
@@ -142,8 +140,20 @@ pub(super) fn compute_machine_colliders(
             continue;
         };
 
+        // Collider from body mesh primitives. Port stub nodes are skipped so
+        // ports don't block placement.
+        let body_handle = gltf
+            .named_nodes
+            .get("Body")
+            .and_then(|h| gltf_node_assets.get(h))
+            .and_then(|n| n.mesh.as_ref());
         let mut shapes: Vec<(Vec3, Quat, Collider)> = vec![];
-        for gltf_mesh_handle in &gltf.meshes {
+        let mesh_handles: Vec<&Handle<GltfMesh>> = if let Some(body) = body_handle {
+            vec![body]
+        } else {
+            gltf.meshes.iter().collect()
+        };
+        for gltf_mesh_handle in mesh_handles {
             let Some(gltf_mesh) = gltf_mesh_assets.get(gltf_mesh_handle) else {
                 continue;
             };
@@ -175,5 +185,92 @@ pub(super) fn compute_machine_colliders(
         machine_colliders
             .colliders
             .insert(machine_id.clone(), collider);
+
+        // Port layout from named child nodes — Port_Energy_<i>, Port_Logistics_<i>.
+        let layout = extract_layout(gltf, &gltf_node_assets);
+        info!(
+            "Extracted port layout for '{machine_id}': {} energy, {} logistics",
+            layout.energy.len(),
+            layout.logistics.len()
+        );
+        port_layouts.by_machine.insert(machine_id.clone(), layout);
+    }
+}
+
+fn extract_layout(gltf: &Gltf, nodes: &Assets<GltfNode>) -> MachinePortLayout {
+    let mut energy: Vec<(usize, Vec3)> = vec![];
+    let mut logistics: Vec<(usize, Vec3)> = vec![];
+    for (name, handle) in gltf.named_nodes.iter() {
+        let Some(node) = nodes.get(handle) else {
+            continue;
+        };
+        if let Some(rest) = name.strip_prefix("Port_Energy_")
+            && let Ok(idx) = rest.parse::<usize>()
+        {
+            energy.push((idx, node.transform.translation));
+        } else if let Some(rest) = name.strip_prefix("Port_Logistics_")
+            && let Ok(idx) = rest.parse::<usize>()
+        {
+            logistics.push((idx, node.transform.translation));
+        }
+    }
+    energy.sort_by_key(|(i, _)| *i);
+    logistics.sort_by_key(|(i, _)| *i);
+    MachinePortLayout {
+        energy: energy.into_iter().map(|(_, p)| p).collect(),
+        logistics: logistics.into_iter().map(|(_, p)| p).collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy::platform::collections::HashMap as BvHashMap;
+
+    #[test]
+    fn extract_layout_groups_by_prefix_and_sorts_by_index() {
+        let mut nodes_assets: Assets<GltfNode> = Assets::default();
+        let mut gltf = Gltf {
+            scenes: vec![],
+            named_scenes: BvHashMap::default(),
+            meshes: vec![],
+            named_meshes: BvHashMap::default(),
+            materials: vec![],
+            named_materials: BvHashMap::default(),
+            nodes: vec![],
+            named_nodes: BvHashMap::default(),
+            skins: vec![],
+            named_skins: BvHashMap::default(),
+            default_scene: None,
+            animations: vec![],
+            named_animations: BvHashMap::default(),
+            source: None,
+        };
+
+        let mut insert_node = |name: &str, translation: Vec3| {
+            let handle = nodes_assets.add(GltfNode {
+                index: 0,
+                name: name.to_string(),
+                children: vec![],
+                mesh: None,
+                skin: None,
+                transform: Transform::from_translation(translation),
+                is_animation_root: false,
+                extras: None,
+            });
+            gltf.named_nodes.insert(name.into(), handle);
+        };
+
+        insert_node("Port_Energy_1", Vec3::new(0.0, 0.0, 2.0));
+        insert_node("Port_Energy_0", Vec3::new(3.0, 0.0, 0.0));
+        insert_node("Port_Logistics_0", Vec3::new(-3.0, 0.0, 0.0));
+        insert_node("Body", Vec3::ZERO);
+
+        let layout = extract_layout(&gltf, &nodes_assets);
+        assert_eq!(
+            layout.energy,
+            vec![Vec3::new(3.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 2.0)]
+        );
+        assert_eq!(layout.logistics, vec![Vec3::new(-3.0, 0.0, 0.0)]);
     }
 }

@@ -63,11 +63,14 @@ impl Plugin for WorldPlugin {
                 )
                     .run_if(resource_exists::<generation::WorldConfig>),
             )
+            .add_systems(OnEnter(GameState::Playing), player::lock_cursor)
             .add_systems(
-                OnEnter(GameState::Playing),
+                OnTransition {
+                    exited: GameState::Loading,
+                    entered: GameState::Playing,
+                },
                 (
                     player::setup_world_once,
-                    player::lock_cursor,
                     player::spawn_player,
                     ruins::spawn_gateway_ruins_system,
                 ),

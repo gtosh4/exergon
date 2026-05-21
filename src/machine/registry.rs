@@ -6,10 +6,6 @@ use crate::content::load_ron_dir;
 #[derive(Deserialize, Clone, Debug, Default)]
 pub struct MachineTierDef {
     pub tier: u8,
-    #[serde(default)]
-    pub energy_io_offsets: Vec<IVec3>,
-    #[serde(default)]
-    pub logistics_io_offsets: Vec<IVec3>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
