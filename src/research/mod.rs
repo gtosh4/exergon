@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use bevy::ecs::message::{Message, MessageReader};
+use bevy::ecs::message::{Message, MessageReader, MessageWriter};
 use bevy::prelude::*;
 
 use crate::tech_tree::{NodeEffect, NodeId, TechTree, UnlockVector};
@@ -8,6 +8,13 @@ use crate::tech_tree::{NodeEffect, NodeId, TechTree, UnlockVector};
 #[derive(Debug, Clone)]
 pub struct DiscoveryEvent(pub String);
 impl Message for DiscoveryEvent {}
+
+#[derive(Debug, Clone)]
+pub struct TechNodeUnlocked {
+    pub node_id: String,
+    pub via_research: bool,
+}
+impl Message for TechNodeUnlocked {}
 
 /// Marker: prevents re-firing discovery events for an already-discovered entity.
 #[derive(Component)]
@@ -34,6 +41,7 @@ pub struct ResearchPlugin;
 impl Plugin for ResearchPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<DiscoveryEvent>()
+            .add_message::<TechNodeUnlocked>()
             .register_type::<ResearchPool>()
             .register_type::<TechTreeProgress>()
             .init_resource::<ResearchPool>()
@@ -52,6 +60,7 @@ fn check_research_unlocks(
     mut pool: ResMut<ResearchPool>,
     mut progress: ResMut<TechTreeProgress>,
     mut discovery_events: MessageReader<DiscoveryEvent>,
+    mut unlocked_events: MessageWriter<TechNodeUnlocked>,
 ) {
     let Some(tech_tree) = tech_tree else {
         return;
@@ -85,6 +94,7 @@ fn check_research_unlocks(
                 _ => false,
             };
             if unlocked {
+                let via_research = matches!(&node.primary_unlock, UnlockVector::ResearchSpend(_));
                 progress.unlocked_nodes.insert(id.clone());
                 for effect in &node.effects {
                     match effect {
@@ -96,6 +106,10 @@ fn check_research_unlocks(
                         }
                     }
                 }
+                unlocked_events.write(TechNodeUnlocked {
+                    node_id: id.clone(),
+                    via_research,
+                });
                 info!("Tech node '{}' unlocked", id);
                 any_unlocked = true;
             }
@@ -140,6 +154,7 @@ mod tests {
     fn unlocks_node_when_enough_points() {
         let mut app = App::new();
         app.add_message::<DiscoveryEvent>()
+            .add_message::<TechNodeUnlocked>()
             .add_systems(Update, check_research_unlocks);
         app.insert_resource(make_tree(vec![base_node("alpha", 50, vec![])]));
         app.insert_resource(ResearchPool { points: 50.0 });
@@ -158,6 +173,7 @@ mod tests {
     fn does_not_unlock_without_enough_points() {
         let mut app = App::new();
         app.add_message::<DiscoveryEvent>()
+            .add_message::<TechNodeUnlocked>()
             .add_systems(Update, check_research_unlocks);
         app.insert_resource(make_tree(vec![base_node("alpha", 50, vec![])]));
         app.insert_resource(ResearchPool { points: 49.0 });
@@ -173,6 +189,7 @@ mod tests {
     fn does_not_unlock_when_prereqs_missing() {
         let mut app = App::new();
         app.add_message::<DiscoveryEvent>()
+            .add_message::<TechNodeUnlocked>()
             .add_systems(Update, check_research_unlocks);
         app.insert_resource(make_tree(vec![
             base_node("alpha", 50, vec![]),
@@ -195,6 +212,7 @@ mod tests {
     fn unlocks_chain_in_single_frame() {
         let mut app = App::new();
         app.add_message::<DiscoveryEvent>()
+            .add_message::<TechNodeUnlocked>()
             .add_systems(Update, check_research_unlocks);
         app.insert_resource(make_tree(vec![
             base_node("alpha", 50, vec![]),
@@ -214,6 +232,7 @@ mod tests {
     fn no_tech_tree_resource_is_noop() {
         let mut app = App::new();
         app.add_message::<DiscoveryEvent>()
+            .add_message::<TechNodeUnlocked>()
             .add_systems(Update, check_research_unlocks)
             .insert_resource(ResearchPool { points: 999.0 })
             .init_resource::<TechTreeProgress>();
@@ -226,6 +245,7 @@ mod tests {
     fn unlock_machine_effect_populates_unlocked_machines() {
         let mut app = App::new();
         app.add_message::<DiscoveryEvent>()
+            .add_message::<TechNodeUnlocked>()
             .add_systems(Update, check_research_unlocks);
         let mut node = base_node("alpha", 10, vec![]);
         node.effects = vec![NodeEffect::UnlockMachine("smelter".to_string())];
@@ -243,6 +263,7 @@ mod tests {
     fn skips_non_research_spend_unlock_vectors() {
         let mut app = App::new();
         app.add_message::<DiscoveryEvent>()
+            .add_message::<TechNodeUnlocked>()
             .add_systems(Update, check_research_unlocks);
         let mut node = base_node("alpha", 50, vec![]);
         node.primary_unlock = UnlockVector::ExplorationDiscovery("somewhere".to_string());
@@ -260,6 +281,7 @@ mod tests {
     fn exploration_discovery_unlocks_on_matching_key() {
         let mut app = App::new();
         app.add_message::<DiscoveryEvent>()
+            .add_message::<TechNodeUnlocked>()
             .add_systems(Update, check_research_unlocks);
         let mut node = base_node("alpha", 0, vec![]);
         node.primary_unlock = UnlockVector::ExplorationDiscovery("xalite_deposit".to_string());
@@ -279,6 +301,7 @@ mod tests {
     fn exploration_discovery_does_not_unlock_on_wrong_key() {
         let mut app = App::new();
         app.add_message::<DiscoveryEvent>()
+            .add_message::<TechNodeUnlocked>()
             .add_systems(Update, check_research_unlocks);
         let mut node = base_node("alpha", 0, vec![]);
         node.primary_unlock = UnlockVector::ExplorationDiscovery("xalite_deposit".to_string());
