@@ -16,6 +16,8 @@ pub mod research;
 pub mod save;
 pub mod seed;
 pub mod tech_tree;
+#[cfg(debug_assertions)]
+pub mod telemetry;
 pub mod ui;
 pub mod world;
 

@@ -93,6 +93,9 @@ fn main() {
     .add_plugins((exergon::meta::MetaPlugin, exergon::ui::UiPlugin));
 
     #[cfg(debug_assertions)]
+    app.add_plugins(exergon::telemetry::TelemetryPlugin);
+
+    #[cfg(debug_assertions)]
     if cli.test {
         app.add_systems(
             OnTransition {
