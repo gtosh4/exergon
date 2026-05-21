@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>exergon/ui — menu wireframes</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Caveat:wght@500;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@200;400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="wireframe.css"/>
+<link rel="stylesheet" href="theme.css"/>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#1a1d21; font-family: "Inter", system-ui, sans-serif; color:#c8cdd4; }
+  #root { height:100%; }
+  [data-dc-artboard] { background: var(--p1, #22262b) !important; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="menu.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "density": "moderate",
+  "vibe": "clean"
+}/*EDITMODE-END*/;
+
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  const densityClass =
+    tweaks.density === "dense"   ? "density-dense"  :
+    tweaks.density === "sparse"  ? "density-sparse" : "";
+  const vibeClass =
+    tweaks.vibe === "blueprint"  ? "vibe-blueprint"  :
+    tweaks.vibe === "clean"      ? "vibe-clean"      : "";
+
+  return (
+    <div className={`${densityClass} ${vibeClass}`} style={{ height:"100%" }}>
+      <DesignCanvas
+        title="exergon/ui — menu wireframes"
+        subtitle="main menu · new run wizard · load run · settings · pause · save (checkpoint)"
+      >
+
+        <DCSection id="main-menu" title="01 · MAIN MENU"
+                   subtitle="entry screen · resume promoted when an in-progress run exists">
+          <DCArtboard id="main-default"  label="main — with resume"     width={1280} height={720} data-screen-label="01 Main Menu">
+            <MainMenu variant="default"/>
+          </DCArtboard>
+          <DCArtboard id="main-noresume" label="main — no active run"    width={1280} height={720} data-screen-label="01 Main Menu — no resume">
+            <MainMenu variant="noresume"/>
+          </DCArtboard>
+          <DCArtboard id="main-firstrun" label="main — first launch ever" width={1280} height={720} data-screen-label="01 Main Menu — first launch">
+            <MainMenu variant="firstrun"/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="new-run" title="02 · NEW RUN WIZARD"
+                   subtitle="3 steps · difficulty → modifiers (with seed) → planet review & land">
+          <DCArtboard id="newrun-1" label="step 1 · difficulty"                       width={1280} height={720} data-screen-label="02 New Run — difficulty">
+            <NewRun step={0}/>
+          </DCArtboard>
+          <DCArtboard id="newrun-2" label="step 2 · modifiers (point-buy) + seed"     width={1280} height={720} data-screen-label="02 New Run — modifiers">
+            <NewRun step={1}/>
+          </DCArtboard>
+          <DCArtboard id="newrun-3" label="step 3 · planet review · LAND"             width={1280} height={720} data-screen-label="02 New Run — planet review">
+            <NewRun step={2}/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="load-run" title="03 · LOAD RUN"
+                   subtitle="run list (in-progress + completed) · checkpoint restore · delete">
+          <DCArtboard id="load-default" label="load — run selected with checkpoints" width={1280} height={720} data-screen-label="03 Load Run">
+            <LoadRun/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="settings" title="04 · SETTINGS"
+                   subtitle="graphics · audio · controls · gameplay">
+          <DCArtboard id="settings-graphics" label="settings — graphics" width={1280} height={720} data-screen-label="04 Settings — Graphics">
+            <Settings tab="graphics"/>
+          </DCArtboard>
+          <DCArtboard id="settings-audio"    label="settings — audio"    width={1280} height={720} data-screen-label="04 Settings — Audio">
+            <Settings tab="audio"/>
+          </DCArtboard>
+          <DCArtboard id="settings-controls" label="settings — controls" width={1280} height={720} data-screen-label="04 Settings — Controls">
+            <Settings tab="controls"/>
+          </DCArtboard>
+          <DCArtboard id="settings-gameplay" label="settings — gameplay" width={1280} height={720} data-screen-label="04 Settings — Gameplay">
+            <Settings tab="gameplay"/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="pause" title="05 · PAUSE"
+                   subtitle="ESC overlay over dimmed scene · resume/checkpoint/settings/quit · run-at-a-glance side panel">
+          <DCArtboard id="pause-default" label="pause — default"          width={1280} height={720} data-screen-label="05 Pause">
+            <Pause/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="save" title="06 · SAVE (CHECKPOINT)"
+                   subtitle="manual save = overwrite the one manual checkpoint slot · per save.md">
+          <DCArtboard id="save-confirm" label="save — overwrite confirm modal" width={1280} height={720} data-screen-label="06 Save — Confirm">
+            <Pause confirm/>
+          </DCArtboard>
+          <DCArtboard id="save-toast"   label="save — saved toast"            width={1280} height={720} data-screen-label="06 Save — Toast">
+            <SaveToast/>
+          </DCArtboard>
+        </DCSection>
+
+      </DesignCanvas>
+
+      <TweaksPanel title="Tweaks" defaults={TWEAK_DEFAULTS}>
+        <TweakSection title="Density">
+          <TweakRadio
+            value={tweaks.density}
+            onChange={(v)=>setTweak("density", v)}
+            options={[
+              {value:"sparse",   label:"Sparse"},
+              {value:"moderate", label:"Moderate"},
+              {value:"dense",    label:"Dense"},
+            ]}
+          />
+        </TweakSection>
+        <TweakSection title="Visual vibe">
+          <TweakRadio
+            value={tweaks.vibe}
+            onChange={(v)=>setTweak("vibe", v)}
+            options={[
+              {value:"sketch",    label:"Sketch"},
+              {value:"clean",     label:"Clean"},
+              {value:"blueprint", label:"Blueprint"},
+            ]}
+          />
+        </TweakSection>
+        <TweakSection title="Save model recap">
+          <div style={{ fontSize:11, lineHeight:1.6, opacity:0.7 }}>
+            <div>• one continuous primary save per run (auto)</div>
+            <div>• auto checkpoints: tier unlock, escape start</div>
+            <div>• one MANUAL slot — overwritable</div>
+            <div>• hardcore mode post-VS</div>
+            <div>See: docs/technical/save.md</div>
+          </div>
+        </TweakSection>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
