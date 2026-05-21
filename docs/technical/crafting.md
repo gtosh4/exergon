@@ -243,7 +243,9 @@ Step by step:
    a. Network voltage tier ≥ `recipe.min_voltage_tier` — hard block if not met; emit `RecipeBlockedVoltage { machine, slot }`.
    b. Available amp headroom ≥ draw rate — block if at amp capacity; emit `RecipeBlockedAmps { machine, slot }`. Job stays `Dispatched` and retries when `AmpHeadroomRestored` fires.
 3. Check input availability — for each `recipe.inputs` where `consumed == true`, resolve the machine's input-eligible logistics ports (via `PortPolicy`) and call `has_items` on each port's network with this job's plan as context (plan-aware: plan output reservations for this plan are visible as available on that network). If any item is unavailable in sufficient quantity across reachable networks, block: emit `RecipeBlockedInputs { machine, slot, missing }`. Retries on `NetworkStorageChanged`.
-4. Check output routing — for each `recipe.outputs`, verify at least one of the machine's logistics ports (via `PortPolicy`) allows output for that item and has a connected network. If any output has no valid destination, block: emit `RecipeBlockedOutputs { machine, slot }`. Retries on `NetworkChanged<Logistics>`.
+4. Check output routing — for each entry in `recipe.outputs`:
+   - **`RecipeOutput::Item`** — verify at least one of the machine's logistics ports (via `PortPolicy`) allows output for that item and has a connected network. If any item output has no valid destination, block: emit `RecipeBlockedOutputs { machine, slot }`. Retries on `NetworkChanged<Logistics>`.
+   - **`RecipeOutput::Energy`** — verify the machine has a `GeneratorUnit` component (asserted at content-load time by invariant #17, so this is a defensive check) and, if the machine's `Throttle == OnBufferFull`, that `GeneratorUnit.buffer_joules < max_buffer_joules`. If the buffer is full and throttle is on, block: emit `RecipeBlockedOutputs { machine, slot }`. Retries on `NetworkChanged<Power>` (which fires when consumer demand drains the buffer). The `NeverThrottle` mode skips the buffer-headroom check; recipes may complete into a full buffer with the surplus discarded (see `power.md §8`).
 5. Check catalyst availability — for each `recipe.inputs` where `consumed == false`, call `has_items` on the item's source network (subtracts `NetworkReservations.catalyst[item]` for that network). If `available < required`, block: emit `RecipeBlockedCatalysts { machine, slot }`. Retries on `NetworkStorageChanged` and on `CatalystReservationReleased`.
 6. All checks pass:
    a. Pull `recipe.inputs` where `consumed == true` from the plan's logistics network.
@@ -282,8 +284,10 @@ Step by step (per slot):
 Step by step:
 
 1. Read the job entity from `RecipeSlot.job`.
-2. Push `recipe.outputs` to logistics network storage via the machine's output-eligible logistics ports (per `PortPolicy`).
-3. Emit `NetworkStorageChanged { network }` for each logistics network connected to the machine's output ports — triggers `recipe_start_system` evaluation for idle machines on those networks.
+2. For each entry in `recipe.outputs`, roll against `chance` (using the recipe-execution RNG seeded from `(plan_id, completion_index)` per `recipe-graph.md §6`); on success, dispatch by variant:
+   - **`RecipeOutput::Item { item, quantity, .. }`** → `give_items(item, quantity)` on the machine's output-eligible logistics ports (per `PortPolicy`).
+   - **`RecipeOutput::Energy { joules, .. }`** → `GeneratorUnit.give_energy(joules)` on the machine entity. The buffer is clamped to `max_buffer_joules`; overflow is discarded (and emits `GeneratorOverflow { machine, joules_lost }` for telemetry — see `power.md §13`).
+3. Emit `NetworkStorageChanged { network }` for each logistics network that received an item output — triggers `recipe_start_system` evaluation for idle machines on those networks. If any `RecipeOutput::Energy` was emitted and the machine's `GeneratorUnit.buffer_joules` transitioned 0→positive, emit `NetworkChanged<Power>` for the machine's power network — triggers `recipe_start_system` for paused consumer recipes.
 4. Release amp draw from power network.
 5. Release catalyst reservations: for each entry in `CatalystReservations`, decrement `network.NetworkReservations.catalyst[item]` on the recorded network; remove `CatalystReservations` component from job entity; emit `CatalystReservationReleased { item_id, quantity }` per item.
 6. Set `RecipeSlot.state = Idle`, `job = None`, `progress = 0.0`.
@@ -310,7 +314,7 @@ pub struct RecipeInput {
 pub struct ConcreteRecipe {
     // ... existing fields ...
     pub inputs: Vec<RecipeInput>,   // consumed:true = regular input; consumed:false = catalyst
-    pub outputs: Vec<ItemStack>,    // all outputs; no separate byproduct concept
+    pub outputs: Vec<RecipeOutput>, // unified output list (Item/Energy variants); no separate byproduct concept — see recipe-graph.md §3
 }
 ```
 

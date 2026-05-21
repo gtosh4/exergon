@@ -13,7 +13,7 @@ Minimal always-on overlay, visible during 3D world navigation. Three zones:
 
 ![](images/hud_mock.png)
 
-**Top bar** — menu shortcut buttons (T=Terminal, I=Index, P=Planner, Y=Tech Tree) · research pool widget · alerts button with dropdown.
+**Top bar** — menu shortcut buttons (`{kbd:menu_terminal}`=Terminal, `{kbd:menu_index}`=Index, `{kbd:menu_planner}`=Planner, `{kbd:menu_tech_tree}`=Tech Tree) · research pool widget · alerts button with dropdown. Token bindings live in `technical/input.md §3`; defaults are `T` / `I` / `Tab` / `Y`.
 
 **Research pool widget** (top bar, right of menus): shows all 4 research types (material_science, field_research, engineering, discovery) with current balance. Zero-balance types dimmed. Matches `ResearchPool` resource in `research.md §3`.
 
@@ -22,7 +22,7 @@ Minimal always-on overlay, visible during 3D world navigation. Three zones:
 ![](images/hud_topbar.png)
 ![](images/hud_alerts.png)
 
-**Bottom bar** — player vitals (HP / O₂ / SAT bars, left) · hotbar (centre, 9 slots, 3 banks A/B/C, shift+scroll to switch) · XP level + bar (right).
+**Bottom bar** — player vitals (HP / O₂ / SAT bars, left) · hotbar (centre, 9 slots, 3 banks A/B/C, `{kbd:hotbar_bank_switch}` to switch) · XP level + bar (right).
 
 ![](images/hud_bottombar.png)
 
@@ -177,10 +177,10 @@ See: `ui_mock/machine.jsx`
 
 ```
 In-World HUD (always-on)
-  └── T → Terminal (item overview)
-  └── I → Index (item research)
-  └── P → Factory Planner (machine layout)
-  └── Y → Tech Tree (unlock + escape progress)
+  └── {kbd:menu_terminal} → Terminal (item overview)
+  └── {kbd:menu_index} → Index (item research)
+  └── {kbd:menu_planner} → Factory Planner (machine layout)
+  └── {kbd:menu_tech_tree} → Tech Tree (unlock + escape progress)
   └── alerts dropdown → jump to machine UI
 
 Terminal (item overview)

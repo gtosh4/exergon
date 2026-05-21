@@ -62,7 +62,7 @@ The 3D network topology overlay is a separate, independent toggle — it renders
 
 ## 2. Opening the Planner
 
-Opened from the Field Computer terminal (interact → open planner) or a dedicated hotkey (default: Tab; configurable). Closes on: Escape key, close button, or Field Computer interact toggle. Not proximity-gated.
+Opened from the Field Computer terminal (`{kbd:interact}` → open planner) or the `{kbd:menu_planner}` action (default `Tab`; see `input.md §3.1`). Closes on: `{kbd:cancel}`, close button, or `{kbd:interact}` toggle on the Field Computer. Not proximity-gated.
 
 `PlannerOpen` resource tracks open state. Systems that rebuild planner content skip work when `!PlannerOpen.open`.
 
@@ -392,7 +392,7 @@ Footer: `[apply selected]` | `[cancel]`. Press ↵ to apply selected. Drag from 
 
 ## 8. 3D Network Topology Overlay
 
-Toggled independently of the planner panel (default hotkey: `N`). Draws over the 3D world each frame using Bevy `Gizmos`. `topology_overlay_system` early-exits when `!TopologyOverlay::enabled`.
+Toggled independently of the planner panel via `{kbd:toggle_topology}` (default `N`; see `input.md §3.1`). Draws over the 3D world each frame using Bevy `Gizmos`. `topology_overlay_system` early-exits when `!TopologyOverlay::enabled`.
 
 **Why Gizmos (not entities):** Gizmos are batched single-frame draw calls — no spawn/despawn overhead, no per-frame query cost for overlay elements. Appropriate here because topology lines need no interaction (no picking). Tradeoff: cannot be clicked or hovered.
 
@@ -456,7 +456,7 @@ Draw only elements within a configurable radius of the player entity's `Transfor
 | `apply_alt_recipe_system` | `ApplyAltRecipe` | Update `PlanState::alt_recipes`; `dirty = true` |
 | `lock_machine_count_system` | `LockMachineCount` | Update `PlanState::locked_counts`; `dirty = true` |
 | `recipe_picker_open_system` | `OpenRecipePicker` | Set `RecipePickerState::open/node` |
-| `recipe_picker_close_system` | `CloseRecipePicker` / Escape | Set `RecipePickerState::open = false` |
+| `recipe_picker_close_system` | `CloseRecipePicker` / `{kbd:cancel}` | Set `RecipePickerState::open = false` |
 | `topology_overlay_system` | Each frame | Early-exit if not enabled; draw gizmos for enabled filter networks |
 
 ---
@@ -569,7 +569,7 @@ All planner render systems early-exit when `!PlannerOpen.open`, except `topology
 - **Cycle in recipe graph:** `technical-design.md §2` guarantees DAG. Cycle detection via `visited` is defensive. If triggered: stop recursion, mark node "Cycle detected" badge. Do not crash.
 - **Player locks count higher than needed:** Gold lock in Sankey. No error — intentional buffer.
 - **Player locks count lower than needed:** Node is under-planned. Inline alert shows gap; "add ×1 machine" proposes fix.
-- **Recipe Picker open when planner closes (Escape):** Close picker first (`RecipePickerState::open = false`), then close planner. Escape priority: picker close > planner close.
+- **Recipe Picker open when planner closes (`{kbd:cancel}`):** Close picker first (`RecipePickerState::open = false`), then close planner. `{kbd:cancel}` priority: picker close > planner close.
 - **`alt_recipes` references recipe no longer unlocked** (future mechanic — tech rollback): `primary_recipe` treats as invalid, falls back to index-first. Clear from `alt_recipes`. Log warning.
 - **All network types enabled in topology overlay, large factory:** Distance culling keeps gizmo count bounded. Network filter lets player reduce visual clutter.
 - **Topology overlay with zero placed machines:** No spheres or port gizmos; system runs without error.

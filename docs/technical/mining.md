@@ -201,7 +201,7 @@ Weights are normalised at `DepositDef` load time (sum to 1.0). A copper-dominant
 
 ## 7. Manual Mining — `drone_mine_system`
 
-Trigger: right mouse button press while in `PlayMode::DronePilot`.
+Trigger: `{kbd:secondary_action}` Started in `DronePilotContext` (default `MouseButton::Right`; see `input.md §3.3`).
 
 ```
 1. Raycast from camera forward, max MINE_REACH = 4.0 m

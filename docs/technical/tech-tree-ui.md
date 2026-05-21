@@ -137,7 +137,7 @@ Edges:
 
 ### `tech_tree_open`
 
-Trigger: player presses `Y` keybind or clicks Tech Tree button in HUD.
+Trigger: `{kbd:menu_tech_tree}` action (default `Y`; see `input.md §3.1`) or click on Tech Tree button in HUD.
 
 ```
 1. Set TechTreePanelState.open = true
@@ -148,7 +148,7 @@ Trigger: player presses `Y` keybind or clicks Tech Tree button in HUD.
 
 ### `tech_tree_close`
 
-Trigger: `Escape`, or `Y` keybind while open.
+Trigger: `{kbd:cancel}` while focused, or `{kbd:menu_tech_tree}` while open.
 
 ```
 1. If RevealOverlayState::Open → close overlay first (one Escape per layer)

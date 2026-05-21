@@ -51,15 +51,15 @@ Items flow in and out via the logistics network the same way as any other machin
 
 **In-progress experiment = `MachineActivity` on the station entity.** There is no separate experiment entity.
 
-### Player entity (research components)
+### Run entity (research components)
 
-`TechTreeProgress` and `ResearchPool` are **components on the player entity**, not global resources. All data that belongs in a save file lives on an entity component.
+`TechTreeProgress` and `ResearchPool` are **components on the Run entity** — the singleton ECS anchor for all run-scoped globals (see `save.md §1`). They are run-scoped state, not player-physical state.
 
 ```
-Player entity
+Run entity
 ├── TechTreeProgress   ← persisted to save
 ├── ResearchPool       ← persisted to save
-└── ...
+└── RunSeed, DomainSeeds, RunSaveHeader, ...
 ```
 
 ```rust

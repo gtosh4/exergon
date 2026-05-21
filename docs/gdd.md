@@ -432,8 +432,8 @@ The network **resolves recipe chains automatically**: given machines capable of 
 
 **Unified storage.** The network presents a unified item inventory across all connected storage nodes. Storage exists as a necessary system but is not intended to be a primary design constraint or puzzle — inventory management is friction, not depth.
 
-### Machines and multiblock structures
-All significant machines are multi-block structures: a fixed core footprint plus flexible modular attachments.
+### Machines and modules
+Significant machines are prefab structures with a fixed core plus flexible modular attachments.
 
 **Core structure:**
 - Each machine type is a distinct prefab object with a recognizable visual form — a player viewing a screenshot can identify the machine type

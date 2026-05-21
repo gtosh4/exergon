@@ -77,11 +77,11 @@ pub struct HotbarSlot {
 
 ### Bank switching
 
-Banks A/B/C map to `banks[0]`, `banks[1]`, `banks[2]`. `active_bank` is updated on Shift+Scroll. The 9 visible slots are always `banks[active_bank].slots`. Bank switching fires `HotbarBankChanged { active_bank }` so the UI layer redraws.
+Banks A/B/C map to `banks[0]`, `banks[1]`, `banks[2]`. `active_bank` is updated on `{kbd:hotbar_bank_switch}` (default `Shift+Scroll`; see `input.md §3.2`). The 9 visible slots are always `banks[active_bank].slots`. Bank switching fires `HotbarBankChanged { active_bank }` so the UI layer redraws.
 
 ### Slot configuration
 
-Players configure slots by dragging an item from the Terminal item table into a hotbar slot. Drag-to-slot emits `HotbarSlotSet { bank, slot_index, item_id }`. Right-clicking a slot emits `HotbarSlotCleared { bank, slot_index }`. Configuration is persisted in the run save on the body entity.
+Players configure slots via `{kbd:ui_hotbar_assign}` (default drag-and-drop from the Terminal item table into a hotbar slot). Drag-to-slot emits `HotbarSlotSet { bank, slot_index, item_id }`. `{kbd:ui_clear_slot}` (default right-click on the slot) emits `HotbarSlotCleared { bank, slot_index }`. Configuration is persisted in the run save on the body entity.
 
 An unconfigured slot shows empty. A configured slot shows the item name and live quantity. Quantity = 0 renders the slot as depleted (item name greyed, qty = 0) but the configuration is preserved — the slot will repopulate when items are produced.
 
@@ -290,7 +290,7 @@ The ledger trims events outside the window at query time, not per-tick. Ledger g
 
 ### Network tabs
 
-Tabs at the Terminal top correspond to logistics networks reachable from the player's current body. "Reachable" means: the network the body's outpost is on (main), plus any networks bridged via interface blocks to that network. Tab names come from `NetworkLabel { name: String }` on the network entity, defaulting to `"Network N"` (auto-incrementing). Players rename networks by double-clicking a tab header; this sets `NetworkLabel.name` and is persisted in the run save.
+Tabs at the Terminal top correspond to logistics networks reachable from the player's current body. "Reachable" means: the network the body's outpost is on (main), plus any networks bridged via interface blocks to that network. Tab names come from `NetworkLabel { name: String }` on the network entity, defaulting to `"Network N"` (auto-incrementing). Players rename networks via `{kbd:ui_rename}` on a tab header; this sets `NetworkLabel.name` and is persisted in the run save.
 
 Switching tabs emits `TerminalTabChanged { network: Entity }`, which updates `HotbarNetworkLink` on the player entity so the hotbar reflects the selected network.
 
@@ -324,9 +324,9 @@ Supported pin sources:
 
 | Source screen | Pin action | Goal type created |
 |---|---|---|
-| Terminal item table | Right-click row → "Pin as goal…" (prompts for target qty) | `ItemQuantity` |
-| Index (recipe browser) | Right-click item → "Set production goal…" (prompts for qty) | `ItemQuantity` |
-| Tech Tree | Right-click unlocked or partially-revealed node → "Watch prerequisites" | `NodeUnlock` |
+| Terminal item table | `{kbd:ui_context_menu}` on row → "Pin as goal…" (prompts for target qty) | `ItemQuantity` |
+| Index (recipe browser) | `{kbd:ui_context_menu}` on item → "Set production goal…" (prompts for qty) | `ItemQuantity` |
+| Tech Tree | `{kbd:ui_context_menu}` on unlocked or partially-revealed node → "Watch prerequisites" | `NodeUnlock` |
 
 ### ECS structure
 
@@ -385,8 +385,8 @@ Duplicate prevention:
 | Message | Payload | Emitted by |
 |---|---|---|
 | `HotbarSlotSet` | `bank: u8, slot_index: u8, item_id: ItemId` | UI drag-to-slot action |
-| `HotbarSlotCleared` | `bank: u8, slot_index: u8` | UI right-click slot |
-| `HotbarBankChanged` | `active_bank: u8` | Shift+Scroll input |
+| `HotbarSlotCleared` | `bank: u8, slot_index: u8` | UI `{kbd:ui_clear_slot}` on slot |
+| `HotbarBankChanged` | `active_bank: u8` | `{kbd:hotbar_bank_switch}` input |
 | `ActiveHotbarSlotChanged` | `bank: u8, slot_index: u8` (or sentinel for cleared) | `hotbar_equip_system` |
 | `PlacementBlocked` | `item_id: ItemId, reason: PlacementBlockReason` | `hotbar_place_system` |
 | `EquipBlocked` | `item_id: ItemId, reason: EquipBlockReason` | `hotbar_equip_system` |
@@ -432,7 +432,7 @@ Inventory systems are event-driven, not tick-ordered, with two exceptions:
 | Feature | VS | MVP |
 |---|---|---|
 | HotbarConfig (single slot, tool only) | ✓ | ✓ |
-| Multi-bank hotbar (A/B/C, shift+scroll) | — | ✓ |
+| Multi-bank hotbar (A/B/C, `{kbd:hotbar_bank_switch}`) | — | ✓ |
 | HotbarNetworkLink (hotbar reads from network) | — | ✓ |
 | Hotbar slot configuration via Terminal drag | — | ✓ |
 | hotbar_place_system (placement consumes from network) | ✓ | ✓ |

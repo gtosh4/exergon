@@ -124,11 +124,11 @@ pub struct ActiveDrone(pub Option<Entity>);
 
 ### Trigger
 
-Player presses **F** while in `PlayMode::Exploring` → enter Remote mode on the nearest deployable drone, or the previously active drone if one is parked.
+`{kbd:remote_mode}` (default `F`; see `input.md §3.2`) in `PlayMode::Exploring` → enter Remote mode on the nearest deployable drone, or the previously active drone if one is parked.
 
-Player presses **F** while in `PlayMode::DronePilot` → return to Local mode.
+`{kbd:remote_mode}` in `PlayMode::DronePilot` → return to Local mode.
 
-In Local mode with multiple deployed drones, pressing **F** always activates the drone last selected (stored in `ActiveDrone`). If `ActiveDrone` is `None`, activates the closest drone to the player character.
+In Local mode with multiple deployed drones, `{kbd:remote_mode}` always activates the drone last selected (stored in `ActiveDrone`). If `ActiveDrone` is `None`, activates the closest drone to the player character.
 
 ### `toggle_drone_mode` system (existing, extend)
 
@@ -209,11 +209,11 @@ Fog reveal runs in Local mode too for the player character, but with a smaller f
 
 ### Trigger
 
-Left-click (`MouseButton::Left`) while `PlayMode::DronePilot` is active **and** the active hotbar slot holds the `mining_drill` tool.
+`{kbd:primary_action}` Started in `DronePilotContext` (default `MouseButton::Left`; see `input.md §3.3`) **and** the active hotbar slot holds the `mining_drill` tool.
 
 ### `drone_mine_system` (existing, extend)
 
-1. On `just_pressed(MouseButton::Left)`: check active drone's selected hotbar slot. If not `mining_drill`, skip.
+1. On `Started<PrimaryAction>` (the `{kbd:primary_action}` token): check active drone's selected hotbar slot. If not `mining_drill`, skip.
 2. Cast ray from `MainCamera` forward, max distance `MINE_REACH` (4.0 m).
 3. Check hit entity for `OreDeposit` component.
 4. If hit:
@@ -237,11 +237,11 @@ The ore ID string from `sample_ore` maps directly to an `ItemId` in the item reg
 
 ### Trigger
 
-Left-click (`MouseButton::Left`) while `PlayMode::DronePilot` is active **and** the active hotbar slot holds the `scanner` tool.
+`{kbd:primary_action}` Started in `DronePilotContext` (default `MouseButton::Left`; see `input.md §3.3`) **and** the active hotbar slot holds the `scanner` tool.
 
 ### `drone_scan_system`
 
-Runs on `just_pressed(MouseButton::Left)` when scanner tool is selected.
+Runs on `Started<PrimaryAction>` when the scanner tool is selected.
 
 1. Read `ActiveDrone` → get drone `Transform`, `ScanRadius`, and `ScanYTolerance`.
 2. Query all `OreDeposit` entities within `ScanRadius` in the XZ plane **and** within `ScanYTolerance` in the Y axis (i.e. `|deposit.y - drone.y| ≤ ScanYTolerance`). This excludes aerial and underground deposits outside the drone's altitude band.
@@ -300,12 +300,12 @@ Future content: drones are spawned as items and placed in world by the player. F
 
 ### Selection mechanic
 
-With multiple deployed drones (MVP+): player holds **Alt** and presses **1–9** to select by slot, or opens a drone selection panel. For now: **no UI switching** — only F-key re-enter activates the last-used drone.
+With multiple deployed drones (MVP+): player triggers `{kbd:drone_quick_switch_N}` (default `Alt+1`..`Alt+9`; see `input.md §3.3`) to select by slot, or opens a drone selection panel. For now: **no UI switching** — only `{kbd:remote_mode}` re-enter activates the last-used drone.
 
 ### `switch_active_drone_system` (MVP+)
 
-1. Detect slot key press (1–9) while `PlayMode::DronePilot` is active.
-2. Collect all drones related to the player via `DroneOf` relationship, sorted by `DroneSlot`. Map key press to that sorted list.
+1. Detect `Started<DroneQuickSwitchN>` for any slot `N` while `PlayMode::DronePilot` is active.
+2. Collect all drones related to the player via `DroneOf` relationship, sorted by `DroneSlot`. Map the firing slot index to that sorted list.
 3. Deactivate current: set `DroneState::Idle` on current active drone.
 4. Activate new: set `DroneState::ActivelyControlled`; update `ActiveDrone` resource.
 5. Camera will follow new drone next frame via `drone_pilot_input`.
@@ -322,7 +322,7 @@ pub struct DroneOf(pub Entity);
 #[relationship_target(relationship = DroneOf)]
 pub struct DroneFleet;
 
-/// Slot index for hotkey selection (0-based). Drones sorted by this for 1–9 keys.
+/// Slot index for `{kbd:drone_quick_switch_N}` selection (0-based). Drones sorted by this for the 1–9 quick-switch slots.
 #[derive(Component, Default)]
 pub struct DroneSlot(pub u8);
 ```
@@ -411,9 +411,9 @@ Update:
 
 Vertical Slice implements:
 - Single land drone, spawned at game start
-- F-key Local↔Remote toggle
-- WASD + mouse-look piloting
-- Left-click ore sample collection into `DroneInventory` (mining drill tool selected)
+- `{kbd:remote_mode}` Local↔Remote toggle
+- `{kbd:movement}` + `{kbd:look}` piloting (default `WASD` + mouse)
+- `{kbd:primary_action}` ore sample collection into `DroneInventory` (mining drill tool selected)
 - Proximity deposit discovery (`deposit_discovery_system`, already present)
 - Fog-of-war reveal (grid structure + `fog_reveal_system`)
 
@@ -436,6 +436,6 @@ Deferred to MVP:
 
 **Fog-of-war reveal while in Local mode.** Character fog reveal is a separate fixed-radius system and does not use `FogRevealRadius`. Drone fog reveal only runs in `DronePilot` mode — character reveal runs unconditionally in `Playing` state.
 
-**Scan during cooldown.** `drone_scan_system` silently ignores left-click (scanner) when `ScanCooldown > 0`. No event, no feedback (feedback is a UI concern). The scan system only writes `ScanCompletedEvent` on a successful scan.
+**Scan during cooldown.** `drone_scan_system` silently ignores `{kbd:primary_action}` (scanner) when `ScanCooldown > 0`. No event, no feedback (feedback is a UI concern). The scan system only writes `ScanCompletedEvent` on a successful scan.
 
 **`ActiveDrone` points to despawned entity.** On drone despawn (not in Vertical Slice), clear `ActiveDrone` and force transition to Local mode if currently in Remote. Guard all `ActiveDrone` lookups with `entities.contains(entity)`.

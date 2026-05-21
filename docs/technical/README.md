@@ -5,11 +5,11 @@ These should always be up to date or ahead of the code. When implementing new fe
 
 ## Designs
 
-### [`technical-design.md`](technical-design.md) — Technical Design Document
-Implementation architecture for all core systems. Covers: seed system, recipe graph, tech tree, world & chunk system, multiblock machine system, logistics network, power system, drone system, science & research system, world reactivity, codex & meta-progression. Includes data structures and invariants. **Read the relevant section before implementing a system. Update when architecture decisions are made.**
-
 ### [`networks.md`](networks.md) — Network System Design
 Generic cable network system and both concrete kinds (logistics and power). Covers ECS structure, topology systems (place/remove/split/merge), routing, and how power gating interacts with recipe start. **Read before touching `src/network/`, `src/logistics/`, or `src/power/`.**
+
+### [`power.md`](power.md) — Power System Design
+Generator kinds (Active fuel-fed, Passive env-fed, Burst event-driven), `GeneratorDef` asset schema, environmental ports + virtual items (`sunlight_tick`, `heat_tick`, `energy_pulse`), `LocalVirtualStock`, recipe-driven energy production (`RecipeOutput::Energy`), throttle modes (`OnBufferFull` default, `NeverThrottle` opt-in), batteries (`BatteryUnit` with charge/discharge rate caps), `EnvFactorRegistry` (Solar/Thermal/Lightning/Wind), weather + day/night hooks, lightning-rod burst targeting, run variance layers, 16 edge cases. Supersedes `networks.md §3` for the generator-fill model — that section's `generator_tick_system` constant-watts behavior is replaced by recipe-completion writes. **Read before touching `src/power/` for generator/battery logic, adding a generator def, or wiring an env source.**
 
 ### [`research.md`](research.md) — Science & Research System
 ECS components, system step-by-step logic, events/messages, and edge cases for research stations, research pool, knowledge visibility, and the player-initiated unlock flow. VS and MVP differences noted inline. **Read before touching `src/research/` or adding research station recipes.**
@@ -50,19 +50,47 @@ ECS components, node visual states (Shadow/Partial/Revealed/Unlockable/Locked-Ou
 ### [`planet-identity.md`](planet-identity.md) — Planet Identity & Seed System
 ECS components, archetype-based property generation algorithm (3 VS archetypes; 6 float axes + hazard type), property-to-gameplay effect bindings (solar/combustion/geothermal/wind/thermodynamic/pressure modifiers with exact formulas), property visibility model (Hidden → Qualitative → Revealed with reveal triggers), landing panel UI (`PlayMode::Landing`), in-run Terminal Planet page, and insight beat feedback system (`PropertyDecisionValidated`). Also requires adding `planet` domain to `DomainSeeds`. **Read before implementing planet property generation, the landing panel, or the VS §3.1/§3.2 insight beat.**
 
+### [`seed.md`](seed.md) — Seed System
+`RunSeed` (text → u64 via xxh64), `DomainSeeds` (keyed sub-seed derivation), per-site derivation pattern, chunk streaming determinism guarantee, random phrase generation for empty input, RNG algorithm choice (Pcg64 not SmallRng), tech tree validity concept (deferred), versioning policy (none pre-release). **Read before modifying `src/seed/mod.rs`, adding a generation domain, or writing code that draws RNG values from a seed.**
+
+### [`save.md`](save.md) — Save Architecture
+Run entity (`Run` marker, `RunSaveHeader`, lifetime), saveable entity inventory (`moonshine_save::Save`/`Unload` tagging), run save (local RON, one file per run, header-only reads, never deleted), meta save (codex, blueprints, milestone triggers), save/load/new-run flow, cloud saves placeholder (post-VS). **Read before implementing `src/save/`, tagging entities with `Save`/`Unload`, or adding run-scoped global state.**
+
+### [`recipe-graph.md`](recipe-graph.md) — Recipe Graph
+Definition and data model: materials (base vs. alien, form-group membership), form groups (ordered form sets), item kinds (Derived/Composite/Unique, exactly-one terminal), recipe templates and expansion, `ConcreteRecipe` fields (unified `outputs`, `RecipeInput` with `consumed` flag, independent `min_voltage_tier`), `RecipeGraph` resource and lookup indexes (`by_output`/`by_input`/`by_machine`), graph structure (tier products, cross-tier reuse, single critical path via tech-tree node selection), byproduct routing convention, 14 validity invariants, seed integration (VS curated, post-VS procedural). **Read before modifying `src/recipe_graph/`, adding a material/form-group/template/recipe asset, or touching `RecipeGraph` consumers.**
+
+### [`machines.md`](machines.md) — Machine System
+`MachineDef`/`MachineTierDef` asset schema (per-tier `item_id`, scene path, IO port offsets/labels/kinds, reserved `module_slots` field; port positions are dev placeholders, real models source from GLTF child entities), `MachineRegistry` with `tier_def_by_item` lookup, `Machine` ECS component (`item_id` + `orientation`), port entity spawn via `OnAdd<Machine>` observer, removal flow (in-flight input/catalyst/amp return, cable cleanup, type-specific observer hook), tier upgrade (recipe-graph model where tier N+1 consumes tier N machine; upgrade-kit path with nearest matching-kind port rebind; deconstruct-and-replace path with manual reconfig), IO port routing delegated to `machine-ui.md` + `networks.md`, orientation contract (4 rotations, no mirror in VS), save tagging (`#[require(Save)]`, mid-recipe state fully persisted), and deferred-modules stub. Generic placement/removal flow lives in [`building.md`](building.md). **Read before touching `src/machine/`, adding a machine asset, implementing tier upgrade, or modifying placement/removal flows.**
+
+### [`input.md`](input.md) — Input & Keybindings
+Canonical action token registry, default bindings, context stack (Local body / Drone / Modal / HUD / Global), and `bevy_enhanced_input` plugin design. Every input referenced in another technical doc resolves to a token defined here. **Read before adding a new input-driven system or referencing a keybind in prose.**
+
+### [`building.md`](building.md) — Building System
+`PlaceableDef` RON asset schema (`InteractionShape::{Single,TwoEndpoint,AreaRect}`, `SurfaceRule`, `SnapRule`, `OrientationSupport`, `GhostHint`), `PlaceableRegistry`, `PlaceableColliderCache` (scene-mesh AABB or `footprint_override`), single-point flow (machines, generator, storage_crate, decorations), two-endpoint flow (logistics_cable, power_cable — port-snap on both clicks), area-rect flow (platform — 2-corner with air projection), `BuildOrientation` resource (sticky across hotbar swap, `{kbd:rotate_cw}` / `{kbd:rotate_ccw}` cycles — see `input.md`), centralized validator with `PlacementReason` enum, resolved removal (raycast → Machine/Platform/cable/port→owner), extended `WorldObjectEvent` with `orientation` field, `PlacementRejected` event, `BuildingSet → MachineScanSet → NetworkSystems` same-frame chain. **Read before touching `src/world/interaction.rs` placement/ghost logic, adding a placeable item, or modifying the `WorldObjectEvent`/`CableConnectionEvent` contracts.**
+
 ---
 
 ## TODO
 These are systems/designs known to be needed **for the vertical slice** but without a doc yet. Write the spec before writing the code.
+DO NOT consider current implementation/code when making designs - do the best design in absolute.
+Ask questions if there is any ambiguity or decisions to be made in the design.
 
-### Save Architecture
+(empty — all VS designs complete)
 
-Two save scopes exist in every run:
+---
 
-**Run save** — one file per run. Contains world state, factory state, tech tree progress, research pools, drone positions, tunnel graph, run seed, and completion status. Runs are **never automatically deleted** — players can revisit completed runs. Each run save carries a header: seed string, difficulty tier, status (`InProgress` / `Completed` / `Abandoned`), start time, completion time, total run time.
+## Post-VS Designs
 
-**Meta save** — single file. Contains codex, unlocked content, blueprints, starting boons pool. Persists across all runs. Updated at run completion and on mid-run milestone triggers.
+Systems explicitly deferred from the vertical slice (`vertical_slice.md §8`). Write specs before implementing, but not before VS is complete.
 
-**Format and library:** Both scopes use **RON format** via `moonshine-save` (v0.6.1, Bevy 0.18 compatible). Saveable entities are tagged with `moonshine_save::Save`; rendering/aesthetic entities (particle effects, camera rigs, UI) are excluded via `moonshine_save::Unload`. `SQLite` is not used.
+### World Reactivity
 
-Support for cloud saves (eg, Steam)
+`world-reactivity.md` — per-region tracking (reactivity score 0–1, spread to adjacent regions, seeded rate multiplier per region), reactivity sources (machine pollution, extraction, experimentation, power output — all continuous or pulse), hybrid continuous+threshold effect model (efficiency degradation formula, 4 threshold events at 0.25/0.50/0.75/0.90, fire-once-per-region), recovery (faster than buildup, thresholds don't reverse), per-source breakdown (MVP: expose level only; post-MVP: full cause breakdown).
+
+### Codex & Meta-Progression
+
+`codex.md` — codex entry types (biome, node type, planet modifier, machine type, alien material), creation triggers (first-encounter via drone/presence), type-level vs. run-specific data distinction, accumulated observations across runs. Meta-progression: unlock triggers (run completion by difficulty tier, in-run milestones), grant types (biome, run modifier, narrative, blueprint slot, starting boon). Blueprints: layout-only templates (machines, tiers, positions, orientations, logistics connections), not recipe solutions, finite slots expandable via meta-progression. Note: save file format covered in Save Architecture above.
+
+### Recipe Graph Generation Algorithm
+
+Once curated seeds are replaced by procedural generation: backwards-from-terminal generation ordering, template expansion, parameter variance bounds (inputs 50–200%, yield 60–150%, time 50–300%, energy 50–250%), byproduct routing, validity invariants, and the standalone generator validator required before shipping procedural seeds (`vertical_slice.md §10.6`).

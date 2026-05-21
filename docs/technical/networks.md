@@ -173,6 +173,8 @@ Run after `NetworkSystems::of::<Logistics>()` and after `PowerSimSystems`:
 
 *Implementation: `src/power/mod.rs`*
 
+> **Scope:** this section owns the **cable-graph mechanics** for power — `GeneratorUnit` buffer pooling, `PowerNetworkMembers` surface (`has_energy`/`take_energy`/`give_energy`, `voltage_tier`, `amp_capacity`, `amps_in_use`), voltage/amp gating at recipe start, and non-destructive failure modes. The **production model** — how generators actually fill those buffers (recipe-driven, env ports, virtual items, batteries, weather, throttle, burst generators) — is in [`power.md`](power.md). The `generator_tick_system` constant-watts fill described below is **superseded** by the recipe-completion fill in `power.md §7`; the description here is retained for context but implementations follow `power.md`.
+
 ### Components
 
 | Component | Entity | Purpose |

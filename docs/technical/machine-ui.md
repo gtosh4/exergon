@@ -35,10 +35,10 @@ This document also defines the **revised `MachineJobPolicy`** structure that rep
 
 ### Interaction model
 
-Player presses interact (E) while aimed at a machine within reach → `MachineInteractInput { machine: Entity }`.
+Player triggers `{kbd:interact}` (default `E`; see `input.md §3.2`) while aimed at a machine within reach → `MachineInteractInput { machine: Entity }`.
 
 Closes when:
-- Player presses Escape or the close button
+- Player triggers `{kbd:cancel}` or clicks the close button
 - The focused machine entity is despawned
 - Player re-interacts with the same machine (toggle)
 
@@ -171,7 +171,7 @@ pub enum BlockReason {
 | Type name | `MachineDef.display_name` for `Machine.machine_type` |
 | Tier badge | `Machine.machine_tier` → "Tier N" label |
 | Machine name | `Name` component |
-| Rename | Double-click name field → inline text edit → `MachineRenamed { machine, name }` |
+| Rename | `{kbd:ui_rename}` on name field → inline text edit → `MachineRenamed { machine, name }` |
 
 ### 4.2 Progress section
 
@@ -227,6 +227,8 @@ One entry per module slot defined in `MachineDef.module_slots` for the current t
 Empty slots show a placeholder with the slot kind (speed / efficiency / parallel).
 
 ### 4.5 Port binding section
+
+`PortPolicy` component shape and runtime semantics are defined in `networks.md §2` (canonical source). This section covers the editing UI only.
 
 Lists all logistics ports from `MachineLogisticsPorts`. Energy ports shown separately as a read-only list.
 
@@ -295,7 +297,7 @@ Locked recipes (not in `TechTreeProgress.unlocked_recipes`): greyed row, lock ic
 
 **Override indicator:**
 
-C and P are two-state toggles (ON/OFF). When a recipe has an explicit per-recipe override (`RecipePolicy` field is `Some(...)`), the flag renders with a small indicator dot. No dot = value inherited from machine default. Right-clicking a flag with a dot shows a "Reset to default" action, which emits `SetRecipeCraftingMode { mode: None }` or `SetRecipePassive { passive: None }` to clear the override. Right-clicking an inherited flag has no action.
+C and P are two-state toggles (ON/OFF). When a recipe has an explicit per-recipe override (`RecipePolicy` field is `Some(...)`), the flag renders with a small indicator dot. No dot = value inherited from machine default. `{kbd:ui_context_menu}` on a flag with a dot shows a "Reset to default" action, which emits `SetRecipeCraftingMode { mode: None }` or `SetRecipePassive { passive: None }` to clear the override. `{kbd:ui_context_menu}` on an inherited flag has no action.
 
 **Priority field:**
 

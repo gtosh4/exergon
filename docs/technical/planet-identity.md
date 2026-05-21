@@ -1,6 +1,6 @@
 # Planet Identity & Seed System
 
-ECS components, generation algorithm, property-to-gameplay bindings, visibility model, landing panel UI, and insight beat feedback for planet properties. Read `gdd.md §5` for design intent. Seed derivation and RNG are documented in `technical-design.md §1` and not repeated here.
+ECS components, generation algorithm, property-to-gameplay bindings, visibility model, landing panel UI, and insight beat feedback for planet properties. Read `gdd.md §5` for design intent. Seed derivation and RNG will be documented in `seed.md` and not repeated here.
 
 **Requires:** add `planet: u64` to `DomainSeeds` in `src/seed/mod.rs` and add the corresponding `derive(master, "planet")` call in `DomainSeeds::from_master`.
 
@@ -44,6 +44,14 @@ Spawned at run start by `generate_planet_properties`. Fixed for the entire run.
 Planet entity
 ├── PlanetProperties          ← physical properties; save-game state
 └── PlanetPropertyVisibility  ← per-property reveal state; save-game state
+```
+
+`Planet` is a marker component that uses `#[require(Save)]` per `moonshine-save`'s pattern for grouping save-game entities — any entity carrying `Planet` is automatically tagged for serialization. See [`save.md §3`](save.md#3-ecs-save-tags) for the full list of marker components that follow this convention. Data components (`PlanetProperties`, `PlanetPropertyVisibility`) do not need the require.
+
+```rust
+#[derive(Component, Reflect)]
+#[require(Save)]
+pub struct Planet;
 ```
 
 ### `PlanetProperties` component

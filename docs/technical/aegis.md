@@ -64,7 +64,7 @@ OutpostBeacon entity
 Player body entity
 ├── PlayerBody                ← marker
 ├── PrimaryBody               ← marker; only on the starting body; its aegis emitter never fails
-├── BodySlot(u8)              ← optional; binds body to an Alt+N quick-switch slot (1–9, 0)
+├── BodySlot(u8)              ← optional; binds body to a {kbd:body_quick_switch_N} quick-switch slot (1–9, 0; default Alt+digit per input.md §3.4)
 ├── InAegis                 ← marker; present iff body is inside ≥1 active aegis field
 ├── AtmosphericExposure       ← only present when NOT InAegis; see §5
 └── Transform                 ← world position
@@ -227,7 +227,7 @@ The camera and input system bind to `ActiveBody` — no additional wiring needed
 
 A panel (toggled by a dedicated key) lists all living `PlayerBody` entities and all active drones. Each can be bound to a slot numbered 1–9 and 0 (ten slots total).
 
-**Keybinding:** `Alt+N` — switches `ActiveBody` if the slot holds a body; activates drone focus if the slot holds a drone.
+**Input:** `{kbd:body_quick_switch_N}` (default `Alt+digit`; see `input.md §3.4`) — switches `ActiveBody` if the slot holds a body; activates drone focus if the slot holds a drone.
 
 Slot bindings persist for the run. Bodies and drones may be rebound freely. Unbound entities appear in the panel list but have no quick-switch key until assigned.
 
@@ -318,7 +318,7 @@ If the countdown expires without power restored: `power_failure_countdown_system
 | Body fabrication + activation | — | ✓ |
 | Body switching (marker-component based) | — | ✓ |
 | Power failure countdown + auto-switch to PrimaryBody | — | ✓ |
-| Body/Drone quick-switch panel (Alt+1-9,0) | — | ✓ |
+| Body/Drone quick-switch panel (`{kbd:body_quick_switch_N}`, slots 1–9, 0) | — | ✓ |
 
 For VS: one `AegisEmitter` spawned at run start with a fixed radius constant. No upgrades, no beacons, no body switching. `AtmosphericExposure` applies if the player body somehow ends up outside (debug/test only in normal play).
 
@@ -337,4 +337,4 @@ For VS: one `AegisEmitter` spawned at run start with a fixed radius constant. No
 | Two beacons in the same location | Both project independent aegis fields; `InAegis` is true if inside either — either losing power does not affect the other |
 | Body chassis item outside any aegis field when player selects Upload | Upload rejected — chassis must be accessible within the target beacon's aegis field (in logistics range or drone inventory within zone) |
 | `AegisExpanded` covers an active ore deposit | `AegisExpanded` is observed by the deposit system; deposit removed on same event; no deferred cleanup |
-| Player bound a body to Alt+N slot; body is destroyed | Slot becomes empty; panel shows "(destroyed)"; slot reusable for rebind |
+| Player bound a body to a `{kbd:body_quick_switch_N}` slot; body is destroyed | Slot becomes empty; panel shows "(destroyed)"; slot reusable for rebind |
