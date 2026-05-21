@@ -203,11 +203,11 @@ Do-not-stub: 3D topology must be legible.
 
 Design: [`planning-ui.md`](technical/planning-ui.md) §topology.
 
-- [ ] Network topology overlay (toggle key)
-- [ ] Per-network filter (logistics / power)
-- [ ] Cable highlighting per selected network
-- [ ] Machine-state color overlay (running / blocked / unpowered)
-- [ ] Bottleneck pulse indicator
+- [x] Network topology overlay (toggle key — `N`)
+- [x] Per-network filter (logistics / power)
+- [x] Cable highlighting per selected network
+- [x] Machine-state color overlay (running / brownout / idle) — BlockReason/PowerPaused states deferred to Phase 4
+- [x] Bottleneck pulse indicator (pulsing ring on brownout machines)
 
 ---
 
