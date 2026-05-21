@@ -8,28 +8,27 @@ use super::{
     PlanetPropertyViewed, PlanetPropertyVisibility, PropertyVisibility, ViewContext,
     qualitative_label,
 };
-use crate::PlayMode;
 use crate::ui::theme::{
     COLOR_DIM, COLOR_GOLD,
     font_size::{H_LG, H_SM, LABEL},
     palette, space,
 };
 use crate::world::Player;
+use crate::{GameState, PlayMode};
 
 pub struct LandingPanelPlugin;
 
 impl Plugin for LandingPanelPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnExit(PlayMode::Landing), despawn_landing_panel)
-            .add_systems(
-                Update,
-                (
-                    spawn_landing_panel,
-                    landing_panel_button,
-                    landing_panel_view_tracker,
-                )
-                    .run_if(in_state(PlayMode::Landing)),
-            );
+        app.add_systems(
+            Update,
+            (
+                spawn_landing_panel,
+                landing_panel_button,
+                landing_panel_view_tracker,
+            )
+                .run_if(in_state(PlayMode::Landing)),
+        );
     }
 }
 
@@ -73,6 +72,7 @@ fn spawn_landing_panel(
             BackgroundColor(palette::OVERLAY_SCRIM),
             GlobalZIndex(50),
             PlanetLandingPanel,
+            DespawnOnExit(GameState::Playing),
         ))
         .with_children(|outer| {
             outer
@@ -258,21 +258,20 @@ fn lerp_temp_color(t: f32) -> Color {
     Color::srgb(0.20 + 0.55 * t, 0.30 + 0.20 * (1.0 - t), 0.65 - 0.45 * t)
 }
 
-fn despawn_landing_panel(mut commands: Commands, panel_q: Query<Entity, With<PlanetLandingPanel>>) {
-    for e in &panel_q {
-        commands.entity(e).despawn();
-    }
-}
-
 fn landing_panel_button(
+    mut commands: Commands,
     mut interactions: Query<&Interaction, (Changed<Interaction>, With<BeginButton>)>,
     mut next_mode: ResMut<NextState<PlayMode>>,
     mut dismissed: MessageWriter<LandingPanelDismissed>,
+    panel_q: Query<Entity, With<PlanetLandingPanel>>,
 ) {
     for interaction in &mut interactions {
         if *interaction == Interaction::Pressed {
             next_mode.set(PlayMode::Exploring);
             dismissed.write(LandingPanelDismissed);
+            for e in &panel_q {
+                commands.entity(e).despawn();
+            }
         }
     }
 }
