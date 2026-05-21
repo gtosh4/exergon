@@ -4,11 +4,21 @@ use bevy::{
     prelude::*,
 };
 
+pub mod button;
+pub mod primitives;
+
+pub use button::{ButtonVariant, UiButton, button_label};
+pub use primitives::{
+    H, PanelStyle, SlotState, TagTextColor, TagVariant, bar_fill, bar_track, caption, divider,
+    fullscreen_center, heading, hstack, label, panel, panel_styled, scrim, slot, tag, tag_text,
+    vstack,
+};
+
 pub struct WidgetsPlugin;
 
 impl Plugin for WidgetsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, forward_scroll_events)
+        app.add_systems(Update, (forward_scroll_events, button::paint_buttons))
             .add_observer(on_scroll);
     }
 }
