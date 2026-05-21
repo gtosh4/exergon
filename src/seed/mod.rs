@@ -1,4 +1,6 @@
 use bevy::prelude::*;
+use rand::SeedableRng;
+use rand_pcg::Pcg64;
 
 pub struct SeedPlugin;
 
@@ -24,6 +26,7 @@ pub struct RunSeed {
 #[reflect(Component)]
 pub struct DomainSeeds {
     pub world: u64,
+    pub planet: u64,
     pub tech_tree: u64,
     pub recipes: u64,
     pub power: u64,
@@ -35,12 +38,19 @@ impl DomainSeeds {
     pub fn from_master(master: u64) -> Self {
         Self {
             world: derive(master, "world"),
+            planet: derive(master, "planet"),
             tech_tree: derive(master, "tech_tree"),
             recipes: derive(master, "recipes"),
             power: derive(master, "power"),
             reactivity: derive(master, "reactivity"),
             biomes: derive(master, "biomes"),
         }
+    }
+
+    /// Pcg64 RNG seeded from the planet domain. Use for multi-draw planet
+    /// generation (archetype axis values, hazard parameters).
+    pub fn planet_rng(&self) -> Pcg64 {
+        Pcg64::seed_from_u64(self.planet)
     }
 }
 
@@ -84,6 +94,7 @@ mod tests {
         let s = DomainSeeds::from_master(12345);
         let vals: HashSet<u64> = [
             s.world,
+            s.planet,
             s.tech_tree,
             s.recipes,
             s.power,
@@ -92,7 +103,27 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        assert_eq!(vals.len(), 6);
+        assert_eq!(vals.len(), 7);
+    }
+
+    #[test]
+    fn planet_rng_is_deterministic_for_same_master() {
+        use rand::RngCore;
+        let a = DomainSeeds::from_master(7777).planet_rng();
+        let b = DomainSeeds::from_master(7777).planet_rng();
+        let mut a = a;
+        let mut b = b;
+        let a_stream: Vec<u64> = (0..8).map(|_| a.next_u64()).collect();
+        let b_stream: Vec<u64> = (0..8).map(|_| b.next_u64()).collect();
+        assert_eq!(a_stream, b_stream);
+    }
+
+    #[test]
+    fn planet_rng_differs_for_different_master() {
+        use rand::RngCore;
+        let mut a = DomainSeeds::from_master(1).planet_rng();
+        let mut b = DomainSeeds::from_master(2).planet_rng();
+        assert_ne!(a.next_u64(), b.next_u64());
     }
 
     #[test]
