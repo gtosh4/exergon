@@ -4,7 +4,7 @@ use xxhash_rust::xxh64::xxh64;
 
 use crate::{
     GameState, content::VeinRegistry, logistics::LogisticsCableSegment, power::PowerCableSegment,
-    seed::DomainSeeds,
+    save::Run, seed::DomainSeeds,
 };
 
 const CHUNK_SIZE: f32 = 32.0;
@@ -149,8 +149,9 @@ fn draw_gizmos(
     overlay: Res<DebugOverlay>,
     camera_q: Query<&Transform, With<Camera3d>>,
     registry: Option<Res<VeinRegistry>>,
-    seeds: Option<Res<DomainSeeds>>,
+    run_q: Query<&DomainSeeds, With<Run>>,
 ) {
+    let seeds = run_q.single().ok();
     if *overlay == DebugOverlay::None {
         return;
     }
@@ -166,7 +167,7 @@ fn draw_gizmos(
             });
         }
         DebugOverlay::Veins => {
-            let world_seed = seeds.as_deref().map_or(0, |s| s.world);
+            let world_seed = seeds.map_or(0, |s| s.world);
             draw_grid(&mut gizmos, pos, CELL_XZ, CELL_Y, 3, |cx, cz| {
                 vein_cell_color(registry.as_deref(), world_seed, cx, cell_y, cz)
             });
@@ -268,9 +269,10 @@ fn update_debug_hud(
     overlay: Res<DebugOverlay>,
     camera_q: Query<&Transform, With<Camera3d>>,
     registry: Option<Res<VeinRegistry>>,
-    seeds: Option<Res<DomainSeeds>>,
+    run_q: Query<&DomainSeeds, With<Run>>,
     mut q: Query<(&mut Visibility, &mut Text), With<DebugHudText>>,
 ) {
+    let seeds = run_q.single().ok();
     let Ok((mut vis, mut text)) = q.single_mut() else {
         return;
     };
@@ -287,7 +289,7 @@ fn update_debug_hud(
 
     let detail = match *overlay {
         DebugOverlay::Veins => {
-            let world_seed = seeds.as_deref().map_or(0, |s| s.world);
+            let world_seed = seeds.map_or(0, |s| s.world);
             let cx = pos.x.div_euclid(CELL_XZ) as i32;
             let cz = pos.z.div_euclid(CELL_XZ) as i32;
             let label = registry

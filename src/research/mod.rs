@@ -15,12 +15,14 @@ pub struct Discovered;
 
 pub const RESEARCH_POINTS_ID: &str = "research_points";
 
-#[derive(Resource, Default, Debug)]
+#[derive(Resource, Default, Debug, Reflect)]
+#[reflect(Resource)]
 pub struct ResearchPool {
     pub points: f32,
 }
 
-#[derive(Resource, Default, Debug)]
+#[derive(Resource, Default, Debug, Reflect)]
+#[reflect(Resource)]
 pub struct TechTreeProgress {
     pub unlocked_nodes: HashSet<NodeId>,
     pub unlocked_recipes: HashSet<String>,
@@ -32,6 +34,8 @@ pub struct ResearchPlugin;
 impl Plugin for ResearchPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<DiscoveryEvent>()
+            .register_type::<ResearchPool>()
+            .register_type::<TechTreeProgress>()
             .init_resource::<ResearchPool>()
             .init_resource::<TechTreeProgress>()
             .add_systems(

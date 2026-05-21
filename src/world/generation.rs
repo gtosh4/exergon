@@ -11,6 +11,7 @@ use xxhash_rust::xxh64::xxh64;
 use crate::GameState;
 use crate::content::{DepositRegistry, VeinRegistry};
 use crate::machine::MachineVisualAssets;
+use crate::save::Run;
 use crate::seed::DomainSeeds;
 
 use super::MainCamera;
@@ -281,10 +282,10 @@ pub(super) fn despawn_deposit_markers(
 
 pub(super) fn setup_world_config(
     mut world_config: ResMut<WorldConfig>,
-    domain_seeds: Option<Res<DomainSeeds>>,
+    run_q: Query<&DomainSeeds, With<Run>>,
     registry: Option<Res<VeinRegistry>>,
 ) {
-    if let Some(seeds) = domain_seeds {
+    if let Ok(seeds) = run_q.single() {
         world_config.world_seed = seeds.world;
     }
     if let Some(reg) = registry {

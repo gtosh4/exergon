@@ -3,6 +3,7 @@ use bevy::prelude::*;
 
 use crate::drone::Drone;
 use crate::research::{Discovered, DiscoveryEvent};
+use crate::save::Run;
 use crate::seed::{DomainSeeds, derive};
 use crate::world::generation::TerrainSampler;
 
@@ -15,8 +16,8 @@ pub struct GatewayRuins;
 #[derive(Resource)]
 pub struct GatewayRuinsPosition(pub Vec3);
 
-pub fn spawn_gateway_ruins_system(mut commands: Commands, domain_seeds: Option<Res<DomainSeeds>>) {
-    let world_seed = domain_seeds.map(|s| s.world).unwrap_or(0);
+pub fn spawn_gateway_ruins_system(mut commands: Commands, run_q: Query<&DomainSeeds, With<Run>>) {
+    let world_seed = run_q.single().map(|s| s.world).unwrap_or(0);
     // Deterministic XZ within [-100, 100) → max 141 units from origin, well within 200
     let x = (derive(world_seed, "ruins_x") % 200) as f32 - 100.0;
     let z = (derive(world_seed, "ruins_z") % 200) as f32 - 100.0;

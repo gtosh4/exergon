@@ -9,17 +9,19 @@ impl Plugin for SeedPlugin {
     }
 }
 
-/// The player-entered seed string for this run.
-#[derive(Resource, Reflect, Clone)]
-#[reflect(Resource)]
+/// The player-entered seed string for this run. Component on the Run entity
+/// (see `src/save/mod.rs`).
+#[derive(Component, Reflect, Clone, Default)]
+#[reflect(Component)]
 pub struct RunSeed {
     pub text: String,
     pub hash: u64,
 }
 
-/// Per-domain sub-seeds derived from the master seed.
-#[derive(Resource, Reflect, Clone)]
-#[reflect(Resource)]
+/// Per-domain sub-seeds derived from the master seed. Component on the Run
+/// entity.
+#[derive(Component, Reflect, Clone, Default)]
+#[reflect(Component)]
 pub struct DomainSeeds {
     pub world: u64,
     pub tech_tree: u64,

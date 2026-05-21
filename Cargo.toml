@@ -10,7 +10,11 @@ bevy-tnua = "0.31"
 bevy-tnua-avian3d = "0.11"
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 ron = "0.8"
+moonshine-save = "0.6.1"
+base58 = "0.2"
+blake3 = "1"
 rand = "0.8"
 rand_pcg = "0.3"
 noise = "0.9"

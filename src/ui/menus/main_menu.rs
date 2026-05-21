@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     GameState,
-    seed::{DomainSeeds, RunSeed, hash_text},
+    save::NewRunEvent,
     ui::{
         input::{FocusedInput, TextInput},
         theme::{COLOR_DIM, COLOR_GOLD, COLOR_OVERLAY_BG},
@@ -100,8 +100,7 @@ fn set_focus(seed_q: Query<Entity, With<SeedInput>>, mut focus: ResMut<FocusedIn
 fn handle_start(
     seed_q: Query<&TextInput, With<SeedInput>>,
     btn_q: Query<&Interaction, (Changed<Interaction>, With<StartButton>)>,
-    mut commands: Commands,
-    mut next_state: ResMut<NextState<GameState>>,
+    mut new_run: MessageWriter<NewRunEvent>,
     mut focus: ResMut<FocusedInput>,
 ) {
     let Ok(input) = seed_q.single() else { return };
@@ -109,13 +108,9 @@ fn handle_start(
     let start = input.submitted || btn_q.iter().any(|i| *i == Interaction::Pressed);
 
     if start {
-        let hash = hash_text(&input.value);
-        commands.insert_resource(RunSeed {
-            text: input.value.clone(),
-            hash,
+        new_run.write(NewRunEvent {
+            seed_text: input.value.clone(),
         });
-        commands.insert_resource(DomainSeeds::from_master(hash));
         focus.0 = None;
-        next_state.set(GameState::Loading);
     }
 }

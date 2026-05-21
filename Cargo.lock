@@ -448,6 +448,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "base58"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6107fe1be6682a68940da878d9e9f5e90ca5745b3dec9fd1bb393c8777d4f581"
+
+[[package]]
 name = "base64"
 version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2731,17 +2737,21 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "avian3d",
+ "base58",
  "bevy",
  "bevy-tnua",
  "bevy-tnua-avian3d",
+ "blake3",
  "chrono",
  "clap",
+ "moonshine-save",
  "noise",
  "rand 0.8.6",
  "rand_pcg",
  "ron 0.8.1",
  "rusqlite",
  "serde",
+ "serde_json",
  "thiserror 2.0.18",
  "tracing-subscriber",
  "xxhash-rust",
@@ -3783,6 +3793,39 @@ checksum = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
 dependencies = [
  "adler2",
  "simd-adler32",
+]
+
+[[package]]
+name = "moonshine-save"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90b460c1065d660fc40aa86921aa75dfb1b14693ec0b5d9fd1a8e7d892e101b0"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_log",
+ "bevy_platform",
+ "bevy_reflect",
+ "bevy_scene",
+ "bevy_utils",
+ "moonshine-util",
+ "ron 0.12.1",
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "moonshine-util"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9057c9b2627df7dfe9478bd2519ed06aa8a801dba1e39d768d731ade428fad3"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_log",
+ "bevy_platform",
+ "bevy_reflect",
+ "disqualified",
 ]
 
 [[package]]

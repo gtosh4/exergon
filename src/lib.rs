@@ -13,6 +13,7 @@ pub mod power;
 pub mod reactivity;
 pub mod recipe_graph;
 pub mod research;
+pub mod save;
 pub mod seed;
 pub mod tech_tree;
 pub mod ui;

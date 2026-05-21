@@ -76,6 +76,7 @@ fn main() {
     )
     .add_plugins((
         exergon::seed::SeedPlugin,
+        exergon::save::SavePlugin,
         exergon::content::ContentPlugin,
         exergon::inventory::InventoryPlugin,
         exergon::world::WorldPlugin,
@@ -88,9 +89,8 @@ fn main() {
         exergon::drone::DronePlugin,
         exergon::research::ResearchPlugin,
         exergon::reactivity::ReactivityPlugin,
-        exergon::meta::MetaPlugin,
-        exergon::ui::UiPlugin,
-    ));
+    ))
+    .add_plugins((exergon::meta::MetaPlugin, exergon::ui::UiPlugin));
 
     #[cfg(debug_assertions)]
     if cli.test {
