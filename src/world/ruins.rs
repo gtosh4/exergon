@@ -14,6 +14,11 @@ const RUINS_DISCOVERY_RADIUS: f32 = 8.0;
 #[derive(Component)]
 pub struct GatewayRuins;
 
+#[derive(Component)]
+pub struct ScoutSite {
+    pub site_id: String,
+}
+
 /// World position of the gateway ruins — populated on `OnEnter(Playing)`.
 #[derive(Resource)]
 pub struct GatewayRuinsPosition(pub Vec3);
@@ -47,6 +52,50 @@ pub fn spawn_gateway_ruins_system(mut commands: Commands, run_q: Query<&DomainSe
         Transform::from_translation(pos),
         EscapeObjective,
     ));
+}
+
+pub fn spawn_scout_sites(mut commands: Commands, run_q: Query<&DomainSeeds, With<Run>>) {
+    let world_seed = run_q.single().map(|s| s.world).unwrap_or(0);
+    let sampler = TerrainSampler::new(world_seed);
+
+    // Site 1: mineral-rich deposit (high value, low risk)
+    let x1 = (derive(world_seed, "site1_x") % 300) as f32 - 150.0;
+    let z1 = (derive(world_seed, "site1_z") % 300) as f32 - 150.0;
+    let y1 = sampler.height_at(x1 as f64, z1 as f64);
+    commands.spawn((
+        ScoutSite {
+            site_id: "mineral_deposit".to_string(),
+        },
+        Transform::from_xyz(x1, y1, z1),
+    ));
+
+    // Site 2: alien artifact (high value, high-risk flavor)
+    let x2 = (derive(world_seed, "site2_x") % 400) as f32 - 200.0;
+    let z2 = (derive(world_seed, "site2_z") % 400) as f32 - 200.0;
+    let y2 = sampler.height_at(x2 as f64, z2 as f64);
+    commands.spawn((
+        ScoutSite {
+            site_id: "alien_artifact".to_string(),
+        },
+        Transform::from_xyz(x2, y2, z2),
+    ));
+}
+
+pub fn scout_site_discovery_system(
+    mut commands: Commands,
+    drone_q: Query<&Transform, With<Drone>>,
+    sites_q: Query<(Entity, &Transform, &ScoutSite), Without<Discovered>>,
+    mut events: MessageWriter<DiscoveryEvent>,
+) {
+    let Ok(drone) = drone_q.single() else {
+        return;
+    };
+    for (entity, site_transform, site) in &sites_q {
+        if drone.translation.distance(site_transform.translation) <= RUINS_DISCOVERY_RADIUS {
+            events.write(DiscoveryEvent(site.site_id.clone()));
+            commands.entity(entity).insert(Discovered);
+        }
+    }
 }
 
 pub fn ruins_discovery_system(

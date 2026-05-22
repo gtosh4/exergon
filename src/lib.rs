@@ -1,6 +1,7 @@
 // #![deny(clippy::pedantic)]
 #![allow(clippy::type_complexity, clippy::too_many_arguments)]
 
+pub mod aegis;
 pub mod content;
 pub mod debug;
 pub mod drone;
@@ -51,4 +52,10 @@ pub enum GameSystems {
     Input,
     Simulation,
     Rendering,
+}
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FixedGameSystems {
+    PlayerInput,
+    Constraint,
 }

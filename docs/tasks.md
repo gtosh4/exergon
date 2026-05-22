@@ -177,23 +177,23 @@ Drone partial. Aegis absent.
 ### 6.1 Aegis — `src/aegis/`
 Design: [`aegis.md`](technical/aegis.md).
 
-- [ ] `AegisField` component (radius, source entity)
-- [ ] Boundary check system
-- [ ] Local-mode constraint enforcement (player limited to aegis radius)
-- [ ] Atmospheric exposure outside aegis (hazard placeholder OK)
-- [ ] Outpost beacon: power-gated aegis extender
+- [x] `AegisEmitter` + `AegisRadius` + `AegisActive` components (`src/aegis/mod.rs`)
+- [x] Boundary check system — `aegis_boundary_check_system`, `InAegis` marker on player
+- [x] Local-mode constraint enforcement — `aegis_movement_constraint_system` clamps velocity
+- [x] Atmospheric exposure outside aegis — `AtmosphericExposure` + timer + body destruction + `RunFailed`
+- [~] Outpost beacon: power-gated aegis extender — deferred to MVP per design doc §11
 
 ### 6.2 Drone improvements
 Design: [`drone.md`](technical/drone.md).
 
-- [ ] Fog-of-war map data (per-chunk reveal state)
-- [ ] Drone scan action: reveals fog in radius
-- [ ] Map markers for discovered sites
-- [ ] Drone cargo/sample HUD
-- [ ] Return-and-deposit prompt
-- [ ] Mode indicator widget: Local vs Remote
-- [ ] At least 2 scouted destinations in starter chunk with different value/risk
-- [ ] Drone damage/delay risk model (no permanent loss for VS)
+- [x] Fog-of-war map data (per-chunk reveal state) — `FogOfWar` resource, 4m cells, u16 bitmask per chunk
+- [x] Drone scan action: reveals fog in radius — `fog_reveal_system` + `character_fog_reveal_system`
+- [~] Map markers for discovered sites — discovery events fire; visual map overlay deferred to post-VS
+- [x] Drone cargo/sample HUD — inventory panel shown in DronePilot mode (`src/ui/hud/drone.rs`)
+- [x] Return-and-deposit prompt — "E — deposit samples" when drone near aegis emitter; `drone_deposit_system`
+- [x] Mode indicator widget: Local vs Remote — `◈ LOCAL` / `◈ REMOTE` HUD top-right
+- [x] At least 2 scouted destinations in starter chunk — `mineral_deposit` + `alien_artifact` scout sites
+- [x] Drone damage/delay risk model — `DroneHealth` stub; no hazard source in VS per design §11
 
 ---
 
@@ -238,9 +238,9 @@ Do-not-stub: delivery surface required, persona deferred.
 
 VS §5 + milestone gate.
 
-- [ ] Seed-template file (`assets/seeds/curated.ron`): 5 entries
-- [ ] Each varies: power viability, resource geography, discovery-site location, alien material chain, research pressure
-- [ ] Main menu: "Curated seed" picker alongside text input
+- [x] Seed-template file (`assets/seeds/curated.ron`): 5 entries
+- [x] Each varies: power viability, resource geography, discovery-site location, alien material chain, research pressure
+- [x] Main menu: "Curated seed" picker alongside text input
 - [ ] Validate each seed plays through Insight Run
 
 ---

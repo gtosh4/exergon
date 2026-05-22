@@ -32,7 +32,7 @@ pub struct CableConnectionEvent {
 
 use bevy::prelude::*;
 
-use crate::{GameState, PlayMode};
+use crate::{FixedGameSystems, GameState, PlayMode};
 
 pub struct WorldPlugin;
 
@@ -73,6 +73,7 @@ impl Plugin for WorldPlugin {
                     player::setup_world_once,
                     player::spawn_player,
                     ruins::spawn_gateway_ruins_system,
+                    ruins::spawn_scout_sites,
                 ),
             )
             .add_systems(
@@ -86,6 +87,7 @@ impl Plugin for WorldPlugin {
             .add_systems(
                 FixedUpdate,
                 player::player_velocity
+                    .in_set(FixedGameSystems::PlayerInput)
                     .run_if(not(player::any_ui_open))
                     .run_if(in_state(PlayMode::Exploring))
                     .run_if(in_state(GameState::Playing)),
@@ -112,6 +114,7 @@ impl Plugin for WorldPlugin {
                     interaction::update_ghost_preview.after(interaction::update_look_target),
                     interaction::update_removal_ghost.after(interaction::update_look_target),
                     ruins::ruins_discovery_system.run_if(in_state(PlayMode::DronePilot)),
+                    ruins::scout_site_discovery_system.run_if(in_state(PlayMode::DronePilot)),
                 )
                     .run_if(in_state(GameState::Playing))
                     .run_if(not(in_state(PlayMode::Paused))),

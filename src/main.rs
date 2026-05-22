@@ -10,7 +10,7 @@ use exergon::machine::{
     MachineBundle, MachineNetworkChanged, MachineRegistry, MachineVisualAssets,
 };
 use exergon::research::{ResearchPool, TechTreeProgress};
-use exergon::{GameState, GameSystems, PlayMode};
+use exergon::{FixedGameSystems, GameState, GameSystems, PlayMode};
 
 fn file_log_layer(_app: &mut App) -> Option<BoxedLayer> {
     let file = std::fs::File::create("game.log").ok()?;
@@ -62,6 +62,10 @@ fn main() {
             GameSystems::Rendering.after(GameSystems::Simulation),
         ),
     )
+    .configure_sets(
+        FixedUpdate,
+        FixedGameSystems::Constraint.after(FixedGameSystems::PlayerInput),
+    )
     .add_plugins((
         exergon::seed::SeedPlugin,
         exergon::save::SavePlugin,
@@ -73,6 +77,7 @@ fn main() {
         exergon::tech_tree::TechTreePlugin,
     ))
     .add_plugins((
+        exergon::aegis::AegisPlugin,
         exergon::machine::MachinePlugin,
         exergon::logistics::LogisticsPlugin,
         exergon::power::PowerPlugin,

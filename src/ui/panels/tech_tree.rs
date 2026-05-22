@@ -1,10 +1,11 @@
+use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 
 use crate::{
     GameState,
     recipe_graph::RecipeGraph,
-    research::{ResearchPool, TechTreeProgress},
-    tech_tree::{NodeEffect, TechTree, UnlockVector},
+    research::{ResearchPool, TechTreeProgress, UnlockNodeRequest},
+    tech_tree::{NodeCategory, NodeDef, NodeEffect, TechTree, UnlockVector},
     ui::{
         TechTreePanelOpen,
         theme::{COLOR_DIM, COLOR_GOLD, COLOR_GREEN, COLOR_OVERLAY_BG, font_size, palette},
@@ -14,6 +15,10 @@ use crate::{
 
 #[derive(Resource, Default)]
 struct TechCurrentTier(u8);
+
+/// Pending exclusive-group unlock: node_id awaiting player confirmation.
+#[derive(Resource, Default)]
+struct PendingExclusiveUnlock(Option<String>);
 
 #[derive(Component)]
 struct TechTreePanelRoot;
@@ -42,8 +47,32 @@ struct TechDetailContent;
 #[derive(Component)]
 struct TechCloseButton;
 
+/// UNLOCK button in detail panel — node_id to request.
+#[derive(Component)]
+struct TechUnlockButton(String);
+
+/// CONFIRM button in exclusive-group modal.
+#[derive(Component)]
+struct TechConfirmUnlockButton(String);
+
+/// CANCEL button in exclusive-group modal.
+#[derive(Component)]
+struct TechCancelUnlockButton;
+
+fn category_label(cat: &NodeCategory) -> &'static str {
+    match cat {
+        NodeCategory::Power => "POWER",
+        NodeCategory::Processing => "PROCESSING",
+        NodeCategory::Logistics => "LOGISTICS",
+        NodeCategory::Science => "SCIENCE",
+        NodeCategory::Exploration => "EXPLORATION",
+        NodeCategory::Escape => "ESCAPE",
+    }
+}
+
 pub fn plugin(app: &mut App) {
     app.init_resource::<TechCurrentTier>()
+        .init_resource::<PendingExclusiveUnlock>()
         .add_systems(OnEnter(GameState::Playing), spawn)
         .add_systems(
             Update,
@@ -55,6 +84,9 @@ pub fn plugin(app: &mut App) {
                 handle_tier_tab,
                 handle_node_click,
                 handle_close,
+                handle_unlock_button,
+                handle_confirm_unlock,
+                handle_cancel_unlock,
             )
                 .run_if(in_state(GameState::Playing)),
         );
@@ -163,7 +195,6 @@ fn spawn(mut commands: Commands) {
                             ..default()
                         })
                         .with_children(|body| {
-                            // Node canvas (scrollable flex-wrap)
                             body.spawn((
                                 Node {
                                     flex_grow: 1.0,
@@ -177,7 +208,6 @@ fn spawn(mut commands: Commands) {
                                 TechNodeCanvas,
                             ));
 
-                            // Detail panel (right side)
                             body.spawn((
                                 Node {
                                     width: Val::Px(220.0),
@@ -261,7 +291,7 @@ fn rebuild(
     let empty_prog = TechTreeProgress::default();
     let prog = progress.as_deref().unwrap_or(&empty_prog);
 
-    // Rebuild tier tabs
+    // Tier tabs
     commands.entity(tabs_entity).with_children(|tabs| {
         for t in 0..=max_tier {
             let active = t == current_tier;
@@ -291,8 +321,8 @@ fn rebuild(
         }
     });
 
-    // Rebuild node canvas for current tier
-    let tier_nodes: Vec<_> = tree
+    // Node canvas for current tier
+    let tier_nodes: Vec<&NodeDef> = tree
         .tier_order
         .iter()
         .filter_map(|id| tree.nodes.get(id))
@@ -314,42 +344,62 @@ fn rebuild(
     commands.entity(canvas_entity).with_children(|canvas| {
         for node in &tier_nodes {
             let unlocked = prog.unlocked_nodes.contains(&node.id);
+            let disabled = prog.disabled_nodes.contains(&node.id);
             let selected = panel.selected_node.as_deref() == Some(node.id.as_str());
             let prereqs_met = node
                 .prerequisites
                 .iter()
                 .all(|p| prog.unlocked_nodes.contains(p));
+            let pts = pool.as_ref().map(|p| p.points).unwrap_or(0.0);
+            let can_afford = prereqs_met
+                && matches!(&node.primary_unlock, UnlockVector::ResearchSpend(c) if pts >= *c as f32);
 
-            let border_col = if selected {
-                COLOR_GOLD
-            } else if unlocked {
-                COLOR_GREEN
+            // Visual state: Unlocked > Disabled > Selected > Unlockable > Revealed > Shadow
+            let (border_col, text_col, bg) = if unlocked {
+                (
+                    COLOR_GREEN,
+                    COLOR_GREEN,
+                    Color::srgb(0.071, 0.141, 0.031),
+                )
+            } else if disabled {
+                (
+                    palette::ERR,
+                    palette::ERR,
+                    Color::srgb(0.12, 0.04, 0.04),
+                )
+            } else if selected {
+                (
+                    COLOR_GOLD,
+                    Color::WHITE,
+                    Color::srgb(0.157, 0.204, 0.055),
+                )
+            } else if can_afford {
+                // Unlockable: bright white border
+                (Color::WHITE, Color::WHITE, COLOR_OVERLAY_BG)
             } else if prereqs_met {
-                COLOR_DIM
+                // Revealed: prereqs met, can't afford yet
+                (COLOR_DIM, Color::WHITE, COLOR_OVERLAY_BG)
             } else {
-                Color::srgb(0.172, 0.149, 0.071)
+                // Shadow: prereqs not met — name hidden
+                (
+                    Color::srgb(0.12, 0.10, 0.04),
+                    COLOR_DIM,
+                    COLOR_OVERLAY_BG,
+                )
             };
-            let text_col = if unlocked {
-                COLOR_GREEN
-            } else if prereqs_met {
-                Color::WHITE
-            } else {
-                COLOR_DIM
-            };
-            let bg = if selected {
-                Color::srgb(0.157, 0.204, 0.055)
-            } else if unlocked {
-                Color::srgb(0.071, 0.141, 0.031)
-            } else {
-                COLOR_OVERLAY_BG
-            };
+
+            let dep_count = tree
+                .dependents
+                .get(&node.id)
+                .map(|d| d.len())
+                .unwrap_or(0);
 
             canvas
                 .spawn((
                     Button,
                     Node {
                         width: Val::Px(140.0),
-                        height: Val::Px(44.0),
+                        height: Val::Px(52.0),
                         flex_direction: FlexDirection::Column,
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
@@ -362,14 +412,24 @@ fn rebuild(
                     TechNodeButton(node.id.clone()),
                 ))
                 .with_children(|btn| {
+                    // Name row: hide name in Shadow state
+                    let display_name = if !unlocked && !disabled && !prereqs_met {
+                        format!("?? {}", category_label(&node.category))
+                    } else if disabled {
+                        format!("✗ {}", node.name)
+                    } else {
+                        node.name.clone()
+                    };
                     btn.spawn((
-                        Text::new(&node.name),
+                        Text::new(display_name),
                         TextFont {
                             font_size: 11.0,
                             ..default()
                         },
                         TextColor(text_col),
                     ));
+
+                    // Status subtitle
                     if unlocked {
                         btn.spawn((
                             Text::new("✓"),
@@ -379,20 +439,36 @@ fn rebuild(
                             },
                             TextColor(COLOR_GREEN),
                         ));
-                    } else if let UnlockVector::ResearchSpend(cost) = &node.primary_unlock {
-                        let pts = pool.as_ref().map(|p| p.points).unwrap_or(0.0);
-                        let can_afford = prereqs_met && pts >= *cost as f32;
+                    } else if disabled {
                         btn.spawn((
-                            Text::new(format!("{cost} RP")),
+                            Text::new("locked out"),
                             TextFont {
-                                font_size: font_size::MONO_XS,
+                                font_size: 8.0,
                                 ..default()
                             },
-                            TextColor(if can_afford {
-                                palette::OK
-                            } else {
-                                palette::DIM
-                            }),
+                            TextColor(palette::ERR),
+                        ));
+                    } else if let UnlockVector::ResearchSpend(cost) = &node.primary_unlock
+                        && prereqs_met {
+                            btn.spawn((
+                                Text::new(format!("{cost} RP")),
+                                TextFont {
+                                    font_size: font_size::MONO_XS,
+                                    ..default()
+                                },
+                                TextColor(if can_afford { palette::OK } else { palette::DIM }),
+                            ));
+                        }
+
+                    // Cross-tier stub badge
+                    if dep_count > 0 && !disabled {
+                        btn.spawn((
+                            Text::new(format!("→ {dep_count}")),
+                            TextFont {
+                                font_size: 8.0,
+                                ..default()
+                            },
+                            TextColor(COLOR_DIM),
                         ));
                     }
                 });
@@ -402,6 +478,7 @@ fn rebuild(
 
 fn rebuild_detail(
     panel: Res<TechTreePanelOpen>,
+    pending: Res<PendingExclusiveUnlock>,
     tech_tree: Option<Res<TechTree>>,
     progress: Option<Res<TechTreeProgress>>,
     pool: Option<Res<ResearchPool>>,
@@ -412,6 +489,7 @@ fn rebuild_detail(
     mut commands: Commands,
 ) {
     if !panel.is_changed()
+        && !pending.is_changed()
         && !tech_tree.as_ref().map(|r| r.is_changed()).unwrap_or(false)
         && !progress.as_ref().map(|r| r.is_changed()).unwrap_or(false)
         && !pool.as_ref().map(|r| r.is_changed()).unwrap_or(false)
@@ -447,10 +525,108 @@ fn rebuild_detail(
     let empty_prog = TechTreeProgress::default();
     let prog = progress.as_deref().unwrap_or(&empty_prog);
     let unlocked = prog.unlocked_nodes.contains(sel_id);
+    let disabled = prog.disabled_nodes.contains(sel_id);
+    let prereqs_met = node
+        .prerequisites
+        .iter()
+        .all(|p| prog.unlocked_nodes.contains(p));
+    let pts = pool.as_ref().map(|p| p.points).unwrap_or(0.0);
+
+    // Exclusive-group confirmation modal
+    if pending.0.as_deref() == Some(sel_id.as_str()) {
+        commands.entity(content_entity).with_children(|c| {
+            c.spawn((
+                Text::new(&node.name),
+                TextFont {
+                    font_size: 13.0,
+                    ..default()
+                },
+                TextColor(COLOR_GOLD),
+            ));
+            c.spawn(divider());
+            c.spawn((
+                Text::new("⚠ EXCLUSIVE CHOICE"),
+                TextFont {
+                    font_size: 10.0,
+                    ..default()
+                },
+                TextColor(palette::WARN),
+            ));
+            if let Some(group) = &node.exclusive_group {
+                let peers: Vec<&str> = tree
+                    .nodes
+                    .iter()
+                    .filter(|(id, n)| {
+                        *id != sel_id && n.exclusive_group.as_deref() == Some(group.as_str())
+                    })
+                    .map(|(_, n)| n.name.as_str())
+                    .collect();
+                for peer in &peers {
+                    c.spawn((
+                        Text::new(format!("✗ {peer} (locked out)")),
+                        TextFont {
+                            font_size: 10.0,
+                            ..default()
+                        },
+                        TextColor(palette::ERR),
+                    ));
+                }
+            }
+            c.spawn(divider());
+            c.spawn((
+                Button,
+                Node {
+                    padding: UiRect::axes(Val::Px(8.0), Val::Px(4.0)),
+                    margin: UiRect::bottom(Val::Px(4.0)),
+                    border: UiRect::all(Val::Px(1.0)),
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                },
+                BackgroundColor(Color::srgb(0.2, 0.05, 0.05)),
+                BorderColor::all(palette::ERR),
+                TechConfirmUnlockButton(sel_id.clone()),
+            ))
+            .with_child((
+                Text::new("CONFIRM UNLOCK"),
+                TextFont {
+                    font_size: 11.0,
+                    ..default()
+                },
+                TextColor(palette::ERR),
+            ));
+            c.spawn((
+                Button,
+                Node {
+                    padding: UiRect::axes(Val::Px(8.0), Val::Px(4.0)),
+                    border: UiRect::all(Val::Px(1.0)),
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                },
+                BackgroundColor(Color::NONE),
+                BorderColor::all(COLOR_DIM),
+                TechCancelUnlockButton,
+            ))
+            .with_child((
+                Text::new("CANCEL"),
+                TextFont {
+                    font_size: 11.0,
+                    ..default()
+                },
+                TextColor(COLOR_DIM),
+            ));
+        });
+        return;
+    }
 
     commands.entity(content_entity).with_children(|c| {
+        // Header
+        let display_name = if !unlocked && !disabled && !prereqs_met {
+            format!("?? {}", category_label(&node.category))
+        } else {
+            node.name.clone()
+        };
         c.spawn((
-            Text::new(&node.name),
+            Text::new(display_name),
             TextFont {
                 font_size: 14.0,
                 ..default()
@@ -458,24 +634,26 @@ fn rebuild_detail(
             TextColor(COLOR_GOLD),
         ));
         c.spawn((
-            Text::new(format!("Tier {}", node.tier)),
+            Text::new(format!("Tier {} · {:?}", node.tier, node.rarity)),
             TextFont {
                 font_size: 11.0,
                 ..default()
             },
             TextColor(COLOR_DIM),
         ));
-        c.spawn(Node {
-            height: Val::Px(1.0),
-            margin: UiRect::vertical(Val::Px(6.0)),
-            ..default()
-        })
-        .insert(BackgroundColor(COLOR_DIM));
+        c.spawn(divider());
 
+        // Status
         let (status_text, status_color) = if unlocked {
             ("✓ Unlocked", COLOR_GREEN)
+        } else if disabled {
+            ("✗ Locked Out", palette::ERR)
+        } else if can_afford_node(node, pts, prereqs_met) {
+            ("UNLOCKABLE", palette::OK)
+        } else if prereqs_met {
+            ("Revealed", Color::WHITE)
         } else {
-            ("Locked", COLOR_DIM)
+            ("Shadow", COLOR_DIM)
         };
         c.spawn((
             Text::new(status_text),
@@ -486,28 +664,34 @@ fn rebuild_detail(
             TextColor(status_color),
         ));
 
-        c.spawn(Node {
-            height: Val::Px(1.0),
-            margin: UiRect::vertical(Val::Px(6.0)),
-            ..default()
-        })
-        .insert(BackgroundColor(COLOR_DIM));
+        // Locked-out reason
+        if disabled {
+            if let Some(group) = &node.exclusive_group {
+                let chosen = tree.nodes.iter().find(|(id, n)| {
+                    *id != sel_id
+                        && n.exclusive_group.as_deref() == Some(group.as_str())
+                        && prog.unlocked_nodes.contains(*id)
+                });
+                if let Some((_, chosen_node)) = chosen {
+                    c.spawn((
+                        Text::new(format!("{} chosen instead", chosen_node.name)),
+                        TextFont {
+                            font_size: 10.0,
+                            ..default()
+                        },
+                        TextColor(COLOR_DIM),
+                    ));
+                }
+            }
+            return;
+        }
 
-        c.spawn((
-            Text::new("UNLOCK"),
-            TextFont {
-                font_size: 9.0,
-                ..default()
-            },
-            TextColor(COLOR_DIM),
-        ));
-        let prereqs_met = node
-            .prerequisites
-            .iter()
-            .all(|p| prog.unlocked_nodes.contains(p));
+        c.spawn(divider());
+
+        // Unlock section
+        c.spawn(caption("UNLOCK"));
         let unlock_text = match &node.primary_unlock {
             UnlockVector::ResearchSpend(cost) => {
-                let pts = pool.as_ref().map(|p| p.points).unwrap_or(0.0);
                 format!("{pts:.0} / {cost} RP")
             }
             UnlockVector::ExplorationDiscovery(loc) => format!("Discover: {loc}"),
@@ -517,17 +701,9 @@ fn rebuild_detail(
             }
             UnlockVector::Observation(loc) => format!("Observe: {loc}"),
         };
-        c.spawn((
-            Text::new(unlock_text),
-            TextFont {
-                font_size: 11.0,
-                ..default()
-            },
-            TextColor(Color::WHITE),
-        ));
+        c.spawn(label(&unlock_text));
 
         if !unlocked && let UnlockVector::ResearchSpend(cost) = &node.primary_unlock {
-            let pts = pool.as_ref().map(|p| p.points).unwrap_or(0.0);
             if !prereqs_met {
                 c.spawn((
                     Text::new("↑ Prereqs not met"),
@@ -547,25 +723,47 @@ fn rebuild_detail(
                     },
                     TextColor(palette::WARN),
                 ));
+            } else {
+                // Exclusive group warning
+                if node.exclusive_group.is_some() {
+                    c.spawn((
+                        Text::new("⚠ Exclusive choice — locks out peers"),
+                        TextFont {
+                            font_size: font_size::LABEL_SM,
+                            ..default()
+                        },
+                        TextColor(palette::WARN),
+                    ));
+                }
+                // UNLOCK button
+                c.spawn((
+                    Button,
+                    Node {
+                        padding: UiRect::axes(Val::Px(8.0), Val::Px(4.0)),
+                        margin: UiRect::top(Val::Px(4.0)),
+                        border: UiRect::all(Val::Px(1.0)),
+                        justify_content: JustifyContent::Center,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.06, 0.14, 0.04)),
+                    BorderColor::all(palette::OK),
+                    TechUnlockButton(sel_id.clone()),
+                ))
+                .with_child((
+                    Text::new("UNLOCK"),
+                    TextFont {
+                        font_size: 11.0,
+                        ..default()
+                    },
+                    TextColor(palette::OK),
+                ));
             }
         }
 
+        // Prerequisites
         if !node.prerequisites.is_empty() {
-            c.spawn(Node {
-                height: Val::Px(1.0),
-                margin: UiRect::vertical(Val::Px(6.0)),
-                ..default()
-            })
-            .insert(BackgroundColor(COLOR_DIM));
-
-            c.spawn((
-                Text::new("REQUIRES"),
-                TextFont {
-                    font_size: 9.0,
-                    ..default()
-                },
-                TextColor(COLOR_DIM),
-            ));
+            c.spawn(divider());
+            c.spawn(caption("REQUIRES"));
             for prereq_id in &node.prerequisites {
                 let done = prog.unlocked_nodes.contains(prereq_id);
                 let name = tree
@@ -583,50 +781,67 @@ fn rebuild_detail(
             }
         }
 
-        if !node.effects.is_empty() {
-            c.spawn(Node {
-                height: Val::Px(1.0),
-                margin: UiRect::vertical(Val::Px(6.0)),
-                ..default()
-            })
-            .insert(BackgroundColor(COLOR_DIM));
-
-            c.spawn((
-                Text::new("EFFECTS"),
-                TextFont {
-                    font_size: 9.0,
-                    ..default()
-                },
-                TextColor(COLOR_DIM),
-            ));
+        // Effects (only shown when prereqs met or unlocked)
+        if (prereqs_met || unlocked) && !node.effects.is_empty() {
+            c.spawn(divider());
+            c.spawn(caption("EFFECTS"));
             for effect in &node.effects {
                 match effect {
                     NodeEffect::UnlockRecipes(recipes) => {
                         for r in recipes {
-                            c.spawn((
-                                Text::new(format!("Recipe: {}", r.replace('_', " "))),
-                                TextFont {
-                                    font_size: 10.0,
-                                    ..default()
-                                },
-                                TextColor(Color::WHITE),
-                            ));
+                            c.spawn(label(&format!("Recipe: {}", r.replace('_', " "))));
                         }
                     }
                     NodeEffect::UnlockMachine(m) => {
-                        c.spawn((
-                            Text::new(format!("Machine: {}", m.replace('_', " "))),
-                            TextFont {
-                                font_size: 10.0,
-                                ..default()
-                            },
-                            TextColor(Color::WHITE),
-                        ));
+                        c.spawn(label(&format!("Machine: {}", m.replace('_', " "))));
                     }
                 }
             }
         }
 
+        // Cross-tier: nodes that depend on this one
+        let dependent_nodes: Vec<(&String, &NodeDef)> = tree
+            .dependents
+            .get(sel_id)
+            .map(|deps| {
+                deps.iter()
+                    .filter_map(|id| tree.nodes.get(id).map(|n| (id, n)))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        if !dependent_nodes.is_empty() {
+            c.spawn(divider());
+            c.spawn(caption("LEADS TO"));
+            for (dep_id, dep_node) in &dependent_nodes {
+                let dep_unlocked = prog.unlocked_nodes.contains(*dep_id);
+                let dep_disabled = prog.disabled_nodes.contains(*dep_id);
+                let prefix = if dep_unlocked {
+                    "✓"
+                } else if dep_disabled {
+                    "✗"
+                } else {
+                    "→"
+                };
+                let color = if dep_unlocked {
+                    COLOR_GREEN
+                } else if dep_disabled {
+                    palette::ERR
+                } else {
+                    COLOR_DIM
+                };
+                c.spawn((
+                    Text::new(format!("{prefix} {} (T{})", dep_node.name, dep_node.tier)),
+                    TextFont {
+                        font_size: 10.0,
+                        ..default()
+                    },
+                    TextColor(color),
+                ));
+            }
+        }
+
+        // Research source
         if let UnlockVector::ResearchSpend(_) = &node.primary_unlock
             && let Some(rg) = &recipe_graph
         {
@@ -654,6 +869,11 @@ fn rebuild_detail(
             }
         }
     });
+}
+
+fn can_afford_node(node: &NodeDef, pts: f32, prereqs_met: bool) -> bool {
+    prereqs_met
+        && matches!(&node.primary_unlock, UnlockVector::ResearchSpend(c) if pts >= *c as f32)
 }
 
 fn humanize_id(id: &str) -> String {
@@ -693,6 +913,7 @@ fn handle_tier_tab(
 fn handle_node_click(
     q: Query<(&Interaction, &TechNodeButton), Changed<Interaction>>,
     mut panel: ResMut<TechTreePanelOpen>,
+    mut pending: ResMut<PendingExclusiveUnlock>,
 ) {
     for (interaction, btn) in &q {
         if *interaction == Interaction::Pressed {
@@ -701,6 +922,7 @@ fn handle_node_click(
             } else {
                 panel.selected_node = Some(btn.0.clone());
             }
+            pending.0 = None;
         }
     }
 }
@@ -708,10 +930,72 @@ fn handle_node_click(
 fn handle_close(
     q: Query<&Interaction, (Changed<Interaction>, With<TechCloseButton>)>,
     mut panel: ResMut<TechTreePanelOpen>,
+    mut pending: ResMut<PendingExclusiveUnlock>,
 ) {
     for interaction in &q {
         if *interaction == Interaction::Pressed {
             panel.open = false;
+            pending.0 = None;
+        }
+    }
+}
+
+fn handle_unlock_button(
+    q: Query<(&Interaction, &TechUnlockButton), Changed<Interaction>>,
+    tech_tree: Option<Res<TechTree>>,
+    progress: Option<Res<TechTreeProgress>>,
+    mut pending: ResMut<PendingExclusiveUnlock>,
+    mut unlock_requests: MessageWriter<UnlockNodeRequest>,
+) {
+    for (interaction, btn) in &q {
+        if *interaction != Interaction::Pressed {
+            continue;
+        }
+        let node_id = &btn.0;
+        let Some(tree) = &tech_tree else { continue };
+        let Some(node) = tree.nodes.get(node_id) else {
+            continue;
+        };
+        if let Some(group) = &node.exclusive_group {
+            let has_unlockable_peers = tree.nodes.iter().any(|(id, n)| {
+                id != node_id
+                    && n.exclusive_group.as_deref() == Some(group.as_str())
+                    && !progress
+                        .as_ref()
+                        .is_some_and(|p| p.disabled_nodes.contains(id))
+                    && !progress
+                        .as_ref()
+                        .is_some_and(|p| p.unlocked_nodes.contains(id))
+            });
+            if has_unlockable_peers {
+                pending.0 = Some(node_id.clone());
+                return;
+            }
+        }
+        unlock_requests.write(UnlockNodeRequest(node_id.clone()));
+    }
+}
+
+fn handle_confirm_unlock(
+    q: Query<(&Interaction, &TechConfirmUnlockButton), Changed<Interaction>>,
+    mut pending: ResMut<PendingExclusiveUnlock>,
+    mut unlock_requests: MessageWriter<UnlockNodeRequest>,
+) {
+    for (interaction, btn) in &q {
+        if *interaction == Interaction::Pressed {
+            unlock_requests.write(UnlockNodeRequest(btn.0.clone()));
+            pending.0 = None;
+        }
+    }
+}
+
+fn handle_cancel_unlock(
+    q: Query<&Interaction, (Changed<Interaction>, With<TechCancelUnlockButton>)>,
+    mut pending: ResMut<PendingExclusiveUnlock>,
+) {
+    for interaction in &q {
+        if *interaction == Interaction::Pressed {
+            pending.0 = None;
         }
     }
 }
