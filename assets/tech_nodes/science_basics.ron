@@ -4,7 +4,7 @@
     category: Science,
     tier: 1,
     rarity: Uncommon,
-    prerequisites: ["basic_smelting"],
-    primary_unlock: ProductionMilestone(material: "iron_ingot", quantity: 10.0),
-    effects: [UnlockMachine("Analyzer")],
+    prerequisites: [],
+    primary_unlock: PrerequisiteChain,
+    effects: [UnlockMachine("analysis_station"), UnlockRecipes(["basic_analysis"])],
 )

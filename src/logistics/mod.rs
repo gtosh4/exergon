@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
+use moonshine_save::prelude::{MapEntities, ReflectMapEntities, Save};
 
 use crate::machine::{LogisticsPortOf, Machine};
 use crate::network::{
@@ -10,15 +11,18 @@ use crate::network::{
 use crate::power::PowerSimSystems;
 
 mod items;
+mod job_queue;
 mod miner;
 mod recipes;
 mod storage;
 mod visuals;
 
 pub use items::{give_items, has_items, take_items};
+pub use job_queue::{NetworkCraftQueue, QueuedJob};
+pub use recipes::ManualCraftTrigger;
 
-pub(super) const LOGISTICS_CABLE_ID: &str = "logistics_cable";
-pub(super) const STORAGE_CRATE_ID: &str = "storage_crate";
+pub const LOGISTICS_CABLE_ID: &str = "logistics_cable";
+pub const STORAGE_CRATE_ID: &str = "storage_crate";
 pub(super) const CABLE_RADIUS: f32 = 0.05;
 
 // -- Plugins -----------------------------------------------------------------
@@ -38,6 +42,7 @@ impl Plugin for LogisticsSimPlugin {
             .add_message::<crate::network::NetworkChanged<crate::network::Power>>()
             .add_message::<recipes::RecipeToStart>()
             .add_message::<recipes::RecipeCompleted>()
+            .add_message::<recipes::ManualCraftTrigger>()
             .add_systems(
                 Update,
                 (
@@ -61,6 +66,11 @@ pub struct LogisticsPlugin;
 
 impl Plugin for LogisticsPlugin {
     fn build(&self, app: &mut App) {
+        app.register_type::<StorageUnit>()
+            .register_type::<LogisticsCableSegment>()
+            .register_type::<LogisticsNetworkMember>()
+            .register_type::<LogisticsNetwork>()
+            .register_type::<Vec<IVec3>>();
         app.add_plugins(LogisticsSimPlugin);
         app.configure_sets(
             Update,
@@ -99,7 +109,9 @@ pub struct JobComplete {
 
 // -- Components --------------------------------------------------------------
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+#[require(Save)]
 pub struct LogisticsCableSegment {
     pub from: Vec3,
     pub to: Vec3,
@@ -112,7 +124,8 @@ impl HasEndpoints for LogisticsCableSegment {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect, MapEntities)]
+#[reflect(Component, MapEntities)]
 #[relationship(relationship_target = LogisticsNetworkMembers)]
 pub struct LogisticsNetworkMember(pub Entity);
 
@@ -135,7 +148,8 @@ impl NetworkMembersComponent for LogisticsNetworkMembers {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
+#[reflect(Component)]
 pub struct StorageUnit {
     pub items: HashMap<String, u32>,
 }
@@ -171,7 +185,9 @@ impl PortPolicy {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect, Default)]
+#[reflect(Component)]
+#[require(NetworkCraftQueue)]
 pub struct LogisticsNetwork;
 
 // -- NetworkKind impl --------------------------------------------------------
@@ -201,7 +217,7 @@ impl NetworkKind for Logistics {
     }
 
     fn spawn_network(commands: &mut Commands) -> Entity {
-        commands.spawn(LogisticsNetwork).id()
+        commands.spawn((LogisticsNetwork, Save)).id()
     }
 }
 
@@ -463,6 +479,7 @@ mod tests {
             .add_message::<NetworkStorageChanged>()
             .add_message::<RecipeToStart>()
             .add_message::<RecipeCompleted>()
+            .add_message::<ManualCraftTrigger>()
             .insert_resource(rg)
             .add_systems(
                 Update,
@@ -504,6 +521,7 @@ mod tests {
             processing_time: 1.0,
             energy_cost: 0.0,
             energy_output: 0.0,
+            template_id: None,
         }
     }
 
@@ -520,6 +538,7 @@ mod tests {
             terminal: String::new(),
             producers: HashMap::new(),
             consumers: HashMap::new(),
+            template_recipes: HashMap::new(),
         }
     }
 
@@ -544,6 +563,7 @@ mod tests {
             .add_message::<NetworkStorageChanged>()
             .add_message::<RecipeToStart>()
             .add_message::<RecipeCompleted>()
+            .add_message::<ManualCraftTrigger>()
             .insert_resource(rg)
             .add_systems(
                 Update,

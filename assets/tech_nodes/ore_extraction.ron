@@ -1,0 +1,10 @@
+(
+    id: "ore_extraction",
+    name: "Ore Extraction",
+    category: Exploration,
+    tier: 1,
+    rarity: Common,
+    prerequisites: [],
+    primary_unlock: ResearchSpend(30),
+    effects: [UnlockMachine("drill"), UnlockRecipes(["extract_iron_ore", "extract_copper_ore"])],
+)

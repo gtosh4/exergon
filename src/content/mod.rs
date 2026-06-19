@@ -372,7 +372,7 @@ fn load_content(mut commands: Commands) {
     commands.insert_resource(VeinRegistry::new(veins, layers, biomes));
 }
 
-pub(crate) fn load_ron_dir<T: for<'de> Deserialize<'de>>(dir: &str, label: &str) -> Vec<T> {
+pub fn load_ron_dir<T: for<'de> Deserialize<'de>>(dir: &str, label: &str) -> Vec<T> {
     let mut results = Vec::new();
     collect_ron_dir(dir, label, &mut results);
     results

@@ -1,9 +1,11 @@
-use avian3d::prelude::LinearVelocity;
+use avian3d::prelude::*;
 use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 
 use crate::world::Player;
-use crate::{FixedGameSystems, GameState, PlayMode};
+use crate::{GameState, PlayMode};
+
+const AEGIS_COLOR: Color = Color::srgb(0.2, 0.8, 1.0);
 
 pub const AEGIS_RADIUS: f32 = 60.0;
 const EXPOSURE_LETHAL_THRESHOLD_SECS: f32 = 30.0;
@@ -17,27 +19,15 @@ impl Plugin for AegisPlugin {
             .add_message::<BodyDestroyed>()
             .add_message::<RunFailed>()
             .add_systems(
-                OnTransition {
-                    exited: GameState::Loading,
-                    entered: GameState::Playing,
-                },
-                spawn_aegis_emitter,
-            )
-            .add_systems(
                 Update,
                 (
+                    aegis_position_constraint_system,
                     aegis_boundary_check_system,
                     atmospheric_exposure_system.after(aegis_boundary_check_system),
+                    aegis_boundary_gizmos,
                 )
                     .run_if(in_state(GameState::Playing))
                     .run_if(not(in_state(PlayMode::Paused))),
-            )
-            .add_systems(
-                FixedUpdate,
-                aegis_movement_constraint_system
-                    .in_set(FixedGameSystems::Constraint)
-                    .run_if(in_state(PlayMode::Exploring))
-                    .run_if(in_state(GameState::Playing)),
             );
     }
 }
@@ -87,13 +77,72 @@ pub struct BodyDestroyed {
 #[derive(bevy::ecs::message::Message, Debug, Clone)]
 pub struct RunFailed;
 
-fn spawn_aegis_emitter(mut commands: Commands) {
-    commands.spawn((
-        AegisEmitter,
-        AegisRadius(AEGIS_RADIUS),
-        AegisActive,
-        Transform::from_translation(Vec3::ZERO),
-    ));
+/// Inverted sphere trimesh: winding reversed so face normals point inward.
+/// When the player tries to exit, the inward normal pushes them back.
+/// The drone is in a different collision layer and passes through freely.
+pub(crate) fn aegis_sphere_collider(radius: f32) -> Collider {
+    const STACKS: u32 = 16;
+    const SLICES: u32 = 24;
+    let mut verts: Vec<Vec3> = Vec::new();
+    let mut tris: Vec<[u32; 3]> = Vec::new();
+    for i in 0..=STACKS {
+        let phi = std::f32::consts::PI * i as f32 / STACKS as f32;
+        let (sin_phi, cos_phi) = phi.sin_cos();
+        for j in 0..=SLICES {
+            let theta = std::f32::consts::TAU * j as f32 / SLICES as f32;
+            let (sin_theta, cos_theta) = theta.sin_cos();
+            verts.push(Vec3::new(
+                radius * sin_phi * cos_theta,
+                radius * cos_phi,
+                radius * sin_phi * sin_theta,
+            ));
+        }
+    }
+    for i in 0..STACKS {
+        for j in 0..SLICES {
+            let a = i * (SLICES + 1) + j;
+            let b = a + SLICES + 1;
+            // Reversed winding → normals face inward
+            tris.push([a, b, a + 1]);
+            tris.push([b, b + 1, a + 1]);
+        }
+    }
+    Collider::trimesh(verts, tris)
+}
+
+fn aegis_position_constraint_system(
+    mut player_q: Query<(&mut Position, &mut LinearVelocity), With<Player>>,
+    aegis_q: Query<(&Transform, &AegisRadius), With<AegisActive>>,
+) {
+    let Ok((mut player_pos, mut velocity)) = player_q.single_mut() else {
+        return;
+    };
+    let pos = player_pos.0;
+
+    let inside = aegis_q
+        .iter()
+        .any(|(t, AegisRadius(r))| pos.distance(t.translation) <= *r);
+    if inside {
+        return;
+    }
+
+    // Outside all active aegis fields — clamp to nearest boundary
+    if let Some((center, radius)) = aegis_q
+        .iter()
+        .map(|(t, AegisRadius(r))| (t.translation, *r))
+        .min_by(|(a, ra), (b, rb)| {
+            (pos.distance(*a) - ra)
+                .partial_cmp(&(pos.distance(*b) - rb))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+    {
+        let dir = (pos - center).normalize_or_zero();
+        player_pos.0 = center + dir * (radius * 0.99);
+        let radial = velocity.0.dot(dir);
+        if radial > 0.0 {
+            velocity.0 -= dir * radial;
+        }
+    }
 }
 
 fn aegis_boundary_check_system(
@@ -135,44 +184,6 @@ fn aegis_boundary_check_system(
     }
 }
 
-fn aegis_movement_constraint_system(
-    player_q: Query<(&Transform, Option<&InAegis>), With<Player>>,
-    aegis_q: Query<(&AegisRadius, &Transform), With<AegisActive>>,
-    mut vel_q: Query<&mut LinearVelocity, With<Player>>,
-    time: Res<Time>,
-) {
-    let Ok((player_transform, in_aegis)) = player_q.single() else {
-        return;
-    };
-    if in_aegis.is_none() {
-        return;
-    }
-    let Ok(mut vel) = vel_q.single_mut() else {
-        return;
-    };
-    let Some((radius, aegis_center)) = aegis_q
-        .iter()
-        .min_by(|(_, ta), (_, tb)| {
-            let da = player_transform.translation.distance(ta.translation);
-            let db = player_transform.translation.distance(tb.translation);
-            da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
-        })
-        .map(|(r, t)| (r.0, t.translation))
-    else {
-        return;
-    };
-
-    let dt = time.delta_secs();
-    let next_pos = player_transform.translation + vel.0 * dt;
-    if next_pos.distance(aegis_center) > radius {
-        let outward = (player_transform.translation - aegis_center).normalize_or_zero();
-        let outward_component = vel.0.dot(outward);
-        if outward_component > 0.0 {
-            vel.0 -= outward * outward_component;
-        }
-    }
-}
-
 fn atmospheric_exposure_system(
     mut commands: Commands,
     mut exposure_q: Query<(Entity, &mut AtmosphericExposure), With<Player>>,
@@ -190,6 +201,52 @@ fn atmospheric_exposure_system(
         destroyed.write(BodyDestroyed { body: entity });
         if all_players.iter().count() <= 1 {
             failed.write(RunFailed);
+        }
+    }
+}
+
+fn aegis_boundary_gizmos(
+    mut gizmos: Gizmos,
+    aegis_q: Query<(&Transform, &AegisRadius), With<AegisActive>>,
+    time: Res<Time>,
+) {
+    for (transform, AegisRadius(radius)) in &aegis_q {
+        let alpha = (time.elapsed_secs() * 1.5).sin() * 0.15 + 0.6;
+        let base_color = Color::srgba(0.2, 0.8, 1.0, alpha);
+        let dim_color = Color::srgba(0.2, 0.8, 1.0, alpha * 0.5);
+        let center = transform.translation;
+        let half_pi = std::f32::consts::FRAC_PI_2;
+
+        // Base circle at ground level
+        gizmos.circle(
+            Isometry3d::new(center, Quat::from_rotation_x(half_pi)),
+            *radius,
+            base_color,
+        );
+
+        // Latitude rings at 1/3 and 2/3 dome height
+        for &frac in &[0.35_f32, 0.70] {
+            let h = radius * frac;
+            let r_lat = (radius * radius - h * h).sqrt();
+            gizmos.circle(
+                Isometry3d::new(center + Vec3::Y * h, Quat::from_rotation_x(half_pi)),
+                r_lat,
+                dim_color,
+            );
+        }
+
+        // 4 meridian arcs from base to apex
+        for i in 0..4_u32 {
+            let azimuth = i as f32 * half_pi;
+            let (az_sin, az_cos) = azimuth.sin_cos();
+            let pts: Vec<Vec3> = (0..=16)
+                .map(|j| {
+                    let el = j as f32 * half_pi / 16.0;
+                    let (el_sin, el_cos) = el.sin_cos();
+                    center + Vec3::new(el_cos * az_cos, el_sin, el_cos * az_sin) * *radius
+                })
+                .collect();
+            gizmos.linestrip(pts, dim_color);
         }
     }
 }

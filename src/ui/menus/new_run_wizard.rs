@@ -9,7 +9,7 @@ use crate::{
         PropertyVisibility, generate_properties_from, qualitative_label,
     },
     save::NewRunEvent,
-    seed::{DomainSeeds, hash_text},
+    seed::{CuratedSeeds, DomainSeeds, hash_text},
     ui::{
         input::{FocusedInput, TextInput},
         theme::{font_size, palette, space},
@@ -46,6 +46,7 @@ enum WizardNav {
     Land,
     Roll,
     ToggleTestMode,
+    SelectCuratedSeed(String),
 }
 
 pub fn plugin(app: &mut App) {
@@ -71,6 +72,7 @@ fn rebuild_ui(
     mut commands: Commands,
     draft: Res<WizardDraft>,
     roots: Query<Entity, With<WizardRoot>>,
+    curated_seeds: Res<CuratedSeeds>,
 ) {
     if !draft.is_changed() {
         return;
@@ -112,7 +114,7 @@ fn rebuild_ui(
 
                 match draft.step {
                     WizardStep::Difficulty => spawn_difficulty(col),
-                    WizardStep::Modifiers => spawn_modifiers(col, &draft),
+                    WizardStep::Modifiers => spawn_modifiers(col, &draft, &curated_seeds),
                     WizardStep::Planet => spawn_planet(col, &draft),
                 }
 
@@ -270,7 +272,89 @@ fn spawn_diff_card(
         });
 }
 
-fn spawn_modifiers(col: &mut ChildSpawnerCommands<'_>, draft: &WizardDraft) {
+fn spawn_modifiers(
+    col: &mut ChildSpawnerCommands<'_>,
+    draft: &WizardDraft,
+    curated: &CuratedSeeds,
+) {
+    if !curated.entries.is_empty() {
+        col.spawn(Node {
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(space::SM),
+            ..default()
+        })
+        .with_children(|section| {
+            section.spawn(caption("CURATED SEEDS"));
+            for entry in &curated.entries {
+                let selected = draft.seed_text == entry.seed;
+                section
+                    .spawn((
+                        Button,
+                        Node {
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                            border: UiRect::all(Val::Px(1.0)),
+                            padding: UiRect::axes(Val::Px(space::LG), Val::Px(space::SM)),
+                            border_radius: BorderRadius::all(Val::Px(3.0)),
+                            width: Val::Percent(100.0),
+                            ..default()
+                        },
+                        BackgroundColor(if selected {
+                            Color::srgba(0.541, 0.447, 0.667, 0.10)
+                        } else {
+                            palette::P1
+                        }),
+                        BorderColor::all(if selected {
+                            palette::ACCENT
+                        } else {
+                            palette::BORDER
+                        }),
+                        WizardNav::SelectCuratedSeed(entry.seed.clone()),
+                    ))
+                    .with_children(|row| {
+                        row.spawn(Node {
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(2.0),
+                            ..default()
+                        })
+                        .with_children(|info| {
+                            info.spawn((
+                                Text::new(entry.name.clone()),
+                                TextFont {
+                                    font_size: font_size::H_SM,
+                                    ..default()
+                                },
+                                TextColor(if selected {
+                                    palette::ACCENT
+                                } else {
+                                    palette::TEXT
+                                }),
+                            ));
+                            info.spawn((
+                                Text::new(entry.description.clone()),
+                                TextFont {
+                                    font_size: font_size::LABEL,
+                                    ..default()
+                                },
+                                TextColor(palette::DIM),
+                            ));
+                        });
+                        if selected {
+                            row.spawn((
+                                Text::new("✓"),
+                                TextFont {
+                                    font_size: font_size::H_MD,
+                                    ..default()
+                                },
+                                TextColor(palette::ACCENT),
+                            ));
+                        }
+                    });
+            }
+        });
+    }
+
     // Seed strip
     col.spawn(Node {
         flex_direction: FlexDirection::Column,
@@ -601,6 +685,9 @@ fn handle_nav(
             }
             WizardNav::ToggleTestMode => {
                 draft.test_mode = !draft.test_mode;
+            }
+            WizardNav::SelectCuratedSeed(seed_text) => {
+                draft.seed_text = seed_text.clone();
             }
         }
     }

@@ -5,16 +5,23 @@ use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use crate::PlayMode;
+use crate::drone::DroneCargoOpen;
 use crate::inventory::InventoryOpen;
+use crate::ui::panels::craft_modal::CraftModal;
 use crate::ui::panels::planner::{PlannerOpen, RecipePickerState};
 use crate::ui::{MachineStatusPanel, StorageStatusPanel, TechTreePanelOpen};
+use crate::{GameLayer, PlayMode};
 
 #[derive(Component)]
 pub struct MainCamera;
 
 #[derive(Component)]
 pub struct Player;
+
+/// Built-in hand scanner on the player body — always present, not a tech unlock.
+/// Fires HandScanComplete events via the interaction system.
+#[derive(Component)]
+pub struct HandScanner;
 
 pub(super) fn spawn_camera(mut commands: Commands) {
     commands.spawn((
@@ -24,7 +31,13 @@ pub(super) fn spawn_camera(mut commands: Commands) {
     ));
 }
 
-pub(super) fn spawn_player(mut commands: Commands) {
+pub(super) fn spawn_player(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let mesh = meshes.add(Capsule3d::new(0.4, 0.8));
+    let material = materials.add(StandardMaterial::from_color(Color::srgb(0.2, 0.8, 1.0)));
     commands.spawn((
         Transform::from_xyz(0.0, 20.0, 0.0),
         RigidBody::Dynamic,
@@ -33,7 +46,21 @@ pub(super) fn spawn_player(mut commands: Commands) {
         LinearDamping(0.0),
         LockedAxes::ROTATION_LOCKED,
         Player,
+        HandScanner,
+        CollisionLayers::new(
+            GameLayer::Player,
+            [GameLayer::Default, GameLayer::AegisBoundary],
+        ),
+        Mesh3d(mesh),
+        MeshMaterial3d(material),
+        DespawnOnExit(crate::GameState::Playing),
     ));
+}
+
+pub(super) fn zero_player_velocity(mut velocity_q: Query<&mut LinearVelocity, With<Player>>) {
+    if let Ok(mut vel) = velocity_q.single_mut() {
+        vel.0 = Vec3::ZERO;
+    }
 }
 
 pub(super) fn setup_world_once(mut commands: Commands) {
@@ -44,6 +71,7 @@ pub(super) fn setup_world_once(mut commands: Commands) {
             ..default()
         },
         Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.8, 0.5, 0.0)),
+        DespawnOnExit(crate::GameState::Playing),
     ));
     commands.insert_resource(GlobalAmbientLight {
         color: Color::srgb(0.4, 0.45, 0.6),
@@ -70,6 +98,8 @@ pub(super) fn toggle_pause(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut next_mode: ResMut<NextState<PlayMode>>,
     mut inv_open: Option<ResMut<InventoryOpen>>,
+    mut drone_cargo_open: Option<ResMut<DroneCargoOpen>>,
+    mut craft_modal: Option<ResMut<CraftModal>>,
     mut machine: Option<ResMut<MachineStatusPanel>>,
     mut storage: Option<ResMut<StorageStatusPanel>>,
     mut tech: Option<ResMut<TechTreePanelOpen>>,
@@ -77,6 +107,18 @@ pub(super) fn toggle_pause(
     mut picker: Option<ResMut<RecipePickerState>>,
 ) {
     if !keyboard.just_pressed(KeyCode::Escape) {
+        return;
+    }
+    if craft_modal.as_ref().is_some_and(|m| m.0.is_some()) {
+        if let Some(ref mut m) = craft_modal {
+            m.0 = None;
+        }
+        return;
+    }
+    if drone_cargo_open.as_ref().is_some_and(|o| o.0) {
+        if let Some(ref mut o) = drone_cargo_open {
+            o.0 = false;
+        }
         return;
     }
     if inv_open.as_ref().is_some_and(|o| o.0) {
@@ -144,23 +186,35 @@ pub(super) fn resume_on_escape(
 
 pub(super) fn toggle_inventory(
     keyboard: Res<ButtonInput<KeyCode>>,
+    play_mode: Option<Res<State<PlayMode>>>,
     inv_open: Option<ResMut<InventoryOpen>>,
+    drone_cargo_open: Option<ResMut<DroneCargoOpen>>,
 ) {
-    let Some(mut open) = inv_open else { return };
-    let should_toggle = keyboard.just_pressed(KeyCode::Tab);
-    if should_toggle {
+    if !keyboard.just_pressed(KeyCode::Tab) {
+        return;
+    }
+    let in_drone_mode = play_mode.is_some_and(|m| *m.get() == PlayMode::DronePilot);
+    if in_drone_mode {
+        if let Some(mut open) = drone_cargo_open {
+            open.0 = !open.0;
+        }
+    } else if let Some(mut open) = inv_open {
         open.0 = !open.0;
     }
 }
 
 pub(super) fn any_ui_open(
     inv: Option<Res<InventoryOpen>>,
+    drone_cargo: Option<Res<DroneCargoOpen>>,
+    craft_modal: Option<Res<CraftModal>>,
     machine: Option<Res<MachineStatusPanel>>,
     storage: Option<Res<StorageStatusPanel>>,
     tech: Option<Res<TechTreePanelOpen>>,
     planner: Option<Res<PlannerOpen>>,
 ) -> bool {
     inv.is_some_and(|o| o.0)
+        || drone_cargo.is_some_and(|o| o.0)
+        || craft_modal.is_some_and(|m| m.0.is_some())
         || machine.is_some_and(|m| m.entity.is_some())
         || storage.is_some_and(|s| s.0.is_some())
         || tech.is_some_and(|t| t.open)

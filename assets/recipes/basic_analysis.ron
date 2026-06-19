@@ -6,5 +6,5 @@
     machine_type: "analysis_station",
     machine_tier: 1,
     processing_time: 8.0,
-    energy_cost: 15.0,
+    energy_cost: 0.0,
 )

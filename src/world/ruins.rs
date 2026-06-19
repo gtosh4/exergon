@@ -33,7 +33,11 @@ pub fn spawn_gateway_ruins_system(mut commands: Commands, run_q: Query<&DomainSe
     let pos = Vec3::new(x, y, z);
 
     commands.insert_resource(GatewayRuinsPosition(pos));
-    commands.spawn((GatewayRuins, Transform::from_translation(pos)));
+    commands.spawn((
+        GatewayRuins,
+        Transform::from_translation(pos),
+        DespawnOnExit(crate::GameState::Playing),
+    ));
 
     // Spawn gateway machine at ruins — players cable it into their network to activate escape.
     // Hardcode one logistics port (+X) and one energy port (-X) relative to machine center.
@@ -51,6 +55,7 @@ pub fn spawn_gateway_ruins_system(mut commands: Commands, run_q: Query<&DomainSe
         MachineState::Idle,
         Transform::from_translation(pos),
         EscapeObjective,
+        DespawnOnExit(crate::GameState::Playing),
     ));
 }
 
@@ -67,6 +72,7 @@ pub fn spawn_scout_sites(mut commands: Commands, run_q: Query<&DomainSeeds, With
             site_id: "mineral_deposit".to_string(),
         },
         Transform::from_xyz(x1, y1, z1),
+        DespawnOnExit(crate::GameState::Playing),
     ));
 
     // Site 2: alien artifact (high value, high-risk flavor)
@@ -78,6 +84,7 @@ pub fn spawn_scout_sites(mut commands: Commands, run_q: Query<&DomainSeeds, With
             site_id: "alien_artifact".to_string(),
         },
         Transform::from_xyz(x2, y2, z2),
+        DespawnOnExit(crate::GameState::Playing),
     ));
 }
 

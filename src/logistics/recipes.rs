@@ -1,9 +1,11 @@
 use std::collections::HashSet;
 
 use bevy::ecs::message::{MessageReader, MessageWriter, Messages};
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 
-use crate::machine::{EnergyPortOf, Machine};
+use crate::logistics::job_queue::NetworkCraftQueue;
+use crate::machine::{EnergyPortOf, Machine, ManualCraftOnly};
 use crate::machine::{MachineActivity, MachineEnergyPorts, MachineLogisticsPorts, MachineState};
 use crate::network::{NetworkChanged, Power};
 use crate::power::{GeneratorUnit, PowerNetworkMember, PowerNetworkMembers};
@@ -20,6 +22,11 @@ use super::{
 use crate::machine::LogisticsPortOf;
 
 // -- Intra-frame cascade messages --------------------------------------------
+
+/// Sent by explicit player action to allow ManualCraftOnly machines to run one cycle.
+/// Superseded by `CraftJobQueue` for multi-step crafting; kept as a direct override.
+#[derive(Clone, Message)]
+pub struct ManualCraftTrigger;
 
 #[derive(Clone, Message)]
 pub(super) struct RecipeToStart {
@@ -39,32 +46,37 @@ pub(super) struct RecipeCompleted {
 
 // -- Feasibility helpers (pure, no mutations) --------------------------------
 
-fn machine_has_power(
-    machine_e: Entity,
-    energy_per_tick: f32,
-    energy_ports_q: &Query<&MachineEnergyPorts>,
-    port_power_q: &Query<&PowerNetworkMember>,
-    power_members_q: &Query<&PowerNetworkMembers>,
-    gen_q: &Query<&GeneratorUnit>,
-    energy_port_of_q: &Query<&EnergyPortOf>,
-) -> bool {
-    energy_ports_q
+#[derive(SystemParam)]
+pub(crate) struct PowerChecker<'w, 's> {
+    energy_ports_q: Query<'w, 's, &'static MachineEnergyPorts>,
+    port_power_q: Query<'w, 's, &'static PowerNetworkMember>,
+    power_members_q: Query<'w, 's, &'static PowerNetworkMembers>,
+    energy_port_of_q: Query<'w, 's, &'static EnergyPortOf>,
+    gen_q: Query<'w, 's, &'static GeneratorUnit>,
+}
+
+fn machine_has_power(machine_e: Entity, energy_per_tick: f32, p: &PowerChecker) -> bool {
+    p.energy_ports_q
         .get(machine_e)
         .ok()
         .map(|energy_ports| {
             energy_ports.ports().iter().any(|&energy_port_e| {
-                port_power_q
+                p.port_power_q
                     .get(energy_port_e)
                     .ok()
-                    .and_then(|pm| power_members_q.get(pm.0).ok())
+                    .and_then(|pm| p.power_members_q.get(pm.0).ok())
                     .is_some_and(|members| {
-                        members.has_energy(gen_q, energy_port_of_q, energy_per_tick)
+                        members.has_energy(&p.gen_q, &p.energy_port_of_q, energy_per_tick)
                     })
             })
         })
         .unwrap_or(false)
 }
 
+/// Check whether `recipe`'s inputs are available in the network.
+/// `reserved` is added to the required quantity so that auto-craft machines cannot
+/// consume items earmarked for queued jobs. Pass an empty map for queued-job checks
+/// (those jobs are allowed to use reserved items — the items are reserved *for* them).
 fn recipe_inputs_available(
     recipe: &ConcreteRecipe,
     logistics_ports: &MachineLogisticsPorts,
@@ -73,8 +85,11 @@ fn recipe_inputs_available(
     storage_q: &Query<&StorageUnit>,
     port_of_q: &Query<&LogisticsPortOf>,
     policy_q: &Query<&PortPolicy>,
+    reserved: &std::collections::HashMap<String, u32>,
 ) -> bool {
     recipe.inputs.iter().all(|input| {
+        let extra = reserved.get(&input.item).copied().unwrap_or(0);
+        let needed = (input.quantity as u32).saturating_add(extra);
         let input_nets: Vec<Entity> = logistics_ports
             .ports()
             .iter()
@@ -91,13 +106,7 @@ fn recipe_inputs_available(
             .collect();
         input_nets.iter().any(|&net_e| {
             net_q.get(net_e).ok().is_some_and(|(_, net_members)| {
-                has_items(
-                    net_members,
-                    storage_q,
-                    port_of_q,
-                    &input.item,
-                    input.quantity as u32,
-                )
+                has_items(net_members, storage_q, port_of_q, &input.item, needed)
             })
         })
     })
@@ -134,34 +143,40 @@ pub(super) fn recipe_check_system(
     mut to_start: MessageWriter<RecipeToStart>,
     mut storage_changed: MessageReader<NetworkStorageChanged>,
     mut power_changed: MessageReader<NetworkChanged<Power>>,
+    mut manual_trigger: MessageReader<ManualCraftTrigger>,
+    mut queue_q: Query<&mut NetworkCraftQueue>,
     net_q: Query<(Entity, &LogisticsNetworkMembers)>,
     machine_q: Query<
-        (Entity, &Machine, &MachineState, &MachineLogisticsPorts),
+        (
+            Entity,
+            &Machine,
+            &MachineState,
+            &MachineLogisticsPorts,
+            Option<&crate::power::PodPowered>,
+            Option<&ManualCraftOnly>,
+        ),
         Without<MachineActivity>,
     >,
     port_net_q: Query<&LogisticsNetworkMember>,
-    energy_ports_q: Query<&MachineEnergyPorts>,
-    port_power_q: Query<&PowerNetworkMember>,
-    power_members_q: Query<&PowerNetworkMembers>,
-    energy_port_of_q: Query<&EnergyPortOf>,
-    gen_q: Query<&GeneratorUnit>,
+    power: PowerChecker,
     recipe_graph: Res<RecipeGraph>,
     progress: Option<Res<TechTreeProgress>>,
     storage_q: Query<&StorageUnit>,
     port_of_q: Query<&LogisticsPortOf>,
     policy_q: Query<&PortPolicy>,
 ) {
+    let manual = manual_trigger.read().next().is_some();
     let mut affected: HashSet<Entity> = storage_changed.read().map(|e| e.network).collect();
 
     for pnet_e in power_changed.read().map(|e| e.network) {
-        let Ok(members) = power_members_q.get(pnet_e) else {
+        let Ok(members) = power.power_members_q.get(pnet_e) else {
             continue;
         };
         for &port_e in members.members() {
-            let Ok(energy_port) = energy_port_of_q.get(port_e) else {
+            let Ok(energy_port) = power.energy_port_of_q.get(port_e) else {
                 continue;
             };
-            if let Ok((_, _, _, logistics_ports)) = machine_q.get(energy_port.0) {
+            if let Ok((_, _, _, logistics_ports, _, _)) = machine_q.get(energy_port.0) {
                 for &lport_e in logistics_ports.ports() {
                     if let Ok(member) = port_net_q.get(lport_e) {
                         affected.insert(member.0);
@@ -171,13 +186,10 @@ pub(super) fn recipe_check_system(
         }
     }
 
-    if affected.is_empty() {
+    let any_queue_nonempty = queue_q.iter().any(|q| !q.jobs.is_empty());
+    if affected.is_empty() && !manual && !any_queue_nonempty {
         return;
     }
-    debug!(
-        "recipe_check: NetworkStorageChanged for networks {:?}",
-        affected
-    );
 
     let machine_connected_nets = |logistics_ports: &MachineLogisticsPorts| -> Vec<Entity> {
         logistics_ports
@@ -187,23 +199,113 @@ pub(super) fn recipe_check_system(
             .collect()
     };
 
-    for (net_entity, _) in &net_q {
-        if !affected.contains(&net_entity) {
+    // Prevent double-dispatch when a machine spans multiple networks.
+    let mut dispatched: HashSet<Entity> = HashSet::new();
+
+    // Collect network entities first so we can get_mut queue_q inside the loop
+    // without conflicting borrows on net_q.
+    let net_entities: Vec<Entity> = net_q.iter().map(|(e, _)| e).collect();
+
+    for net_entity in net_entities {
+        let has_queued = queue_q
+            .get(net_entity)
+            .map(|q| !q.jobs.is_empty())
+            .unwrap_or(false);
+        if !manual && !has_queued && !affected.contains(&net_entity) {
             continue;
         }
         debug!("recipe_check: checking network {:?}", net_entity);
-        for (machine_e, machine, state, logistics_ports) in &machine_q {
+
+        for (machine_e, machine, state, logistics_ports, pod_powered, manual_only) in &machine_q {
+            if dispatched.contains(&machine_e) {
+                continue;
+            }
             let connected_nets = machine_connected_nets(logistics_ports);
             if !connected_nets.contains(&net_entity) {
                 continue;
             }
             if *state != MachineState::Idle {
-                debug!(
-                    "recipe_check: machine {:?} ({}) skipped — state={:?}",
-                    machine_e, machine.machine_type, state
-                );
                 continue;
             }
+
+            // --- queue-driven dispatch -------------------------------------------
+            // Queued jobs can use the full storage (reserved items are FOR them).
+            let empty_reserved: std::collections::HashMap<String, u32> = Default::default();
+            let mut queue_pick: Option<(usize, String)> = None;
+            if let Ok(net_queue) = queue_q.get(net_entity) {
+                for (i, job) in net_queue.jobs.iter().enumerate() {
+                    let Some(recipe) = recipe_graph.recipes.get(&job.recipe_id) else {
+                        continue;
+                    };
+                    if recipe.machine_type != machine.machine_type
+                        || recipe.machine_tier > machine.tier
+                    {
+                        continue;
+                    }
+                    if let Some(ref prog) = progress
+                        && !prog.unlocked_recipes.contains(&recipe.id)
+                    {
+                        continue;
+                    }
+                    if recipe.energy_cost > 0.0 && pod_powered.is_none() {
+                        let energy_per_tick = recipe.energy_cost / recipe.processing_time * 0.016;
+                        if !machine_has_power(machine_e, energy_per_tick, &power) {
+                            continue;
+                        }
+                    }
+                    if !recipe_inputs_available(
+                        recipe,
+                        logistics_ports,
+                        &net_q,
+                        &port_net_q,
+                        &storage_q,
+                        &port_of_q,
+                        &policy_q,
+                        &empty_reserved,
+                    ) {
+                        continue;
+                    }
+                    if !recipe_outputs_routable(recipe, logistics_ports, &port_net_q, &policy_q) {
+                        continue;
+                    }
+                    queue_pick = Some((i, job.recipe_id.clone()));
+                    break;
+                }
+            }
+
+            if let Some((idx, recipe_id)) = queue_pick {
+                if let Ok(mut net_queue) = queue_q.get_mut(net_entity) {
+                    net_queue.jobs.remove(idx);
+                    // Release the reservation for this job's inputs — they are about
+                    // to be consumed by recipe_execute_system.
+                    if let Some(recipe) = recipe_graph.recipes.get(&recipe_id) {
+                        for input in &recipe.inputs {
+                            let r = net_queue.reserved.entry(input.item.clone()).or_insert(0);
+                            *r = r.saturating_sub(input.quantity as u32);
+                        }
+                    }
+                }
+                to_start.write(RecipeToStart {
+                    machine: machine_e,
+                    recipe_id,
+                    net: net_entity,
+                });
+                dispatched.insert(machine_e);
+                continue;
+            }
+
+            // ManualCraftOnly machines only run from the queue (or direct manual trigger).
+            if manual_only.is_some() && !manual {
+                continue;
+            }
+
+            // --- auto-craft fallback (non-ManualCraftOnly) -----------------------
+            // Auto-craft must not consume items reserved for queued jobs.
+            let auto_reserved: std::collections::HashMap<String, u32> = queue_q
+                .get(net_entity)
+                .map(|q| q.reserved.clone())
+                .unwrap_or_default();
+
             let matching_recipes: Vec<_> = recipe_graph
                 .recipes
                 .values()
@@ -211,39 +313,16 @@ pub(super) fn recipe_check_system(
                     r.machine_type == machine.machine_type && r.machine_tier <= machine.tier
                 })
                 .collect();
-            if matching_recipes.is_empty() {
-                debug!(
-                    "recipe_check: machine {:?} ({}) — no recipes for this machine type",
-                    machine_e, machine.machine_type
-                );
-                continue;
-            }
-            let mut started = false;
+
             for recipe in &matching_recipes {
                 if let Some(ref prog) = progress
                     && !prog.unlocked_recipes.contains(&recipe.id)
                 {
-                    debug!(
-                        "recipe_check: machine {:?} recipe {} locked",
-                        machine_e, recipe.id
-                    );
                     continue;
                 }
-                if recipe.energy_cost > 0.0 {
+                if recipe.energy_cost > 0.0 && pod_powered.is_none() {
                     let energy_per_tick = recipe.energy_cost / recipe.processing_time * 0.016;
-                    if !machine_has_power(
-                        machine_e,
-                        energy_per_tick,
-                        &energy_ports_q,
-                        &port_power_q,
-                        &power_members_q,
-                        &gen_q,
-                        &energy_port_of_q,
-                    ) {
-                        debug!(
-                            "recipe_check: machine {:?} recipe {} requires power but none available",
-                            machine_e, recipe.id
-                        );
+                    if !machine_has_power(machine_e, energy_per_tick, &power) {
                         continue;
                     }
                 }
@@ -255,18 +334,11 @@ pub(super) fn recipe_check_system(
                     &storage_q,
                     &port_of_q,
                     &policy_q,
+                    &auto_reserved,
                 ) {
-                    debug!(
-                        "recipe_check: machine {:?} recipe {} missing inputs",
-                        machine_e, recipe.id
-                    );
                     continue;
                 }
                 if !recipe_outputs_routable(recipe, logistics_ports, &port_net_q, &policy_q) {
-                    debug!(
-                        "recipe_check: machine {:?} recipe {} output has no destination",
-                        machine_e, recipe.id
-                    );
                     continue;
                 }
                 to_start.write(RecipeToStart {
@@ -274,14 +346,8 @@ pub(super) fn recipe_check_system(
                     recipe_id: recipe.id.clone(),
                     net: net_entity,
                 });
-                started = true;
+                dispatched.insert(machine_e);
                 break;
-            }
-            if !started {
-                debug!(
-                    "recipe_check: machine {:?} ({}) — no startable recipe found",
-                    machine_e, machine.machine_type
-                );
             }
         }
     }
@@ -436,6 +502,8 @@ pub(super) fn recipe_finish_system(
     mut research_pool: Option<ResMut<ResearchPool>>,
     mut gen_q: Query<&mut GeneratorUnit>,
     policy_q: Query<&PortPolicy>,
+    mut queue_q: Query<&mut NetworkCraftQueue>,
+    recipe_graph: Res<RecipeGraph>,
 ) {
     for completion in to_finish.read() {
         for (item_id, count) in &completion.outputs {
@@ -463,6 +531,17 @@ pub(super) fn recipe_finish_system(
                 if let Ok((_, members)) = net_q.get(net_e) {
                     give_items(members, &mut storage_q, &port_of_q, item_id, *count);
                     storage_changed.write(NetworkStorageChanged { network: net_e });
+                }
+                // Reserve this output for any remaining queued job that needs it,
+                // preventing auto-craft from consuming intermediate products.
+                if let Ok(mut queue) = queue_q.get_mut(net_e) {
+                    let still_needed = queue.inputs_still_needed(&recipe_graph);
+                    if let Some(&needed) = still_needed.get(item_id) {
+                        let to_reserve = (*count).min(needed);
+                        if to_reserve > 0 {
+                            *queue.reserved.entry(item_id.clone()).or_insert(0) += to_reserve;
+                        }
+                    }
                 }
             } else {
                 warn!(

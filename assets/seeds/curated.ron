@@ -1,0 +1,27 @@
+[
+    (
+        name: "SUNFIRE",
+        seed: "SUNFIRE",
+        description: "Radiant desert. Strong solar output, scarce combustibles.",
+    ),
+    (
+        name: "DEEPCORE",
+        seed: "DEEPCORE",
+        description: "Frozen geothermal. Buried heat drives power; surface is hostile.",
+    ),
+    (
+        name: "CYCLONE",
+        seed: "CYCLONE",
+        description: "Windswept plateau. Atmospheric turbines outpace all alternatives.",
+    ),
+    (
+        name: "THORNWOOD",
+        seed: "THORNWOOD",
+        description: "Humid jungle. Oxygen-rich air favors combustion; dense biome hides deposits.",
+    ),
+    (
+        name: "ASHVEIL",
+        seed: "ASHVEIL",
+        description: "Volcanic ash world. Alien material chains dominate; research pressure is high.",
+    ),
+]

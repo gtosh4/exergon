@@ -6,7 +6,7 @@ use bevy::prelude::*;
 
 use crate::logistics::{LogisticsNetworkMember, LogisticsNetworkMembers, StorageUnit, give_items};
 use crate::machine::{EnvSource, GeneratorDef};
-use crate::power::{GENERATOR_DEFAULT_WATTS, GeneratorUnit};
+use crate::power::GeneratorUnit;
 use crate::recipe_graph::RecipeGraph;
 use crate::world::{WorldObjectEvent, WorldObjectKind};
 
@@ -25,7 +25,6 @@ pub struct MachineBundle {
     pub machine: Machine,
     pub state: MachineState,
     pub transform: Transform,
-    pub rigid_body: RigidBody,
 }
 
 impl MachineBundle {
@@ -54,7 +53,6 @@ impl MachineBundle {
             },
             state: MachineState::Idle,
             transform: Transform::from_translation(pos),
-            rigid_body: RigidBody::Static,
         }
     }
 }
@@ -103,14 +101,78 @@ pub(super) fn on_machine_added(
     spawn_port_markers(&mut commands, entity, &energy_ports, &logistics_ports);
 }
 
+/// Fires on every `Machine` addition (placement and load). Adds physics + visuals and
+/// notifies network systems. Single code path replaces the old place + restore split.
+pub(super) fn on_machine_visuals(
+    trigger: On<Add, Machine>,
+    machines: Query<&Machine>,
+    mut commands: Commands,
+    visuals: Option<Res<MachineVisualAssets>>,
+    machine_colliders: Option<Res<MachineColliders>>,
+    mut network_changed: MessageWriter<MachineNetworkChanged>,
+) {
+    let entity = trigger.event_target();
+    let Ok(machine) = machines.get(entity) else {
+        return;
+    };
+
+    commands.entity(entity).insert(RigidBody::Static);
+
+    let cached = machine_colliders
+        .as_deref()
+        .and_then(|mc| mc.colliders.get(&machine.machine_type))
+        .cloned();
+    let scene = visuals
+        .as_deref()
+        .and_then(|v| v.scenes.get(&machine.machine_type))
+        .cloned();
+
+    if let Some(collider) = cached {
+        commands.entity(entity).insert(collider);
+    } else if scene.is_some() {
+        commands
+            .entity(entity)
+            .insert(ColliderConstructorHierarchy::new(
+                ColliderConstructor::ConvexHullFromMesh,
+            ));
+    } else {
+        commands
+            .entity(entity)
+            .insert(Collider::cuboid(2.0, 2.0, 2.0));
+    }
+
+    if let Some(scene) = scene {
+        commands.entity(entity).insert(SceneRoot(scene));
+    }
+
+    network_changed.write(MachineNetworkChanged);
+}
+
+/// Fires on every `Platform` addition (placement and load). Adds physics + visuals.
+pub(super) fn on_platform_visuals(
+    trigger: On<Add, Platform>,
+    mut commands: Commands,
+    visuals: Option<Res<MachineVisualAssets>>,
+) {
+    let entity = trigger.event_target();
+    if let Some(v) = visuals.as_deref() {
+        commands.entity(entity).insert((
+            RigidBody::Static,
+            SceneRoot(v.platform_scene.clone()),
+            ColliderConstructorHierarchy::new(ColliderConstructor::ConvexHullFromMesh),
+        ));
+    } else {
+        commands
+            .entity(entity)
+            .insert((RigidBody::Static, Collider::cuboid(8.0, 0.25, 8.0)));
+    }
+}
+
 pub(super) fn place_machine_system(
     mut commands: Commands,
     mut events: MessageReader<WorldObjectEvent>,
     registry: Res<MachineRegistry>,
-    mut network_changed: MessageWriter<MachineNetworkChanged>,
     mut machine_built: MessageWriter<MachineBuilt>,
-    visuals: Option<Res<MachineVisualAssets>>,
-    machine_colliders: Option<Res<MachineColliders>>,
     port_layouts: Option<Res<MachinePortLayouts>>,
     planet_q: Query<&crate::planet::PlanetProperties>,
 ) {
@@ -132,51 +194,9 @@ pub(super) fn place_machine_system(
         let bundle = MachineBundle::new(ev.transform.translation, def, tier, layout);
         let machine_entity = commands.spawn(bundle).id();
 
-        let cached = machine_colliders
-            .as_deref()
-            .and_then(|mc| mc.colliders.get(&def.id))
-            .cloned();
-        let has_scene = visuals
-            .as_deref()
-            .and_then(|v| v.scenes.get(&def.id))
-            .is_some();
-        if let Some(collider) = cached {
-            commands.entity(machine_entity).insert(collider);
-        } else if has_scene {
-            commands
-                .entity(machine_entity)
-                .insert(ColliderConstructorHierarchy::new(
-                    ColliderConstructor::ConvexHullFromMesh,
-                ));
-        } else {
-            commands
-                .entity(machine_entity)
-                .insert(Collider::cuboid(2.0, 2.0, 2.0));
-        }
-
-        if let Some(ref v) = visuals
-            && let Some(scene) = v.scenes.get(&def.id)
-        {
-            commands
-                .entity(machine_entity)
-                .insert(SceneRoot(scene.clone()));
-        }
-
         let tier_def = def.tiers.iter().find(|t| t.tier == tier);
         let explicit_gen = tier_def.and_then(|t| t.generator.as_ref());
-        let fallback_gen;
-        let gen_def: Option<&GeneratorDef> = if let Some(d) = explicit_gen {
-            Some(d)
-        } else if def.id == "generator" {
-            fallback_gen = GeneratorDef {
-                watts: GENERATOR_DEFAULT_WATTS,
-                env_source: EnvSource::Solar,
-                max_buffer_joules: 0.0,
-            };
-            Some(&fallback_gen)
-        } else {
-            None
-        };
+        let gen_def: Option<&GeneratorDef> = explicit_gen;
         if let Some(gd) = gen_def {
             let planet = planet_q.single().ok();
             let modifier = match &gd.env_source {
@@ -202,7 +222,6 @@ pub(super) fn place_machine_system(
             });
         }
 
-        network_changed.write(MachineNetworkChanged);
         machine_built.write(MachineBuilt {
             entity: machine_entity,
             machine_type: def.id.clone(),
@@ -219,25 +238,15 @@ pub(super) fn place_machine_system(
 pub(super) fn place_platform_system(
     mut commands: Commands,
     mut events: MessageReader<WorldObjectEvent>,
-    visuals: Option<Res<MachineVisualAssets>>,
 ) {
     for ev in events.read() {
         if ev.kind != WorldObjectKind::Placed || ev.item_id != "platform" {
             continue;
         }
-        let mut entity_cmd = commands.spawn((
+        commands.spawn((
             Platform,
             Transform::from_translation(ev.transform.translation),
-            RigidBody::Static,
         ));
-        if let Some(ref v) = visuals {
-            entity_cmd.insert((
-                SceneRoot(v.platform_scene.clone()),
-                ColliderConstructorHierarchy::new(ColliderConstructor::ConvexHullFromMesh),
-            ));
-        } else {
-            entity_cmd.insert(Collider::cuboid(8.0, 0.25, 8.0));
-        }
         info!("Platform placed at {:?}", ev.transform.translation);
     }
 }
@@ -330,6 +339,7 @@ mod tests {
             terminal: Default::default(),
             producers: Default::default(),
             consumers: Default::default(),
+            template_recipes: Default::default(),
         }
     }
 
@@ -357,6 +367,7 @@ mod tests {
             processing_time: 5.0,
             energy_cost: 0.0,
             energy_output: 0.0,
+            template_id: None,
         }));
 
         let net_e = app.world_mut().spawn(LogisticsNetwork).id();

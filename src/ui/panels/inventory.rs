@@ -10,7 +10,12 @@ use crate::{
     GameState,
     inventory::{Hotbar, HotbarSlot, InventoryOpen, ItemRegistry},
     logistics::StorageUnit,
-    ui::theme::{COLOR_DIM, COLOR_GOLD, COLOR_OVERLAY_BG, palette},
+    recipe_graph::RecipeGraph,
+    research::TechTreeProgress,
+    ui::{
+        panels::craft_modal::{CraftModal, CraftModalData, CraftPhase},
+        theme::{COLOR_DIM, COLOR_GOLD, COLOR_OVERLAY_BG, border, font_size, palette, space},
+    },
 };
 
 #[derive(Component)]
@@ -39,6 +44,9 @@ enum TerminalTab {
 }
 
 #[derive(Component)]
+struct CraftItemButton(String);
+
+#[derive(Component)]
 struct HotbarSlotDrop(usize);
 
 #[derive(Component)]
@@ -62,6 +70,7 @@ pub fn plugin(app: &mut App) {
             (
                 sync_visibility,
                 handle_tab_click,
+                handle_craft_click,
                 start_drag,
                 handle_drop,
                 update_drag_cursor,
@@ -284,7 +293,7 @@ fn handle_drop(
     mouse: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
     mut drag: ResMut<InventoryDrag>,
-    hotbar_slots: Query<(&HotbarSlotDrop, &GlobalTransform, &ComputedNode)>,
+    hotbar_slots: Query<(&HotbarSlotDrop, &UiGlobalTransform, &ComputedNode)>,
     mut hotbar: ResMut<Hotbar>,
 ) {
     if !mouse.just_released(MouseButton::Left) {
@@ -296,13 +305,7 @@ fn handle_drop(
         return;
     };
     for (slot, gt, computed) in &hotbar_slots {
-        let center = gt.translation().truncate();
-        let half = computed.size() / 2.0;
-        if cursor.x >= center.x - half.x
-            && cursor.x <= center.x + half.x
-            && cursor.y >= center.y - half.y
-            && cursor.y <= center.y + half.y
-        {
+        if computed.contains_point(*gt, cursor) {
             if let Some(s) = hotbar.slots.get_mut(slot.0) {
                 *s = Some(HotbarSlot { item_id });
             }
@@ -554,10 +557,28 @@ fn planet_view_tracker(
     }
 }
 
+fn handle_craft_click(
+    q: Query<(&Interaction, &CraftItemButton), Changed<Interaction>>,
+    mut craft_modal: ResMut<CraftModal>,
+) {
+    for (interaction, btn) in &q {
+        if *interaction == Interaction::Pressed {
+            craft_modal.0 = Some(CraftModalData {
+                item_id: btn.0.clone(),
+                quantity: 1,
+                phase: CraftPhase::Quantity,
+            });
+            return;
+        }
+    }
+}
+
 fn update_items(
     inv_open: Option<Res<InventoryOpen>>,
     hotbar: Option<Res<Hotbar>>,
     item_registry: Option<Res<ItemRegistry>>,
+    recipe_graph: Option<Res<RecipeGraph>>,
+    progress: Option<Res<TechTreeProgress>>,
     storage_q: Query<&StorageUnit>,
     net_list_q: Query<Entity, With<NetworkListRoot>>,
     hotbar_drop_q: Query<(Entity, &HotbarSlotDrop)>,
@@ -621,70 +642,224 @@ fn update_items(
         return;
     }
 
-    // Rebuild network item list
     let Ok(net_list) = net_list_q.single() else {
         return;
     };
     commands.entity(net_list).despawn_children();
 
+    // Aggregate storage
     let mut net_items: std::collections::HashMap<String, u32> = Default::default();
     for unit in &storage_q {
         for (id, &count) in &unit.items {
             *net_items.entry(id.clone()).or_insert(0) += count;
         }
     }
-    let mut net_sorted: Vec<_> = net_items.into_iter().collect();
-    net_sorted.sort_by_key(|(k, _)| k.clone());
 
-    if net_sorted.is_empty() {
+    // Build craftable set: items with at least one unlocked producing recipe
+    let craftable: std::collections::HashSet<String> = recipe_graph
+        .as_ref()
+        .map(|g| {
+            g.producers
+                .iter()
+                .filter(|(_, recipe_ids)| {
+                    recipe_ids.iter().any(|rid| {
+                        progress
+                            .as_ref()
+                            .map(|p| p.unlocked_recipes.contains(rid))
+                            .unwrap_or(false)
+                    })
+                })
+                .map(|(item_id, _)| item_id.clone())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // Rows: in-storage items first (sorted by name), then craftable-only items (qty=0)
+    let mut rows: Vec<(String, u32)> = net_items.into_iter().collect();
+    rows.sort_by_key(|(k, _)| k.clone());
+
+    // Add craftable items not already in storage
+    let in_storage_ids: std::collections::HashSet<_> =
+        rows.iter().map(|(id, _)| id.clone()).collect();
+    let mut craftable_only: Vec<(String, u32)> = craftable
+        .iter()
+        .filter(|id| !in_storage_ids.contains(*id))
+        .map(|id| (id.clone(), 0u32))
+        .collect();
+    craftable_only.sort_by_key(|(k, _)| k.clone());
+    rows.extend(craftable_only);
+
+    if rows.is_empty() {
         commands.entity(net_list).with_child((
-            Text::new("(network empty)"),
+            Text::new("(network empty — no craftable items)"),
             TextFont {
-                font_size: 16.0,
+                font_size: 14.0,
                 ..default()
             },
             TextColor(COLOR_DIM),
         ));
-    } else {
-        commands.entity(net_list).with_children(|l| {
-            for (item_id, count) in &net_sorted {
-                let name = item_registry
-                    .as_ref()
-                    .and_then(|r| r.get(item_id.as_str()))
-                    .map_or(item_id.as_str(), |d| d.name.as_str())
-                    .to_string();
-                l.spawn((
-                    Node {
-                        justify_content: JustifyContent::SpaceBetween,
-                        margin: UiRect::bottom(Val::Px(4.0)),
-                        padding: UiRect::axes(Val::Px(4.0), Val::Px(2.0)),
+        return;
+    }
+
+    // Table header
+    commands.entity(net_list).with_children(|l| {
+        l.spawn(Node {
+            justify_content: JustifyContent::SpaceBetween,
+            align_items: AlignItems::Center,
+            padding: UiRect {
+                left: Val::Px(space::SM),
+                right: Val::Px(space::SM),
+                top: Val::Px(space::XS),
+                bottom: Val::Px(space::XS),
+            },
+            border: UiRect::bottom(Val::Px(border::THIN)),
+            margin: UiRect::bottom(Val::Px(space::SM)),
+            ..default()
+        })
+        .insert(BorderColor::all(palette::BORDER))
+        .with_children(|hdr| {
+            hdr.spawn((
+                Text::new("NAME"),
+                TextFont {
+                    font_size: font_size::H_XS,
+                    ..default()
+                },
+                TextColor(COLOR_DIM),
+            ));
+            hdr.spawn(Node {
+                flex_grow: 1.0,
+                ..default()
+            });
+            hdr.spawn((
+                Text::new("QTY"),
+                TextFont {
+                    font_size: font_size::H_XS,
+                    ..default()
+                },
+                TextColor(COLOR_DIM),
+            ));
+            hdr.spawn(Node {
+                width: Val::Px(28.0),
+                ..default()
+            }); // C badge space
+            hdr.spawn(Node {
+                width: Val::Px(56.0),
+                ..default()
+            }); // CRAFT btn space
+        });
+
+        // Item rows
+        for (item_id, count) in &rows {
+            let name = item_registry
+                .as_ref()
+                .and_then(|r| r.get(item_id.as_str()))
+                .map_or(item_id.as_str(), |d| d.name.as_str())
+                .to_string();
+            let is_craftable = craftable.contains(item_id.as_str());
+            let in_stock = *count > 0;
+            let text_color = if in_stock { palette::TEXT } else { COLOR_DIM };
+
+            l.spawn((
+                Node {
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(space::SM),
+                    margin: UiRect::bottom(Val::Px(2.0)),
+                    padding: UiRect::axes(Val::Px(space::SM), Val::Px(space::XS)),
+                    ..default()
+                },
+                Button,
+                BackgroundColor(Color::NONE),
+                DraggableItem(item_id.clone()),
+            ))
+            .with_children(|row| {
+                // Name
+                row.spawn((
+                    Text::new(name),
+                    TextFont {
+                        font_size: 14.0,
                         ..default()
                     },
-                    Button,
-                    BackgroundColor(Color::NONE),
-                    DraggableItem(item_id.clone()),
-                ))
-                .with_children(|row| {
-                    row.spawn((
-                        Text::new(name),
+                    TextColor(text_color),
+                    Pickable::IGNORE,
+                ));
+
+                row.spawn((
+                    Node {
+                        flex_grow: 1.0,
+                        ..default()
+                    },
+                    Pickable::IGNORE,
+                ));
+
+                // Qty
+                row.spawn((
+                    Text::new(if in_stock {
+                        count.to_string()
+                    } else {
+                        "—".to_string()
+                    }),
+                    TextFont {
+                        font_size: 14.0,
+                        ..default()
+                    },
+                    TextColor(if in_stock { COLOR_GOLD } else { COLOR_DIM }),
+                    Pickable::IGNORE,
+                ));
+
+                // C badge
+                if is_craftable {
+                    row.spawn(Node {
+                        padding: UiRect::axes(Val::Px(3.0), Val::Px(1.0)),
+                        border: UiRect::all(Val::Px(border::THIN)),
+                        margin: UiRect::left(Val::Px(space::SM)),
+                        ..default()
+                    })
+                    .insert(BackgroundColor(Color::srgba(0.541, 0.447, 0.667, 0.15)))
+                    .insert(BorderColor::all(palette::ACCENT))
+                    .with_child((
+                        Text::new("C"),
                         TextFont {
-                            font_size: 16.0,
+                            font_size: font_size::TAG,
+                            ..default()
+                        },
+                        TextColor(palette::ACCENT),
+                        Pickable::IGNORE,
+                    ));
+                } else {
+                    row.spawn((
+                        Node {
+                            width: Val::Px(20.0),
+                            ..default()
+                        },
+                        Pickable::IGNORE,
+                    ));
+                }
+
+                // CRAFT button
+                if is_craftable {
+                    row.spawn((
+                        Button,
+                        Node {
+                            padding: UiRect::axes(Val::Px(space::MD), Val::Px(space::XS)),
+                            border: UiRect::all(Val::Px(border::THIN)),
+                            margin: UiRect::left(Val::Px(space::SM)),
+                            ..default()
+                        },
+                        BackgroundColor(palette::ACCENT),
+                        BorderColor::all(palette::ACCENT),
+                        CraftItemButton(item_id.clone()),
+                    ))
+                    .with_child((
+                        Text::new("CRAFT"),
+                        TextFont {
+                            font_size: font_size::TAG,
                             ..default()
                         },
                         TextColor(Color::WHITE),
                         Pickable::IGNORE,
                     ));
-                    row.spawn((
-                        Text::new(format!("{count}")),
-                        TextFont {
-                            font_size: 16.0,
-                            ..default()
-                        },
-                        TextColor(COLOR_GOLD),
-                        Pickable::IGNORE,
-                    ));
-                });
-            }
-        });
-    }
+                }
+            });
+        }
+    });
 }

@@ -4,6 +4,7 @@ pub mod crosshair;
 pub mod drone;
 pub mod escape;
 pub mod field_computer;
+pub mod planet;
 pub mod power;
 pub mod research;
 pub mod tooltip;
@@ -18,6 +19,7 @@ impl Plugin for HudPlugin {
         drone::plugin(app);
         escape::plugin(app);
         field_computer::plugin(app);
+        planet::plugin(app);
         power::plugin(app);
         research::plugin(app);
         tooltip::plugin(app);

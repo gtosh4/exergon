@@ -795,6 +795,12 @@ fn rebuild_detail(
                     NodeEffect::UnlockMachine(m) => {
                         c.spawn(label(&format!("Machine: {}", m.replace('_', " "))));
                     }
+                    NodeEffect::UnlockRecipeTemplate(t) => {
+                        c.spawn(label(&format!(
+                            "Recipes: {} (all materials)",
+                            t.replace('_', " ")
+                        )));
+                    }
                 }
             }
         }

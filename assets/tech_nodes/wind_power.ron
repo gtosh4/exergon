@@ -1,0 +1,10 @@
+(
+    id: "wind_power",
+    name: "Wind Power",
+    category: Power,
+    tier: 1,
+    rarity: Common,
+    prerequisites: [],
+    primary_unlock: ResearchSpend(50),
+    effects: [UnlockMachine("wind_generator")],
+)

@@ -1,5 +1,6 @@
 use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
+use moonshine_save::prelude::{MapEntities, ReflectMapEntities, Save};
 
 use crate::machine::{EnergyPortOf, EnvSource, Machine, MachineEnergyPorts};
 use crate::network::visuals::spawn_cable_children;
@@ -44,10 +45,22 @@ pub enum SlotBlockReason {
 #[derive(Component)]
 pub struct SlotBlocked(pub SlotBlockReason);
 
+/// Marks a machine as self-powered, bypassing power network requirements.
+/// Pod-internal machines (assembler, storage) carry this so they run without
+/// an external power connection.
+#[derive(Component, Reflect, Default)]
+#[reflect(Component)]
+pub struct PodPowered;
+
 pub struct PowerPlugin;
 
 impl Plugin for PowerPlugin {
     fn build(&self, app: &mut App) {
+        app.register_type::<GeneratorUnit>()
+            .register_type::<PodPowered>()
+            .register_type::<PowerCableSegment>()
+            .register_type::<PowerNetworkMember>()
+            .register_type::<PowerNetwork>();
         app.add_plugins(NetworkPlugin::<Power>::default());
         app.init_resource::<EnvFactorRegistry>();
         app.configure_sets(
@@ -151,22 +164,26 @@ fn add_power_cable_visuals(
 
 fn add_generator_visuals(
     mut commands: Commands,
-    added: Query<(Entity, &GeneratorUnit), Added<GeneratorUnit>>,
+    added: Query<Entity, (Added<GeneratorUnit>, Without<SceneRoot>)>,
     assets: Option<Res<PowerVisualAssets>>,
 ) {
     let Some(assets) = assets else { return };
-    for (entity, unit) in &added {
-        commands.entity(entity).insert((
-            Mesh3d(assets.gen_mesh.clone()),
-            MeshMaterial3d(assets.gen_material.clone()),
-            Transform::from_translation(unit.pos + Vec3::splat(0.5)),
-        ));
+    for entity in &added {
+        commands.entity(entity).with_children(|parent| {
+            parent.spawn((
+                Mesh3d(assets.gen_mesh.clone()),
+                MeshMaterial3d(assets.gen_material.clone()),
+                Transform::from_translation(Vec3::splat(0.5)),
+            ));
+        });
     }
 }
 
 // -- Components --------------------------------------------------------------
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+#[require(Save)]
 pub struct PowerCableSegment {
     pub from: Vec3,
     pub to: Vec3,
@@ -179,7 +196,8 @@ impl HasEndpoints for PowerCableSegment {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect, MapEntities)]
+#[reflect(Component, MapEntities)]
 #[relationship(relationship_target = PowerNetworkMembers)]
 pub struct PowerNetworkMember(pub Entity);
 
@@ -202,7 +220,8 @@ impl NetworkMembersComponent for PowerNetworkMembers {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
+#[reflect(Component)]
 pub struct GeneratorUnit {
     pub pos: Vec3,
     pub watts: f32,
@@ -213,7 +232,8 @@ pub struct GeneratorUnit {
     pub env_source: EnvSource,
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect, Default)]
+#[reflect(Component)]
 pub struct PowerNetwork;
 
 // -- NetworkKind impl --------------------------------------------------------
@@ -243,7 +263,7 @@ impl NetworkKind for Power {
     }
 
     fn spawn_network(commands: &mut Commands) -> Entity {
-        commands.spawn(PowerNetwork).id()
+        commands.spawn((PowerNetwork, Save)).id()
     }
 }
 

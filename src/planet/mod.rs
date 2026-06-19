@@ -172,6 +172,18 @@ impl PlanetPropertyKey {
             _ => "",
         }
     }
+
+    pub fn power_hint(self) -> &'static str {
+        match self {
+            PlanetPropertyKey::StellarDistance => "Solar power output",
+            PlanetPropertyKey::AtmosphericOxygen => "Combustion power output",
+            PlanetPropertyKey::GeologicalActivity => "Geothermal power viability",
+            PlanetPropertyKey::WindIntensity => "Wind power output",
+            PlanetPropertyKey::Temperature => "Thermal process efficiency",
+            PlanetPropertyKey::AtmosphericPressure => "Pressure-dependent processes",
+            PlanetPropertyKey::HazardType => "Drone exposure risk",
+        }
+    }
 }
 
 #[derive(Reflect, Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -750,7 +762,7 @@ mod tests {
         );
         app.world_mut().write_message(MachineBuilt {
             entity: Entity::PLACEHOLDER,
-            machine_type: "generator".into(),
+            machine_type: "solar_generator".into(),
             class: MachineClass::PowerProducer(PowerProducerKind::Solar),
             pos: Vec3::ZERO,
         });
@@ -771,7 +783,7 @@ mod tests {
         spawn_planet_and_player(&mut app, solar_planet(0.1), &[]);
         app.world_mut().write_message(MachineBuilt {
             entity: Entity::PLACEHOLDER,
-            machine_type: "generator".into(),
+            machine_type: "solar_generator".into(),
             class: MachineClass::PowerProducer(PowerProducerKind::Solar),
             pos: Vec3::ZERO,
         });
@@ -794,7 +806,7 @@ mod tests {
         );
         app.world_mut().write_message(MachineBuilt {
             entity: Entity::PLACEHOLDER,
-            machine_type: "generator".into(),
+            machine_type: "solar_generator".into(),
             class: MachineClass::PowerProducer(PowerProducerKind::Solar),
             pos: Vec3::ZERO,
         });

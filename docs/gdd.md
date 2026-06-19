@@ -70,7 +70,7 @@ These five pillars are the filter through which every design decision should pas
 Randomization must produce *solvable* problems, not arbitrary noise. Every procedural element must have a legible in-world explanation the player can reason about. A planet further from its star has weaker solar output. A world with unusual atmospheric chemistry has different combustion properties. The player should be able to look at a run's constraints and think *"this is a specific, interesting problem"* — not *"this is random."*
 
 ### Pillar 2 — The Design Phase Is the Game
-The most interesting moment in a run is before the first building is placed. Planning, scouting, information negotiation, and graph analysis are the primary gameplay. Execution — placing machines, routing belts — is a satisfying consequence of good planning, not the challenge itself. Watch-and-fix time is minimized wherever possible.
+The most interesting moments in a run are before the first buildings (of a production line) are placed. Planning, scouting, information negotiation, and graph analysis are the primary gameplay. Execution — placing machines, routing belts — is a satisfying consequence of good planning, not the challenge itself. Watch-and-fix time is minimized wherever possible.
 
 ### Pillar 3 — Difficulty Through Depth, Not Friction
 Difficulty comes from the genuine complexity of the puzzle, not from systems friction, obscured UI, low drop rates, or artificial time sinks. Hard means the graph is deep and the decisions are consequential. It does not mean the interface is opaque, the execution is tedious, or progress requires grinding.
@@ -457,6 +457,8 @@ The AI exists in one body at a time. Within a connected aegis field, the player 
 ### Base management — Aegis fields and outpost islands
 
 The open environment is hostile to the AI's hardware. The exact hazard type is a planet property — EM interference, corrosive particulates, exotic radiation — legible from early scan data and fixed for the run. The player begins with a core **Aegis Emitter** (delivered with the escape pod) that projects a aegis field around the landing site. Within this envelope, the AI can fly, build, and interact directly (Local mode). Outside it: Remote mode only. Drones are ruggedized expendable hardware, unaffected by the hazard.
+
+The **escape pod** is itself the player's starting infrastructure. Beyond projecting the aegis field, it houses a **starting storage** (pre-stocked with a small resource cache) and a **basic assembler** — the machine used to craft other machines. The pod is self-powered and supplies enough energy for the Aegis Emitter and assembler, but cannot power externally placed machines. No hand-crafting phase exists; the assembler is machine-zero from which all other machines are built. The first thing the player must independently build is a power source.
 
 **Expanding into new biomes** is done through **Outpost Beacons** — support structures built at the main base, then shipped to a target location via drone. Once an Outpost Beacon is placed and connected to the logistics network, it projects its own aegis field. The player can then fabricate a new **body** at the main base, ship it to the outpost via drone, and upload into it — becoming physically present there to build and interact directly.
 

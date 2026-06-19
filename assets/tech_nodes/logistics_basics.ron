@@ -1,0 +1,10 @@
+(
+    id: "logistics_basics",
+    name: "Logistics Basics",
+    category: Logistics,
+    tier: 1,
+    rarity: Common,
+    prerequisites: [],
+    primary_unlock: ResearchSpend(40),
+    effects: [UnlockMachine("logistics_hub"), UnlockRecipes(["logistics_cable_craft"])],
+)

@@ -2,6 +2,7 @@
 name = "exergon"
 version = "0.1.0"
 edition = "2024"
+default-run = "exergon"
 
 [dependencies]
 bevy = { version = "0.18", features = ["dynamic_linking"] }

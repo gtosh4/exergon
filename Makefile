@@ -9,3 +9,7 @@ setup: .git/hooks
 fmt:
 	cargo clippy --all-targets --fix --allow-dirty
 	cargo fmt
+
+
+graph.dot:
+	cargo run --bin recipe_dot > graph.dot

@@ -46,6 +46,12 @@ pub struct DroneInventory {
     pub items: HashMap<String, u32>,
 }
 
+/// Tools equipped to this drone. Mining and interaction capabilities.
+#[derive(Component, Default, Debug)]
+pub struct DroneTools {
+    pub tools: Vec<String>,
+}
+
 #[derive(Component, Debug)]
 pub struct FogRevealRadius(pub f32);
 
@@ -59,6 +65,9 @@ pub struct FogOfWar {
 /// Entity of the currently controlled drone. None when in Local mode.
 #[derive(Resource, Default)]
 pub struct ActiveDrone(pub Option<Entity>);
+
+#[derive(Resource, Default)]
+pub struct DroneCargoOpen(pub bool);
 
 #[derive(bevy::ecs::message::Message, Debug, Clone)]
 pub struct FogCellRevealedEvent {
@@ -74,8 +83,10 @@ impl Plugin for DronePlugin {
         ))
         .init_resource::<FogOfWar>()
         .init_resource::<ActiveDrone>()
+        .init_resource::<DroneCargoOpen>()
         .add_message::<FogCellRevealedEvent>()
         .add_systems(OnEnter(GameState::Playing), spawn_land_drone)
+        .add_systems(OnExit(PlayMode::DronePilot), close_drone_cargo)
         .add_systems(
             Update,
             (
@@ -94,9 +105,20 @@ impl Plugin for DronePlugin {
     }
 }
 
-fn spawn_land_drone(mut commands: Commands, mut scheme_configs: ResMut<Assets<DroneSchemeConfig>>) {
+fn spawn_land_drone(
+    mut commands: Commands,
+    existing: Query<(), With<Drone>>,
+    mut scheme_configs: ResMut<Assets<DroneSchemeConfig>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    if !existing.is_empty() {
+        return;
+    }
+    let mesh = meshes.add(Cuboid::new(0.8, 0.4, 0.8));
+    let material = materials.add(StandardMaterial::from_color(Color::srgb(1.0, 0.5, 0.1)));
     commands.spawn((
-        Transform::from_xyz(0.0, 100.0, 0.0),
+        Transform::from_xyz(2.0, 20.0, 0.0),
         RigidBody::Dynamic,
         Collider::capsule(0.4, 0.8),
         TnuaController::<DroneScheme>::default(),
@@ -112,7 +134,12 @@ fn spawn_land_drone(mut commands: Commands, mut scheme_configs: ResMut<Assets<Dr
         Drone,
         DroneState::Idle,
         DroneInventory::default(),
+        DroneTools {
+            tools: vec!["mining_drill".to_string()],
+        },
         FogRevealRadius(12.0),
+        Mesh3d(mesh),
+        MeshMaterial3d(material),
     ));
 }
 
@@ -127,14 +154,27 @@ fn toggle_drone_mode(
     if !keyboard.just_pressed(KeyCode::KeyF) {
         return;
     }
+    info!("[drone] F pressed, current mode: {:?}", mode.get());
     match mode.get() {
         PlayMode::Exploring => {
+            let drone_count = drone_q.iter().count();
+            info!("[drone] drone entities in world: {}", drone_count);
             let Ok(drone_entity) = drone_q.single() else {
+                warn!(
+                    "[drone] toggle failed: expected 1 drone, found {}",
+                    drone_count
+                );
                 return;
             };
             active_drone.0 = Some(drone_entity);
             if let Ok(mut state) = drone_state_q.get_mut(drone_entity) {
                 *state = DroneState::ActivelyControlled;
+                info!("[drone] → DronePilot (entity {:?})", drone_entity);
+            } else {
+                warn!(
+                    "[drone] drone entity {:?} has no DroneState component",
+                    drone_entity
+                );
             }
             next_mode.set(PlayMode::DronePilot);
         }
@@ -145,8 +185,11 @@ fn toggle_drone_mode(
                 *state = DroneState::Idle;
             }
             next_mode.set(PlayMode::Exploring);
+            info!("[drone] → Exploring");
         }
-        _ => {}
+        other => {
+            warn!("[drone] F pressed but mode is {:?} — no-op", other);
+        }
     }
 }
 
@@ -231,7 +274,7 @@ fn drone_mine_system(
     camera_q: Query<&Transform, With<MainCamera>>,
     spatial_query: SpatialQuery,
     mut deposit_q: Query<&mut OreDeposit>,
-    mut drone_q: Query<&mut DroneInventory, With<Drone>>,
+    mut drone_q: Query<(&mut DroneInventory, &DroneTools), With<Drone>>,
 ) {
     if !mouse.just_pressed(MouseButton::Right) {
         return;
@@ -248,9 +291,12 @@ fn drone_mine_system(
     let Ok(mut deposit) = deposit_q.get_mut(hit.entity) else {
         return;
     };
-    let Ok(mut inventory) = drone_q.single_mut() else {
+    let Ok((mut inventory, tools)) = drone_q.single_mut() else {
         return;
     };
+    if !tools.tools.iter().any(|t| t == "mining_drill") {
+        return;
+    }
     let rng_seed = deposit.depletion_seed ^ deposit.total_extracted.to_bits() as u64;
     let mut rng = Pcg64::seed_from_u64(rng_seed);
     if let Some(ore_id) = sample_ore(&deposit.ores, &mut rng) {
@@ -375,6 +421,10 @@ fn deposit_discovery_system(
             commands.entity(entity).insert(Discovered);
         }
     }
+}
+
+fn close_drone_cargo(mut cargo_open: ResMut<DroneCargoOpen>) {
+    cargo_open.0 = false;
 }
 
 #[cfg(test)]

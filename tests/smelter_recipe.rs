@@ -38,6 +38,7 @@ fn make_recipe(
         processing_time: 1.0,
         energy_cost: 0.0,
         energy_output: 0.0,
+        template_id: None,
     }
 }
 
@@ -52,6 +53,7 @@ fn make_graph(recipe: ConcreteRecipe) -> RecipeGraph {
         terminal: String::new(),
         producers: HashMap::new(),
         consumers: HashMap::new(),
+        template_recipes: HashMap::new(),
     }
 }
 

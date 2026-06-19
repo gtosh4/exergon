@@ -90,6 +90,9 @@ pub struct ConcreteRecipe {
     /// Zero for non-generator recipes.
     #[serde(default)]
     pub energy_output: f32,
+    /// Set for recipes expanded from a template; None for hand-authored concrete recipes.
+    #[serde(default)]
+    pub template_id: Option<TemplateId>,
 }
 
 #[derive(Resource, Clone, Debug)]
@@ -104,6 +107,8 @@ pub struct RecipeGraph {
     pub producers: HashMap<ItemId, Vec<RecipeId>>,
     /// item → recipe IDs that consume it
     pub consumers: HashMap<ItemId, Vec<RecipeId>>,
+    /// template ID → recipe IDs expanded from that template
+    pub template_recipes: HashMap<TemplateId, Vec<RecipeId>>,
 }
 
 fn capitalize(s: &str) -> String {
@@ -182,6 +187,7 @@ pub(crate) fn expand_templates(
                 processing_time: template.base_time,
                 energy_cost: template.base_energy,
                 energy_output: 0.0,
+                template_id: Some(template.id.clone()),
             });
         }
     }
@@ -226,6 +232,7 @@ impl RecipeGraph {
 
         let mut producers: HashMap<ItemId, Vec<RecipeId>> = HashMap::new();
         let mut consumers: HashMap<ItemId, Vec<RecipeId>> = HashMap::new();
+        let mut template_recipes: HashMap<TemplateId, Vec<RecipeId>> = HashMap::new();
         for recipe in recipes.values() {
             for stack in recipe.outputs.iter().chain(recipe.byproducts.iter()) {
                 producers
@@ -236,6 +243,12 @@ impl RecipeGraph {
             for stack in &recipe.inputs {
                 consumers
                     .entry(stack.item.clone())
+                    .or_default()
+                    .push(recipe.id.clone());
+            }
+            if let Some(tid) = &recipe.template_id {
+                template_recipes
+                    .entry(tid.clone())
                     .or_default()
                     .push(recipe.id.clone());
             }
@@ -258,6 +271,7 @@ impl RecipeGraph {
             terminal,
             producers,
             consumers,
+            template_recipes,
         }
     }
 }
@@ -268,7 +282,7 @@ struct MachineItemEntry {
     name: String,
 }
 
-fn load_recipe_graph(mut commands: Commands) {
+pub fn build_recipe_graph() -> RecipeGraph {
     let form_groups = load_ron_dir::<FormGroup>("assets/form_groups", "form_group");
     let materials = load_ron_dir::<MaterialDef>("assets/materials", "material");
     let templates = load_ron_dir::<RecipeTemplate>("assets/recipe_templates", "recipe_template");
@@ -284,14 +298,17 @@ fn load_recipe_graph(mut commands: Commands) {
                 is_terminal: false,
             }),
     );
-
-    let graph = RecipeGraph::from_vecs(
+    RecipeGraph::from_vecs(
         form_groups,
         materials,
         templates,
         concrete_recipes,
         item_defs,
-    );
+    )
+}
+
+fn load_recipe_graph(mut commands: Commands) {
+    let graph = build_recipe_graph();
 
     let mut item_registry = ItemRegistry::default();
     for item in graph.items.values() {
@@ -356,6 +373,7 @@ mod tests {
             processing_time: 1.0,
             energy_cost: 10.0,
             energy_output: 0.0,
+            template_id: None,
         }
     }
 

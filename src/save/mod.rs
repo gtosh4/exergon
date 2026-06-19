@@ -8,10 +8,11 @@
 //! Deviations from design (tracked):
 //! - `TechTreeProgress` and `ResearchPool` remain Resources, saved via
 //!   `SaveWorld::include_resource`. Migration to components is a separate task.
-//! - Gameplay entities (Machine, cables, networks, Drone, MinedDeposit,
-//!   Outpost, Player) are not yet tagged `Save`. They need `Reflect` +
-//!   `MapEntities` (for cross-refs), which is a multi-domain refactor.
-//!   Filed as follow-up; current saves preserve run-scoped progress only.
+//! - Cables and networks are now persisted (LogisticsCableSegment, PowerCableSegment,
+//!   their network entities, and LogisticsNetworkMember/PowerNetworkMember with MapEntities).
+//!   Port entities (LogisticsPortOf, EnergyPortOf) are still ephemeral — recreated by
+//!   on_machine_added and re-joined via port_placed_system on first Playing Update.
+//! - Remaining gameplay entities not yet saved: Drone, MinedDeposit, Outpost, Player.
 //! - Checkpoints and rolling backups are post-VS.
 
 use std::path::PathBuf;
@@ -24,6 +25,14 @@ use moonshine_save::prelude::*;
 use serde::de::DeserializeSeed;
 
 use crate::GameState;
+use crate::logistics::{
+    LogisticsCableSegment, LogisticsNetwork, LogisticsNetworkMember, StorageUnit,
+};
+use crate::machine::{Machine, MachineState, Platform};
+use crate::planet::{Planet, PlanetProperties};
+use crate::pod::PodNetwork;
+use crate::power::{GeneratorUnit, PodPowered};
+use crate::power::{PowerCableSegment, PowerNetwork, PowerNetworkMember};
 use crate::research::{ResearchPool, TechTreeProgress};
 use crate::seed::{DomainSeeds, RunSeed, hash_text};
 
@@ -182,10 +191,16 @@ fn spawn_run_on_new_event(
     mut events: MessageReader<NewRunEvent>,
     save_root: Res<SaveRoot>,
     mut next_state: ResMut<NextState<GameState>>,
+    pod_machines_q: Query<Entity, With<PodPowered>>,
 ) {
     let Some(event) = events.read().last() else {
         return;
     };
+    // Clear pod machines left from any previous session (they are Save-marked and persist
+    // when exiting Playing, so a new run must clean them up before spawning fresh ones).
+    for e in &pod_machines_q {
+        commands.entity(e).despawn();
+    }
     if event.test_mode {
         commands.insert_resource(DevTestMode);
     } else {
@@ -228,7 +243,7 @@ fn load_run_on_event(
     };
     let path = save_root.run_save_path(&event.run_id);
     commands.trigger_load(LoadWorld::default_from_file(path));
-    next_state.set(GameState::Playing);
+    next_state.set(GameState::Loading);
 }
 
 fn update_playtime(time: Res<Time>, mut header_q: Query<&mut RunSaveHeader>) {
@@ -294,11 +309,31 @@ pub fn trigger_run_save(commands: &mut Commands, save_root: &SaveRoot, run_id: &
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    commands.trigger_save(
-        SaveWorld::default_into_file(path)
-            .include_resource::<TechTreeProgress>()
-            .include_resource::<ResearchPool>(),
-    );
+    let mut save = SaveWorld::default_into_file(path)
+        .include_resource::<TechTreeProgress>()
+        .include_resource::<ResearchPool>();
+    save.components = SceneFilter::deny_all()
+        .allow::<Run>()
+        .allow::<RunSaveHeader>()
+        .allow::<RunSeed>()
+        .allow::<DomainSeeds>()
+        .allow::<Machine>()
+        .allow::<MachineState>()
+        .allow::<Transform>()
+        .allow::<StorageUnit>()
+        .allow::<GeneratorUnit>()
+        .allow::<PodPowered>()
+        .allow::<PodNetwork>()
+        .allow::<Platform>()
+        .allow::<Planet>()
+        .allow::<PlanetProperties>()
+        .allow::<LogisticsNetwork>()
+        .allow::<LogisticsCableSegment>()
+        .allow::<LogisticsNetworkMember>()
+        .allow::<PowerNetwork>()
+        .allow::<PowerCableSegment>()
+        .allow::<PowerNetworkMember>();
+    commands.trigger_save(save);
 }
 
 /// Empty meta save stub for VS — Codex/Blueprints land here post-VS.

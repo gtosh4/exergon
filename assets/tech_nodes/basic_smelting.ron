@@ -5,6 +5,6 @@
     tier: 1,
     rarity: Common,
     prerequisites: [],
-    primary_unlock: ResearchSpend(0),
-    effects: [UnlockRecipes(["smelt_metal__iron", "smelt_metal__copper"])],
+    primary_unlock: PrerequisiteChain,
+    effects: [UnlockMachine("smelter"), UnlockRecipes(["make_smelter"]), UnlockRecipeTemplate("smelt_metal")],
 )

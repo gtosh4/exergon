@@ -78,6 +78,7 @@ fn main() {
     ))
     .add_plugins((
         exergon::aegis::AegisPlugin,
+        exergon::pod::PodPlugin,
         exergon::machine::MachinePlugin,
         exergon::logistics::LogisticsPlugin,
         exergon::power::PowerPlugin,
@@ -124,7 +125,7 @@ fn give_test_items(
         item_id: "analysis_station".into(),
     });
     hotbar.slots[3] = Some(HotbarSlot {
-        item_id: "generator".into(),
+        item_id: "solar_generator".into(),
     });
     hotbar.slots[4] = Some(HotbarSlot {
         item_id: "storage_crate".into(),
@@ -161,7 +162,7 @@ fn give_test_items(
                 ("smelter".to_owned(), 4u32),
                 ("assembler".to_owned(), 4u32),
                 ("analysis_station".to_owned(), 4u32),
-                ("generator".to_owned(), 4u32),
+                ("solar_generator".to_owned(), 4u32),
                 ("storage_crate".to_owned(), 8u32),
                 ("logistics_cable".to_owned(), 64u32),
                 ("power_cable".to_owned(), 64u32),

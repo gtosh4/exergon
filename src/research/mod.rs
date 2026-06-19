@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
+use crate::recipe_graph::RecipeGraph;
 use crate::tech_tree::{NodeEffect, NodeId, TechTree, UnlockVector};
 
 #[derive(Debug, Clone, Message)]
@@ -17,6 +18,14 @@ pub struct TechNodeUnlocked {
 /// Player-initiated request to unlock a ResearchSpend tech node.
 #[derive(Debug, Clone, Message)]
 pub struct UnlockNodeRequest(pub NodeId);
+
+/// Fired by the interaction system when the player completes a hand scan.
+#[derive(Debug, Clone, Message)]
+pub struct HandScanComplete {
+    pub item_id: String,
+}
+
+pub const HAND_SCANNER_YIELD: f32 = 5.0;
 
 /// Marker: prevents re-firing discovery events for an already-discovered entity.
 #[derive(Component)]
@@ -47,20 +56,27 @@ impl Plugin for ResearchPlugin {
         app.add_message::<DiscoveryEvent>()
             .add_message::<TechNodeUnlocked>()
             .add_message::<UnlockNodeRequest>()
+            .add_message::<HandScanComplete>()
             .register_type::<ResearchPool>()
             .register_type::<TechTreeProgress>()
             .init_resource::<ResearchPool>()
             .init_resource::<TechTreeProgress>()
             .add_systems(
                 Update,
-                check_research_unlocks
+                (hand_scanner_system, check_research_unlocks)
+                    .chain()
                     .in_set(crate::GameSystems::Simulation)
                     .run_if(in_state(crate::GameState::Playing)),
             );
     }
 }
 
-fn apply_effects(progress: &mut TechTreeProgress, tree: &TechTree, node_id: &NodeId) {
+fn apply_effects(
+    progress: &mut TechTreeProgress,
+    tree: &TechTree,
+    node_id: &NodeId,
+    recipe_graph: Option<&RecipeGraph>,
+) {
     let Some(node) = tree.nodes.get(node_id) else {
         return;
     };
@@ -71,6 +87,13 @@ fn apply_effects(progress: &mut TechTreeProgress, tree: &TechTree, node_id: &Nod
             }
             NodeEffect::UnlockMachine(machine) => {
                 progress.unlocked_machines.insert(machine.clone());
+            }
+            NodeEffect::UnlockRecipeTemplate(template_id) => {
+                if let Some(graph) = recipe_graph
+                    && let Some(ids) = graph.template_recipes.get(template_id)
+                {
+                    progress.unlocked_recipes.extend(ids.iter().cloned());
+                }
             }
         }
     }
@@ -95,9 +118,10 @@ fn do_unlock(
     node_id: &NodeId,
     via_research: bool,
     events: &mut MessageWriter<TechNodeUnlocked>,
+    recipe_graph: Option<&RecipeGraph>,
 ) {
     progress.unlocked_nodes.insert(node_id.clone());
-    apply_effects(progress, tree, node_id);
+    apply_effects(progress, tree, node_id, recipe_graph);
     events.write(TechNodeUnlocked {
         node_id: node_id.clone(),
         via_research,
@@ -105,8 +129,22 @@ fn do_unlock(
     info!("Tech node '{}' unlocked", node_id);
 }
 
+fn hand_scanner_system(
+    mut events: MessageReader<HandScanComplete>,
+    mut pool: ResMut<ResearchPool>,
+) {
+    for event in events.read() {
+        pool.points += HAND_SCANNER_YIELD;
+        info!(
+            "Hand scan: +{HAND_SCANNER_YIELD} RP (item: {})",
+            event.item_id
+        );
+    }
+}
+
 fn check_research_unlocks(
     tech_tree: Option<Res<TechTree>>,
+    recipe_graph: Option<Res<RecipeGraph>>,
     mut pool: ResMut<ResearchPool>,
     mut progress: ResMut<TechTreeProgress>,
     mut unlock_requests: MessageReader<UnlockNodeRequest>,
@@ -116,6 +154,7 @@ fn check_research_unlocks(
     let Some(tech_tree) = tech_tree else {
         return;
     };
+    let rg = recipe_graph.as_deref();
 
     // Player-initiated ResearchSpend unlocks
     let requests: Vec<NodeId> = unlock_requests.read().map(|r| r.0.clone()).collect();
@@ -152,6 +191,7 @@ fn check_research_unlocks(
             node_id,
             true,
             &mut unlocked_events,
+            rg,
         );
     }
 
@@ -173,7 +213,14 @@ fn check_research_unlocks(
             .map(|(id, _)| id.clone())
             .collect();
         for id in to_unlock {
-            do_unlock(&mut progress, &tech_tree, &id, false, &mut unlocked_events);
+            do_unlock(
+                &mut progress,
+                &tech_tree,
+                &id,
+                false,
+                &mut unlocked_events,
+                rg,
+            );
         }
     }
 
@@ -197,7 +244,14 @@ fn check_research_unlocks(
             break;
         }
         for id in to_unlock {
-            do_unlock(&mut progress, &tech_tree, &id, false, &mut unlocked_events);
+            do_unlock(
+                &mut progress,
+                &tech_tree,
+                &id,
+                false,
+                &mut unlocked_events,
+                rg,
+            );
         }
     }
 }
@@ -435,5 +489,81 @@ mod tests {
 
         let progress = app.world().resource::<TechTreeProgress>();
         assert!(!progress.unlocked_nodes.contains("alpha"));
+    }
+
+    #[test]
+    fn hand_scan_adds_research_points() {
+        let mut app = App::new();
+        app.add_message::<HandScanComplete>()
+            .add_systems(Update, hand_scanner_system)
+            .init_resource::<ResearchPool>();
+
+        app.world_mut().write_message(HandScanComplete {
+            item_id: "iron_ore".to_string(),
+        });
+        app.update();
+
+        let pool = app.world().resource::<ResearchPool>();
+        assert_eq!(pool.points, HAND_SCANNER_YIELD);
+    }
+
+    fn make_recipe_graph_with_template(template_id: &str, recipe_ids: Vec<&str>) -> RecipeGraph {
+        let mut template_recipes = HashMap::new();
+        template_recipes.insert(
+            template_id.to_string(),
+            recipe_ids.into_iter().map(str::to_string).collect(),
+        );
+        RecipeGraph {
+            materials: HashMap::new(),
+            form_groups: HashMap::new(),
+            templates: HashMap::new(),
+            items: HashMap::new(),
+            recipes: HashMap::new(),
+            terminal: String::new(),
+            producers: HashMap::new(),
+            consumers: HashMap::new(),
+            template_recipes,
+        }
+    }
+
+    #[test]
+    fn unlock_recipe_template_unlocks_all_expanded_recipes() {
+        let mut app = make_app();
+        let mut node = base_node("smelting", 10, vec![]);
+        node.effects = vec![NodeEffect::UnlockRecipeTemplate("smelt_metal".to_string())];
+        app.insert_resource(make_tree(vec![node]));
+        app.insert_resource(ResearchPool { points: 10.0 });
+        app.init_resource::<TechTreeProgress>();
+        app.insert_resource(make_recipe_graph_with_template(
+            "smelt_metal",
+            vec!["smelt_metal__iron", "smelt_metal__copper"],
+        ));
+
+        app.world_mut()
+            .write_message(UnlockNodeRequest("smelting".into()));
+        app.update();
+
+        let progress = app.world().resource::<TechTreeProgress>();
+        assert!(progress.unlocked_recipes.contains("smelt_metal__iron"));
+        assert!(progress.unlocked_recipes.contains("smelt_metal__copper"));
+    }
+
+    #[test]
+    fn hand_scan_accumulates_across_multiple_scans() {
+        let mut app = App::new();
+        app.add_message::<HandScanComplete>()
+            .add_systems(Update, hand_scanner_system)
+            .init_resource::<ResearchPool>();
+
+        app.world_mut().write_message(HandScanComplete {
+            item_id: "iron_ore".to_string(),
+        });
+        app.world_mut().write_message(HandScanComplete {
+            item_id: "copper_ore".to_string(),
+        });
+        app.update();
+
+        let pool = app.world().resource::<ResearchPool>();
+        assert_eq!(pool.points, HAND_SCANNER_YIELD * 2.0);
     }
 }

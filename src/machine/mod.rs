@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use moonshine_save::prelude::Save;
 
 mod placeables;
 mod placement;
@@ -51,10 +52,9 @@ pub enum PowerProducerKind {
     Wind,
 }
 
-/// Map a machine asset id to its class. VS treats `generator` as solar.
 pub fn machine_class_for(id: &str) -> MachineClass {
     match id {
-        "generator" | "solar_generator" => MachineClass::PowerProducer(PowerProducerKind::Solar),
+        "solar_generator" => MachineClass::PowerProducer(PowerProducerKind::Solar),
         "combustion_generator" => MachineClass::PowerProducer(PowerProducerKind::Combustion),
         "geothermal_generator" => MachineClass::PowerProducer(PowerProducerKind::Geothermal),
         "wind_generator" => MachineClass::PowerProducer(PowerProducerKind::Wind),
@@ -77,7 +77,16 @@ pub struct MachinePlugin;
 
 impl Plugin for MachinePlugin {
     fn build(&self, app: &mut App) {
-        app.add_observer(placement::on_machine_added)
+        app.register_type::<Machine>()
+            .register_type::<MachineState>()
+            .register_type::<ManualCraftOnly>()
+            .register_type::<Orientation>()
+            .register_type::<Rotation>()
+            .register_type::<Mirror>()
+            .register_type::<Platform>()
+            .add_observer(placement::on_machine_added)
+            .add_observer(placement::on_machine_visuals)
+            .add_observer(placement::on_platform_visuals)
             .add_message::<MachineNetworkChanged>()
             .add_message::<MachineBuilt>()
             .init_resource::<MachineColliders>()
@@ -121,8 +130,9 @@ impl Plugin for MachinePlugin {
 // ECS components
 // ---------------------------------------------------------------------------
 
-#[derive(Component, Debug)]
-#[require(Transform)]
+#[derive(Component, Debug, Reflect)]
+#[reflect(Component)]
+#[require(Transform, Save)]
 pub struct Machine {
     pub machine_type: String,
     pub tier: u8,
@@ -130,6 +140,11 @@ pub struct Machine {
     pub energy_ports: Vec<Vec3>,
     pub logistics_ports: Vec<Vec3>,
 }
+
+/// Marker: machine only starts recipes on explicit player request, never from passive logistics triggers.
+#[derive(Component, Debug, Reflect, Default)]
+#[reflect(Component)]
+pub struct ManualCraftOnly;
 
 /// Marker: machine entity exists but is not fully operational (e.g. during removal).
 #[derive(Component)]
@@ -186,11 +201,15 @@ impl MachineEnergyPorts {
 }
 
 /// Flat static platform entity placed on terrain.
-#[derive(Component)]
+#[derive(Component, Reflect, Default)]
+#[reflect(Component)]
+#[require(Save)]
 pub struct Platform;
 
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
+#[reflect(Component)]
 pub enum MachineState {
+    #[default]
     Idle,
     Running,
 }
@@ -206,7 +225,7 @@ pub struct MinerMachine {
 // Orientation
 // ---------------------------------------------------------------------------
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 pub enum Rotation {
     North,
     East,
@@ -214,13 +233,13 @@ pub enum Rotation {
     West,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 pub enum Mirror {
     Normal,
     Mirrored,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Reflect)]
 pub struct Orientation {
     pub rotation: Rotation,
     pub mirror: Mirror,

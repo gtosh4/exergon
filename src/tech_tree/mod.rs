@@ -46,6 +46,8 @@ pub enum UnlockVector {
 pub enum NodeEffect {
     UnlockRecipes(Vec<String>),
     UnlockMachine(String),
+    /// Unlock all recipes expanded from the named template.
+    UnlockRecipeTemplate(String),
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -58,6 +60,8 @@ pub struct NodeDef {
     pub prerequisites: Vec<NodeId>,
     pub primary_unlock: UnlockVector,
     pub effects: Vec<NodeEffect>,
+    #[serde(default)]
+    pub exclusive_group: Option<String>,
 }
 
 #[derive(Resource, Clone, Debug)]
@@ -125,6 +129,7 @@ mod tests {
             prerequisites: prereqs.into_iter().map(str::to_string).collect(),
             primary_unlock: UnlockVector::ResearchSpend(1),
             effects: vec![],
+            exclusive_group: None,
         }
     }
 

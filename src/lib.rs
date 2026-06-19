@@ -12,6 +12,7 @@ pub mod machine;
 pub mod meta;
 pub mod network;
 pub mod planet;
+pub mod pod;
 pub mod power;
 pub mod reactivity;
 pub mod recipe_graph;
@@ -24,13 +25,24 @@ pub mod telemetry;
 pub mod ui;
 pub mod world;
 
+use avian3d::prelude::PhysicsLayer;
 use bevy::prelude::*;
+
+/// Physics collision layers used for selective collisions (e.g. aegis boundary).
+#[derive(PhysicsLayer, Clone, Copy, Debug, Default)]
+pub enum GameLayer {
+    #[default]
+    Default,
+    Player,
+    AegisBoundary,
+}
 
 #[derive(States, Default, Clone, Eq, PartialEq, Debug, Hash)]
 pub enum GameState {
     #[default]
     MainMenu,
     NewRunWizard,
+    LoadRun,
     Loading,
     Playing,
     Escaped,

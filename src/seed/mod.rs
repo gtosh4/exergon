@@ -1,14 +1,50 @@
 use bevy::prelude::*;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
+use serde::Deserialize;
 
 pub struct SeedPlugin;
 
 impl Plugin for SeedPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<RunSeed>()
-            .register_type::<DomainSeeds>();
+            .register_type::<DomainSeeds>()
+            .init_resource::<CuratedSeeds>()
+            .add_systems(Startup, load_curated_seeds);
     }
+}
+
+#[derive(Deserialize, Clone)]
+pub struct CuratedSeedEntry {
+    pub name: String,
+    pub seed: String,
+    pub description: String,
+}
+
+#[derive(Resource, Default)]
+pub struct CuratedSeeds {
+    pub entries: Vec<CuratedSeedEntry>,
+}
+
+fn load_curated_seeds(mut commands: Commands) {
+    let path = "assets/seeds/curated.ron";
+    let entries = match std::fs::read_to_string(path) {
+        Ok(s) => match ron::from_str::<Vec<CuratedSeedEntry>>(&s) {
+            Ok(v) => {
+                info!("Loaded {} curated seeds", v.len());
+                v
+            }
+            Err(e) => {
+                warn!("Failed to parse {path}: {e}");
+                vec![]
+            }
+        },
+        Err(e) => {
+            warn!("Missing {path}: {e}");
+            vec![]
+        }
+    };
+    commands.insert_resource(CuratedSeeds { entries });
 }
 
 /// The player-entered seed string for this run. Component on the Run entity

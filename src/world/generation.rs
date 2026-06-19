@@ -261,6 +261,9 @@ pub(super) fn spawn_deposit_markers(
                 depletion_seed,
             },
             Transform::from_xyz(wx, surface_y + 0.75, wz),
+            RigidBody::Static,
+            Collider::sphere(1.5),
+            Sensor,
         ));
         if let Some(ref v) = visuals {
             entity_cmd.insert(SceneRoot(v.deposit_scene.clone()));

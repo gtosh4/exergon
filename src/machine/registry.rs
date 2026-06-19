@@ -7,7 +7,7 @@ use super::placeables::{
 };
 use crate::content::load_ron_dir;
 
-#[derive(Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Deserialize, Clone, Debug, Default, PartialEq, Eq, Reflect)]
 pub enum EnvSource {
     #[default]
     Solar,

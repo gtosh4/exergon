@@ -2,7 +2,7 @@ use bevy::{app::AppExit, prelude::*};
 
 use crate::{
     GameState, PlayMode,
-    save::{Run, RunSaveHeader},
+    save::{Run, RunSaveHeader, SaveRoot, trigger_run_save},
     ui::{
         theme::{font_size, palette, space},
         widgets::{UiButton, button_label, caption, divider, panel},
@@ -12,6 +12,7 @@ use crate::{
 #[derive(Component)]
 enum PauseButton {
     Resume,
+    LoadRun,
     SaveQuit,
     Quit,
 }
@@ -69,13 +70,17 @@ fn spawn(mut commands: Commands, run_q: Query<&RunSaveHeader, With<Run>>) {
                             TextColor(Color::WHITE),
                         ));
                     });
+                left.spawn((UiButton::default(), PauseButton::LoadRun))
+                    .with_children(|b| {
+                        b.spawn(button_label("LOAD RUN"));
+                    });
                 left.spawn((UiButton::default(), PauseButton::SaveQuit))
                     .with_children(|b| {
                         b.spawn(button_label("SAVE & QUIT TO MENU"));
                     });
                 left.spawn((UiButton::default(), PauseButton::Quit))
                     .with_children(|b| {
-                        b.spawn(button_label("QUIT TO DESKTOP"));
+                        b.spawn(button_label("SAVE & QUIT TO DESKTOP"));
                     });
             });
 
@@ -131,10 +136,13 @@ fn spawn(mut commands: Commands, run_q: Query<&RunSaveHeader, With<Run>>) {
 }
 
 fn handle_buttons(
+    mut commands: Commands,
     q: Query<(&Interaction, &PauseButton), Changed<Interaction>>,
     mut next_state: ResMut<NextState<GameState>>,
     mut next_mode: ResMut<NextState<PlayMode>>,
     mut app_exit: MessageWriter<AppExit>,
+    save_root: Res<SaveRoot>,
+    header_q: Query<&RunSaveHeader, With<Run>>,
 ) {
     for (interaction, btn) in &q {
         if *interaction != Interaction::Pressed {
@@ -142,8 +150,12 @@ fn handle_buttons(
         }
         match btn {
             PauseButton::Resume => next_mode.set(PlayMode::Exploring),
+            PauseButton::LoadRun => next_state.set(GameState::LoadRun),
             PauseButton::SaveQuit => next_state.set(GameState::MainMenu),
             PauseButton::Quit => {
+                if let Ok(header) = header_q.single() {
+                    trigger_run_save(&mut commands, &save_root, &header.run_id);
+                }
                 app_exit.write(AppExit::Success);
             }
         }
