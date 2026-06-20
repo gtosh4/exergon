@@ -215,10 +215,10 @@ Design: [`planning-ui.md`](technical/planning-ui.md) §topology.
 
 Code present; verify against design.
 
-- [ ] Audit node visual states: Shadow, Partial, Revealed, Unlockable, Locked-Out
+- [x] Audit node visual states: Shadow, Partial, Revealed, Unlockable, Locked-Out
 - [ ] Locked-reason display on hover
-- [ ] Exclusive-group choice modal (per design issue #9)
-- [ ] Expand node pool to design minimum: smelting, extraction, 2 power options, logistics, analysis, drone, alien material, escape synthesis
+- [x] Exclusive-group choice modal (per design issue #9)
+- [x] Expand node pool to design minimum: smelting, extraction, 2 power options, logistics, analysis, drone, alien material, escape synthesis
 - [ ] Cross-tier port stubs in questbook layout
 
 ---
