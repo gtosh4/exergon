@@ -266,7 +266,7 @@ pub(super) fn spawn_deposit_markers(
             Sensor,
         ));
         if let Some(ref v) = visuals {
-            entity_cmd.insert(SceneRoot(v.deposit_scene.clone()));
+            entity_cmd.insert(WorldAssetRoot(v.deposit_scene.clone()));
         }
     }
 }

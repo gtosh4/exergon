@@ -42,7 +42,7 @@ fn spawn(mut commands: Commands) {
             .with_child((
                 Text::new(""),
                 TextFont {
-                    font_size: 13.0,
+                    font_size: FontSize::Px(13.0),
                     ..default()
                 },
                 TextColor(Color::WHITE),

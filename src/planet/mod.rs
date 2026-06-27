@@ -40,7 +40,7 @@ impl Plugin for PlanetPlugin {
             .add_systems(
                 Update,
                 insight_beat_check
-                    .run_if(in_state(PlayMode::Exploring).or(in_state(PlayMode::Building))),
+                    .run_if(in_state(PlayMode::Exploring).or_else(in_state(PlayMode::Building))),
             );
     }
 }

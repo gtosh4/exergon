@@ -10,9 +10,18 @@ description: >
 user-invocable: false
 ---
 
-# Bevy 0.18 Reference for Exergon
+# Bevy 0.19 Reference for Exergon
 
-Version: **0.18.1**. Exergon is a **3D game** — use `Camera3d`, `Mesh3d`, `StandardMaterial`, PBR lighting.
+Target: **0.19**. Exergon is a **3D game** — use `Camera3d`, `Mesh3d`, `StandardMaterial`, PBR lighting.
+
+> **⚠️ Migration status (2026-06-20).** `Cargo.toml` is still pinned to **bevy 0.18** because
+> `avian3d` (0.6.1) and `bevy_tnua` (0.31) both require bevy `^0.18` — no 0.19-compatible
+> release exists yet, not even on their git `main`. Until those physics deps ship 0.19 support,
+> **write 0.18-compatible code**. This skill is updated ahead to 0.19 so migration is fast once
+> deps catch up. See [`migration-0.19.md`](./migration-0.19.md) for the codebase-specific
+> 0.18→0.19 delta and the dep blocker.
+>
+> **bsn:** not yet. Stay on `commands.spawn((..))` tuples. Planned for the commit *after* the 0.19 bump.
 
 ## Rules:
 1. **Data lives in components and resources. Logic lives in systems and observers.** A method on a component is fine if it's a pure projection of its own fields (`Health::is_alive`, `Vec3::length`). Anything that touches another entity, spawns, despawns, or reads a resource belongs in a system or observer. The advice "components are just data" has limits — small impl blocks for invariant-preserving setters and convenient accessors are good — but anything that walks the world goes in a system.
@@ -30,3 +39,4 @@ Load the relevant resource file(s) before writing code:
 | [`schedules-state.md`](./schedules-state.md) | Schedules, Ordering, RunConditions, Fallible systems, SystemParam, States, SubStates, DespawnOnExit |
 | [`rendering.md`](./system-state.md) | Camera3d, Mesh3d, lights, MeshPickingPlugin, Pointer events, Scene save/load |
 | [`assets.md`](./assets.md) | Asset loading, custom AssetLoader, RON data files |
+| [`migration-0.19.md`](./migration-0.19.md) | 0.18→0.19 delta for this codebase + dep blocker. Load before the version bump. |

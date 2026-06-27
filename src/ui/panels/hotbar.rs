@@ -59,7 +59,7 @@ fn spawn(mut commands: Commands) {
                 .with_child((
                     Text::new(format!("{}", i + 1)),
                     TextFont {
-                        font_size: 14.0,
+                        font_size: FontSize::Px(14.0),
                         ..default()
                     },
                     TextColor(Color::srgb(0.627, 0.627, 0.627)),

@@ -153,7 +153,9 @@ fn give_test_items(
         if let Some(ref v) = visuals
             && let Some(scene) = v.scenes.get(&def.id)
         {
-            commands.entity(crate_e).insert(SceneRoot(scene.clone()));
+            commands
+                .entity(crate_e)
+                .insert(WorldAssetRoot(scene.clone()));
         }
         commands.entity(crate_e).insert(StorageUnit {
             items: [

@@ -79,7 +79,7 @@ fn spawn(mut commands: Commands) {
                 h.spawn((
                     Text::new(""),
                     TextFont {
-                        font_size: 18.0,
+                        font_size: FontSize::Px(18.0),
                         ..default()
                     },
                     TextColor(COLOR_GOLD),
@@ -97,7 +97,7 @@ fn spawn(mut commands: Commands) {
                 .with_child((
                     Text::new("✕"),
                     TextFont {
-                        font_size: 14.0,
+                        font_size: FontSize::Px(14.0),
                         ..default()
                     },
                     TextColor(Color::WHITE),
@@ -125,7 +125,7 @@ fn spawn(mut commands: Commands) {
                     rail.spawn((
                         Text::new(""),
                         TextFont {
-                            font_size: 13.0,
+                            font_size: FontSize::Px(13.0),
                             ..default()
                         },
                         TextColor(COLOR_GOLD),
@@ -142,7 +142,7 @@ fn spawn(mut commands: Commands) {
                     rail.spawn((
                         Text::new("CURRENT CRAFT"),
                         TextFont {
-                            font_size: 9.0,
+                            font_size: FontSize::Px(9.0),
                             ..default()
                         },
                         TextColor(COLOR_DIM),
@@ -150,7 +150,7 @@ fn spawn(mut commands: Commands) {
                     rail.spawn((
                         Text::new("— no active recipe"),
                         TextFont {
-                            font_size: 12.0,
+                            font_size: FontSize::Px(12.0),
                             ..default()
                         },
                         TextColor(COLOR_DIM),
@@ -180,7 +180,7 @@ fn spawn(mut commands: Commands) {
                     rail.spawn((
                         Text::new(""),
                         TextFont {
-                            font_size: 11.0,
+                            font_size: FontSize::Px(11.0),
                             ..default()
                         },
                         TextColor(COLOR_DIM),
@@ -207,7 +207,7 @@ fn spawn(mut commands: Commands) {
                             fr.spawn((
                                 Text::new("RECIPES"),
                                 TextFont {
-                                    font_size: 13.0,
+                                    font_size: FontSize::Px(13.0),
                                     ..default()
                                 },
                                 TextColor(COLOR_GOLD),
@@ -223,7 +223,7 @@ fn spawn(mut commands: Commands) {
                                 BackgroundColor(COLOR_OVERLAY_BG),
                                 Text::new(""),
                                 TextFont {
-                                    font_size: 14.0,
+                                    font_size: FontSize::Px(14.0),
                                     ..default()
                                 },
                                 TextColor(Color::WHITE),
@@ -452,7 +452,7 @@ fn update_content(
             list.spawn((
                 Text::new("(no matching recipes)"),
                 TextFont {
-                    font_size: 12.0,
+                    font_size: FontSize::Px(12.0),
                     ..default()
                 },
                 TextColor(COLOR_DIM),
@@ -512,7 +512,7 @@ fn update_content(
                             recipe.id.replace('_', " ")
                         )),
                         TextFont {
-                            font_size: 12.0,
+                            font_size: FontSize::Px(12.0),
                             ..default()
                         },
                         TextColor(text_color),
@@ -524,7 +524,7 @@ fn update_content(
                             recipe.energy_cost / recipe.processing_time
                         )),
                         TextFont {
-                            font_size: 10.0,
+                            font_size: FontSize::Px(10.0),
                             ..default()
                         },
                         TextColor(COLOR_DIM),
@@ -533,7 +533,7 @@ fn update_content(
                 row.spawn((
                     Text::new(format!("{} → {}", inputs.join(" + "), outputs.join(", "))),
                     TextFont {
-                        font_size: 10.0,
+                        font_size: FontSize::Px(10.0),
                         ..default()
                     },
                     TextColor(COLOR_DIM),

@@ -139,7 +139,7 @@ pub fn heading(text: impl Into<String>, size: H) -> impl Bundle {
     (
         Text::new(text.into()),
         TextFont {
-            font_size: size.size(),
+            font_size: FontSize::Px(size.size()),
             ..default()
         },
         TextColor(palette::ACCENT),
@@ -151,7 +151,7 @@ pub fn label(text: impl Into<String>) -> impl Bundle {
     (
         Text::new(text.into()),
         TextFont {
-            font_size: font_size::LABEL,
+            font_size: FontSize::Px(font_size::LABEL),
             ..default()
         },
         TextColor(palette::TEXT),
@@ -163,7 +163,7 @@ pub fn caption(text: impl Into<String>) -> impl Bundle {
     (
         Text::new(text.into()),
         TextFont {
-            font_size: font_size::LABEL_SM,
+            font_size: FontSize::Px(font_size::LABEL_SM),
             ..default()
         },
         TextColor(palette::DIM),
@@ -216,7 +216,7 @@ pub fn tag_text(text: impl Into<String>, color: Color) -> impl Bundle {
     (
         Text::new(text.into().to_uppercase()),
         TextFont {
-            font_size: font_size::TAG,
+            font_size: FontSize::Px(font_size::TAG),
             ..default()
         },
         TextColor(color),

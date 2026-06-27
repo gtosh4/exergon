@@ -1,4 +1,4 @@
-# Bevy 0.18 — ECS Core, Reflection, Hooks, Relationships
+# Bevy 0.19 — ECS Core, Reflection, Hooks, Relationships
 ## Entities
 Fundamental units, like game objects.
 
@@ -46,8 +46,18 @@ mod tests {
 ## Resources
 Global, mutable data (Time) accessed by systems. Shared state. No world data.
 
+**0.19:** `#[derive(Resource)]` now *also* implements `Component` (resources live as components on
+abstract entities). Consequences:
+- Never double-derive `#[derive(Component, Resource)]` on one type — split into two types.
+- `#[derive(MapEntities)]` is no longer needed on resources; `#[entities]` fields map by default.
+- Generic `ResMut<R>` bounds need `R: Resource<Mutability = Mutable>`.
+
 ## Queries
 Select entities based on component criteria. Efficient selection.
+
+**0.19:** broad queries (`Query<()>`, `Query<Entity>`, `Query<Option<&T>>`) now conflict with resource
+access (resources are components). If a borrow-checker panic appears, filter the query: add
+`Without<TheResource>` (or `Without<IsResource>`).
 
 Lifecycle / Change Detection:
 - Add: Triggered when a component is added to an entity that did not already have it.

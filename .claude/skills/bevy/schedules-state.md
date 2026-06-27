@@ -1,4 +1,4 @@
-# Bevy 0.18 — Schedules, State
+# Bevy 0.19 — Schedules, State
 
 ## Ordering Systems
 - `after`/`before`: explicit ordering
@@ -29,3 +29,9 @@ Active only when parent state matches. Freely mutable via `NextState`.
 
 ## Entity Lifecycle Helpers
 `DespawnOnExit`, `DespawnOnEnter` components for state change
+- **0.19:** these can now fire during *same-state* transitions — review if you re-enter a state.
+
+## Fallible Systems & Executor (0.19 renames)
+- Last-resort error handler: `DefaultErrorHandler` → **`FallbackErrorHandler`** (`insert_resource(FallbackErrorHandler(h))`).
+- Executor: `ExecutorKind` / `set_executor_kind` removed → `schedule.set_executor(MultiThreadedExecutor::new())`.
+- `System::type_id` → `System::system_type`.

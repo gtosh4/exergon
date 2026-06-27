@@ -161,7 +161,7 @@ pub(super) fn cable_placed_system<N: NetworkKind>(
         // If explicit ports were provided in the event, use them directly.
         // Otherwise fall back to snap-radius scan (backward compat with tests).
         if from_port.is_some() || to_port.is_some() {
-            for port_e in from_port.into_iter().chain(to_port.into_iter()) {
+            for port_e in from_port.into_iter().chain(to_port) {
                 debug!(
                     "cable_placed: explicit port {:?} joined network {:?}",
                     port_e, target_net

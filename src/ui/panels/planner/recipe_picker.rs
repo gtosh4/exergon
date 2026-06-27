@@ -102,7 +102,7 @@ fn spawn_picker(mut commands: Commands) {
                     panel.spawn((
                         Text::new("RECIPE PICKER"),
                         TextFont {
-                            font_size: font_size::H_SM,
+                            font_size: FontSize::Px(font_size::H_SM),
                             ..default()
                         },
                         TextColor(palette::TEXT),
@@ -130,7 +130,7 @@ fn spawn_picker(mut commands: Commands) {
                                 left.spawn((
                                     Text::new("Filter"),
                                     TextFont {
-                                        font_size: font_size::LABEL,
+                                        font_size: FontSize::Px(font_size::LABEL),
                                         ..default()
                                     },
                                     TextColor(palette::DIM),
@@ -152,7 +152,7 @@ fn spawn_picker(mut commands: Commands) {
                                 .with_child((
                                     Text::new("Unlocked only"),
                                     TextFont {
-                                        font_size: font_size::LABEL,
+                                        font_size: FontSize::Px(font_size::LABEL),
                                         ..default()
                                     },
                                     TextColor(palette::TEXT),
@@ -211,7 +211,7 @@ fn spawn_picker(mut commands: Commands) {
                                 .with_child((
                                     Text::new("Cancel"),
                                     TextFont {
-                                        font_size: font_size::BUTTON,
+                                        font_size: FontSize::Px(font_size::BUTTON),
                                         ..default()
                                     },
                                     TextColor(palette::TEXT),
@@ -234,7 +234,7 @@ fn spawn_picker(mut commands: Commands) {
                                 .with_child((
                                     Text::new("Apply"),
                                     TextFont {
-                                        font_size: font_size::BUTTON,
+                                        font_size: FontSize::Px(font_size::BUTTON),
                                         ..default()
                                     },
                                     TextColor(Color::WHITE),
@@ -339,7 +339,7 @@ fn rebuild_picker(
                 row.spawn((
                     Text::new(format!("{name}  [{tier_str}]")),
                     TextFont {
-                        font_size: font_size::LABEL,
+                        font_size: FontSize::Px(font_size::LABEL),
                         ..default()
                     },
                     TextColor(if is_unlocked {
@@ -361,7 +361,7 @@ fn rebuild_picker(
                 row.spawn((
                     Text::new(format!("{} → {}", inputs.join(" + "), outputs.join(" + "))),
                     TextFont {
-                        font_size: font_size::LABEL_SM,
+                        font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
                     },
                     TextColor(palette::DIM),
@@ -391,7 +391,7 @@ fn rebuild_picker(
             comp.spawn((
                 Text::new("Compare"),
                 TextFont {
-                    font_size: font_size::H_XS,
+                    font_size: FontSize::Px(font_size::H_XS),
                     ..default()
                 },
                 TextColor(palette::DIM),
@@ -406,7 +406,7 @@ fn rebuild_picker(
                         current.processing_time, current.energy_cost
                     )),
                     TextFont {
-                        font_size: font_size::LABEL_SM,
+                        font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
                     },
                     TextColor(palette::TEXT),
@@ -420,7 +420,7 @@ fn rebuild_picker(
                         alt.processing_time, alt.energy_cost
                     )),
                     TextFont {
-                        font_size: font_size::LABEL_SM,
+                        font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
                     },
                     TextColor(palette::ACCENT),

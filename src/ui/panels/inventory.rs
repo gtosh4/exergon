@@ -124,7 +124,7 @@ fn spawn(mut commands: Commands) {
                         h.spawn((
                             Text::new("TERMINAL"),
                             TextFont {
-                                font_size: 18.0,
+                                font_size: FontSize::Px(18.0),
                                 ..default()
                             },
                             TextColor(COLOR_GOLD),
@@ -132,7 +132,7 @@ fn spawn(mut commands: Commands) {
                         h.spawn((
                             Text::new("[Tab / Esc]"),
                             TextFont {
-                                font_size: 12.0,
+                                font_size: FontSize::Px(12.0),
                                 ..default()
                             },
                             TextColor(COLOR_DIM),
@@ -191,7 +191,7 @@ fn spawn(mut commands: Commands) {
                     root.spawn((
                         Text::new("HOTBAR  —  drag items here to assign"),
                         TextFont {
-                            font_size: 12.0,
+                            font_size: FontSize::Px(12.0),
                             ..default()
                         },
                         TextColor(COLOR_DIM),
@@ -245,7 +245,7 @@ fn spawn(mut commands: Commands) {
         .with_child((
             Text::new(""),
             TextFont {
-                font_size: 14.0,
+                font_size: FontSize::Px(14.0),
                 ..default()
             },
             TextColor(Color::WHITE),
@@ -364,7 +364,7 @@ fn spawn_tab(parent: &mut ChildSpawnerCommands<'_>, tab: TerminalTab, label: &st
         .with_child((
             Text::new(label),
             TextFont {
-                font_size: 12.0,
+                font_size: FontSize::Px(12.0),
                 ..default()
             },
             TextColor(COLOR_DIM),
@@ -438,7 +438,7 @@ fn update_planet_tab(
         commands.entity(planet_entity).with_child((
             Text::new("(no planet data)"),
             TextFont {
-                font_size: 14.0,
+                font_size: FontSize::Px(14.0),
                 ..default()
             },
             TextColor(COLOR_DIM),
@@ -455,7 +455,7 @@ fn update_planet_tab(
         root.spawn((
             Text::new(title),
             TextFont {
-                font_size: 16.0,
+                font_size: FontSize::Px(16.0),
                 ..default()
             },
             TextColor(COLOR_GOLD),
@@ -509,7 +509,7 @@ fn spawn_planet_row(
             row.spawn((
                 Text::new(key.display_name()),
                 TextFont {
-                    font_size: 14.0,
+                    font_size: FontSize::Px(14.0),
                     ..default()
                 },
                 TextColor(palette::TEXT),
@@ -518,7 +518,7 @@ fn spawn_planet_row(
             row.spawn((
                 Text::new(value_text),
                 TextFont {
-                    font_size: 14.0,
+                    font_size: FontSize::Px(14.0),
                     ..default()
                 },
                 TextColor(color),
@@ -616,7 +616,7 @@ fn update_items(
                         p.spawn((
                             Text::new(format!("{}\n×{}", name, count)),
                             TextFont {
-                                font_size: 12.0,
+                                font_size: FontSize::Px(12.0),
                                 ..default()
                             },
                             TextColor(Color::WHITE),
@@ -627,7 +627,7 @@ fn update_items(
                     commands.entity(entity).with_child((
                         Text::new(format!("{}", i + 1)),
                         TextFont {
-                            font_size: 12.0,
+                            font_size: FontSize::Px(12.0),
                             ..default()
                         },
                         TextColor(Color::srgb(0.392, 0.392, 0.392)),
@@ -693,7 +693,7 @@ fn update_items(
         commands.entity(net_list).with_child((
             Text::new("(network empty — no craftable items)"),
             TextFont {
-                font_size: 14.0,
+                font_size: FontSize::Px(14.0),
                 ..default()
             },
             TextColor(COLOR_DIM),
@@ -721,7 +721,7 @@ fn update_items(
             hdr.spawn((
                 Text::new("NAME"),
                 TextFont {
-                    font_size: font_size::H_XS,
+                    font_size: FontSize::Px(font_size::H_XS),
                     ..default()
                 },
                 TextColor(COLOR_DIM),
@@ -733,7 +733,7 @@ fn update_items(
             hdr.spawn((
                 Text::new("QTY"),
                 TextFont {
-                    font_size: font_size::H_XS,
+                    font_size: FontSize::Px(font_size::H_XS),
                     ..default()
                 },
                 TextColor(COLOR_DIM),
@@ -776,7 +776,7 @@ fn update_items(
                 row.spawn((
                     Text::new(name),
                     TextFont {
-                        font_size: 14.0,
+                        font_size: FontSize::Px(14.0),
                         ..default()
                     },
                     TextColor(text_color),
@@ -799,7 +799,7 @@ fn update_items(
                         "—".to_string()
                     }),
                     TextFont {
-                        font_size: 14.0,
+                        font_size: FontSize::Px(14.0),
                         ..default()
                     },
                     TextColor(if in_stock { COLOR_GOLD } else { COLOR_DIM }),
@@ -819,7 +819,7 @@ fn update_items(
                     .with_child((
                         Text::new("C"),
                         TextFont {
-                            font_size: font_size::TAG,
+                            font_size: FontSize::Px(font_size::TAG),
                             ..default()
                         },
                         TextColor(palette::ACCENT),
@@ -852,7 +852,7 @@ fn update_items(
                     .with_child((
                         Text::new("CRAFT"),
                         TextFont {
-                            font_size: font_size::TAG,
+                            font_size: FontSize::Px(font_size::TAG),
                             ..default()
                         },
                         TextColor(Color::WHITE),

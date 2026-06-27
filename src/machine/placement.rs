@@ -142,7 +142,7 @@ pub(super) fn on_machine_visuals(
     }
 
     if let Some(scene) = scene {
-        commands.entity(entity).insert(SceneRoot(scene));
+        commands.entity(entity).insert(WorldAssetRoot(scene));
     }
 
     network_changed.write(MachineNetworkChanged);
@@ -158,7 +158,7 @@ pub(super) fn on_platform_visuals(
     if let Some(v) = visuals.as_deref() {
         commands.entity(entity).insert((
             RigidBody::Static,
-            SceneRoot(v.platform_scene.clone()),
+            WorldAssetRoot(v.platform_scene.clone()),
             ColliderConstructorHierarchy::new(ColliderConstructor::ConvexHullFromMesh),
         ));
     } else {

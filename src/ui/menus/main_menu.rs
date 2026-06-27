@@ -87,7 +87,7 @@ fn spawn(mut commands: Commands, save_root: Res<SaveRoot>, app_registry: Res<App
                 left.spawn((
                     Text::new("EXERGON"),
                     TextFont {
-                        font_size: 52.0,
+                        font_size: FontSize::Px(52.0),
                         ..default()
                     },
                     TextColor(palette::ACCENT),
@@ -115,7 +115,7 @@ fn spawn(mut commands: Commands, save_root: Res<SaveRoot>, app_registry: Res<App
                                     inner.spawn((
                                         Text::new("RESUME RUN"),
                                         TextFont {
-                                            font_size: font_size::BUTTON,
+                                            font_size: FontSize::Px(font_size::BUTTON),
                                             ..default()
                                         },
                                         TextColor(Color::WHITE),
@@ -129,7 +129,7 @@ fn spawn(mut commands: Commands, save_root: Res<SaveRoot>, app_registry: Res<App
                                     inner.spawn((
                                         Text::new(hint),
                                         TextFont {
-                                            font_size: font_size::LABEL_SM,
+                                            font_size: FontSize::Px(font_size::LABEL_SM),
                                             ..default()
                                         },
                                         TextColor(palette::DIM),
@@ -151,7 +151,7 @@ fn spawn(mut commands: Commands, save_root: Res<SaveRoot>, app_registry: Res<App
                                 b.spawn((
                                     Text::new("NEW RUN"),
                                     TextFont {
-                                        font_size: font_size::BUTTON,
+                                        font_size: FontSize::Px(font_size::BUTTON),
                                         ..default()
                                     },
                                     TextColor(Color::WHITE),
@@ -181,7 +181,7 @@ fn spawn(mut commands: Commands, save_root: Res<SaveRoot>, app_registry: Res<App
                         },
                         Text::new(TAGLINE),
                         TextFont {
-                            font_size: font_size::H_MD,
+                            font_size: FontSize::Px(font_size::H_MD),
                             ..default()
                         },
                         TextColor(palette::DIM),
@@ -210,7 +210,7 @@ fn spawn_run_glance(parent: &mut ChildSpawnerCommands, h: &RunSaveHeader) {
             col.spawn((
                 Text::new(seed.to_string()),
                 TextFont {
-                    font_size: font_size::H_MD,
+                    font_size: FontSize::Px(font_size::H_MD),
                     ..default()
                 },
                 TextColor(palette::TEXT),
@@ -223,7 +223,7 @@ fn spawn_run_glance(parent: &mut ChildSpawnerCommands, h: &RunSaveHeader) {
                     format_playtime(h.total_playtime_secs),
                 )),
                 TextFont {
-                    font_size: font_size::LABEL,
+                    font_size: FontSize::Px(font_size::LABEL),
                     ..default()
                 },
                 TextColor(palette::DIM),

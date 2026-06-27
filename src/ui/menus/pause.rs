@@ -51,7 +51,7 @@ fn spawn(mut commands: Commands, run_q: Query<&RunSaveHeader, With<Run>>) {
                 left.spawn((
                     Text::new("PAUSED"),
                     TextFont {
-                        font_size: font_size::H_XL,
+                        font_size: FontSize::Px(font_size::H_XL),
                         ..default()
                     },
                     TextColor(palette::ACCENT),
@@ -64,7 +64,7 @@ fn spawn(mut commands: Commands, run_q: Query<&RunSaveHeader, With<Run>>) {
                         b.spawn((
                             Text::new("RESUME"),
                             TextFont {
-                                font_size: font_size::BUTTON,
+                                font_size: FontSize::Px(font_size::BUTTON),
                                 ..default()
                             },
                             TextColor(Color::WHITE),
@@ -104,7 +104,7 @@ fn spawn(mut commands: Commands, run_q: Query<&RunSaveHeader, With<Run>>) {
                             info.spawn((
                                 Text::new(seed.to_string()),
                                 TextFont {
-                                    font_size: font_size::H_SM,
+                                    font_size: FontSize::Px(font_size::H_SM),
                                     ..default()
                                 },
                                 TextColor(palette::TEXT),
@@ -122,7 +122,7 @@ fn spawn(mut commands: Commands, run_q: Query<&RunSaveHeader, With<Run>>) {
                             info.spawn((
                                 Text::new(playtime),
                                 TextFont {
-                                    font_size: font_size::H_SM,
+                                    font_size: FontSize::Px(font_size::H_SM),
                                     ..default()
                                 },
                                 TextColor(palette::TEXT),

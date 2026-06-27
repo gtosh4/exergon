@@ -22,7 +22,7 @@ fn spawn(mut commands: Commands) {
         .with_child((
             Text::new("Loading..."),
             TextFont {
-                font_size: 32.0,
+                font_size: FontSize::Px(32.0),
                 ..default()
             },
             TextColor(COLOR_GOLD),

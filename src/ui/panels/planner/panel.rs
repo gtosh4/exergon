@@ -133,7 +133,7 @@ fn spawn_planner(mut commands: Commands) {
                                     left.spawn((
                                         Text::new("PLANNER · Plan A"),
                                         TextFont {
-                                            font_size: font_size::H_SM,
+                                            font_size: FontSize::Px(font_size::H_SM),
                                             ..default()
                                         },
                                         TextColor(palette::TEXT),
@@ -142,7 +142,7 @@ fn spawn_planner(mut commands: Commands) {
                                     left.spawn((
                                         Text::new("—"),
                                         TextFont {
-                                            font_size: font_size::LABEL,
+                                            font_size: FontSize::Px(font_size::LABEL),
                                             ..default()
                                         },
                                         TextColor(palette::DIM),
@@ -175,7 +175,7 @@ fn spawn_planner(mut commands: Commands) {
                                         .with_child((
                                             Text::new("/s"),
                                             TextFont {
-                                                font_size: font_size::LABEL,
+                                                font_size: FontSize::Px(font_size::LABEL),
                                                 ..default()
                                             },
                                             TextColor(Color::WHITE),
@@ -198,7 +198,7 @@ fn spawn_planner(mut commands: Commands) {
                                         .with_child((
                                             Text::new("/min"),
                                             TextFont {
-                                                font_size: font_size::LABEL,
+                                                font_size: FontSize::Px(font_size::LABEL),
                                                 ..default()
                                             },
                                             TextColor(palette::DIM),
@@ -264,7 +264,7 @@ fn spawn_planner(mut commands: Commands) {
                                 left.spawn((
                                     Text::new("0 machines"),
                                     TextFont {
-                                        font_size: font_size::LABEL,
+                                        font_size: FontSize::Px(font_size::LABEL),
                                         ..default()
                                     },
                                     TextColor(palette::DIM),
@@ -273,7 +273,7 @@ fn spawn_planner(mut commands: Commands) {
                                 left.spawn((
                                     Text::new(""),
                                     TextFont {
-                                        font_size: font_size::LABEL,
+                                        font_size: FontSize::Px(font_size::LABEL),
                                         ..default()
                                     },
                                     TextColor(palette::WARN),
@@ -283,7 +283,7 @@ fn spawn_planner(mut commands: Commands) {
                             bar.spawn((
                                 Text::new("[Esc to close]"),
                                 TextFont {
-                                    font_size: font_size::LABEL,
+                                    font_size: FontSize::Px(font_size::LABEL),
                                     ..default()
                                 },
                                 TextColor(palette::DIM),
@@ -344,7 +344,7 @@ fn rebuild_sankey(
         commands.entity(canvas_entity).with_child((
             Text::new("No target set"),
             TextFont {
-                font_size: font_size::LABEL,
+                font_size: FontSize::Px(font_size::LABEL),
                 ..default()
             },
             TextColor(palette::DIM),
@@ -399,7 +399,7 @@ fn rebuild_sankey(
                                     row.spawn((
                                         Text::new(item_name),
                                         TextFont {
-                                            font_size: font_size::LABEL,
+                                            font_size: FontSize::Px(font_size::LABEL),
                                             ..default()
                                         },
                                         TextColor(palette::TEXT),
@@ -407,7 +407,7 @@ fn rebuild_sankey(
                                     row.spawn((
                                         Text::new(format!("×{}", node.machine_count)),
                                         TextFont {
-                                            font_size: font_size::LABEL,
+                                            font_size: FontSize::Px(font_size::LABEL),
                                             ..default()
                                         },
                                         TextColor(palette::WARN),
@@ -419,7 +419,7 @@ fn rebuild_sankey(
                                     card.spawn((
                                         Text::new(recipe_id.replace('_', " ")),
                                         TextFont {
-                                            font_size: font_size::LABEL_SM,
+                                            font_size: FontSize::Px(font_size::LABEL_SM),
                                             ..default()
                                         },
                                         TextColor(palette::DIM),
@@ -431,7 +431,7 @@ fn rebuild_sankey(
                                 card.spawn((
                                     Text::new(rate_str),
                                     TextFont {
-                                        font_size: font_size::LABEL_SM,
+                                        font_size: FontSize::Px(font_size::LABEL_SM),
                                         ..default()
                                     },
                                     TextColor(palette::TEXT),
@@ -485,7 +485,7 @@ fn rebuild_inspector(
         commands.entity(inspector_entity).with_child((
             Text::new("Click a node to inspect"),
             TextFont {
-                font_size: font_size::LABEL,
+                font_size: FontSize::Px(font_size::LABEL),
                 ..default()
             },
             TextColor(palette::DIM),
@@ -498,7 +498,7 @@ fn rebuild_inspector(
         commands.entity(inspector_entity).with_child((
             Text::new("Node not found"),
             TextFont {
-                font_size: font_size::LABEL,
+                font_size: FontSize::Px(font_size::LABEL),
                 ..default()
             },
             TextColor(palette::ERR),
@@ -569,7 +569,7 @@ fn rebuild_inspector(
         insp.spawn((
             Text::new(item_name.to_string()),
             TextFont {
-                font_size: font_size::H_MD,
+                font_size: FontSize::Px(font_size::H_MD),
                 ..default()
             },
             TextColor(palette::TEXT),
@@ -577,7 +577,7 @@ fn rebuild_inspector(
         insp.spawn((
             Text::new(machine_type.to_string()),
             TextFont {
-                font_size: font_size::LABEL,
+                font_size: FontSize::Px(font_size::LABEL),
                 ..default()
             },
             TextColor(palette::DIM),
@@ -585,7 +585,7 @@ fn rebuild_inspector(
         insp.spawn((
             Text::new(status_text),
             TextFont {
-                font_size: font_size::LABEL,
+                font_size: FontSize::Px(font_size::LABEL),
                 ..default()
             },
             TextColor(status_color),
@@ -598,7 +598,7 @@ fn rebuild_inspector(
             insp.spawn((
                 Text::new("RECIPE"),
                 TextFont {
-                    font_size: font_size::H_XS,
+                    font_size: FontSize::Px(font_size::H_XS),
                     ..default()
                 },
                 TextColor(palette::DIM),
@@ -619,7 +619,7 @@ fn rebuild_inspector(
                 insp.spawn((
                     Text::new(format!("{} → {}", inputs.join(", "), outputs.join(", "))),
                     TextFont {
-                        font_size: font_size::LABEL_SM,
+                        font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
                     },
                     TextColor(palette::TEXT),
@@ -643,7 +643,7 @@ fn rebuild_inspector(
                 .with_child((
                     Text::new(label),
                     TextFont {
-                        font_size: font_size::LABEL,
+                        font_size: FontSize::Px(font_size::LABEL),
                         ..default()
                     },
                     TextColor(palette::ACCENT),
@@ -657,7 +657,7 @@ fn rebuild_inspector(
         insp.spawn((
             Text::new("THROUGHPUT"),
             TextFont {
-                font_size: font_size::H_XS,
+                font_size: FontSize::Px(font_size::H_XS),
                 ..default()
             },
             TextColor(palette::DIM),
@@ -665,7 +665,7 @@ fn rebuild_inspector(
         insp.spawn((
             Text::new(format!("Rate: {:.3}/s", node_required_rate)),
             TextFont {
-                font_size: font_size::LABEL,
+                font_size: FontSize::Px(font_size::LABEL),
                 ..default()
             },
             TextColor(palette::TEXT),
@@ -677,7 +677,7 @@ fn rebuild_inspector(
                 if locked { "(locked)" } else { "" }
             )),
             TextFont {
-                font_size: font_size::LABEL,
+                font_size: FontSize::Px(font_size::LABEL),
                 ..default()
             },
             TextColor(if locked { palette::WARN } else { palette::TEXT }),
@@ -691,7 +691,7 @@ fn rebuild_inspector(
                     "⚠ supply {throughput:.2}/s, demand {node_required_rate:.2}/s"
                 )),
                 TextFont {
-                    font_size: font_size::LABEL,
+                    font_size: FontSize::Px(font_size::LABEL),
                     ..default()
                 },
                 TextColor(palette::WARN),
@@ -704,7 +704,7 @@ fn rebuild_inspector(
         insp.spawn((
             Text::new("MODULES"),
             TextFont {
-                font_size: font_size::H_XS,
+                font_size: FontSize::Px(font_size::H_XS),
                 ..default()
             },
             TextColor(palette::DIM),
@@ -712,7 +712,7 @@ fn rebuild_inspector(
         insp.spawn((
             Text::new("— no modules (MVP)"),
             TextFont {
-                font_size: font_size::LABEL,
+                font_size: FontSize::Px(font_size::LABEL),
                 ..default()
             },
             TextColor(palette::DIM),

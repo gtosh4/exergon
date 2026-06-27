@@ -109,7 +109,7 @@ fn spawn_debug_huds(mut commands: Commands) {
         BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.627)),
         Text::new(""),
         TextFont {
-            font_size: 12.0,
+            font_size: FontSize::Px(12.0),
             ..default()
         },
         TextColor(Color::WHITE),
@@ -128,7 +128,7 @@ fn spawn_debug_huds(mut commands: Commands) {
         BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.627)),
         Text::new(""),
         TextFont {
-            font_size: 12.0,
+            font_size: FontSize::Px(12.0),
             ..default()
         },
         TextColor(Color::WHITE),

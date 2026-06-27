@@ -352,7 +352,7 @@ fn spawn_run_row(parent: &mut ChildSpawnerCommands, h: &RunSaveHeader, selected:
                 top.spawn((
                     Text::new(seed.to_string()),
                     TextFont {
-                        font_size: font_size::H_SM,
+                        font_size: FontSize::Px(font_size::H_SM),
                         ..default()
                     },
                     TextColor(palette::TEXT),
@@ -368,7 +368,7 @@ fn spawn_run_row(parent: &mut ChildSpawnerCommands, h: &RunSaveHeader, selected:
                 bottom.spawn((
                     Text::new(status_str),
                     TextFont {
-                        font_size: font_size::LABEL_SM,
+                        font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
                     },
                     TextColor(status_color),
@@ -400,7 +400,7 @@ fn spawn_detail(parent: &mut ChildSpawnerCommands, h: &RunSaveHeader, confirm_de
             row.spawn((
                 Text::new(status_str),
                 TextFont {
-                    font_size: font_size::LABEL,
+                    font_size: FontSize::Px(font_size::LABEL),
                     ..default()
                 },
                 TextColor(status_color),
@@ -454,7 +454,7 @@ fn spawn_detail(parent: &mut ChildSpawnerCommands, h: &RunSaveHeader, confirm_de
                 actions.spawn((
                     Text::new("Delete this run? This cannot be undone."),
                     TextFont {
-                        font_size: font_size::LABEL,
+                        font_size: FontSize::Px(font_size::LABEL),
                         ..default()
                     },
                     TextColor(palette::WARN),
@@ -474,7 +474,7 @@ fn spawn_detail(parent: &mut ChildSpawnerCommands, h: &RunSaveHeader, confirm_de
                         b.spawn((
                             Text::new("CONFIRM DELETE"),
                             TextFont {
-                                font_size: font_size::BUTTON,
+                                font_size: FontSize::Px(font_size::BUTTON),
                                 ..default()
                             },
                             TextColor(palette::ERR),
@@ -487,7 +487,7 @@ fn spawn_detail(parent: &mut ChildSpawnerCommands, h: &RunSaveHeader, confirm_de
                         b.spawn((
                             Text::new("DELETE"),
                             TextFont {
-                                font_size: font_size::BUTTON,
+                                font_size: FontSize::Px(font_size::BUTTON),
                                 ..default()
                             },
                             TextColor(palette::ERR),

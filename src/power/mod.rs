@@ -164,7 +164,7 @@ fn add_power_cable_visuals(
 
 fn add_generator_visuals(
     mut commands: Commands,
-    added: Query<Entity, (Added<GeneratorUnit>, Without<SceneRoot>)>,
+    added: Query<Entity, (Added<GeneratorUnit>, Without<WorldAssetRoot>)>,
     assets: Option<Res<PowerVisualAssets>>,
 ) {
     let Some(assets) = assets else { return };
@@ -665,7 +665,7 @@ mod tests {
             Query<&GeneratorUnit>,
             Query<&EnergyPortOf>,
         )> = SystemState::new(&mut world);
-        let (net_q, gen_q, port_q) = state.get(&world);
+        let (net_q, gen_q, port_q) = state.get(&world).unwrap();
         let members = net_q.get(net_e).unwrap();
 
         assert!(
@@ -702,7 +702,7 @@ mod tests {
                 Query<&mut GeneratorUnit>,
                 Query<&EnergyPortOf>,
             )> = SystemState::new(&mut world);
-            let (net_q, mut gen_q, port_q) = state.get_mut(&mut world);
+            let (net_q, mut gen_q, port_q) = state.get_mut(&mut world).unwrap();
             assert!(
                 net_q
                     .get(net_e)
@@ -725,7 +725,7 @@ mod tests {
                 Query<&mut GeneratorUnit>,
                 Query<&EnergyPortOf>,
             )> = SystemState::new(&mut world);
-            let (net_q, mut gen_q, port_q) = state.get_mut(&mut world);
+            let (net_q, mut gen_q, port_q) = state.get_mut(&mut world).unwrap();
             assert!(
                 !net_q
                     .get(net_e)

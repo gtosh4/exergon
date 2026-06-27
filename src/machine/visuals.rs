@@ -8,9 +8,9 @@ use bevy::prelude::*;
 pub struct MachineVisualAssets {
     pub(super) mesh: Handle<Mesh>,
     pub(super) platform_mesh: Handle<Mesh>,
-    pub scenes: HashMap<String, Handle<Scene>>,
-    pub(crate) platform_scene: Handle<Scene>,
-    pub(crate) deposit_scene: Handle<Scene>,
+    pub scenes: HashMap<String, Handle<WorldAsset>>,
+    pub(crate) platform_scene: Handle<WorldAsset>,
+    pub(crate) deposit_scene: Handle<WorldAsset>,
     pub gltf_handles: HashMap<String, Handle<Gltf>>,
 }
 
@@ -61,7 +61,7 @@ pub(super) fn setup_machine_visuals(
         "solar_generator",
         "combustion_generator",
     ];
-    let mut scenes: HashMap<String, Handle<Scene>> = HashMap::new();
+    let mut scenes: HashMap<String, Handle<WorldAsset>> = HashMap::new();
     let mut gltf_handles: HashMap<String, Handle<Gltf>> = HashMap::new();
     for id in machine_ids {
         scenes.insert(

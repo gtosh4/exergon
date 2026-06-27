@@ -60,7 +60,7 @@ fn spawn_widgets(mut commands: Commands) {
         .with_child((
             Text::new("◈ LOCAL"),
             TextFont {
-                font_size: 13.0,
+                font_size: FontSize::Px(13.0),
                 ..default()
             },
             TextColor(COLOR_LOCAL),
@@ -87,7 +87,7 @@ fn spawn_widgets(mut commands: Commands) {
         .with_child((
             Text::new(""),
             TextFont {
-                font_size: 12.0,
+                font_size: FontSize::Px(12.0),
                 ..default()
             },
             TextColor(COLOR_GOLD),
@@ -114,7 +114,7 @@ fn spawn_widgets(mut commands: Commands) {
         .with_child((
             Text::new("E — deposit samples"),
             TextFont {
-                font_size: 14.0,
+                font_size: FontSize::Px(14.0),
                 ..default()
             },
             TextColor(COLOR_REMOTE),
@@ -162,7 +162,7 @@ fn spawn_widgets(mut commands: Commands) {
                         h.spawn((
                             Text::new("DRONE CARGO"),
                             TextFont {
-                                font_size: 18.0,
+                                font_size: FontSize::Px(18.0),
                                 ..default()
                             },
                             TextColor(COLOR_REMOTE),
@@ -170,7 +170,7 @@ fn spawn_widgets(mut commands: Commands) {
                         h.spawn((
                             Text::new("[Tab / Esc]"),
                             TextFont {
-                                font_size: 12.0,
+                                font_size: FontSize::Px(12.0),
                                 ..default()
                             },
                             TextColor(COLOR_DIM),
@@ -179,7 +179,7 @@ fn spawn_widgets(mut commands: Commands) {
                     root.spawn((
                         Text::new(""),
                         TextFont {
-                            font_size: 14.0,
+                            font_size: FontSize::Px(14.0),
                             ..default()
                         },
                         TextColor(COLOR_GOLD),

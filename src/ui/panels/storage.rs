@@ -77,7 +77,7 @@ fn spawn(mut commands: Commands) {
                         h.spawn((
                             Text::new("STORAGE CRATE"),
                             TextFont {
-                                font_size: 18.0,
+                                font_size: FontSize::Px(18.0),
                                 ..default()
                             },
                             TextColor(COLOR_GOLD),
@@ -94,7 +94,7 @@ fn spawn(mut commands: Commands) {
                         .with_child((
                             Text::new("✕"),
                             TextFont {
-                                font_size: 14.0,
+                                font_size: FontSize::Px(14.0),
                                 ..default()
                             },
                             TextColor(COLOR_DIM),
@@ -105,7 +105,7 @@ fn spawn(mut commands: Commands) {
                     root.spawn((
                         Text::new(""),
                         TextFont {
-                            font_size: 11.0,
+                            font_size: FontSize::Px(11.0),
                             ..default()
                         },
                         TextColor(COLOR_DIM),
@@ -252,7 +252,7 @@ fn update_list(
         commands.entity(list_entity).with_child((
             Text::new("(empty)"),
             TextFont {
-                font_size: 16.0,
+                font_size: FontSize::Px(16.0),
                 ..default()
             },
             TextColor(COLOR_DIM),
@@ -280,7 +280,7 @@ fn update_list(
                 row.spawn((
                     Text::new(name),
                     TextFont {
-                        font_size: 16.0,
+                        font_size: FontSize::Px(16.0),
                         ..default()
                     },
                     TextColor(Color::WHITE),
@@ -288,7 +288,7 @@ fn update_list(
                 row.spawn((
                     Text::new(format!("{count}")),
                     TextFont {
-                        font_size: 16.0,
+                        font_size: FontSize::Px(16.0),
                         ..default()
                     },
                     TextColor(COLOR_GOLD),

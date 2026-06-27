@@ -427,7 +427,7 @@ fn build_phase1(
                 info.spawn((
                     Text::new(item_name),
                     TextFont {
-                        font_size: font_size::H_MD,
+                        font_size: FontSize::Px(font_size::H_MD),
                         ..default()
                     },
                     TextColor(palette::TEXT),
@@ -441,7 +441,7 @@ fn build_phase1(
                     row.spawn((
                         Text::new(format!("in storage: {in_storage}")),
                         TextFont {
-                            font_size: font_size::LABEL,
+                            font_size: FontSize::Px(font_size::LABEL),
                             ..default()
                         },
                         TextColor(if in_storage > 0 {
@@ -463,7 +463,7 @@ fn build_phase1(
                 qty_col.spawn((
                     Text::new("QUANTITY"),
                     TextFont {
-                        font_size: font_size::H_XS,
+                        font_size: FontSize::Px(font_size::H_XS),
                         ..default()
                     },
                     TextColor(COLOR_DIM),
@@ -492,7 +492,7 @@ fn build_phase1(
                         .with_child((
                             Text::new(data.quantity.to_string()),
                             TextFont {
-                                font_size: font_size::H_MD,
+                                font_size: FontSize::Px(font_size::H_MD),
                                 ..default()
                             },
                             TextColor(palette::TEXT),
@@ -535,7 +535,7 @@ fn build_phase1(
                                 .with_child((
                                     Text::new(p.to_string()),
                                     TextFont {
-                                        font_size: font_size::LABEL,
+                                        font_size: FontSize::Px(font_size::LABEL),
                                         ..default()
                                     },
                                     TextColor(if active { Color::WHITE } else { palette::DIM }),
@@ -549,7 +549,7 @@ fn build_phase1(
             body.spawn((
                 Text::new("plan resolves from current network state + machine priorities"),
                 TextFont {
-                    font_size: font_size::LABEL_SM,
+                    font_size: FontSize::Px(font_size::LABEL_SM),
                     ..default()
                 },
                 TextColor(COLOR_DIM),
@@ -619,7 +619,7 @@ fn build_phase2(
                 legend.spawn((
                     Text::new("DEPENDENCY TREE  —  read-only"),
                     TextFont {
-                        font_size: font_size::H_XS,
+                        font_size: FontSize::Px(font_size::H_XS),
                         ..default()
                     },
                     TextColor(COLOR_DIM),
@@ -647,7 +647,7 @@ fn build_phase2(
                     row.spawn((
                         Text::new("☐"),
                         TextFont {
-                            font_size: font_size::LABEL,
+                            font_size: FontSize::Px(font_size::LABEL),
                             ..default()
                         },
                         TextColor(palette::ACCENT),
@@ -655,7 +655,7 @@ fn build_phase2(
                     row.spawn((
                         Text::new(item_name),
                         TextFont {
-                            font_size: font_size::LABEL,
+                            font_size: FontSize::Px(font_size::LABEL),
                             ..default()
                         },
                         TextColor(palette::TEXT),
@@ -663,7 +663,7 @@ fn build_phase2(
                     row.spawn((
                         Text::new(format!("×{}", data.quantity)),
                         TextFont {
-                            font_size: font_size::LABEL,
+                            font_size: FontSize::Px(font_size::LABEL),
                             ..default()
                         },
                         TextColor(COLOR_DIM),
@@ -708,7 +708,7 @@ fn build_phase2(
                         row.spawn((
                             Text::new(if stocked { "✓" } else { "✗" }),
                             TextFont {
-                                font_size: font_size::LABEL,
+                                font_size: FontSize::Px(font_size::LABEL),
                                 ..default()
                             },
                             TextColor(if stocked { palette::OK } else { palette::ERR }),
@@ -716,7 +716,7 @@ fn build_phase2(
                         row.spawn((
                             Text::new(name),
                             TextFont {
-                                font_size: font_size::LABEL,
+                                font_size: FontSize::Px(font_size::LABEL),
                                 ..default()
                             },
                             TextColor(palette::TEXT),
@@ -724,7 +724,7 @@ fn build_phase2(
                         row.spawn((
                             Text::new(format!("×{}", ing.needed)),
                             TextFont {
-                                font_size: font_size::LABEL,
+                                font_size: FontSize::Px(font_size::LABEL),
                                 ..default()
                             },
                             TextColor(COLOR_DIM),
@@ -737,7 +737,7 @@ fn build_phase2(
                             row.spawn((
                                 Text::new(format!("✓ stocked ({})", ing.have)),
                                 TextFont {
-                                    font_size: font_size::LABEL,
+                                    font_size: FontSize::Px(font_size::LABEL),
                                     ..default()
                                 },
                                 TextColor(palette::OK),
@@ -746,7 +746,7 @@ fn build_phase2(
                             row.spawn((
                                 Text::new(format!("✗ MISSING  (have {})", ing.have)),
                                 TextFont {
-                                    font_size: font_size::LABEL,
+                                    font_size: FontSize::Px(font_size::LABEL),
                                     ..default()
                                 },
                                 TextColor(palette::ERR),
@@ -766,7 +766,7 @@ fn build_phase2(
                 section.spawn((
                     Text::new("MACHINE PLAN"),
                     TextFont {
-                        font_size: font_size::H_XS,
+                        font_size: FontSize::Px(font_size::H_XS),
                         ..default()
                     },
                     TextColor(COLOR_DIM),
@@ -794,7 +794,7 @@ fn build_phase2(
                                 format!("{machine_label}  (none available)")
                             }),
                             TextFont {
-                                font_size: font_size::LABEL,
+                                font_size: FontSize::Px(font_size::LABEL),
                                 ..default()
                             },
                             TextColor(if machine_available {
@@ -810,7 +810,7 @@ fn build_phase2(
                         row.spawn((
                             Text::new(format!("→ {item_name}")),
                             TextFont {
-                                font_size: font_size::LABEL,
+                                font_size: FontSize::Px(font_size::LABEL),
                                 ..default()
                             },
                             TextColor(COLOR_DIM),
@@ -821,7 +821,7 @@ fn build_phase2(
                     section.spawn((
                         Text::new("⚠ recipe not yet unlocked in tech tree"),
                         TextFont {
-                            font_size: font_size::LABEL,
+                            font_size: FontSize::Px(font_size::LABEL),
                             ..default()
                         },
                         TextColor(palette::WARN),
@@ -831,7 +831,7 @@ fn build_phase2(
                 section.spawn((
                     Text::new("based on current machine priorities"),
                     TextFont {
-                        font_size: font_size::LABEL_SM,
+                        font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
                     },
                     TextColor(COLOR_DIM),
@@ -894,7 +894,7 @@ fn spawn_modal_header(
                 left.spawn((
                     Text::new(title),
                     TextFont {
-                        font_size: font_size::H_SM,
+                        font_size: FontSize::Px(font_size::H_SM),
                         ..default()
                     },
                     TextColor(palette::DIM),
@@ -910,7 +910,7 @@ fn spawn_modal_header(
                     .with_child((
                         Text::new(format!("▲ {missing_count} MISSING")),
                         TextFont {
-                            font_size: font_size::LABEL_SM,
+                            font_size: FontSize::Px(font_size::LABEL_SM),
                             ..default()
                         },
                         TextColor(palette::ERR),
@@ -933,7 +933,7 @@ fn spawn_modal_header(
             .with_child((
                 Text::new("ESC  CLOSE"),
                 TextFont {
-                    font_size: font_size::LABEL_SM,
+                    font_size: FontSize::Px(font_size::LABEL_SM),
                     ..default()
                 },
                 TextColor(COLOR_DIM),
@@ -958,7 +958,7 @@ fn spawn_tag(parent: &mut ChildSpawnerCommands<'_>, label: &str, value: &str) {
                 t.spawn((
                     Text::new(label),
                     TextFont {
-                        font_size: font_size::TAG,
+                        font_size: FontSize::Px(font_size::TAG),
                         ..default()
                     },
                     TextColor(COLOR_DIM),
@@ -967,7 +967,7 @@ fn spawn_tag(parent: &mut ChildSpawnerCommands<'_>, label: &str, value: &str) {
             t.spawn((
                 Text::new(value),
                 TextFont {
-                    font_size: font_size::TAG,
+                    font_size: FontSize::Px(font_size::TAG),
                     ..default()
                 },
                 TextColor(palette::TEXT),
@@ -994,7 +994,7 @@ fn spawn_stepper_btn<T: Component>(parent: &mut ChildSpawnerCommands<'_>, label:
         .with_child((
             Text::new(label),
             TextFont {
-                font_size: font_size::H_MD,
+                font_size: FontSize::Px(font_size::H_MD),
                 ..default()
             },
             TextColor(palette::TEXT),
@@ -1037,7 +1037,7 @@ fn spawn_action_btn<T: Component>(
         .with_child((
             Text::new(label),
             TextFont {
-                font_size: font_size::BUTTON,
+                font_size: FontSize::Px(font_size::BUTTON),
                 ..default()
             },
             TextColor(text_color),

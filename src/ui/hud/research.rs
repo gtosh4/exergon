@@ -36,7 +36,7 @@ fn spawn(mut commands: Commands) {
         .with_child((
             Text::new("⚗ 0 RP"),
             TextFont {
-                font_size: font_size::LABEL,
+                font_size: FontSize::Px(font_size::LABEL),
                 ..default()
             },
             TextColor(palette::ACCENT),

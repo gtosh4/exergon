@@ -235,7 +235,7 @@ fn spawn_diff_card(
                 info.spawn((
                     Text::new(name),
                     TextFont {
-                        font_size: font_size::H_SM,
+                        font_size: FontSize::Px(font_size::H_SM),
                         ..default()
                     },
                     TextColor(name_color),
@@ -243,7 +243,7 @@ fn spawn_diff_card(
                 info.spawn((
                     Text::new(desc),
                     TextFont {
-                        font_size: font_size::LABEL,
+                        font_size: FontSize::Px(font_size::LABEL),
                         ..default()
                     },
                     TextColor(palette::DIM),
@@ -254,7 +254,7 @@ fn spawn_diff_card(
                 card.spawn((
                     Text::new("✓"),
                     TextFont {
-                        font_size: font_size::H_MD,
+                        font_size: FontSize::Px(font_size::H_MD),
                         ..default()
                     },
                     TextColor(palette::ACCENT),
@@ -263,7 +263,7 @@ fn spawn_diff_card(
                 card.spawn((
                     Text::new("LOCKED"),
                     TextFont {
-                        font_size: font_size::TAG,
+                        font_size: FontSize::Px(font_size::TAG),
                         ..default()
                     },
                     TextColor(palette::DIM),
@@ -322,7 +322,7 @@ fn spawn_modifiers(
                             info.spawn((
                                 Text::new(entry.name.clone()),
                                 TextFont {
-                                    font_size: font_size::H_SM,
+                                    font_size: FontSize::Px(font_size::H_SM),
                                     ..default()
                                 },
                                 TextColor(if selected {
@@ -334,7 +334,7 @@ fn spawn_modifiers(
                             info.spawn((
                                 Text::new(entry.description.clone()),
                                 TextFont {
-                                    font_size: font_size::LABEL,
+                                    font_size: FontSize::Px(font_size::LABEL),
                                     ..default()
                                 },
                                 TextColor(palette::DIM),
@@ -344,7 +344,7 @@ fn spawn_modifiers(
                             row.spawn((
                                 Text::new("✓"),
                                 TextFont {
-                                    font_size: font_size::H_MD,
+                                    font_size: FontSize::Px(font_size::H_MD),
                                     ..default()
                                 },
                                 TextColor(palette::ACCENT),
@@ -376,7 +376,7 @@ fn spawn_modifiers(
                 BackgroundColor(palette::P2),
                 Text::new(draft.seed_text.clone()),
                 TextFont {
-                    font_size: font_size::LABEL,
+                    font_size: FontSize::Px(font_size::LABEL),
                     ..default()
                 },
                 TextColor(palette::TEXT),
@@ -437,7 +437,7 @@ fn spawn_modifiers(
                     info.spawn((
                         Text::new("DEV: TEST LOADOUT"),
                         TextFont {
-                            font_size: font_size::H_SM,
+                            font_size: FontSize::Px(font_size::H_SM),
                             ..default()
                         },
                         TextColor(if draft.test_mode {
@@ -449,7 +449,7 @@ fn spawn_modifiers(
                     info.spawn((
                         Text::new("Start with all machines, items, and research unlocked."),
                         TextFont {
-                            font_size: font_size::LABEL,
+                            font_size: FontSize::Px(font_size::LABEL),
                             ..default()
                         },
                         TextColor(palette::DIM),
@@ -458,7 +458,7 @@ fn spawn_modifiers(
                 card.spawn((
                     Text::new("FREE"),
                     TextFont {
-                        font_size: font_size::TAG,
+                        font_size: FontSize::Px(font_size::TAG),
                         ..default()
                     },
                     TextColor(palette::ACCENT),
@@ -484,7 +484,7 @@ fn spawn_modifiers(
                 p.spawn((
                     Text::new("No modifiers in this version"),
                     TextFont {
-                        font_size: font_size::LABEL,
+                        font_size: FontSize::Px(font_size::LABEL),
                         ..default()
                     },
                     TextColor(palette::DIM),
@@ -503,7 +503,7 @@ fn spawn_planet(col: &mut ChildSpawnerCommands<'_>, draft: &WizardDraft) {
         col.spawn((
             Text::new("Generating planet survey…"),
             TextFont {
-                font_size: font_size::LABEL,
+                font_size: FontSize::Px(font_size::LABEL),
                 ..default()
             },
             TextColor(palette::DIM),
@@ -522,7 +522,7 @@ fn spawn_planet(col: &mut ChildSpawnerCommands<'_>, draft: &WizardDraft) {
     col.spawn((
         Text::new(title),
         TextFont {
-            font_size: font_size::H_LG,
+            font_size: FontSize::Px(font_size::H_LG),
             ..default()
         },
         TextColor(palette::ACCENT),
@@ -592,7 +592,7 @@ fn spawn_property_row(
             row.spawn((
                 Text::new(format!("{}{}", bullet, key.display_name())),
                 TextFont {
-                    font_size: font_size::H_SM,
+                    font_size: FontSize::Px(font_size::H_SM),
                     ..default()
                 },
                 TextColor(palette::TEXT),
@@ -600,7 +600,7 @@ fn spawn_property_row(
             row.spawn((
                 Text::new(label_text),
                 TextFont {
-                    font_size: font_size::H_SM,
+                    font_size: FontSize::Px(font_size::H_SM),
                     ..default()
                 },
                 TextColor(label_color),

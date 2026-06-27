@@ -312,7 +312,7 @@ pub fn trigger_run_save(commands: &mut Commands, save_root: &SaveRoot, run_id: &
     let mut save = SaveWorld::default_into_file(path)
         .include_resource::<TechTreeProgress>()
         .include_resource::<ResearchPool>();
-    save.components = SceneFilter::deny_all()
+    save.components = WorldFilter::deny_all()
         .allow::<Run>()
         .allow::<RunSaveHeader>()
         .allow::<RunSeed>()
@@ -345,6 +345,21 @@ pub fn write_meta_save(save_root: &SaveRoot) {
     let _ = std::fs::write(path, "// meta save stub — populated post-VS\n()\n");
 }
 
+/// No-op [`LoadFromPath`] for header-only reads: the saved header components
+/// contain no asset handles, so this is never actually called.
+struct NoAssetLoad;
+
+impl bevy::asset::LoadFromPath for NoAssetLoad {
+    #[allow(clippy::unimplemented)]
+    fn load_from_path_erased(
+        &mut self,
+        _type_id: std::any::TypeId,
+        _path: bevy::asset::AssetPath<'static>,
+    ) -> bevy::asset::UntypedHandle {
+        unimplemented!("header read path contains no asset handles")
+    }
+}
+
 /// Header-only deserialization for the run-select screen. Returns `None` if
 /// the file is missing or the header could not be parsed.
 pub fn read_run_header(
@@ -355,10 +370,13 @@ pub fn read_run_header(
     let path = save_root.run_save_path(run_id);
     let bytes = std::fs::read(&path).ok()?;
     let mut de = ron::Deserializer::from_bytes(&bytes).ok()?;
-    let scene_de = bevy::scene::serde::SceneDeserializer {
+    // Header components hold no asset handles, so `load_from_path` is never invoked.
+    let mut no_assets = NoAssetLoad;
+    let world_de = bevy::world_serialization::serde::WorldDeserializer {
         type_registry: registry,
+        load_from_path: &mut no_assets,
     };
-    let scene = scene_de.deserialize(&mut de).ok()?;
+    let scene = world_de.deserialize(&mut de).ok()?;
     for entity in &scene.entities {
         for component in &entity.components {
             let info = component.get_represented_type_info()?;

@@ -45,7 +45,7 @@ fn spawn(mut commands: Commands) {
             p.spawn((
                 Text::new("GATEWAY ACTIVATION"),
                 TextFont {
-                    font_size: 11.0,
+                    font_size: FontSize::Px(11.0),
                     ..default()
                 },
                 TextColor(palette::WARN),
@@ -74,7 +74,7 @@ fn spawn(mut commands: Commands) {
             p.spawn((
                 Text::new(""),
                 TextFont {
-                    font_size: 11.0,
+                    font_size: FontSize::Px(11.0),
                     ..default()
                 },
                 TextColor(palette::TEXT),

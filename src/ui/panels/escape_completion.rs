@@ -60,7 +60,7 @@ fn spawn(mut commands: Commands, stats: Res<EscapeStats>) {
             p.spawn((
                 Text::new("ESCAPE COMPLETE"),
                 TextFont {
-                    font_size: 40.0,
+                    font_size: FontSize::Px(40.0),
                     ..default()
                 },
                 TextColor(palette::WARN),
@@ -81,7 +81,7 @@ fn spawn(mut commands: Commands, stats: Res<EscapeStats>) {
                 s.spawn((
                     Text::new(format!("Planet: {archetype}")),
                     TextFont {
-                        font_size: 20.0,
+                        font_size: FontSize::Px(20.0),
                         ..default()
                     },
                     TextColor(palette::TEXT),
@@ -89,7 +89,7 @@ fn spawn(mut commands: Commands, stats: Res<EscapeStats>) {
                 s.spawn((
                     Text::new(format!("Seed:   {seed}")),
                     TextFont {
-                        font_size: 14.0,
+                        font_size: FontSize::Px(14.0),
                         ..default()
                     },
                     TextColor(palette::DIM),
@@ -97,7 +97,7 @@ fn spawn(mut commands: Commands, stats: Res<EscapeStats>) {
                 s.spawn((
                     Text::new(format!("Time:   {mins}m {secs}s")),
                     TextFont {
-                        font_size: 14.0,
+                        font_size: FontSize::Px(14.0),
                         ..default()
                     },
                     TextColor(palette::DIM),
@@ -117,7 +117,7 @@ fn spawn(mut commands: Commands, stats: Res<EscapeStats>) {
             .with_child((
                 Text::new("Main Menu"),
                 TextFont {
-                    font_size: 16.0,
+                    font_size: FontSize::Px(16.0),
                     ..default()
                 },
                 TextColor(Color::WHITE),

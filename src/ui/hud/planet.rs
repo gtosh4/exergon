@@ -82,7 +82,7 @@ fn spawn(mut commands: Commands) {
                 row.spawn((
                     Text::new("◉ PLANET"),
                     TextFont {
-                        font_size: font_size::LABEL_SM,
+                        font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
                     },
                     TextColor(palette::DIM),
@@ -91,7 +91,7 @@ fn spawn(mut commands: Commands) {
                 row.spawn((
                     Text::new(""),
                     TextFont {
-                        font_size: font_size::H_SM,
+                        font_size: FontSize::Px(font_size::H_SM),
                         ..default()
                     },
                     TextColor(palette::ACCENT),
@@ -242,7 +242,7 @@ fn spawn_row(
                 row.spawn((
                     Text::new(key.display_name()),
                     TextFont {
-                        font_size: font_size::LABEL_SM,
+                        font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
                     },
                     TextColor(name_color),
@@ -251,7 +251,7 @@ fn spawn_row(
                 row.spawn((
                     Text::new(value_text),
                     TextFont {
-                        font_size: font_size::LABEL_SM,
+                        font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
                     },
                     TextColor(value_color),
@@ -263,7 +263,7 @@ fn spawn_row(
                 col.spawn((
                     Text::new(format!("  \u{2192} {}", key.power_hint())),
                     TextFont {
-                        font_size: font_size::LABEL_SM,
+                        font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
                     },
                     TextColor(palette::DIM),

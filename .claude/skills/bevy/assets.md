@@ -1,4 +1,4 @@
-# Bevy 0.18 — Assets & Custom Loaders
+# Bevy 0.19 — Assets & Custom Loaders
 
 ## Asset Loading
 
@@ -69,3 +69,11 @@ app.init_asset::<RecipeData>()
 - `.recipe.ron` → `RecipeData` via `RecipeLoader` — recipe graph nodes
 - `.node.ron` → tech tree nodes with `tier_range`, `rarity`, `unlock_vectors`
 - `#[derive(Asset)]` without `TypePath` is a **0.18 breaking change** — always derive both
+
+## 0.19 notes
+- `Assets::get_mut` now returns `AssetMut<A>` (not `&mut A`); it only emits `Modified` on real mutation. Deref as usual.
+- `AssetPath::resolve` → `resolve_str`, `resolve_embed` → `resolve_embed_str` (the `&AssetPath` overloads keep the old names).
+- `AssetPath::get_full_extension()` returns `Option<&str>` (was `Option<String>`) — add `.map(ToString::to_string)` if you need owned.
+- Custom `Reader` impls must add a `seekable()` method; `AsyncSeekForward` removed.
+- glTF: a bare `#Material0` load now yields `Handle<GltfMaterial>`; use `#Material0/std` for `StandardMaterial`.
+- `SceneRoot`→`WorldAssetRoot`, `Scene`→`WorldAsset`, `DynamicScene`→`DynamicWorld` (bevy_scene → bevy_world_serialization). Note: `moonshine-save` save/load is separate and unaffected.

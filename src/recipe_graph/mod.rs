@@ -216,12 +216,12 @@ impl RecipeGraph {
         let expanded = expand_templates(&materials, &form_groups, &template_defs);
 
         let mut items: HashMap<ItemId, ItemDef> = HashMap::new();
-        for item in derived.into_iter().chain(item_defs.into_iter()) {
+        for item in derived.into_iter().chain(item_defs) {
             items.insert(item.id.clone(), item);
         }
 
         let mut recipes: HashMap<RecipeId, ConcreteRecipe> = HashMap::new();
-        for r in concrete_recipe_defs.into_iter().chain(expanded.into_iter()) {
+        for r in concrete_recipe_defs.into_iter().chain(expanded) {
             recipes.insert(r.id.clone(), r);
         }
 

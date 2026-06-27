@@ -91,7 +91,7 @@ pub fn button_label(text: impl Into<String>) -> impl Bundle {
     (
         Text::new(text.into()),
         TextFont {
-            font_size: font_size::BUTTON,
+            font_size: FontSize::Px(font_size::BUTTON),
             ..default()
         },
         TextColor(palette::TEXT),

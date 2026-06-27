@@ -187,7 +187,7 @@ fn spawn(mut commands: Commands) {
             .with_child((
                 Text::new("⌨ Log"),
                 TextFont {
-                    font_size: font_size::LABEL_SM,
+                    font_size: FontSize::Px(font_size::LABEL_SM),
                     ..default()
                 },
                 TextColor(palette::DIM),
@@ -241,7 +241,7 @@ fn spawn(mut commands: Commands) {
                 row.spawn((
                     Text::new("Field Computer Log"),
                     TextFont {
-                        font_size: font_size::H_SM,
+                        font_size: FontSize::Px(font_size::H_SM),
                         ..default()
                     },
                     TextColor(palette::TEXT),
@@ -259,7 +259,7 @@ fn spawn(mut commands: Commands) {
                 .with_child((
                     Text::new("✕"),
                     TextFont {
-                        font_size: font_size::LABEL,
+                        font_size: FontSize::Px(font_size::LABEL),
                         ..default()
                     },
                     TextColor(palette::DIM),
@@ -441,7 +441,7 @@ fn rebuild_stack(
                 row.spawn((
                     Text::new(cat.tag()),
                     TextFont {
-                        font_size: font_size::LABEL_SM,
+                        font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
                     },
                     TextColor(cat.color()),
@@ -450,7 +450,7 @@ fn rebuild_stack(
                 row.spawn((
                     Text::new(text),
                     TextFont {
-                        font_size: font_size::LABEL,
+                        font_size: FontSize::Px(font_size::LABEL),
                         ..default()
                     },
                     TextColor(palette::TEXT),
@@ -471,7 +471,7 @@ fn rebuild_stack(
                 .with_child((
                     Text::new("×"),
                     TextFont {
-                        font_size: font_size::LABEL_SM,
+                        font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
                     },
                     TextColor(palette::DIM),
@@ -514,7 +514,7 @@ fn rebuild_history(
         commands.entity(list).with_child((
             Text::new("No messages yet."),
             TextFont {
-                font_size: font_size::LABEL,
+                font_size: FontSize::Px(font_size::LABEL),
                 ..default()
             },
             TextColor(palette::DIM),
@@ -538,7 +538,7 @@ fn rebuild_history(
                 row.spawn((
                     Text::new(cat.tag()),
                     TextFont {
-                        font_size: font_size::LABEL_SM,
+                        font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
                     },
                     TextColor(cat.color()),
@@ -547,7 +547,7 @@ fn rebuild_history(
                 row.spawn((
                     Text::new(text),
                     TextFont {
-                        font_size: font_size::LABEL,
+                        font_size: FontSize::Px(font_size::LABEL),
                         ..default()
                     },
                     TextColor(palette::TEXT),

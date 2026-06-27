@@ -104,7 +104,7 @@ fn spawn_topo_hud(mut commands: Commands) {
             row.spawn((
                 Text::new("TOPO"),
                 TextFont {
-                    font_size: 11.0,
+                    font_size: FontSize::Px(11.0),
                     ..default()
                 },
                 TextColor(palette::DIM),
@@ -123,7 +123,7 @@ fn spawn_topo_hud(mut commands: Commands) {
             .with_child((
                 Text::new("L"),
                 TextFont {
-                    font_size: 11.0,
+                    font_size: FontSize::Px(11.0),
                     ..default()
                 },
                 TextColor(palette::OK),
@@ -142,7 +142,7 @@ fn spawn_topo_hud(mut commands: Commands) {
             .with_child((
                 Text::new("P"),
                 TextFont {
-                    font_size: 11.0,
+                    font_size: FontSize::Px(11.0),
                     ..default()
                 },
                 TextColor(palette::WARN),

@@ -135,7 +135,7 @@ fn spawn(mut commands: Commands) {
                             h.spawn((
                                 Text::new("TECH TREE"),
                                 TextFont {
-                                    font_size: 15.0,
+                                    font_size: FontSize::Px(15.0),
                                     ..default()
                                 },
                                 TextColor(COLOR_GOLD),
@@ -152,7 +152,7 @@ fn spawn(mut commands: Commands) {
                             .with_child((
                                 Text::new("✕"),
                                 TextFont {
-                                    font_size: 14.0,
+                                    font_size: FontSize::Px(14.0),
                                     ..default()
                                 },
                                 TextColor(Color::WHITE),
@@ -178,7 +178,7 @@ fn spawn(mut commands: Commands) {
                             row.spawn((
                                 Text::new(""),
                                 TextFont {
-                                    font_size: 12.0,
+                                    font_size: FontSize::Px(12.0),
                                     ..default()
                                 },
                                 TextColor(COLOR_GOLD),
@@ -278,7 +278,7 @@ fn rebuild(
         commands.entity(canvas_entity).with_child((
             Text::new("(no tech tree loaded)"),
             TextFont {
-                font_size: 13.0,
+                font_size: FontSize::Px(13.0),
                 ..default()
             },
             TextColor(COLOR_DIM),
@@ -313,7 +313,7 @@ fn rebuild(
             .with_child((
                 Text::new(format!("T{t}")),
                 TextFont {
-                    font_size: 12.0,
+                    font_size: FontSize::Px(12.0),
                     ..default()
                 },
                 TextColor(if active { COLOR_GOLD } else { COLOR_DIM }),
@@ -333,7 +333,7 @@ fn rebuild(
         commands.entity(canvas_entity).with_child((
             Text::new("(no nodes for this tier)"),
             TextFont {
-                font_size: 13.0,
+                font_size: FontSize::Px(13.0),
                 ..default()
             },
             TextColor(COLOR_DIM),
@@ -423,7 +423,7 @@ fn rebuild(
                     btn.spawn((
                         Text::new(display_name),
                         TextFont {
-                            font_size: 11.0,
+                            font_size: FontSize::Px(11.0),
                             ..default()
                         },
                         TextColor(text_col),
@@ -434,7 +434,7 @@ fn rebuild(
                         btn.spawn((
                             Text::new("✓"),
                             TextFont {
-                                font_size: 9.0,
+                                font_size: FontSize::Px(9.0),
                                 ..default()
                             },
                             TextColor(COLOR_GREEN),
@@ -443,7 +443,7 @@ fn rebuild(
                         btn.spawn((
                             Text::new("locked out"),
                             TextFont {
-                                font_size: 8.0,
+                                font_size: FontSize::Px(8.0),
                                 ..default()
                             },
                             TextColor(palette::ERR),
@@ -453,7 +453,7 @@ fn rebuild(
                             btn.spawn((
                                 Text::new(format!("{cost} RP")),
                                 TextFont {
-                                    font_size: font_size::MONO_XS,
+                                    font_size: FontSize::Px(font_size::MONO_XS),
                                     ..default()
                                 },
                                 TextColor(if can_afford { palette::OK } else { palette::DIM }),
@@ -465,7 +465,7 @@ fn rebuild(
                         btn.spawn((
                             Text::new(format!("→ {dep_count}")),
                             TextFont {
-                                font_size: 8.0,
+                                font_size: FontSize::Px(8.0),
                                 ..default()
                             },
                             TextColor(COLOR_DIM),
@@ -538,7 +538,7 @@ fn rebuild_detail(
             c.spawn((
                 Text::new(&node.name),
                 TextFont {
-                    font_size: 13.0,
+                    font_size: FontSize::Px(13.0),
                     ..default()
                 },
                 TextColor(COLOR_GOLD),
@@ -547,7 +547,7 @@ fn rebuild_detail(
             c.spawn((
                 Text::new("⚠ EXCLUSIVE CHOICE"),
                 TextFont {
-                    font_size: 10.0,
+                    font_size: FontSize::Px(10.0),
                     ..default()
                 },
                 TextColor(palette::WARN),
@@ -565,7 +565,7 @@ fn rebuild_detail(
                     c.spawn((
                         Text::new(format!("✗ {peer} (locked out)")),
                         TextFont {
-                            font_size: 10.0,
+                            font_size: FontSize::Px(10.0),
                             ..default()
                         },
                         TextColor(palette::ERR),
@@ -589,7 +589,7 @@ fn rebuild_detail(
             .with_child((
                 Text::new("CONFIRM UNLOCK"),
                 TextFont {
-                    font_size: 11.0,
+                    font_size: FontSize::Px(11.0),
                     ..default()
                 },
                 TextColor(palette::ERR),
@@ -609,7 +609,7 @@ fn rebuild_detail(
             .with_child((
                 Text::new("CANCEL"),
                 TextFont {
-                    font_size: 11.0,
+                    font_size: FontSize::Px(11.0),
                     ..default()
                 },
                 TextColor(COLOR_DIM),
@@ -628,7 +628,7 @@ fn rebuild_detail(
         c.spawn((
             Text::new(display_name),
             TextFont {
-                font_size: 14.0,
+                font_size: FontSize::Px(14.0),
                 ..default()
             },
             TextColor(COLOR_GOLD),
@@ -636,7 +636,7 @@ fn rebuild_detail(
         c.spawn((
             Text::new(format!("Tier {} · {:?}", node.tier, node.rarity)),
             TextFont {
-                font_size: 11.0,
+                font_size: FontSize::Px(11.0),
                 ..default()
             },
             TextColor(COLOR_DIM),
@@ -658,7 +658,7 @@ fn rebuild_detail(
         c.spawn((
             Text::new(status_text),
             TextFont {
-                font_size: 12.0,
+                font_size: FontSize::Px(12.0),
                 ..default()
             },
             TextColor(status_color),
@@ -676,7 +676,7 @@ fn rebuild_detail(
                     c.spawn((
                         Text::new(format!("{} chosen instead", chosen_node.name)),
                         TextFont {
-                            font_size: 10.0,
+                            font_size: FontSize::Px(10.0),
                             ..default()
                         },
                         TextColor(COLOR_DIM),
@@ -708,7 +708,7 @@ fn rebuild_detail(
                 c.spawn((
                     Text::new("↑ Prereqs not met"),
                     TextFont {
-                        font_size: font_size::LABEL_SM,
+                        font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
                     },
                     TextColor(palette::ERR),
@@ -718,7 +718,7 @@ fn rebuild_detail(
                 c.spawn((
                     Text::new(format!("Need {deficit:.0} more RP")),
                     TextFont {
-                        font_size: font_size::LABEL_SM,
+                        font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
                     },
                     TextColor(palette::WARN),
@@ -729,7 +729,7 @@ fn rebuild_detail(
                     c.spawn((
                         Text::new("⚠ Exclusive choice — locks out peers"),
                         TextFont {
-                            font_size: font_size::LABEL_SM,
+                            font_size: FontSize::Px(font_size::LABEL_SM),
                             ..default()
                         },
                         TextColor(palette::WARN),
@@ -752,7 +752,7 @@ fn rebuild_detail(
                 .with_child((
                     Text::new("UNLOCK"),
                     TextFont {
-                        font_size: 11.0,
+                        font_size: FontSize::Px(11.0),
                         ..default()
                     },
                     TextColor(palette::OK),
@@ -773,7 +773,7 @@ fn rebuild_detail(
                 c.spawn((
                     Text::new(format!("{} {name}", if done { "✓" } else { "·" })),
                     TextFont {
-                        font_size: 11.0,
+                        font_size: FontSize::Px(11.0),
                         ..default()
                     },
                     TextColor(if done { COLOR_GREEN } else { COLOR_DIM }),
@@ -839,7 +839,7 @@ fn rebuild_detail(
                 c.spawn((
                     Text::new(format!("{prefix} {} (T{})", dep_node.name, dep_node.tier)),
                     TextFont {
-                        font_size: 10.0,
+                        font_size: FontSize::Px(10.0),
                         ..default()
                     },
                     TextColor(color),
