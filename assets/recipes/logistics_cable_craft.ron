@@ -1,0 +1,10 @@
+(
+    id: "logistics_cable_craft",
+    inputs:     [(item: "iron_ore", quantity: 1.0)],
+    outputs:    [(item: "logistics_cable", quantity: 4.0)],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 1,
+    processing_time: 4.0,
+    energy_cost: 0.0,
+)

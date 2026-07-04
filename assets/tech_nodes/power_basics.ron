@@ -6,5 +6,5 @@
     rarity: Common,
     prerequisites: [],
     primary_unlock: PrerequisiteChain,
-    effects: [UnlockMachine("solar_generator"), UnlockRecipes(["make_solar_generator"])],
+    effects: [UnlockMachine("solar_generator"), UnlockRecipes(["make_solar_generator", "power_cable_craft"])],
 )

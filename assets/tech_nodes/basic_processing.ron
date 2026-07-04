@@ -6,5 +6,5 @@
     rarity: Common,
     prerequisites: ["basic_smelting"],
     primary_unlock: ResearchSpend(150),
-    effects: [UnlockRecipes(["draw_copper", "make_circuit"])],
+    effects: [UnlockRecipes(["draw_copper", "make_circuit", "make_assembler"])],
 )

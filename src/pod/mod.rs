@@ -7,10 +7,9 @@ use bevy::prelude::*;
 use moonshine_save::prelude::Save;
 
 use crate::aegis::{AEGIS_RADIUS, AegisActive, AegisEmitter, AegisRadius, aegis_sphere_collider};
+use crate::inventory::{Hotbar, HotbarSlot};
 use crate::logistics::{LogisticsNetwork, LogisticsNetworkMember, StorageUnit};
-use crate::machine::{
-    LogisticsPortOf, Machine, MachineState, ManualCraftOnly, Mirror, Orientation, Rotation,
-};
+use crate::machine::LogisticsPortOf;
 use crate::network::{Logistics, NetworkChanged};
 use crate::power::PodPowered;
 use crate::world::generation::{TerrainSampler, WorldConfig};
@@ -49,20 +48,18 @@ impl Plugin for PodPlugin {
 #[derive(Component)]
 pub struct EscapePod;
 
-fn starting_stock() -> HashMap<String, u32> {
+/// Placeable items the lander drops with on a fresh run: enough to stand up a
+/// self-sustaining base (mine → power → assemble → research) from zero raw materials,
+/// so a run can never brick for lack of the right starting parts.
+fn starting_kit() -> HashMap<String, u32> {
     HashMap::from([
-        ("iron_ore".to_string(), 50),
-        ("copper_ore".to_string(), 50),
-        ("stone".to_string(), 100),
-        ("coal".to_string(), 50),
+        ("assembler".to_string(), 1),
+        ("solar_generator".to_string(), 1),
+        ("miner".to_string(), 1),
+        ("analysis_station".to_string(), 1),
+        ("logistics_cable".to_string(), 100),
+        ("power_cable".to_string(), 100),
     ])
-}
-
-fn pod_orientation() -> Orientation {
-    Orientation {
-        rotation: Rotation::North,
-        mirror: Mirror::Normal,
-    }
 }
 
 fn spawn_escape_pod(
@@ -70,7 +67,7 @@ fn spawn_escape_pod(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     world_config: Res<WorldConfig>,
-    pod_machines_q: Query<&Machine, With<PodPowered>>,
+    mut hotbar: ResMut<Hotbar>,
     pod_net_q: Query<Entity, With<PodNetwork>>,
 ) {
     let sampler = TerrainSampler::new(world_config.world_seed);
@@ -99,38 +96,37 @@ fn spawn_escape_pod(
     // On a loaded run the pod network entity is deserialized from the save and found here.
     // On a new run it must be created. wire_pod_machines (OnEnter Playing) handles port wiring
     // in both cases — ports already have LogisticsNetworkMember on load so it's a no-op there.
+    let new_run = pod_net_q.single().is_err();
     let pod_net = match pod_net_q.single() {
         Ok(e) => e,
         Err(_) => commands.spawn((LogisticsNetwork, PodNetwork, Save)).id(),
     };
     commands.insert_resource(PodLogisticsNetwork(pod_net));
 
-    if pod_machines_q.is_empty() {
-        let machine_y = ground_y + 1.0;
-        // Single all-in-one pod terminal: stores starting items and can run assembler recipes.
+    if new_run {
+        // Fresh run: the lander carries a starting kit of placeable machines + cables.
+        // Placement draws items from any StorageUnit, so this stash need not be networked.
         commands.spawn((
-            Machine {
-                machine_type: "assembler".to_string(),
-                tier: 1,
-                orientation: pod_orientation(),
-                energy_ports: vec![],
-                logistics_ports: vec![
-                    Vec3::new(-4.0, machine_y, 0.0),
-                    Vec3::new(-8.0, machine_y, 0.0),
-                    Vec3::new(-6.0, machine_y, -2.0),
-                    Vec3::new(-6.0, machine_y, 2.0),
-                ],
-            },
-            MachineState::Idle,
             StorageUnit {
-                items: starting_stock(),
+                items: starting_kit(),
             },
-            PodPowered,
-            ManualCraftOnly,
-            Transform::from_translation(Vec3::new(-6.0, machine_y, 0.0)),
-            RigidBody::Static,
-            Collider::cuboid(2.0, 2.0, 2.0),
+            Transform::from_translation(Vec3::new(0.0, ground_y + 1.5, 0.0)),
+            DespawnOnExit(GameState::Playing),
         ));
+        // Bind the hotbar to the kit so the player can place immediately after landing.
+        let kit_order = [
+            "miner",
+            "solar_generator",
+            "assembler",
+            "analysis_station",
+            "logistics_cable",
+            "power_cable",
+        ];
+        for (slot, item) in hotbar.slots.iter_mut().zip(kit_order) {
+            *slot = Some(HotbarSlot {
+                item_id: item.to_string(),
+            });
+        }
     }
     // Loaded run: pod machines already in world from save. wire_pod_machines handles port assignment.
 }
@@ -165,9 +161,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn starting_stock_nonempty_positive_quantities() {
-        let stock = starting_stock();
-        assert!(!stock.is_empty());
-        assert!(stock.values().all(|&v| v > 0));
+    fn starting_kit_has_bootstrap_essentials() {
+        let kit = starting_kit();
+        assert!(kit.values().all(|&v| v > 0));
+        // The kit must let the player stand up the full research bootstrap loop.
+        for essential in ["miner", "solar_generator", "assembler", "analysis_station"] {
+            assert!(kit.contains_key(essential), "kit missing {essential}");
+        }
     }
 }

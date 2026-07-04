@@ -327,18 +327,11 @@ The player's choices in Tier 1 determine their early factory shape: power-first 
 
 ### Starting state
 
-The player AI body includes a **built-in hand scanner** — not a tech unlock, always present. It can analyze samples manually and generates a small fixed yield of Material Science research per sample analyzed.
+The player lands with a **starting kit** dropped by the escape pod — a miner, a solar generator, an assembler, an analysis station, and logistics/power cables — but no raw materials (see `pod::starting_kit`). This kit *is* the bootstrap: the player sets up the first base immediately rather than earning it.
 
-The **first alien sample analysis** is the source of initial research — a bootstrapping event within T1, not a tier gate. This analysis produces enough Material Science research to unlock 1–2 "Research spend (small)" nodes — typically Stone Furnace or a power source. From there the standard research loop begins: build Field Analyzer → analyze samples at scale → spend research on remaining nodes.
+The **first source of research** is the analysis station: place the solar generator and the miner on the spawn deposit, feed the mined stone into the analysis station's `basic_analysis` recipe, and it produces Material Science. That research unlocks 1–2 "Research spend (small)" nodes — typically Stone Furnace or a power source — and the standard loop begins: mine at scale → analyze → spend research on remaining nodes.
 
-Simultaneously, the player can collect stone by hand (no machine required). After 50 stone, Basic Miner unlocks via production milestone — no research needed. This creates two parallel opening tracks:
-
-- **Research-first:** Analyze sample → unlock Stone Furnace → build Field Analyzer → research loop live
-- **Production-first:** Collect 50 stone by hand → Basic Miner unlocks → mine ore → smelt (after Stone Furnace via research track)
-
-Both tracks converge quickly. Neither can proceed far without the other.
-
-The hand scanner remains available throughout the run as a fallback but is weak — it cannot be automated, has no throughput scaling, and yields less per sample than a built Field Analyzer. Its only purpose is bootstrapping.
+The origin deposit is guaranteed (always within the Aegis radius and always stone-bearing), and the starting machines are non-consumable, so the opening can never brick for lack of the right parts or a mineable deposit.
 
 ### Tier 1 node set (8 nodes, representative)
 

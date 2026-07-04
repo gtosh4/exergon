@@ -18,11 +18,6 @@ pub struct MainCamera;
 #[derive(Component)]
 pub struct Player;
 
-/// Built-in hand scanner on the player body — always present, not a tech unlock.
-/// Fires HandScanComplete events via the interaction system.
-#[derive(Component)]
-pub struct HandScanner;
-
 pub(super) fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera3d::default(),
@@ -46,7 +41,6 @@ pub(super) fn spawn_player(
         LinearDamping(0.0),
         LockedAxes::ROTATION_LOCKED,
         Player,
-        HandScanner,
         CollisionLayers::new(
             GameLayer::Player,
             [GameLayer::Default, GameLayer::AegisBoundary],

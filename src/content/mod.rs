@@ -320,6 +320,15 @@ impl DepositRegistry {
         Self { deposits }
     }
 
+    /// Returns the starter deposit — the first that yields `stone` (needed to bootstrap
+    /// research via the analysis station), falling back to the first loaded deposit.
+    fn starter_deposit(&self) -> Option<&DepositDef> {
+        self.deposits
+            .iter()
+            .find(|d| d.ores.iter().any(|(id, _)| id == "stone"))
+            .or_else(|| self.deposits.first())
+    }
+
     /// Returns the weighted ore distribution for the surface deposit at (wx, wz), or None.
     pub fn ore_at(&self, seed: u64, wx: f32, wz: f32) -> Option<Vec<(String, f32)>> {
         if self.deposits.is_empty() {
@@ -327,6 +336,11 @@ impl DepositRegistry {
         }
         let cell_x = wx.div_euclid(DEPOSIT_CELL_SIZE) as i64;
         let cell_z = wz.div_euclid(DEPOSIT_CELL_SIZE) as i64;
+        // Guarantee a starter deposit in the origin cell so the pod always has ore + stone
+        // within reach — a run can never brick for lack of a mineable deposit at spawn.
+        if cell_x == 0 && cell_z == 0 {
+            return self.starter_deposit().map(|d| d.ores.clone());
+        }
         let cell_seed = {
             let mut key = seed.to_le_bytes().to_vec();
             key.extend_from_slice(b"dep");
@@ -637,6 +651,24 @@ mod tests {
             (total - 1.0).abs() < 1e-5,
             "weights should sum to 1.0, got {total}"
         );
+    }
+
+    #[test]
+    fn ore_at_origin_cell_always_yields_stone_deposit() {
+        let reg = DepositRegistry::new(vec![
+            deposit("xalite", vec![("xalite", 1.0)]),
+            deposit("iron_copper", vec![("iron", 0.6), ("stone", 0.4)]),
+        ]);
+        // Origin cell is guaranteed regardless of seed, and picks the stone-bearing deposit.
+        for seed in 0u64..50 {
+            let ores = reg
+                .ore_at(seed, 0.0, 0.0)
+                .expect("origin cell must always have a deposit");
+            assert!(
+                ores.iter().any(|(id, _)| id == "stone"),
+                "origin deposit must yield stone for bootstrap"
+            );
+        }
     }
 
     #[test]

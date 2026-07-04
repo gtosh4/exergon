@@ -5,7 +5,7 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
 use crate::drone::{sample_ore, yield_factor};
-use crate::machine::{LogisticsPortOf, MinerMachine};
+use crate::machine::{LogisticsPortOf, MachineLogisticsPorts, MinerMachine};
 use crate::world::generation::OreDeposit;
 
 use super::items::give_items;
@@ -28,7 +28,8 @@ fn tick_miner(deposit: &mut OreDeposit, accumulator: &mut f32, dt: f32) -> Optio
 
 pub(super) fn miner_tick_system(
     time: Res<Time>,
-    mut miner_q: Query<(&mut MinerMachine, &LogisticsNetworkMember)>,
+    mut miner_q: Query<(&mut MinerMachine, &MachineLogisticsPorts)>,
+    port_net_q: Query<&LogisticsNetworkMember>,
     mut deposit_q: Query<&mut OreDeposit>,
     net_q: Query<&LogisticsNetworkMembers>,
     mut storage_q: Query<&mut StorageUnit>,
@@ -36,16 +37,25 @@ pub(super) fn miner_tick_system(
     mut storage_changed: MessageWriter<NetworkStorageChanged>,
 ) {
     let dt = time.delta_secs();
-    for (mut miner, member) in &mut miner_q {
+    for (mut miner, ports) in &mut miner_q {
+        // Resolve the miner's logistics network via any wired port. Skip (and don't
+        // deplete the deposit) while unconnected — extracted ore would have nowhere to go.
+        let Some(net_e) = ports
+            .ports()
+            .iter()
+            .find_map(|&p| port_net_q.get(p).ok().map(|m| m.0))
+        else {
+            continue;
+        };
+        let Ok(members) = net_q.get(net_e) else {
+            continue;
+        };
         let Ok(mut deposit) = deposit_q.get_mut(miner.deposit) else {
             continue;
         };
         if let Some(ore_id) = tick_miner(&mut deposit, &mut miner.accumulator, dt) {
-            let Ok(members) = net_q.get(member.0) else {
-                continue;
-            };
             give_items(members, &mut storage_q, &port_of_q, &ore_id, 1);
-            storage_changed.write(NetworkStorageChanged { network: member.0 });
+            storage_changed.write(NetworkStorageChanged { network: net_e });
         }
     }
 }
@@ -102,16 +112,44 @@ mod tests {
         assert!(result.is_some(), "floor yield must still produce over time");
     }
 
+    /// Wires a miner and a storage machine onto a shared logistics network via ports,
+    /// mirroring how cable connections assign membership in the real game.
+    fn spawn_miner_and_storage(
+        app: &mut App,
+        deposit_entity: Entity,
+        accumulator: f32,
+    ) -> (Entity, Entity) {
+        let net_entity = app.world_mut().spawn_empty().id();
+        let storage_machine = app
+            .world_mut()
+            .spawn(StorageUnit {
+                items: HashMap::new(),
+            })
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(storage_machine),
+            LogisticsNetworkMember(net_entity),
+        ));
+        let miner = app
+            .world_mut()
+            .spawn(MinerMachine {
+                deposit: deposit_entity,
+                accumulator,
+            })
+            .id();
+        // Miner's own logistics port joins the same network → MachineLogisticsPorts is set.
+        app.world_mut()
+            .spawn((LogisticsPortOf(miner), LogisticsNetworkMember(net_entity)));
+        (miner, storage_machine)
+    }
+
     #[test]
     fn miner_tick_system_produces_and_stores_ore() {
-        use crate::machine::LogisticsPortOf;
-
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .add_message::<NetworkStorageChanged>()
             .add_systems(Update, miner_tick_system);
 
-        let net_entity = app.world_mut().spawn_empty().id();
         let deposit_entity = app
             .world_mut()
             .spawn(OreDeposit {
@@ -121,29 +159,8 @@ mod tests {
                 depletion_seed: 0,
             })
             .id();
-        // Storage machine with StorageUnit
-        let storage_machine = app
-            .world_mut()
-            .spawn(StorageUnit {
-                items: HashMap::new(),
-            })
-            .id();
-        // Port entity linking storage machine to network
-        let storage_entity = app
-            .world_mut()
-            .spawn((
-                LogisticsPortOf(storage_machine),
-                LogisticsNetworkMember(net_entity),
-            ))
-            .id();
-        app.world_mut().spawn((
-            MinerMachine {
-                deposit: deposit_entity,
-                // accumulator >= 1.0 triggers immediately even at dt=0
-                accumulator: 1.0,
-            },
-            LogisticsNetworkMember(net_entity),
-        ));
+        // accumulator >= 1.0 triggers immediately even at dt=0
+        let (_miner, storage_machine) = spawn_miner_and_storage(&mut app, deposit_entity, 1.0);
 
         app.update();
 
@@ -157,8 +174,6 @@ mod tests {
                 .total_extracted,
             1.0
         );
-        // Suppress unused warning
-        let _ = storage_entity;
     }
 
     #[test]
@@ -168,17 +183,44 @@ mod tests {
             .add_message::<NetworkStorageChanged>()
             .add_systems(Update, miner_tick_system);
 
-        let net_entity = app.world_mut().spawn_empty().id();
         // deposit_entity has no OreDeposit component → continue branch
         let deposit_entity = app.world_mut().spawn_empty().id();
-        app.world_mut().spawn((
-            MinerMachine {
-                deposit: deposit_entity,
-                accumulator: 1.0,
-            },
-            LogisticsNetworkMember(net_entity),
-        ));
+        spawn_miner_and_storage(&mut app, deposit_entity, 1.0);
 
         app.update(); // should not panic
+    }
+
+    #[test]
+    fn miner_tick_system_skips_when_unconnected() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_message::<NetworkStorageChanged>()
+            .add_systems(Update, miner_tick_system);
+
+        let deposit_entity = app
+            .world_mut()
+            .spawn(OreDeposit {
+                chunk_pos: IVec2::ZERO,
+                ores: vec![("iron_ore".to_string(), 1.0)],
+                total_extracted: 0.0,
+                depletion_seed: 0,
+            })
+            .id();
+        // Miner with no logistics port → no MachineLogisticsPorts → not matched, deposit untouched.
+        app.world_mut().spawn(MinerMachine {
+            deposit: deposit_entity,
+            accumulator: 1.0,
+        });
+
+        app.update();
+
+        assert_eq!(
+            app.world()
+                .get::<OreDeposit>(deposit_entity)
+                .unwrap()
+                .total_extracted,
+            0.0,
+            "unconnected miner must not deplete the deposit"
+        );
     }
 }

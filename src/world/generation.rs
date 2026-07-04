@@ -206,11 +206,11 @@ pub(super) fn add_chunk_colliders(
 
 /// Surface ore deposit marker spawned at terrain height when a chunk loads.
 #[derive(Component)]
-pub(crate) struct OreDeposit {
-    pub(crate) chunk_pos: IVec2,
-    pub(crate) ores: Vec<(String, f32)>,
-    pub(crate) total_extracted: f32,
-    pub(crate) depletion_seed: u64,
+pub struct OreDeposit {
+    pub chunk_pos: IVec2,
+    pub ores: Vec<(String, f32)>,
+    pub total_extracted: f32,
+    pub depletion_seed: u64,
 }
 
 /// Returns the ore list for the deposit cell that covers `chunk_pos`, or None.

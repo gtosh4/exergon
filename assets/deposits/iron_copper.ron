@@ -1,4 +1,4 @@
 (
     id: "iron_copper",
-    ores: [("iron", 60.0), ("copper", 30.0)],
+    ores: [("iron_ore", 60.0), ("copper_ore", 30.0), ("stone", 40.0)],
 )

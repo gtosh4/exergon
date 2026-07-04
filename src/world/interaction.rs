@@ -12,10 +12,8 @@ use crate::machine::{
     PlaceableRegistry, Platform, SnapRule, TileSnap,
 };
 
-use super::player::{HandScanner, MainCamera, Player};
+use super::player::{MainCamera, Player};
 use super::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
-use crate::research::HandScanComplete;
-use crate::world::generation::OreDeposit;
 
 const MAX_REACH: f32 = 16.0;
 
@@ -648,36 +646,6 @@ pub(super) fn object_interaction(
             }
         }
     }
-}
-
-pub(super) fn hand_scanner_interact(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    player_q: Query<(), (With<Player>, With<HandScanner>)>,
-    look_target: Res<LookTarget>,
-    deposit_q: Query<&OreDeposit>,
-    mut scan_events: MessageWriter<HandScanComplete>,
-) {
-    if !keyboard.just_pressed(KeyCode::KeyE) {
-        return;
-    }
-    if player_q.single().is_err() {
-        return;
-    }
-    let item_id = match *look_target {
-        LookTarget::Surface { entity, .. } => {
-            if let Ok(deposit) = deposit_q.get(entity) {
-                deposit
-                    .ores
-                    .first()
-                    .map(|(id, _)| id.clone())
-                    .unwrap_or_else(|| "ore_deposit".to_string())
-            } else {
-                "environment".to_string()
-            }
-        }
-        LookTarget::Nothing => return,
-    };
-    scan_events.write(HandScanComplete { item_id });
 }
 
 #[cfg(test)]

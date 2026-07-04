@@ -3,6 +3,7 @@ mod interaction;
 mod player;
 pub(crate) mod ruins;
 
+pub use generation::OreDeposit;
 pub use interaction::{BuildOrientation, LookTarget};
 pub use player::{MainCamera, Player};
 
@@ -117,10 +118,6 @@ impl Plugin for WorldPlugin {
                     interaction::object_interaction
                         .after(interaction::update_look_target)
                         .in_set(crate::GameSystems::Input)
-                        .run_if(not(player::any_ui_open)),
-                    interaction::hand_scanner_interact
-                        .after(interaction::update_look_target)
-                        .run_if(in_state(PlayMode::Exploring))
                         .run_if(not(player::any_ui_open)),
                     interaction::update_ghost_preview.after(interaction::update_look_target),
                     interaction::update_removal_ghost.after(interaction::update_look_target),

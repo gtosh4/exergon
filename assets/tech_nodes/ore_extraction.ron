@@ -6,5 +6,5 @@
     rarity: Common,
     prerequisites: [],
     primary_unlock: ResearchSpend(30),
-    effects: [UnlockMachine("drill"), UnlockRecipes(["extract_iron_ore", "extract_copper_ore"])],
+    effects: [UnlockMachine("miner"), UnlockRecipes(["make_miner"])],
 )

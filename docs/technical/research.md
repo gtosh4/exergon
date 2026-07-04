@@ -140,18 +140,18 @@ Research types are **content-defined strings** — no hardcoded enum. The base c
 
 **Vertical Slice uses only `material_science`.**
 
-Research points are always earnable via recipes (research station or hand scanner) — this path is guaranteed to be viable for progression. Other sources may exist. `ProductionMilestone` satisfies a node's unlock requirement but does not add to `ResearchPool`.
+Research points are always earnable via the research station recipe (`basic_analysis`) — this path is guaranteed viable for progression. Other sources may exist. `ProductionMilestone` satisfies a node's unlock requirement but does not add to `ResearchPool`.
 
-### Hand scanner (bootstrapping source)
+### Bootstrapping (lander starting kit)
 
-The player's AI body includes a built-in hand scanner — always available, not a tech unlock. It produces `material_science` research directly, bypassing the research station recipe system.
+There is no hand scanner. The bootstrap loop is seeded by the lander itself: on a fresh run the escape pod drops with a starting kit of placeable machines (miner, solar generator, assembler, analysis station) plus logistics/power cables, and **no raw materials** (see `pod::starting_kit`). The player stands up the first base directly:
 
-- **Yield:** Fixed small amount per manual sample scan (lower than Field Analyzer recipes — exact value content-defined)
-- **Limits:** Cannot be automated; no throughput scaling; one scan per sample item instance
-- **System:** `hand_scanner_system` handles `HandScanComplete` events fired by the interaction system. On each event: `ResearchPool.add("material_science", HAND_SCANNER_YIELD)`.
-- **Purpose:** Provides enough research to unlock 1–2 small `ResearchSpend` nodes before the Field Analyzer is built, seeding the bootstrap loop.
+1. Place the solar generator (self-powered — `EnvSource::Solar`) and the miner on the guaranteed spawn deposit.
+2. The miner extracts `stone` (the origin deposit always yields stone — see below), which feeds the analysis station's `basic_analysis` recipe to produce `material_science`.
 
-**VS:** Implemented. Sufficient yield from the first alien surface sample to start the research loop before the Field Analyzer is built.
+This makes the research loop reachable from turn 0 without a dedicated bootstrap mechanic, and it cannot brick: the origin deposit cell always contains a stone-bearing deposit within the Aegis radius (`DepositRegistry::ore_at` forces cell `(0,0)`), and the starting machines are non-consumable, so a misplacement is always recoverable.
+
+**VS:** Implemented.
 
 ---
 
@@ -455,17 +455,7 @@ In `rebuild_detail`:
 - For nodes with `primary_unlock` other than `ResearchSpend`: show description of how to unlock (as before), no UNLOCK button.
 - For nodes in `disabled_nodes`: show a distinct locked-out state; no UNLOCK button. Indicate which group member was chosen.
 
-### `hand_scanner_system`
-
-Runs in `GameSystems::Simulation` while in `GameState::Playing`, before the logistics simulation so research is available in the same frame.
-
-**Step-by-step:**
-
-1. Read all `HandScanComplete` events for this frame.
-2. For each event: call `ResearchPool.add("material_science", HAND_SCANNER_YIELD)`.
-3. Log: `"Hand scan: +{HAND_SCANNER_YIELD} material_science"`.
-
-`HAND_SCANNER_YIELD` is a content constant (not a recipe). Value TBD by playtesting — must be enough that 1–2 scans unlock a small ResearchSpend node to bootstrap the loop.
+Research points enter `ResearchPool` only via completed research station recipes (`recipe_progress_system` routes `research_points` outputs to the pool — see Execution Order). There is no separate research-generating system.
 
 ---
 
@@ -479,15 +469,11 @@ All are Bevy `Message` types (one-frame broadcast via `MessageReader`).
 
 **`ProductionMilestoneEvent { material: String, quantity: u32 }`** — fired by a production tracking system (outside the scope of this document) when cumulative output of a material crosses a defined threshold. Consumed by `check_research_unlocks`. The tracking system fires once per threshold crossing, not once per item produced.
 
-**`HandScanComplete { item_id: String }`** — fired by the interaction system when the player completes a hand scan. Consumed by `hand_scanner_system`. The `item_id` is logged but the yield is fixed regardless of item type.
-
 ---
 
 ## 9. Execution Order
 
 ```
-InteractionSystems
-    hand_scanner_system            // HandScanComplete → ResearchPool.add("material_science", yield)
 PowerSimSystems                    // generators fill buffers
   → NetworkSystems::of::<Logistics>()
     → LogisticsSimSystems
@@ -514,7 +500,7 @@ VS implements:
 - `TechTreeProgress` as component on player entity; `unlocked_nodes`, `unlocked_recipes`, `unlocked_machines`, `disabled_nodes` (no `partially_revealed`)
 - `ResearchPoints(u32)` newtype
 - Research station machine type with VS content recipes (ore inputs → `"research.material_science"` outputs)
-- Hand scanner as bootstrap research source (`hand_scanner_system`, `HandScanComplete`)
+- Lander starting kit as bootstrap research source (`pod::starting_kit`; miner → stone → analysis station)
 - Player-initiated UNLOCK button in tech tree detail panel
 - Auto-unlock for `ExplorationDiscovery`, `PrerequisiteChain`, and `ProductionMilestone`
 - `UnlockVector::ResearchSpend { type_id, amount: ResearchPoints }` in asset format

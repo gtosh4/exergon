@@ -16,9 +16,13 @@ use super::visuals::{
 };
 use super::{
     EnergyPortOf, IoPortMarker, LogisticsPortOf, Machine, MachineActivity, MachineBuilt,
-    MachineLogisticsPorts, MachineNetworkChanged, MachineState, Mirror, Orientation, Platform,
-    Rotation, machine_class_for,
+    MachineLogisticsPorts, MachineNetworkChanged, MachineState, MinerMachine, Mirror, Orientation,
+    Platform, Rotation, machine_class_for,
 };
+use crate::world::generation::OreDeposit;
+
+/// Max distance from a placed miner to an ore deposit it will latch onto.
+const MINER_DEPOSIT_RANGE: f32 = 8.0;
 
 #[derive(Bundle)]
 pub struct MachineBundle {
@@ -175,6 +179,7 @@ pub(super) fn place_machine_system(
     mut machine_built: MessageWriter<MachineBuilt>,
     port_layouts: Option<Res<MachinePortLayouts>>,
     planet_q: Query<&crate::planet::PlanetProperties>,
+    deposit_q: Query<(Entity, &Transform), With<OreDeposit>>,
 ) {
     let empty_layout = MachinePortLayout::default();
     for ev in events.read() {
@@ -220,6 +225,25 @@ pub(super) fn place_machine_system(
                 max_buffer_joules: max_buffer,
                 env_source: gd.env_source.clone(),
             });
+        }
+
+        // A miner latches onto the nearest ore deposit in range so it can extract.
+        if def.id == "miner" {
+            let placed = ev.transform.translation;
+            let nearest = deposit_q
+                .iter()
+                .map(|(e, t)| (e, t.translation.distance(placed)))
+                .filter(|(_, dist)| *dist <= MINER_DEPOSIT_RANGE)
+                .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            match nearest {
+                Some((deposit_e, _)) => {
+                    commands.entity(machine_entity).insert(MinerMachine {
+                        deposit: deposit_e,
+                        accumulator: 0.0,
+                    });
+                }
+                None => warn!("Miner placed with no ore deposit in range; it will not extract"),
+            }
         }
 
         machine_built.write(MachineBuilt {

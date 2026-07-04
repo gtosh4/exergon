@@ -1,0 +1,14 @@
+(
+    id: "miner",
+    name: "Miner",
+    stack_size: 10,
+    tiers: [
+        (tier: 1),
+    ],
+    interaction: Single,
+    surface: Ground,
+    snap: Free,
+    orientation: AxisY,
+    ghost: Scene,
+    footprint: (2.0, 2.0, 2.0),
+)

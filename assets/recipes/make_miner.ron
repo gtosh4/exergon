@@ -1,0 +1,13 @@
+(
+    id: "make_miner",
+    inputs: [
+        (item: "stone",     quantity: 25.0),
+        (item: "iron_ore",  quantity: 20.0),
+    ],
+    outputs:    [(item: "miner", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 1,
+    processing_time: 25.0,
+    energy_cost: 0.0,
+)

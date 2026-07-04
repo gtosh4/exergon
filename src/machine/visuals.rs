@@ -201,7 +201,7 @@ pub(super) fn compute_machine_colliders(
 
 /// Register port layouts for machine types that have no GLTF model.
 pub(super) fn register_fallback_port_layouts(mut port_layouts: ResMut<MachinePortLayouts>) {
-    for machine_id in ["solar_generator", "combustion_generator"] {
+    for machine_id in ["solar_generator", "combustion_generator", "miner"] {
         port_layouts
             .by_machine
             .entry(machine_id.to_string())
