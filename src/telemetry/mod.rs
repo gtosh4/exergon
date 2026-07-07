@@ -40,6 +40,55 @@ pub struct TelemetryLog {
     pub escaped: bool,
     pub remote_trips: u32,
     pub remote_entry_t: Option<f32>,
+    /// `elapsed_secs` when the current all-machines-blocked interval began, or
+    /// `None` when no machine is currently `SlotBlocked`.
+    pub blocked_start: Option<f32>,
+}
+
+/// Post-run summary computed from the record stream. Fields correspond to the
+/// VS §6 "Required derived metrics" that have telemetry sources today; metrics
+/// gated on not-yet-emitted events (stable production, factory re-engage) are
+/// omitted until those sources land. Appended as a `RunSummary` record at run
+/// end and consumable directly for playtest analysis.
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize)]
+pub struct DerivedMetrics {
+    pub time_to_first_insight_secs: Option<f32>,
+    pub time_to_first_research_unlock_secs: Option<f32>,
+    pub time_to_first_discovery_secs: Option<f32>,
+    pub blocked_state_count: u32,
+    pub blocked_state_total_secs: f32,
+    pub remote_trips: u32,
+    pub total_run_secs: f32,
+}
+
+/// Derive [`DerivedMetrics`] from a run's record stream. Pure over `records`:
+/// timing metrics read the `t` of the first matching event, blocked totals sum
+/// `BlockedStateExit` durations, and total run time is the max `t` seen.
+pub fn compute_metrics(records: &[serde_json::Value]) -> DerivedMetrics {
+    let first_t = |event: &str| {
+        records
+            .iter()
+            .find(|r| r["event"] == event)
+            .and_then(|r| r["t"].as_f64())
+            .map(|v| v as f32)
+    };
+    let count = |event: &str| records.iter().filter(|r| r["event"] == event).count() as u32;
+    DerivedMetrics {
+        time_to_first_insight_secs: first_t("InsightCandidate"),
+        time_to_first_research_unlock_secs: first_t("TechRevealed"),
+        time_to_first_discovery_secs: first_t("Discovery"),
+        blocked_state_count: count("BlockedStateEnter"),
+        blocked_state_total_secs: records
+            .iter()
+            .filter(|r| r["event"] == "BlockedStateExit")
+            .filter_map(|r| r["duration_secs"].as_f64())
+            .sum::<f64>() as f32,
+        remote_trips: count("RemoteModeEntry"),
+        total_run_secs: records
+            .iter()
+            .filter_map(|r| r["t"].as_f64())
+            .fold(0.0, f64::max) as f32,
+    }
 }
 
 impl TelemetryLog {
@@ -88,6 +137,7 @@ impl Plugin for TelemetryPlugin {
                     telemetry_observe_machines,
                     telemetry_observe_discovery,
                     telemetry_observe_research,
+                    telemetry_observe_blocked,
                     telemetry_observe_escape_item,
                     telemetry_observe_escape_complete,
                     telemetry_observe_insight,
@@ -134,6 +184,7 @@ fn telemetry_run_start(
         escaped: false,
         remote_trips: 0,
         remote_entry_t: None,
+        blocked_start: None,
     };
     if session_n == 1 {
         log.append("RunStarted", json!({ "seed": run_id, "unix_ts": unix_ts }));
@@ -196,6 +247,29 @@ fn telemetry_observe_research(
         log.append("TechRevealed", json!({ "node_id": node_id }));
     }
     log.prev_unlocked = current;
+}
+
+/// Tracks the aggregate blocked state: an interval begins when ≥1 machine is
+/// `SlotBlocked` and ends when none remain. Emits `BlockedStateEnter` with the
+/// current blocked count and `BlockedStateExit` with the interval duration.
+fn telemetry_observe_blocked(
+    blocked_q: Query<(), With<crate::power::SlotBlocked>>,
+    log: Option<ResMut<TelemetryLog>>,
+) {
+    let Some(mut log) = log else { return };
+    let count = blocked_q.iter().count() as u32;
+    match (count > 0, log.blocked_start.is_some()) {
+        (true, false) => {
+            log.blocked_start = Some(log.elapsed_secs);
+            log.append("BlockedStateEnter", json!({ "blocked_count": count }));
+        }
+        (false, true) => {
+            let start = log.blocked_start.take().unwrap_or(log.elapsed_secs);
+            let duration = log.elapsed_secs - start;
+            log.append("BlockedStateExit", json!({ "duration_secs": duration }));
+        }
+        _ => {}
+    }
 }
 
 fn telemetry_remote_enter(log: Option<ResMut<TelemetryLog>>) {
@@ -263,9 +337,19 @@ fn telemetry_run_end(
     save_root: Res<SaveRoot>,
 ) {
     let Some(mut log) = log else { return };
+    // Close any open blocked interval so its duration counts toward the summary.
+    if let Some(start) = log.blocked_start.take() {
+        let duration = log.elapsed_secs - start;
+        log.append("BlockedStateExit", json!({ "duration_secs": duration }));
+    }
     if !log.escaped {
         log.append("RunAbandoned", json!({}));
     }
+    let metrics = compute_metrics(&log.records);
+    log.append(
+        "RunSummary",
+        serde_json::to_value(&metrics).unwrap_or_default(),
+    );
     let path = telemetry_path(&telemetry_root, &save_root, &log.run_id);
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
@@ -464,6 +548,119 @@ mod tests {
         assert!(nodes.contains(&"alpha".to_owned()));
         assert!(nodes.contains(&"beta".to_owned()));
         assert_eq!(nodes.len(), 2);
+    }
+
+    #[test]
+    fn compute_metrics_reads_sources_from_records() {
+        let records = vec![
+            json!({ "t": 1.0, "event": "RunStarted" }),
+            json!({ "t": 3.0, "event": "Discovery", "key": "x" }),
+            json!({ "t": 5.0, "event": "TechRevealed", "node_id": "a" }),
+            json!({ "t": 6.0, "event": "TechRevealed", "node_id": "b" }),
+            json!({ "t": 7.0, "event": "InsightCandidate" }),
+            json!({ "t": 8.0, "event": "RemoteModeEntry", "trip_n": 1 }),
+            json!({ "t": 9.0, "event": "RemoteModeEntry", "trip_n": 2 }),
+            json!({ "t": 10.0, "event": "BlockedStateEnter", "blocked_count": 2 }),
+            json!({ "t": 14.0, "event": "BlockedStateExit", "duration_secs": 4.0 }),
+        ];
+        let m = compute_metrics(&records);
+        // first-occurrence timings pick the earliest matching event's `t`
+        assert_eq!(m.time_to_first_discovery_secs, Some(3.0));
+        assert_eq!(m.time_to_first_research_unlock_secs, Some(5.0));
+        assert_eq!(m.time_to_first_insight_secs, Some(7.0));
+        assert_eq!(m.remote_trips, 2);
+        assert_eq!(m.blocked_state_count, 1);
+        assert_eq!(m.blocked_state_total_secs, 4.0);
+        assert_eq!(m.total_run_secs, 14.0);
+    }
+
+    #[test]
+    fn compute_metrics_defaults_when_sources_absent() {
+        let m = compute_metrics(&[json!({ "t": 2.5, "event": "RunStarted" })]);
+        assert_eq!(m.time_to_first_insight_secs, None);
+        assert_eq!(m.time_to_first_research_unlock_secs, None);
+        assert_eq!(m.time_to_first_discovery_secs, None);
+        assert_eq!(m.blocked_state_count, 0);
+        assert_eq!(m.blocked_state_total_secs, 0.0);
+        assert_eq!(m.total_run_secs, 2.5);
+    }
+
+    #[test]
+    fn blocked_state_enter_then_exit_emitted() {
+        use crate::power::{SlotBlockReason, SlotBlocked};
+        let mut app = make_app(tmp_root("blk_save"), tmp_root("blk_tel"));
+        app.world_mut()
+            .resource_mut::<Messages<NewRunEvent>>()
+            .write(NewRunEvent {
+                seed_text: "t-blk".into(),
+                test_mode: false,
+            });
+        app.update();
+        enter_playing(&mut app);
+
+        let e = app
+            .world_mut()
+            .spawn(SlotBlocked(SlotBlockReason::NoPower))
+            .id();
+        app.update();
+        assert!(
+            app.world()
+                .resource::<TelemetryLog>()
+                .blocked_start
+                .is_some()
+        );
+
+        app.world_mut().entity_mut(e).remove::<SlotBlocked>();
+        app.update();
+
+        let log = app.world().resource::<TelemetryLog>();
+        assert!(log.blocked_start.is_none());
+        let evts: Vec<&str> = log
+            .records
+            .iter()
+            .filter_map(|r| r["event"].as_str())
+            .collect();
+        assert!(evts.contains(&"BlockedStateEnter"));
+        assert!(evts.contains(&"BlockedStateExit"));
+    }
+
+    #[test]
+    fn run_end_appends_run_summary() {
+        let tel_dir = tmp_root("sum_tel");
+        let mut app = make_app(tmp_root("sum_save"), tel_dir.clone());
+        app.world_mut()
+            .resource_mut::<Messages<NewRunEvent>>()
+            .write(NewRunEvent {
+                seed_text: "t-sum".into(),
+                test_mode: false,
+            });
+        app.update();
+        enter_playing(&mut app);
+        app.world_mut()
+            .resource_mut::<Messages<DiscoveryEvent>>()
+            .write(DiscoveryEvent("d".into()));
+        app.update();
+
+        app.world_mut()
+            .resource_mut::<NextState<GameState>>()
+            .set(GameState::MainMenu);
+        app.update();
+
+        // TelemetryLog removed after flush — assert via written file instead.
+        // run_id derives from header, not seed_text; find the single jsonl file.
+        let file = std::fs::read_dir(&tel_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .find(|p| p.extension().is_some_and(|x| x == "jsonl"))
+            .expect("a jsonl file should be written");
+        let body = std::fs::read_to_string(&file).unwrap();
+        let summary = body
+            .lines()
+            .find(|l| l.contains("\"RunSummary\""))
+            .expect("RunSummary line must exist");
+        assert!(summary.contains("\"time_to_first_discovery_secs\""));
+        assert!(summary.contains("\"total_run_secs\""));
     }
 
     #[test]

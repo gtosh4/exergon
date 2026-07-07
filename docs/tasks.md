@@ -37,8 +37,8 @@ Design: [`telemetry.md`](technical/telemetry.md). VS §6 gate requirement.
 - [x] `TelemetryLog` resource, JSONL writer (`#[cfg(debug_assertions)]` gated)
 - [x] `RunStarted` event (seed, profile, timestamp)
 - [~] First-occurrence events: `tech_node_revealed`, `machine_placed`, `discovery_event`, `remote_mode_entry`/`exit` wired; `planet_property_viewed`, `research_spent`, `power_failure`/`resolved`, `drone_deployed`, `escape_item_produced`, `escape_completed`, `stable_production` deferred until source events exist
-- [ ] Repeated events: `blocked_state_enter`/`exit`, `tutorial_trigger` — source events not yet implemented
-- [ ] Derived metrics calculator: time-to-first-insight, time-to-first-research-unlock, time-to-stable-production, time-to-first-discovery, blocked-state count + duration, remote trips, re-engage time, total run time
+- [~] Repeated events: `blocked_state_enter`/`exit` wired (`telemetry_observe_blocked` on aggregate `SlotBlocked` set → `BlockedStateEnter`/`BlockedStateExit`); `tutorial_trigger` deferred (no source event)
+- [~] Derived metrics calculator: `compute_metrics` → `DerivedMetrics`, appended as `RunSummary` at run end. Sourced: time-to-first-insight, time-to-first-research-unlock, time-to-first-discovery, blocked-state count + duration, remote trips, total run time. Deferred (no source event): time-to-stable-production, re-engage time
 - [~] Event integration points wired across systems — wired for existing emitters; gated behind future event additions for the rest
 
 ### 0.3 Seed System — `planet` domain
