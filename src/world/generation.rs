@@ -316,6 +316,30 @@ pub(super) fn poll_assets_loaded(
     }
 }
 
+/// The deterministic world-generation systems — terrain chunks and surface ore
+/// deposits — shared by the real game and by integration tests. Deliberately
+/// excludes player, interaction, and ruins systems so it can run headless.
+pub struct WorldgenPlugin;
+
+impl Plugin for WorldgenPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<SpawnedChunks>()
+            .insert_resource(WorldConfig::default())
+            .add_systems(OnEnter(GameState::Loading), setup_world_config)
+            .add_systems(
+                Update,
+                (
+                    spawn_chunks,
+                    despawn_chunks,
+                    add_chunk_colliders,
+                    spawn_deposit_markers.after(add_chunk_colliders),
+                    despawn_deposit_markers.after(despawn_chunks),
+                )
+                    .run_if(resource_exists::<WorldConfig>),
+            );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::prelude::*;

@@ -1,34 +1,45 @@
 //! End-to-end integration test for the lander bootstrap loop, exercised through the
-//! real placement + logistics + recipe + research systems (not hand-built entities):
+//! real world-generation + placement + logistics + recipe + research systems from a
+//! fixed seed (not hand-built entities):
 //!
-//!   place machines (miner, storage, analysis station) → wire them with cables →
-//!   mine stone from a deposit → analyse stone into research points → unlock the
+//!   fixed seed → generate terrain + surface ore deposits → place machines
+//!   (miner, storage, analysis station) on the generated stone deposit → wire them
+//!   with cables → mine stone → analyse stone into research points → unlock the
 //!   first research node with those points.
 //!
+//! World generation runs through the real `WorldgenPlugin` and the real
+//! `DepositRegistry` loaded from `assets/deposits/`, so the origin chunk's stone
+//! deposit is placed deterministically — the run is reproducible for a fixed seed.
 //! Machines are "placed" by emitting the same `WorldObjectEvent::Placed` the input
 //! layer produces, so `place_machine_system` (port spawning, miner→deposit latching)
 //! runs for real. GLTF-derived port layouts are stubbed (headless has no renderer),
 //! and storage provisioning is injected — both are data, not the logic under test.
 
+use std::time::Duration;
+
 use bevy::gltf::{Gltf, GltfMesh, GltfNode};
 use bevy::prelude::*;
 use bevy::scene::ScenePlugin;
 use bevy::state::app::StatesPlugin;
+use bevy::time::TimeUpdateStrategy;
 use bevy::world_serialization::WorldAsset;
 
 use exergon::GameState;
-use exergon::logistics::{
-    LogisticsNetworkMember, LogisticsSimPlugin, NetworkStorageChanged, StorageUnit,
-};
+use exergon::content::ContentPlugin;
+use exergon::logistics::{LogisticsNetworkMember, LogisticsSimPlugin, StorageUnit};
 use exergon::machine::{
-    Machine, MachineActivity, MachinePlugin, MachinePortLayout, MachinePortLayouts, MachineState,
-    MinerMachine,
+    Machine, MachinePlugin, MachinePortLayout, MachinePortLayouts, MachineState, MinerMachine,
 };
 use exergon::recipe_graph::RecipeGraphPlugin;
 use exergon::research::{ResearchPlugin, ResearchPool, TechTreeProgress, UnlockNodeRequest};
+use exergon::seed::DomainSeeds;
 use exergon::tech_tree::TechTreePlugin;
-use exergon::world::{CableConnectionEvent, OreDeposit, WorldObjectEvent, WorldObjectKind};
+use exergon::world::{
+    CableConnectionEvent, MainCamera, OreDeposit, WorldObjectEvent, WorldObjectKind, WorldgenPlugin,
+};
 
+/// Fixed master seed for this run — makes terrain + deposit placement reproducible.
+const MASTER_SEED: u64 = 0xE7E6_0007;
 const PORT_OFFSET: Vec3 = Vec3::new(1.0, 0.0, 0.0);
 
 fn build_app() -> App {
@@ -50,6 +61,8 @@ fn build_app() -> App {
         .add_message::<CableConnectionEvent>()
         .init_state::<GameState>()
         .add_plugins((
+            ContentPlugin,
+            WorldgenPlugin,
             RecipeGraphPlugin,
             TechTreePlugin,
             MachinePlugin,
@@ -90,15 +103,74 @@ fn research_points(app: &App) -> f32 {
     app.world().resource::<ResearchPool>().points
 }
 
+/// Finds the ore deposit generated for the origin chunk, which the `DepositRegistry`
+/// guarantees is a stone-bearing starter deposit regardless of seed.
+fn origin_deposit(app: &mut App) -> (Entity, Transform, Vec<(String, f32)>) {
+    let mut q = app.world_mut().query::<(Entity, &Transform, &OreDeposit)>();
+    q.iter(app.world())
+        .find(|(_, _, d)| d.chunk_pos == IVec2::ZERO)
+        .map(|(e, t, d)| (e, *t, d.ores.clone()))
+        .expect("world generation must place a deposit on the origin chunk")
+}
+
+/// Advances simulated time deterministically until `done` holds, in fixed `dt` steps.
+///
+/// `TimeUpdateStrategy::ManualDuration` makes every `app.update()` advance the clock by
+/// exactly `dt`, independent of wall-clock, so the rate-integrating systems (mining,
+/// recipe progress, power, …) actually progress. Panics if `done` is not satisfied within
+/// `max_secs` of simulated time — a built-in runaway guard. `done` is polled before each
+/// step, so it can also observe transient state (e.g. a machine being mid-recipe).
+fn advance_until(app: &mut App, dt: f32, max_secs: f32, mut done: impl FnMut(&App) -> bool) {
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+        dt,
+    )));
+    let mut elapsed = 0.0;
+    while elapsed < max_secs {
+        if done(app) {
+            return;
+        }
+        app.update();
+        elapsed += dt;
+    }
+    panic!("advance_until: condition not met within {max_secs}s of simulated time");
+}
+
 #[test]
-fn land_place_wire_mine_and_complete_first_research() {
+fn land_generate_place_wire_mine_and_complete_first_research() {
     let mut app = build_app();
 
-    // Land: enter Playing so placement (gated on GameState::Playing) is live.
+    // Provide a run seed the way the real game does: a Run entity carrying the
+    // per-domain seeds derived from the master seed. `setup_world_config` reads it.
+    app.world_mut()
+        .spawn((exergon::save::Run, DomainSeeds::from_master(MASTER_SEED)));
+
+    // The world generator spawns terrain chunks around the camera; place it at origin.
+    app.world_mut().spawn((Transform::default(), MainCamera));
+
+    // Startup: load content (deposit/recipe/machine registries).
+    app.update();
+
+    // Land: enter Loading so `setup_world_config` activates generation, then let the
+    // chunk + deposit systems settle (deposits spawn the frame after their chunk).
     app.world_mut()
         .resource_mut::<NextState<GameState>>()
-        .set(GameState::Playing);
-    app.update();
+        .set(GameState::Loading);
+    for _ in 0..4 {
+        app.update();
+    }
+
+    // World generation must have produced the deterministic origin stone deposit.
+    let (deposit_e, deposit_tf, ores) = origin_deposit(&mut app);
+    let deposit_pos = deposit_tf.translation;
+    assert_eq!(
+        (deposit_pos.x, deposit_pos.z),
+        (32.0, 32.0),
+        "origin chunk deposit sits at the chunk centre — reproducible for a fixed seed"
+    );
+    assert!(
+        ores.iter().any(|(id, _)| id == "stone"),
+        "origin deposit must yield stone to bootstrap research, got {ores:?}"
+    );
 
     // basic_analysis auto-unlocks via science_basics on a real run; ensure it here too.
     app.world_mut()
@@ -120,31 +192,28 @@ fn land_place_wire_mine_and_complete_first_research() {
         }
     }
 
-    // A stone-bearing deposit for the miner to latch onto (public OreDeposit).
-    let miner_pos = Vec3::new(10.0, 0.0, 0.0);
-    app.world_mut().spawn((
-        OreDeposit {
-            chunk_pos: IVec2::ZERO,
-            ores: vec![("stone".to_string(), 1.0)],
-            total_extracted: 0.0,
-            depletion_seed: 0,
-        },
-        Transform::from_translation(miner_pos),
-    ));
+    // Enter Playing so placement (gated on GameState::Playing) is live.
+    app.world_mut()
+        .resource_mut::<NextState<GameState>>()
+        .set(GameState::Playing);
+    app.update();
 
-    // Place the three machines from the starting kit via the real placement path.
-    let storage_pos = Vec3::ZERO;
-    let station_pos = Vec3::new(20.0, 0.0, 0.0);
+    // Place the three starting-kit machines via the real placement path. The miner
+    // goes onto the generated stone deposit; storage and station sit alongside it.
+    let miner_pos = deposit_pos;
+    let storage_pos = deposit_pos + Vec3::new(4.0, 0.0, 0.0);
+    let station_pos = deposit_pos + Vec3::new(8.0, 0.0, 0.0);
     place(&mut app, "storage_crate", storage_pos);
     place(&mut app, "miner", miner_pos);
     place(&mut app, "analysis_station", station_pos);
     app.update();
 
-    // The placed miner must have latched onto the deposit.
+    // The placed miner must have latched onto the generated deposit.
     let miner_e = machine_entity(&mut app, "miner");
-    assert!(
-        app.world().get::<MinerMachine>(miner_e).is_some(),
-        "placed miner should latch onto the nearby deposit"
+    assert_eq!(
+        app.world().get::<MinerMachine>(miner_e).map(|m| m.deposit),
+        Some(deposit_e),
+        "placed miner should latch onto the generated origin deposit"
     );
 
     // Storage machines don't carry a StorageUnit from placement; provision it.
@@ -191,51 +260,23 @@ fn land_place_wire_mine_and_complete_first_research() {
         "station shares storage network"
     );
 
-    // Drive the bootstrap loop: mine stone, run analysis, repeat until enough research
-    // to afford the first ResearchSpend node (ore_extraction, cost 30).
-    let stone_in_network = |app: &mut App| -> u32 {
-        let mut q = app.world_mut().query::<&StorageUnit>();
-        q.iter(app.world())
-            .map(|s| s.items.get("stone").copied().unwrap_or(0))
-            .sum()
-    };
-    // Test time does not advance under MinimalPlugins, so recipes never progress on their
-    // own — force-complete each analysis by driving its progress past the processing time.
-    let mut started_at_least_one = false;
-    let mut guard = 0;
-    while research_points(&app) < 30.0 {
-        guard += 1;
-        assert!(guard < 100, "bootstrap loop failed to accumulate research");
-
-        // Mine one unit of ore this frame.
-        app.world_mut()
-            .get_mut::<MinerMachine>(miner_e)
-            .unwrap()
-            .accumulator = 1.0;
-        app.update();
-
-        let state = app.world().get::<MachineState>(station_e).copied();
-        match state {
-            Some(MachineState::Running) => {
-                // Analysis in progress — finish it (routes research_points → ResearchPool).
-                app.world_mut()
-                    .get_mut::<MachineActivity>(station_e)
-                    .unwrap()
-                    .progress = 1_000.0;
-                app.update();
-                started_at_least_one = true;
-            }
-            _ if stone_in_network(&mut app) >= 4 => {
-                // Enough stone: kick the network so the station picks up the recipe.
-                app.world_mut()
-                    .write_message(NetworkStorageChanged { network: net });
-                app.update();
-            }
-            _ => {}
+    // Stage 1 — bootstrap research. Drive the mine→analyse loop under real simulated time
+    // until there is enough research to afford the first ResearchSpend node (ore_extraction,
+    // cost 30). No hand-poking of internal state — the rate-integrating systems do the work:
+    //   * miner_tick_system    : accumulator += yield * dt  → emits ore + NetworkStorageChanged
+    //   * recipe_advance_system : progress    += dt         → completes the analysis recipe
+    // The miner's per-ore NetworkStorageChanged is what starts the analysis recipe once 4
+    // stone accrue, so the loop self-sustains through the 3 completions (10 pts each) needed
+    // to clear the 30-pt bar. basic_analysis has energy_cost 0, so no power wiring.
+    let mut station_ran = false;
+    advance_until(&mut app, 0.5, 1_000.0, |app| {
+        if app.world().get::<MachineState>(station_e).copied() == Some(MachineState::Running) {
+            station_ran = true;
         }
-    }
+        research_points(app) >= 30.0
+    });
     assert!(
-        started_at_least_one,
+        station_ran,
         "station must actually run the analysis recipe (not just be granted points)"
     );
 
@@ -253,5 +294,35 @@ fn land_place_wire_mine_and_complete_first_research() {
     assert!(
         research_points(&app) < points_before,
         "unlocking a ResearchSpend node must deduct research points"
+    );
+
+    // Stage 2 — sustained grind + a second, sequential node unlock. This is the scaling
+    // proof for a full landing→victory test: the exact same time-driven loop must keep the
+    // factory producing research over a much longer haul (basic_processing costs 150 → ~15
+    // more analysis completions off the same deposit, whose yield decays toward its floor)
+    // and chain into the next tier. basic_smelting is basic_processing's only prerequisite;
+    // inject it the way the test already injects unlocked content (it is gated on upstream
+    // nodes not exercised here — the mechanic under test is the research loop, not gating).
+    app.world_mut()
+        .resource_mut::<TechTreeProgress>()
+        .unlocked_nodes
+        .insert("basic_smelting".to_string());
+
+    advance_until(&mut app, 0.5, 4_000.0, |app| research_points(app) >= 150.0);
+
+    let points_before = research_points(&app);
+    app.world_mut()
+        .write_message(UnlockNodeRequest("basic_processing".into()));
+    app.update();
+
+    let progress = app.world().resource::<TechTreeProgress>();
+    assert!(
+        progress.unlocked_nodes.contains("basic_processing"),
+        "second-tier node should unlock after a sustained grind to 150 research points"
+    );
+    assert_eq!(
+        research_points(&app),
+        points_before - 150.0,
+        "unlocking basic_processing must deduct its 150-point cost"
     );
 }

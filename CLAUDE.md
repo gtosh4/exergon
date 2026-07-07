@@ -25,3 +25,10 @@ Docs and code diverge → reconcile explicitly. Never leave silent.
   - Don't test: what the compiler already proves. trivial getters, external/dependency crates (eg bevy)
 - Always add non-test code above `mod tests`
 - When writing code, make sure to run `cargo fmt`, `cargo clippy` and `cargo test`; make sure lints and tests pass
+
+## Exploring RON content
+Query the game's RON assets (recipes, tech nodes) with the `assets` CLI instead of reading `assets/**.ron` by hand — it loads through the real deserializers, so output = what the game sees:
+`cargo run -q --bin assets recipe|recipes|tech|techs|path <node>|uses <item>`. See [testing.md](docs/technical/testing.md) §4.
+
+## Verifying gameplay in tests
+The landing→victory path is regression-tested end-to-end in `tests/landing_to_first_research.rs`, which fast-forwards simulated time (no manual play). **When you implement a new stage on that path (research tier, crafting step, exploration unlock, escape), add a matching stage to that test.** See [testing.md](docs/technical/testing.md) §3 for the step-by-step recipe. This keeps the dev loop at `cargo test`.

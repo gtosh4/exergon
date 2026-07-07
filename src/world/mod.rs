@@ -3,7 +3,7 @@ mod interaction;
 mod player;
 pub(crate) mod ruins;
 
-pub use generation::OreDeposit;
+pub use generation::{OreDeposit, WorldgenPlugin};
 pub use interaction::{BuildOrientation, LookTarget};
 pub use player::{MainCamera, Player};
 
@@ -42,27 +42,14 @@ impl Plugin for WorldPlugin {
         app.add_message::<WorldObjectEvent>()
             .add_message::<CableConnectionEvent>()
             .init_resource::<LookTarget>()
-            .init_resource::<generation::SpawnedChunks>()
-            .insert_resource(generation::WorldConfig::default())
+            .add_plugins(generation::WorldgenPlugin)
             .add_systems(
                 Startup,
                 (player::spawn_camera, interaction::setup_ghost_preview),
             )
-            .add_systems(OnEnter(GameState::Loading), generation::setup_world_config)
             .add_systems(
                 Update,
                 generation::poll_assets_loaded.run_if(in_state(GameState::Loading)),
-            )
-            .add_systems(
-                Update,
-                (
-                    generation::spawn_chunks,
-                    generation::despawn_chunks,
-                    generation::add_chunk_colliders,
-                    generation::spawn_deposit_markers.after(generation::add_chunk_colliders),
-                    generation::despawn_deposit_markers.after(generation::despawn_chunks),
-                )
-                    .run_if(resource_exists::<generation::WorldConfig>),
             )
             .add_systems(OnEnter(GameState::Playing), player::lock_cursor)
             .add_systems(
