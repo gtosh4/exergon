@@ -241,7 +241,7 @@ VS §5 + milestone gate.
 - [x] Seed-template file (`assets/seeds/curated.ron`): 5 entries
 - [x] Each varies: power viability, resource geography, discovery-site location, alien material chain, research pressure
 - [x] Main menu: "Curated seed" picker alongside text input
-- [ ] Validate each seed plays through Insight Run
+- [x] Validate each seed plays through Insight Run — `tests/curated_seeds.rs` sweeps all 5 curated seeds through landing→mine→first-research-unlock→atmospheric-reveal on simulated time (same `hash_text`→`DomainSeeds` path as the game)
 
 ---
 
