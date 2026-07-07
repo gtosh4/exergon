@@ -216,10 +216,10 @@ Design: [`planning-ui.md`](technical/planning-ui.md) §topology.
 Code present; verify against design.
 
 - [x] Audit node visual states: Shadow, Partial, Revealed, Unlockable, Locked-Out
-- [ ] Locked-reason display on hover
+- [x] Locked-reason display on hover — footer line shows hovered node's locked reason (`prereq: {name} not yet unlocked` / `locked out — {peer} chosen`); insufficient RP excluded per design §blocked-reason
 - [x] Exclusive-group choice modal (per design issue #9)
 - [x] Expand node pool to design minimum: smelting, extraction, 2 power options, logistics, analysis, drone, alien material, escape synthesis
-- [ ] Cross-tier port stubs in questbook layout
+- [x] Cross-tier port stubs in questbook layout — node cards show `←T{n}`/`T{n}→` for cross-tier prereq/dependent edges; detail-panel REQUIRES & LEADS-TO rows click to jump tier page
 
 ---
 

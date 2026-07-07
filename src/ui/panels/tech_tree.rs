@@ -47,6 +47,14 @@ struct TechDetailContent;
 #[derive(Component)]
 struct TechCloseButton;
 
+/// Footer line showing the locked reason of the hovered node.
+#[derive(Component)]
+struct TechHoverText;
+
+/// Detail-panel prereq / dependent row — clicking jumps to that node's tier page.
+#[derive(Component)]
+struct TechNavButton(String);
+
 /// UNLOCK button in detail panel — node_id to request.
 #[derive(Component)]
 struct TechUnlockButton(String);
@@ -87,6 +95,8 @@ pub fn plugin(app: &mut App) {
                 handle_unlock_button,
                 handle_confirm_unlock,
                 handle_cancel_unlock,
+                handle_node_hover,
+                handle_nav_click,
             )
                 .run_if(in_state(GameState::Playing)),
         );
@@ -185,6 +195,22 @@ fn spawn(mut commands: Commands) {
                                 TechRPText,
                             ));
                         });
+
+                    // Hover locked-reason line
+                    panel.spawn((
+                        Node {
+                            min_height: Val::Px(13.0),
+                            margin: UiRect::bottom(Val::Px(4.0)),
+                            ..default()
+                        },
+                        Text::new(""),
+                        TextFont {
+                            font_size: FontSize::Px(10.0),
+                            ..default()
+                        },
+                        TextColor(palette::WARN),
+                        TechHoverText,
+                    ));
 
                     // Body: canvas + detail
                     panel
@@ -388,12 +414,6 @@ fn rebuild(
                 )
             };
 
-            let dep_count = tree
-                .dependents
-                .get(&node.id)
-                .map(|d| d.len())
-                .unwrap_or(0);
-
             canvas
                 .spawn((
                     Button,
@@ -460,16 +480,26 @@ fn rebuild(
                             ));
                         }
 
-                    // Cross-tier stub badge
-                    if dep_count > 0 && !disabled {
-                        btn.spawn((
-                            Text::new(format!("→ {dep_count}")),
-                            TextFont {
-                                font_size: FontSize::Px(8.0),
-                                ..default()
-                            },
-                            TextColor(COLOR_DIM),
-                        ));
+                    // Cross-tier port stubs: ←T{n} incoming prereq, T{n}→ outgoing dependent
+                    if !disabled {
+                        let (incoming, outgoing) = cross_tier_stubs(node, tree);
+                        if !incoming.is_empty() || !outgoing.is_empty() {
+                            let mut parts: Vec<String> = Vec::new();
+                            if let Some(t) = incoming.first() {
+                                parts.push(format!("←T{t}"));
+                            }
+                            if let Some(t) = outgoing.last() {
+                                parts.push(format!("T{t}→"));
+                            }
+                            btn.spawn((
+                                Text::new(parts.join("  ")),
+                                TextFont {
+                                    font_size: FontSize::Px(8.0),
+                                    ..default()
+                                },
+                                TextColor(COLOR_DIM),
+                            ));
+                        }
                     }
                 });
         }
@@ -771,6 +801,12 @@ fn rebuild_detail(
                     .get(prereq_id)
                     .map_or(prereq_id.as_str(), |n| n.name.as_str());
                 c.spawn((
+                    Button,
+                    Node::default(),
+                    BackgroundColor(Color::NONE),
+                    TechNavButton(prereq_id.clone()),
+                ))
+                .with_child((
                     Text::new(format!("{} {name}", if done { "✓" } else { "·" })),
                     TextFont {
                         font_size: FontSize::Px(11.0),
@@ -837,6 +873,12 @@ fn rebuild_detail(
                     COLOR_DIM
                 };
                 c.spawn((
+                    Button,
+                    Node::default(),
+                    BackgroundColor(Color::NONE),
+                    TechNavButton((*dep_id).clone()),
+                ))
+                .with_child((
                     Text::new(format!("{prefix} {} (T{})", dep_node.name, dep_node.tier)),
                     TextFont {
                         font_size: FontSize::Px(10.0),
@@ -880,6 +922,67 @@ fn rebuild_detail(
 fn can_afford_node(node: &NodeDef, pts: f32, prereqs_met: bool) -> bool {
     prereqs_met
         && matches!(&node.primary_unlock, UnlockVector::ResearchSpend(c) if pts >= *c as f32)
+}
+
+/// Locked reason for a node (hover surface), per `tech-tree-ui.md` §blocked-reason.
+/// Insufficient research is NOT a locked reason — communicated via button state only.
+/// Returns `None` for unlocked / unlockable / revealed nodes.
+fn locked_reason(node: &NodeDef, tree: &TechTree, prog: &TechTreeProgress) -> Option<String> {
+    if prog.unlocked_nodes.contains(&node.id) {
+        return None;
+    }
+    if prog.disabled_nodes.contains(&node.id) {
+        if let Some(group) = &node.exclusive_group {
+            let chosen = tree.nodes.values().find(|n| {
+                n.id != node.id
+                    && n.exclusive_group.as_deref() == Some(group.as_str())
+                    && prog.unlocked_nodes.contains(&n.id)
+            });
+            if let Some(c) = chosen {
+                return Some(format!("locked out — {} chosen", c.name));
+            }
+        }
+        return Some("locked out".to_string());
+    }
+    let unmet = node
+        .prerequisites
+        .iter()
+        .find(|p| !prog.unlocked_nodes.contains(*p))?;
+    let name = tree
+        .nodes
+        .get(unmet)
+        .map_or(unmet.as_str(), |n| n.name.as_str());
+    Some(format!("prereq: {name} not yet unlocked"))
+}
+
+/// Cross-tier port stubs for a node: (incoming prereq tiers, outgoing dependent tiers).
+/// Deduped, ascending. Incoming = prereqs on other tiers; outgoing = dependents on other tiers.
+fn cross_tier_stubs(node: &NodeDef, tree: &TechTree) -> (Vec<u8>, Vec<u8>) {
+    let mut incoming: Vec<u8> = node
+        .prerequisites
+        .iter()
+        .filter_map(|p| tree.nodes.get(p))
+        .map(|n| n.tier)
+        .filter(|t| *t != node.tier)
+        .collect();
+    incoming.sort_unstable();
+    incoming.dedup();
+
+    let mut outgoing: Vec<u8> = tree
+        .dependents
+        .get(&node.id)
+        .map(|deps| {
+            deps.iter()
+                .filter_map(|id| tree.nodes.get(id))
+                .map(|n| n.tier)
+                .filter(|t| *t != node.tier)
+                .collect()
+        })
+        .unwrap_or_default();
+    outgoing.sort_unstable();
+    outgoing.dedup();
+
+    (incoming, outgoing)
 }
 
 fn humanize_id(id: &str) -> String {
@@ -1003,5 +1106,157 @@ fn handle_cancel_unlock(
         if *interaction == Interaction::Pressed {
             pending.0 = None;
         }
+    }
+}
+
+/// Update the footer line with the hovered node's locked reason (blank if none).
+fn handle_node_hover(
+    q: Query<(&Interaction, &TechNodeButton)>,
+    tech_tree: Option<Res<TechTree>>,
+    progress: Option<Res<TechTreeProgress>>,
+    mut text_q: Query<&mut Text, With<TechHoverText>>,
+) {
+    let Ok(mut text) = text_q.single_mut() else {
+        return;
+    };
+    let Some(tree) = &tech_tree else { return };
+    let empty = TechTreeProgress::default();
+    let prog = progress.as_deref().unwrap_or(&empty);
+
+    let mut reason = String::new();
+    for (interaction, btn) in &q {
+        if *interaction == Interaction::Hovered
+            && let Some(node) = tree.nodes.get(&btn.0)
+            && let Some(r) = locked_reason(node, tree, prog)
+        {
+            reason = r;
+            break;
+        }
+    }
+    if **text != reason {
+        **text = reason;
+    }
+}
+
+/// Clicking a prereq / dependent row in the detail panel jumps to that node's tier and selects it.
+fn handle_nav_click(
+    q: Query<(&Interaction, &TechNavButton), Changed<Interaction>>,
+    tech_tree: Option<Res<TechTree>>,
+    mut tier: ResMut<TechCurrentTier>,
+    mut panel: ResMut<TechTreePanelOpen>,
+) {
+    for (interaction, btn) in &q {
+        if *interaction != Interaction::Pressed {
+            continue;
+        }
+        if let Some(tree) = &tech_tree
+            && let Some(node) = tree.nodes.get(&btn.0)
+        {
+            tier.0 = node.tier;
+        }
+        panel.selected_node = Some(btn.0.clone());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tech_tree::{NodeId, NodeRarity};
+
+    fn mk_node(id: &str, tier: u8, prereqs: &[&str], group: Option<&str>) -> NodeDef {
+        NodeDef {
+            id: id.to_string(),
+            name: id.to_uppercase(),
+            category: NodeCategory::Science,
+            tier,
+            rarity: NodeRarity::Common,
+            prerequisites: prereqs.iter().map(|s| s.to_string()).collect(),
+            primary_unlock: UnlockVector::ResearchSpend(5),
+            effects: vec![],
+            exclusive_group: group.map(str::to_string),
+        }
+    }
+
+    fn mk_tree(nodes: Vec<NodeDef>) -> TechTree {
+        let mut dependents: std::collections::HashMap<NodeId, Vec<NodeId>> = Default::default();
+        for n in &nodes {
+            for p in &n.prerequisites {
+                dependents.entry(p.clone()).or_default().push(n.id.clone());
+            }
+        }
+        let tier_order = nodes.iter().map(|n| n.id.clone()).collect();
+        let nodes = nodes.into_iter().map(|n| (n.id.clone(), n)).collect();
+        TechTree {
+            nodes,
+            dependents,
+            tier_order,
+        }
+    }
+
+    #[test]
+    fn locked_reason_names_unmet_prereq() {
+        let tree = mk_tree(vec![
+            mk_node("a", 1, &[], None),
+            mk_node("b", 2, &["a"], None),
+        ]);
+        let prog = TechTreeProgress::default();
+        let b = tree.nodes.get("b").unwrap();
+        assert_eq!(
+            locked_reason(b, &tree, &prog),
+            Some("prereq: A not yet unlocked".to_string())
+        );
+    }
+
+    #[test]
+    fn locked_reason_none_when_prereqs_met() {
+        // Prereqs met but cannot afford — insufficient RP is NOT a locked reason.
+        let tree = mk_tree(vec![
+            mk_node("a", 1, &[], None),
+            mk_node("b", 2, &["a"], None),
+        ]);
+        let mut prog = TechTreeProgress::default();
+        prog.unlocked_nodes.insert("a".to_string());
+        let b = tree.nodes.get("b").unwrap();
+        assert_eq!(locked_reason(b, &tree, &prog), None);
+    }
+
+    #[test]
+    fn locked_reason_reports_exclusive_winner() {
+        let tree = mk_tree(vec![
+            mk_node("solar", 1, &[], Some("power")),
+            mk_node("combustion", 1, &[], Some("power")),
+        ]);
+        let mut prog = TechTreeProgress::default();
+        prog.unlocked_nodes.insert("solar".to_string());
+        prog.disabled_nodes.insert("combustion".to_string());
+        let c = tree.nodes.get("combustion").unwrap();
+        assert_eq!(
+            locked_reason(c, &tree, &prog),
+            Some("locked out — SOLAR chosen".to_string())
+        );
+    }
+
+    #[test]
+    fn locked_reason_none_when_unlocked() {
+        let tree = mk_tree(vec![mk_node("a", 1, &[], None)]);
+        let mut prog = TechTreeProgress::default();
+        prog.unlocked_nodes.insert("a".to_string());
+        let a = tree.nodes.get("a").unwrap();
+        assert_eq!(locked_reason(a, &tree, &prog), None);
+    }
+
+    #[test]
+    fn cross_tier_stubs_split_incoming_outgoing() {
+        // a(T1) → b(T2) → c(T3); b also has same-tier prereq b2(T2), which is excluded.
+        let tree = mk_tree(vec![
+            mk_node("a", 1, &[], None),
+            mk_node("b2", 2, &[], None),
+            mk_node("b", 2, &["a", "b2"], None),
+            mk_node("c", 3, &["b"], None),
+        ]);
+        let b = tree.nodes.get("b").unwrap();
+        let (incoming, outgoing) = cross_tier_stubs(b, &tree);
+        assert_eq!(incoming, vec![1]); // from a (T1); b2 same-tier excluded
+        assert_eq!(outgoing, vec![3]); // to c (T3)
     }
 }
