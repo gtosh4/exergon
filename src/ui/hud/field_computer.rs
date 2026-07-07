@@ -4,7 +4,9 @@ use bevy::prelude::*;
 use crate::{
     GameState, PlayMode,
     inventory::InventoryOpen,
-    planet::PlanetPropertyRevealed,
+    planet::{
+        PlanetProperties, PlanetPropertyRevealed, PropertyDecisionValidated, qualitative_label,
+    },
     research::{DiscoveryEvent, TechNodeUnlocked},
     ui::theme::{font_size, palette, space},
 };
@@ -142,6 +144,7 @@ pub fn plugin(app: &mut App) {
             (
                 receive_messages,
                 trigger_messages,
+                fire_insight_validation,
                 handle_dismiss_click,
                 handle_history_click,
                 tick_dismiss,
@@ -293,6 +296,30 @@ fn receive_messages(
     for msg in reader.read() {
         log.history.push((msg.category, msg.text.clone()));
         state.push(msg.clone());
+    }
+}
+
+/// Field-computer confirmation when the player's power choice matches a planet
+/// hint (planet-identity design §8). Text: "Well-suited — {label} {property}
+/// supports {machine} here."
+fn fire_insight_validation(
+    mut writer: MessageWriter<FieldComputerMessage>,
+    mut validated: MessageReader<PropertyDecisionValidated>,
+    planet_q: Query<&PlanetProperties>,
+) {
+    let Ok(planet) = planet_q.single() else {
+        return;
+    };
+    for ev in validated.read() {
+        let label = qualitative_label(ev.property, planet.axis(ev.property));
+        writer.write(FieldComputerMessage {
+            text: format!(
+                "Well-suited — {label} {} supports {} here.",
+                ev.property.display_name(),
+                ev.kind.display(),
+            ),
+            category: MessageCategory::System,
+        });
     }
 }
 
@@ -612,6 +639,36 @@ mod tests {
         state.push(sys_msg("a"));
         state.dismiss(999);
         assert_eq!(state.active.len(), 1);
+    }
+
+    #[test]
+    fn fire_insight_validation_emits_message() {
+        use crate::machine::PowerProducerKind;
+        use crate::planet::PlanetPropertyKey;
+
+        let mut app = App::new();
+        app.add_message::<FieldComputerMessage>()
+            .add_message::<PropertyDecisionValidated>()
+            .add_systems(Update, fire_insight_validation);
+        app.world_mut().spawn(PlanetProperties {
+            stellar_distance: 0.1,
+            ..Default::default()
+        });
+        app.world_mut().write_message(PropertyDecisionValidated {
+            property: PlanetPropertyKey::StellarDistance,
+            kind: PowerProducerKind::Solar,
+            modifier: 1.48,
+        });
+        app.update();
+
+        let msgs = app
+            .world()
+            .resource::<bevy::ecs::message::Messages<FieldComputerMessage>>();
+        let mut cursor = msgs.get_cursor();
+        let got: Vec<_> = cursor.read(msgs).cloned().collect();
+        assert_eq!(got.len(), 1);
+        assert!(got[0].text.contains("Solar Irradiance"));
+        assert!(got[0].text.contains("Solar Generator"));
     }
 
     #[test]

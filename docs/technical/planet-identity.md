@@ -404,6 +404,8 @@ Note: `stellar_distance` is displayed as **Solar Irradiance** throughout the UI.
 
 Each transition fires `PlanetPropertyRevealed { property, new_visibility }`.
 
+> **VS implementation note:** `property_reveal_system` (in `src/planet/mod.rs`) hooks the reveal triggers to existing events. The drone scan maps to the first `FogCellRevealedEvent` while in `PlayMode::DronePilot`. The atmospheric sample analysis has no dedicated research-station machine in VS, so it is proxied by the first research spend (`TechNodeUnlocked { via_research: true }`), which reveals both atmospheric properties. `time-on-planet` is not a VS trigger.
+
 ---
 
 ## 6. Landing Panel UI

@@ -62,7 +62,7 @@ Design: [`planet-identity.md`](technical/planet-identity.md).
 - [x] `PlanetArchetype` asset (RON): axis means/variances, hazard, descriptive text
 - [x] Curate 3 VS archetypes in `assets/planet/archetypes/` (frozen_geothermal, desert_radiant, humid_jungle)
 - [x] Archetype-based property generation system (planet domain RNG)
-- [ ] Property reveal triggers (research spend, drone scan, time-on-planet) — `PlanetPropertyRevealed` event defined; source emitters deferred until scan/sample systems land
+- [x] Property reveal triggers — `property_reveal_system` emits `PlanetPropertyRevealed`: drone scan (fog reveal in DronePilot) → geological_activity Hidden→Qualitative; first research spend (proxy for atmospheric sample analysis) → atmospheric_oxygen + atmospheric_pressure Hidden→Revealed
 
 ### 1.2 Property-to-gameplay bindings
 - [x] Solar efficiency modifier on solar generator output — applied to existing `generator` via `solar_modifier` at placement
@@ -82,8 +82,8 @@ Design: [`planet-identity.md`](technical/planet-identity.md).
 
 ### 1.5 Insight beat feedback
 - [x] `PropertyDecisionValidated` event (fires when player action matches planet hint)
-- [ ] Field-computer message on validation — surface lands with Phase 9
-- [ ] Telemetry: emit insight-candidate event — awaits telemetry-event additions
+- [x] Field-computer message on validation — `fire_insight_validation` emits "Well-suited — {label} {property} supports {machine} here." on `PropertyDecisionValidated`
+- [x] Telemetry: emit insight-candidate event — `telemetry_observe_insight` logs `InsightCandidate` on `PropertyDecisionValidated`
 
 ---
 

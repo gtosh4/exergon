@@ -72,6 +72,7 @@ impl Plugin for TelemetryPlugin {
         app.init_resource::<TelemetryRoot>()
             .add_message::<JobComplete>()
             .add_message::<EscapeEvent>()
+            .add_message::<crate::planet::PropertyDecisionValidated>()
             .add_systems(
                 OnEnter(GameState::Playing),
                 telemetry_run_start.run_if(not(resource_exists::<TelemetryLog>)),
@@ -89,6 +90,7 @@ impl Plugin for TelemetryPlugin {
                     telemetry_observe_research,
                     telemetry_observe_escape_item,
                     telemetry_observe_escape_complete,
+                    telemetry_observe_insight,
                 )
                     .run_if(in_state(GameState::Playing)),
             );
@@ -241,6 +243,19 @@ fn telemetry_observe_escape_complete(
     }
 }
 
+fn telemetry_observe_insight(
+    mut validated: MessageReader<crate::planet::PropertyDecisionValidated>,
+    log: Option<ResMut<TelemetryLog>>,
+) {
+    let Some(mut log) = log else { return };
+    for ev in validated.read() {
+        log.append(
+            "InsightCandidate",
+            json!({ "property": format!("{:?}", ev.property), "modifier": ev.modifier }),
+        );
+    }
+}
+
 fn telemetry_run_end(
     mut commands: Commands,
     log: Option<ResMut<TelemetryLog>>,
@@ -384,6 +399,36 @@ mod tests {
             .find(|r| r["event"] == "Discovery")
             .expect("Discovery record should exist");
         assert_eq!(evt["key"], "xalite_deposit");
+    }
+
+    #[test]
+    fn insight_validation_emits_record() {
+        let mut app = make_app(tmp_root("ins_save"), tmp_root("ins_tel"));
+        app.world_mut()
+            .resource_mut::<Messages<NewRunEvent>>()
+            .write(NewRunEvent {
+                seed_text: "t-ins".into(),
+                test_mode: false,
+            });
+        app.update();
+        enter_playing(&mut app);
+
+        app.world_mut()
+            .resource_mut::<Messages<crate::planet::PropertyDecisionValidated>>()
+            .write(crate::planet::PropertyDecisionValidated {
+                property: crate::planet::PlanetPropertyKey::StellarDistance,
+                kind: crate::machine::PowerProducerKind::Solar,
+                modifier: 1.48,
+            });
+        app.update();
+
+        let log = app.world().resource::<TelemetryLog>();
+        let evt = log
+            .records
+            .iter()
+            .find(|r| r["event"] == "InsightCandidate")
+            .expect("InsightCandidate record should exist");
+        assert_eq!(evt["property"], "StellarDistance");
     }
 
     #[test]

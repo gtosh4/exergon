@@ -52,6 +52,17 @@ pub enum PowerProducerKind {
     Wind,
 }
 
+impl PowerProducerKind {
+    pub fn display(self) -> &'static str {
+        match self {
+            PowerProducerKind::Solar => "Solar Generator",
+            PowerProducerKind::Combustion => "Combustion Generator",
+            PowerProducerKind::Geothermal => "Geothermal Generator",
+            PowerProducerKind::Wind => "Wind Generator",
+        }
+    }
+}
+
 pub fn machine_class_for(id: &str) -> MachineClass {
     match id {
         "solar_generator" => MachineClass::PowerProducer(PowerProducerKind::Solar),

@@ -7,8 +7,10 @@ use rand::Rng;
 use serde::Deserialize;
 
 use crate::content::load_ron_dir;
+use crate::drone::FogCellRevealedEvent;
 use crate::machine::{MachineBuilt, MachineClass, PowerProducerKind};
 use crate::power::EnvFactorRegistry;
+use crate::research::TechNodeUnlocked;
 use crate::seed::DomainSeeds;
 use crate::world::Player;
 use crate::{GameState, PlayMode};
@@ -41,6 +43,10 @@ impl Plugin for PlanetPlugin {
                 Update,
                 insight_beat_check
                     .run_if(in_state(PlayMode::Exploring).or_else(in_state(PlayMode::Building))),
+            )
+            .add_systems(
+                Update,
+                property_reveal_system.run_if(in_state(GameState::Playing)),
             );
     }
 }
@@ -90,6 +96,22 @@ impl Default for PlanetPropertyVisibility {
             atmospheric_pressure: PropertyVisibility::Hidden,
             wind_intensity: PropertyVisibility::Qualitative,
             hazard_type: PropertyVisibility::Revealed,
+        }
+    }
+}
+
+impl PlanetProperties {
+    /// Numeric value for a property axis. `HazardType` has no numeric axis and
+    /// returns 0.0.
+    pub fn axis(&self, key: PlanetPropertyKey) -> f32 {
+        match key {
+            PlanetPropertyKey::StellarDistance => self.stellar_distance,
+            PlanetPropertyKey::AtmosphericOxygen => self.atmospheric_oxygen,
+            PlanetPropertyKey::GeologicalActivity => self.geological_activity,
+            PlanetPropertyKey::Temperature => self.temperature,
+            PlanetPropertyKey::AtmosphericPressure => self.atmospheric_pressure,
+            PlanetPropertyKey::WindIntensity => self.wind_intensity,
+            PlanetPropertyKey::HazardType => 0.0,
         }
     }
 }
@@ -556,6 +578,55 @@ fn build_name(
 }
 
 // ---------------------------------------------------------------------------
+// Property reveal (design §5)
+// ---------------------------------------------------------------------------
+
+/// Advances property visibility as the player scouts and researches, emitting a
+/// `PlanetPropertyRevealed` per transition (design §5):
+/// - First drone scan (fog reveal while in `DronePilot`) → `geological_activity`
+///   Hidden → Qualitative.
+/// - First research spend (tech node unlocked via research; atmospheric sample
+///   analysis proxy) → `atmospheric_oxygen` and `atmospheric_pressure`
+///   Hidden → Revealed.
+fn property_reveal_system(
+    mode: Res<State<PlayMode>>,
+    mut fog: bevy::ecs::message::MessageReader<FogCellRevealedEvent>,
+    mut unlocked: bevy::ecs::message::MessageReader<TechNodeUnlocked>,
+    mut vis_q: Query<&mut PlanetPropertyVisibility>,
+    mut revealed: bevy::ecs::message::MessageWriter<PlanetPropertyRevealed>,
+) {
+    // Drain both readers unconditionally so transitions fire exactly once.
+    let scanned = fog.read().count() > 0 && *mode.get() == PlayMode::DronePilot;
+    let researched = unlocked.read().filter(|n| n.via_research).count() > 0;
+    let Ok(mut vis) = vis_q.single_mut() else {
+        return;
+    };
+
+    if scanned && vis.geological_activity == PropertyVisibility::Hidden {
+        vis.geological_activity = PropertyVisibility::Qualitative;
+        revealed.write(PlanetPropertyRevealed {
+            property: PlanetPropertyKey::GeologicalActivity,
+            new_visibility: PropertyVisibility::Qualitative,
+        });
+    }
+
+    if researched {
+        for key in [
+            PlanetPropertyKey::AtmosphericOxygen,
+            PlanetPropertyKey::AtmosphericPressure,
+        ] {
+            if vis.get(key) != PropertyVisibility::Revealed {
+                vis.set(key, PropertyVisibility::Revealed);
+                revealed.write(PlanetPropertyRevealed {
+                    property: key,
+                    new_visibility: PropertyVisibility::Revealed,
+                });
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Insight beat
 // ---------------------------------------------------------------------------
 
@@ -718,6 +789,116 @@ mod tests {
         assert_eq!(
             v.get(PlanetPropertyKey::AtmosphericOxygen),
             PropertyVisibility::Revealed
+        );
+    }
+
+    fn reveal_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(bevy::state::app::StatesPlugin)
+            .init_state::<GameState>()
+            .add_sub_state::<PlayMode>()
+            .add_message::<FogCellRevealedEvent>()
+            .add_message::<TechNodeUnlocked>()
+            .add_message::<PlanetPropertyRevealed>()
+            .add_systems(Update, property_reveal_system);
+        app
+    }
+
+    fn set_mode(app: &mut App, mode: PlayMode) {
+        app.world_mut()
+            .resource_mut::<NextState<GameState>>()
+            .set(GameState::Playing);
+        app.update();
+        app.world_mut()
+            .resource_mut::<NextState<PlayMode>>()
+            .set(mode);
+        app.update();
+    }
+
+    fn revealed_events(app: &App) -> Vec<PlanetPropertyRevealed> {
+        let msgs = app
+            .world()
+            .resource::<bevy::ecs::message::Messages<PlanetPropertyRevealed>>();
+        let mut cursor = msgs.get_cursor();
+        cursor.read(msgs).cloned().collect()
+    }
+
+    #[test]
+    fn drone_scan_reveals_geological_activity() {
+        let mut app = reveal_app();
+        let planet = app
+            .world_mut()
+            .spawn((
+                Planet,
+                PlanetProperties::default(),
+                PlanetPropertyVisibility::default(),
+            ))
+            .id();
+        set_mode(&mut app, PlayMode::DronePilot);
+
+        app.world_mut()
+            .write_message(FogCellRevealedEvent { cell: IVec2::ZERO });
+        app.update();
+
+        let vis = app.world().get::<PlanetPropertyVisibility>(planet).unwrap();
+        assert_eq!(vis.geological_activity, PropertyVisibility::Qualitative);
+        let evs = revealed_events(&app);
+        assert!(
+            evs.iter()
+                .any(|e| e.property == PlanetPropertyKey::GeologicalActivity
+                    && e.new_visibility == PropertyVisibility::Qualitative)
+        );
+    }
+
+    #[test]
+    fn fog_reveal_outside_drone_mode_does_not_reveal() {
+        let mut app = reveal_app();
+        let planet = app
+            .world_mut()
+            .spawn((
+                Planet,
+                PlanetProperties::default(),
+                PlanetPropertyVisibility::default(),
+            ))
+            .id();
+        set_mode(&mut app, PlayMode::Exploring);
+
+        app.world_mut()
+            .write_message(FogCellRevealedEvent { cell: IVec2::ZERO });
+        app.update();
+
+        let vis = app.world().get::<PlanetPropertyVisibility>(planet).unwrap();
+        assert_eq!(vis.geological_activity, PropertyVisibility::Hidden);
+    }
+
+    #[test]
+    fn research_spend_reveals_atmospheric_properties() {
+        let mut app = reveal_app();
+        let planet = app
+            .world_mut()
+            .spawn((
+                Planet,
+                PlanetProperties::default(),
+                PlanetPropertyVisibility::default(),
+            ))
+            .id();
+        set_mode(&mut app, PlayMode::Exploring);
+
+        app.world_mut().write_message(TechNodeUnlocked {
+            node_id: "smelting".into(),
+            via_research: true,
+        });
+        app.update();
+
+        let vis = app.world().get::<PlanetPropertyVisibility>(planet).unwrap();
+        assert_eq!(vis.atmospheric_oxygen, PropertyVisibility::Revealed);
+        assert_eq!(vis.atmospheric_pressure, PropertyVisibility::Revealed);
+        let evs = revealed_events(&app);
+        assert_eq!(
+            evs.iter()
+                .filter(|e| e.new_visibility == PropertyVisibility::Revealed)
+                .count(),
+            2
         );
     }
 
