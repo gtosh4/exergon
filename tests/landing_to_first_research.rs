@@ -7,11 +7,14 @@
 //!   Stage 0: fixed seed → generate terrain + surface ore deposits → place miner, storage,
 //!            analysis station on the generated deposit → wire them → mine → analyse.
 //!   Stage 1: accumulate research and unlock the first node (ore_extraction).
+//!   Stage 1b: planet reveal loop — the first research spend reveals both atmospheric
+//!            properties through the real property_reveal_system.
 //!   Stage 2: sustained grind → unlock a second, higher-tier node (basic_processing).
 //!   Stage 3: bring power online — a solar generator charges its buffer over time and a
 //!            wired smelter draws that energy to smelt mined iron_ore → iron_ingot.
 //!   Stage 4: craft through the NetworkCraftQueue — an assembler crafts a power_cell under
 //!            power from queued ingot inputs.
+//!   Stage 5: drone scan (fog reveal in DronePilot) reveals geological activity.
 //!
 //! The victory chain past stage 4 (xalite→resonite→gateway_key→escape) is currently
 //! blocked on unauthored content (exotic-form processing template + a coal source), so the
@@ -35,8 +38,8 @@ use bevy::state::app::StatesPlugin;
 use bevy::time::TimeUpdateStrategy;
 use bevy::world_serialization::WorldAsset;
 
-use exergon::GameState;
 use exergon::content::ContentPlugin;
+use exergon::drone::FogCellRevealedEvent;
 use exergon::logistics::{
     LogisticsNetworkMember, LogisticsSimPlugin, ManualCraftTrigger, NetworkCraftQueue, StorageUnit,
 };
@@ -44,6 +47,7 @@ use exergon::machine::{
     EnvSource, Machine, MachinePlugin, MachinePortLayout, MachinePortLayouts, MachineState,
     MinerMachine,
 };
+use exergon::planet::{Planet, PlanetPlugin, PlanetPropertyVisibility, PropertyVisibility};
 use exergon::power::{GeneratorUnit, PowerPlugin};
 use exergon::recipe_graph::{RecipeGraph, RecipeGraphPlugin};
 use exergon::research::{ResearchPlugin, ResearchPool, TechTreeProgress, UnlockNodeRequest};
@@ -52,6 +56,7 @@ use exergon::tech_tree::TechTreePlugin;
 use exergon::world::{
     CableConnectionEvent, MainCamera, OreDeposit, WorldObjectEvent, WorldObjectKind, WorldgenPlugin,
 };
+use exergon::{GameState, PlayMode};
 
 /// Fixed master seed for this run — makes terrain + deposit placement reproducible.
 const MASTER_SEED: u64 = 0xE7E6_0007;
@@ -77,7 +82,11 @@ fn build_app() -> App {
         .init_asset::<WorldAsset>();
     app.add_message::<WorldObjectEvent>()
         .add_message::<CableConnectionEvent>()
+        // Fog reveal events come from DronePlugin in the real game; it is not in this
+        // headless test (avian physics), so register the message the reveal system reads.
+        .add_message::<FogCellRevealedEvent>()
         .init_state::<GameState>()
+        .add_sub_state::<PlayMode>()
         .add_plugins((
             ContentPlugin,
             WorldgenPlugin,
@@ -87,8 +96,19 @@ fn build_app() -> App {
             LogisticsSimPlugin,
             PowerPlugin,
             ResearchPlugin,
+            PlanetPlugin,
         ));
     app
+}
+
+/// The generated planet's per-property visibility (the reveal system mutates this in place).
+fn planet_vis(app: &mut App) -> PlanetPropertyVisibility {
+    let mut q = app
+        .world_mut()
+        .query_filtered::<&PlanetPropertyVisibility, With<Planet>>();
+    q.single(app.world())
+        .cloned()
+        .expect("generate_planet_properties must have spawned the run's planet")
 }
 
 fn place(app: &mut App, item_id: &str, pos: Vec3) {
@@ -346,6 +366,29 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
         "unlocking a ResearchSpend node must deduct research points"
     );
 
+    // Stage 1b — planet property reveal (research-spend trigger). The real
+    // `property_reveal_system` watches the same `TechNodeUnlocked { via_research }` the
+    // unlock above emits — the atmospheric-sample-analysis proxy — and advances both
+    // atmospheric properties Hidden→Revealed. Geological activity stays Hidden until a
+    // drone scan (Stage 5). One more update lets the reveal system observe the event.
+    app.update();
+    let vis = planet_vis(&mut app);
+    assert_eq!(
+        vis.atmospheric_oxygen,
+        PropertyVisibility::Revealed,
+        "first research spend must reveal atmospheric oxygen through property_reveal_system"
+    );
+    assert_eq!(
+        vis.atmospheric_pressure,
+        PropertyVisibility::Revealed,
+        "first research spend must reveal atmospheric pressure"
+    );
+    assert_eq!(
+        vis.geological_activity,
+        PropertyVisibility::Hidden,
+        "geological activity stays hidden until a drone scan"
+    );
+
     // Stage 2 — sustained grind + a second, sequential node unlock. This is the scaling
     // proof for a full landing→victory test: the exact same time-driven loop must keep the
     // factory producing research over a much longer haul (basic_processing costs 150 → ~15
@@ -531,5 +574,22 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
     assert!(
         power_cell(&app) >= 1,
         "assembler must craft a power_cell from the queued job under power"
+    );
+
+    // Stage 5 — drone scan reveals geological activity. Entering DronePilot and revealing a
+    // fog cell (the scout action) drives the real `property_reveal_system` to advance
+    // geological_activity Hidden→Qualitative — the exploration-side reveal trigger.
+    app.world_mut()
+        .resource_mut::<NextState<PlayMode>>()
+        .set(PlayMode::DronePilot);
+    app.update();
+    app.world_mut()
+        .write_message(FogCellRevealedEvent { cell: IVec2::ZERO });
+    app.update();
+
+    assert_eq!(
+        planet_vis(&mut app).geological_activity,
+        PropertyVisibility::Qualitative,
+        "a drone scan (fog reveal in DronePilot) must reveal geological activity"
     );
 }
