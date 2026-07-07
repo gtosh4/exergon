@@ -28,8 +28,10 @@ use exergon::GameState;
 use exergon::content::ContentPlugin;
 use exergon::logistics::{LogisticsNetworkMember, LogisticsSimPlugin, StorageUnit};
 use exergon::machine::{
-    Machine, MachinePlugin, MachinePortLayout, MachinePortLayouts, MachineState, MinerMachine,
+    EnvSource, Machine, MachinePlugin, MachinePortLayout, MachinePortLayouts, MachineState,
+    MinerMachine,
 };
+use exergon::power::{GeneratorUnit, PowerPlugin};
 use exergon::recipe_graph::RecipeGraphPlugin;
 use exergon::research::{ResearchPlugin, ResearchPool, TechTreeProgress, UnlockNodeRequest};
 use exergon::seed::DomainSeeds;
@@ -41,6 +43,9 @@ use exergon::world::{
 /// Fixed master seed for this run — makes terrain + deposit placement reproducible.
 const MASTER_SEED: u64 = 0xE7E6_0007;
 const PORT_OFFSET: Vec3 = Vec3::new(1.0, 0.0, 0.0);
+/// Energy ports sit on the opposite side from logistics ports so a power cable and a
+/// logistics cable to the same machine snap to different port entities.
+const ENERGY_OFFSET: Vec3 = Vec3::new(-1.0, 0.0, 0.0);
 
 fn build_app() -> App {
     let mut app = App::new();
@@ -67,6 +72,7 @@ fn build_app() -> App {
             TechTreePlugin,
             MachinePlugin,
             LogisticsSimPlugin,
+            PowerPlugin,
             ResearchPlugin,
         ));
     app
@@ -81,10 +87,18 @@ fn place(app: &mut App, item_id: &str, pos: Vec3) {
 }
 
 fn connect(app: &mut App, from: Vec3, to: Vec3) {
+    cable(app, "logistics_cable", from, to);
+}
+
+fn connect_power(app: &mut App, from: Vec3, to: Vec3) {
+    cable(app, "power_cable", from, to);
+}
+
+fn cable(app: &mut App, item_id: &str, from: Vec3, to: Vec3) {
     app.world_mut().write_message(CableConnectionEvent {
         from,
         to,
-        item_id: "logistics_cable".to_string(),
+        item_id: item_id.to_string(),
         kind: WorldObjectKind::Placed,
         from_port: None,
         to_port: None,
@@ -178,7 +192,9 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
         .unlocked_recipes
         .insert("basic_analysis".to_string());
 
-    // Stub port layouts for the machines we place: one logistics port each at PORT_OFFSET.
+    // Stub port layouts for the machines we place. Logistics-only machines get one
+    // logistics port at PORT_OFFSET; the smelter also needs an energy port to draw power;
+    // the solar generator is energy-only.
     {
         let mut layouts = app.world_mut().resource_mut::<MachinePortLayouts>();
         for id in ["storage_crate", "miner", "analysis_station"] {
@@ -190,6 +206,20 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
                 },
             );
         }
+        layouts.by_machine.insert(
+            "smelter".to_string(),
+            MachinePortLayout {
+                energy: vec![ENERGY_OFFSET],
+                logistics: vec![PORT_OFFSET],
+            },
+        );
+        layouts.by_machine.insert(
+            "solar_generator".to_string(),
+            MachinePortLayout {
+                energy: vec![ENERGY_OFFSET],
+                logistics: vec![],
+            },
+        );
     }
 
     // Enter Playing so placement (gated on GameState::Playing) is live.
@@ -324,5 +354,81 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
         research_points(&app),
         points_before - 150.0,
         "unlocking basic_processing must deduct its 150-point cost"
+    );
+
+    // Stage 3 — power comes online and drives an energy-gated recipe. Everything past basic
+    // smelting costs energy, so this proves the whole power path under simulated time: a
+    // solar generator charges its buffer passively (buffer += watts*dt), and a smelter wired
+    // to it on a power network draws that energy per tick to smelt mined iron_ore → iron_ingot.
+    // basic_smelting (unlocked in stage 2) grants the smelt template; unlock the iron variant.
+    app.world_mut()
+        .resource_mut::<TechTreeProgress>()
+        .unlocked_recipes
+        .insert("smelt_metal__iron".to_string());
+
+    // Place a smelter (logistics + energy ports) and a solar generator (energy-only).
+    let smelter_pos = deposit_pos + Vec3::new(12.0, 0.0, 0.0);
+    let generator_pos = deposit_pos + Vec3::new(16.0, 0.0, 0.0);
+    place(&mut app, "smelter", smelter_pos);
+    place(&mut app, "solar_generator", generator_pos);
+    app.update();
+
+    // Placement spawns the Machine + ports but not the generator runtime component in this
+    // headless setup; provision GeneratorUnit like StorageUnit. Solar charges via generator_tick.
+    let generator_e = machine_entity(&mut app, "solar_generator");
+    app.world_mut()
+        .entity_mut(generator_e)
+        .insert(GeneratorUnit {
+            pos: generator_pos,
+            watts: 500.0,
+            buffer_joules: 0.0,
+            max_buffer_joules: 10_000.0,
+            env_source: EnvSource::Solar,
+        });
+
+    // Wire the smelter onto the existing logistics network (pull iron_ore, push iron_ingot)
+    // and onto a power network shared with the generator.
+    connect(
+        &mut app,
+        storage_pos + PORT_OFFSET,
+        smelter_pos + PORT_OFFSET,
+    );
+    connect_power(
+        &mut app,
+        generator_pos + ENERGY_OFFSET,
+        smelter_pos + ENERGY_OFFSET,
+    );
+    app.update();
+
+    let smelter_e = machine_entity(&mut app, "smelter");
+    let iron_ingot = |app: &App| -> u32 {
+        app.world()
+            .get::<StorageUnit>(storage_e)
+            .and_then(|s| s.items.get("iron_ingot").copied())
+            .unwrap_or(0)
+    };
+
+    // Advance until the smelter deposits its first iron_ingot. Completes only if the miner
+    // supplied iron_ore, the generator charged buffer, and the smelter drew energy per tick.
+    let mut smelter_ran = false;
+    advance_until(&mut app, 0.25, 2_000.0, |app| {
+        if app.world().get::<MachineState>(smelter_e).copied() == Some(MachineState::Running) {
+            smelter_ran = true;
+        }
+        iron_ingot(app) >= 1
+    });
+    assert!(
+        smelter_ran,
+        "smelter must actually run the energy-gated smelt recipe"
+    );
+    assert!(
+        app.world()
+            .get::<GeneratorUnit>(generator_e)
+            .is_some_and(|g| g.buffer_joules > 0.0),
+        "solar generator must have charged its buffer over simulated time"
+    );
+    assert!(
+        iron_ingot(&app) >= 1,
+        "smelter must have smelted mined iron_ore into iron_ingot"
     );
 }
