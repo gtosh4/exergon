@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+pub mod alerts;
 pub mod crosshair;
 pub mod drone;
 pub mod escape;
@@ -15,6 +16,7 @@ pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
+        alerts::plugin(app);
         crosshair::plugin(app);
         drone::plugin(app);
         escape::plugin(app);

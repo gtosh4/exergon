@@ -131,8 +131,8 @@ Design: [`planning-ui.md`](technical/planning-ui.md).
 - [~] Save plans via `Save` tag — entity exists; `Save`/`Reflect` deferred with entity tagging work
 
 ### 3.4 Alerts panel
-- [~] Under-planned alerts shown inline in Inspector (ratio math); dedicated aggregated panel blocked on `SlotBlockReason`
-- [ ] Per-alert: machine, blocked-reason, jump-to action (blocked on `SlotBlockReason`)
+- [x] Under-planned alerts shown inline in Inspector (ratio math); dedicated aggregated panel of live blocked machines — `src/ui/hud/alerts.rs` top-left HUD, one row per `SlotBlocked` machine
+- [x] Per-alert: machine, blocked-reason, jump-to action — row shows `{machine} LV{tier} — {reason}`; click sets `MachineStatusPanel.entity` to open that machine's UI
 
 ---
 

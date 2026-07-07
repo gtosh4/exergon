@@ -40,6 +40,15 @@ pub enum SlotBlockReason {
     NoPower,
 }
 
+impl SlotBlockReason {
+    /// Short human-readable reason for the alerts panel.
+    pub fn label(&self) -> &'static str {
+        match self {
+            SlotBlockReason::NoPower => "no power",
+        }
+    }
+}
+
 /// Attached to idle machines that cannot start any recipe due to `reason`.
 /// Removed when the machine starts a recipe.
 #[derive(Component)]
