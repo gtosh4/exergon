@@ -33,6 +33,22 @@ pub struct EscapeStats {
     pub playtime_secs: f64,
 }
 
+/// Duration of the in-world completion burst before the results screen shows.
+const ESCAPE_FLASH_SECS: f32 = 1.5;
+
+/// Gates the delayed transition to `Escaped` so the in-world flash is visible.
+#[derive(Resource)]
+struct EscapeSequence {
+    timer: Timer,
+}
+
+/// In-world completion VFX at the gateway: an expanding emissive burst.
+#[derive(Component)]
+struct EscapeFlash {
+    timer: Timer,
+    base_intensity: f32,
+}
+
 pub struct EscapePlugin;
 
 impl Plugin for EscapePlugin {
@@ -45,6 +61,8 @@ impl Plugin for EscapePlugin {
                 (
                     escape_objective_system,
                     on_escape_system,
+                    spawn_escape_vfx.run_if(resource_added::<EscapeSequence>),
+                    escape_sequence_system,
                     unlock_gateway_on_discovery,
                 )
                     .run_if(in_state(GameState::Playing)),
@@ -74,7 +92,7 @@ fn on_escape_system(
     mut header_q: Query<&mut RunSaveHeader, With<Run>>,
     planet_q: Query<&PlanetProperties>,
     mut run_end: MessageWriter<RunEndEvent>,
-    mut next_state: ResMut<NextState<GameState>>,
+    mut commands: Commands,
 ) {
     if escape_events.read().next().is_none() {
         return;
@@ -91,7 +109,72 @@ fn on_escape_system(
     }
 
     run_end.write(RunEndEvent);
-    next_state.set(GameState::Escaped);
+    // Delay the results screen so the in-world burst (`spawn_escape_vfx`) is seen.
+    commands.insert_resource(EscapeSequence {
+        timer: Timer::from_seconds(ESCAPE_FLASH_SECS, TimerMode::Once),
+    });
+}
+
+/// Spawn the emissive burst at the gateway when the escape sequence begins.
+fn spawn_escape_vfx(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    gateway_q: Query<&Transform, With<EscapeObjective>>,
+) {
+    let pos = gateway_q
+        .single()
+        .map(|t| t.translation)
+        .unwrap_or(Vec3::ZERO);
+    let base_intensity = 5_000_000.0;
+    commands.spawn((
+        Mesh3d(meshes.add(Sphere::new(1.0))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.6, 0.9, 1.0),
+            emissive: LinearRgba::rgb(4.0, 8.0, 12.0),
+            unlit: true,
+            ..default()
+        })),
+        PointLight {
+            color: Color::srgb(0.6, 0.9, 1.0),
+            intensity: base_intensity,
+            range: 60.0,
+            shadow_maps_enabled: false,
+            ..default()
+        },
+        Transform::from_translation(pos + Vec3::Y * 2.0),
+        EscapeFlash {
+            timer: Timer::from_seconds(ESCAPE_FLASH_SECS, TimerMode::Once),
+            base_intensity,
+        },
+        DespawnOnExit(GameState::Playing),
+    ));
+}
+
+/// Tick the delay, animate the burst (expand + fade), and show results when done.
+fn escape_sequence_system(
+    time: Res<Time>,
+    seq: Option<ResMut<EscapeSequence>>,
+    mut commands: Commands,
+    mut next_state: ResMut<NextState<GameState>>,
+    mut flash_q: Query<(&mut Transform, &mut PointLight, &mut EscapeFlash)>,
+) {
+    let Some(mut seq) = seq else {
+        return;
+    };
+    seq.timer.tick(time.delta());
+
+    for (mut transform, mut light, mut flash) in &mut flash_q {
+        flash.timer.tick(time.delta());
+        let f = flash.timer.fraction();
+        transform.scale = Vec3::splat(1.0 + f * 7.0);
+        light.intensity = flash.base_intensity * (1.0 - f);
+    }
+
+    if seq.timer.is_finished() {
+        next_state.set(GameState::Escaped);
+        commands.remove_resource::<EscapeSequence>();
+    }
 }
 
 /// Unlock `activate_gateway` recipe when gateway ruins are discovered.
@@ -111,6 +194,8 @@ fn unlock_gateway_on_discovery(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy::state::app::StatesPlugin;
+    use std::time::Duration;
 
     #[derive(Resource, Default)]
     struct EscapeCount(usize);
@@ -167,6 +252,60 @@ mod tests {
             app.world().resource::<EscapeCount>().0,
             0,
             "Non-escape machine must not fire EscapeEvent"
+        );
+    }
+
+    fn sequence_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, StatesPlugin))
+            .init_state::<GameState>()
+            .add_systems(
+                Update,
+                escape_sequence_system.run_if(in_state(GameState::Playing)),
+            );
+        app.world_mut()
+            .resource_mut::<NextState<GameState>>()
+            .set(GameState::Playing);
+        app.update();
+        app
+    }
+
+    #[test]
+    fn sequence_delays_transition_while_running() {
+        let mut app = sequence_app();
+        app.insert_resource(EscapeSequence {
+            timer: Timer::from_seconds(ESCAPE_FLASH_SECS, TimerMode::Once),
+        });
+        app.update();
+
+        assert_eq!(
+            *app.world().resource::<State<GameState>>().get(),
+            GameState::Playing,
+            "must stay in Playing until the burst finishes"
+        );
+        assert!(
+            app.world().get_resource::<EscapeSequence>().is_some(),
+            "sequence still in progress"
+        );
+    }
+
+    #[test]
+    fn sequence_transitions_to_escaped_when_finished() {
+        let mut app = sequence_app();
+        let mut timer = Timer::from_seconds(ESCAPE_FLASH_SECS, TimerMode::Once);
+        timer.tick(Duration::from_secs_f32(ESCAPE_FLASH_SECS + 1.0));
+        app.insert_resource(EscapeSequence { timer });
+        app.update();
+        app.update();
+
+        assert_eq!(
+            *app.world().resource::<State<GameState>>().get(),
+            GameState::Escaped,
+            "finished burst transitions to results screen"
+        );
+        assert!(
+            app.world().get_resource::<EscapeSequence>().is_none(),
+            "sequence removed after transition"
         );
     }
 }

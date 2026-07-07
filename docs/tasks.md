@@ -104,7 +104,7 @@ Design: [`escape-condition.md`](technical/escape-condition.md).
 - [~] Site interaction prompt — gateway spawned at ruins; cable connection provides implicit prompt; dedicated proximity UI deferred
 - [~] Missing-requirement display — HUD hidden until gateway running; explicit checklist deferred
 - [x] Completion screen: seed, elapsed time, archetype, "Main Menu" button
-- [ ] Visible in-world completion moment (simple VFX placeholder OK)
+- [x] Visible in-world completion moment (simple VFX placeholder OK) — `spawn_escape_vfx` emissive burst + PointLight at gateway; `escape_sequence_system` delays results screen `ESCAPE_FLASH_SECS` (1.5s) while burst expands/fades
 
 ### 2.3 Telemetry hooks
 - [x] Emit `escape_item_produced` when key crafted (`forge_gateway_key` job complete)
