@@ -1,19 +1,30 @@
-//! End-to-end integration test for the lander bootstrap loop, exercised through the
-//! real world-generation + placement + logistics + recipe + research systems from a
-//! fixed seed (not hand-built entities):
+//! End-to-end integration test for a real run, exercised through the actual
+//! world-generation + placement + logistics + recipe + research + power systems from a
+//! fixed seed (not hand-built entities), driven on simulated time (see `advance_until`).
+//! Each stage below is a milestone on the landing→victory path; new stages are appended
+//! as the systems they need land (see `docs/technical/testing.md §3`).
 //!
-//!   fixed seed → generate terrain + surface ore deposits → place machines
-//!   (miner, storage, analysis station) on the generated stone deposit → wire them
-//!   with cables → mine stone → analyse stone into research points → unlock the
-//!   first research node with those points.
+//!   Stage 0: fixed seed → generate terrain + surface ore deposits → place miner, storage,
+//!            analysis station on the generated deposit → wire them → mine → analyse.
+//!   Stage 1: accumulate research and unlock the first node (ore_extraction).
+//!   Stage 2: sustained grind → unlock a second, higher-tier node (basic_processing).
+//!   Stage 3: bring power online — a solar generator charges its buffer over time and a
+//!            wired smelter draws that energy to smelt mined iron_ore → iron_ingot.
+//!   Stage 4: craft through the NetworkCraftQueue — an assembler crafts a power_cell under
+//!            power from queued ingot inputs.
 //!
-//! World generation runs through the real `WorldgenPlugin` and the real
-//! `DepositRegistry` loaded from `assets/deposits/`, so the origin chunk's stone
-//! deposit is placed deterministically — the run is reproducible for a fixed seed.
-//! Machines are "placed" by emitting the same `WorldObjectEvent::Placed` the input
-//! layer produces, so `place_machine_system` (port spawning, miner→deposit latching)
-//! runs for real. GLTF-derived port layouts are stubbed (headless has no renderer),
-//! and storage provisioning is injected — both are data, not the logic under test.
+//! The victory chain past stage 4 (xalite→resonite→gateway_key→escape) is currently
+//! blocked on unauthored content (exotic-form processing template + a coal source), so the
+//! test stops at the reachable frontier. Add the exploration/crafting/escape stages when
+//! that content lands.
+//!
+//! World generation runs through the real `WorldgenPlugin` and the real `DepositRegistry`
+//! loaded from `assets/deposits/`, so the origin chunk's deposit is placed deterministically
+//! — the run is reproducible for a fixed seed. Machines are "placed" by emitting the same
+//! `WorldObjectEvent::Placed` the input layer produces, so `place_machine_system` (port
+//! spawning, miner→deposit latching) runs for real. GLTF-derived port layouts are stubbed
+//! (headless has no renderer), and storage / generator provisioning and tech-tree unlocks
+//! are injected — data and gating, not the logic under test.
 
 use std::time::Duration;
 
@@ -26,13 +37,15 @@ use bevy::world_serialization::WorldAsset;
 
 use exergon::GameState;
 use exergon::content::ContentPlugin;
-use exergon::logistics::{LogisticsNetworkMember, LogisticsSimPlugin, StorageUnit};
+use exergon::logistics::{
+    LogisticsNetworkMember, LogisticsSimPlugin, ManualCraftTrigger, NetworkCraftQueue, StorageUnit,
+};
 use exergon::machine::{
     EnvSource, Machine, MachinePlugin, MachinePortLayout, MachinePortLayouts, MachineState,
     MinerMachine,
 };
 use exergon::power::{GeneratorUnit, PowerPlugin};
-use exergon::recipe_graph::RecipeGraphPlugin;
+use exergon::recipe_graph::{RecipeGraph, RecipeGraphPlugin};
 use exergon::research::{ResearchPlugin, ResearchPool, TechTreeProgress, UnlockNodeRequest};
 use exergon::seed::DomainSeeds;
 use exergon::tech_tree::TechTreePlugin;
@@ -218,6 +231,13 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
             MachinePortLayout {
                 energy: vec![ENERGY_OFFSET],
                 logistics: vec![],
+            },
+        );
+        layouts.by_machine.insert(
+            "assembler".to_string(),
+            MachinePortLayout {
+                energy: vec![ENERGY_OFFSET],
+                logistics: vec![PORT_OFFSET],
             },
         );
     }
@@ -430,5 +450,86 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
     assert!(
         iron_ingot(&app) >= 1,
         "smelter must have smelted mined iron_ore into iron_ingot"
+    );
+
+    // Stage 4 — assembler crafting through the NetworkCraftQueue under power. This is the
+    // craft-queue path the real game uses for escape components: enqueue a target item and
+    // recipe_check dispatches its job onto a matching idle machine, drawing energy per tick.
+    // We craft a power_cell (2 iron_ingot + 1 copper_ingot, assembler tier 2, 60 energy).
+    // The ingot inputs are injected — smelting is proven in stage 3, so re-deriving copper
+    // here adds wiring, not coverage. The xalite→resonite→gateway_key→escape branch past
+    // this is blocked on unauthored content (exotic-form processing + coal); see tasks/milestones.
+    app.world_mut()
+        .resource_mut::<TechTreeProgress>()
+        .unlocked_recipes
+        .insert("make_power_cell".to_string());
+
+    // Place an assembler and force it to tier 2 (make_power_cell is a tier-2 recipe).
+    let assembler_pos = deposit_pos + Vec3::new(20.0, 0.0, 0.0);
+    place(&mut app, "assembler", assembler_pos);
+    app.update();
+    let assembler_e = machine_entity(&mut app, "assembler");
+    app.world_mut()
+        .get_mut::<Machine>(assembler_e)
+        .unwrap()
+        .tier = 2;
+
+    // Wire the assembler onto the logistics network (pull ingots, push power_cell) and onto
+    // the generator's power network.
+    connect(
+        &mut app,
+        storage_pos + PORT_OFFSET,
+        assembler_pos + PORT_OFFSET,
+    );
+    connect_power(
+        &mut app,
+        generator_pos + ENERGY_OFFSET,
+        assembler_pos + ENERGY_OFFSET,
+    );
+    app.update();
+
+    // Supply the ingot inputs (upstream smelting covered in stage 3), then enqueue the craft.
+    {
+        let mut storage = app.world_mut().get_mut::<StorageUnit>(storage_e).unwrap();
+        *storage.items.entry("iron_ingot".into()).or_insert(0) += 2;
+        *storage.items.entry("copper_ingot".into()).or_insert(0) += 1;
+    }
+    let craft_net = net_of(&mut app, storage_e);
+    let storage_items = app
+        .world()
+        .get::<StorageUnit>(storage_e)
+        .unwrap()
+        .items
+        .clone();
+    app.world_mut()
+        .resource_scope(|world, rg: Mut<RecipeGraph>| {
+            world
+                .get_mut::<NetworkCraftQueue>(craft_net)
+                .expect("logistics network carries a craft queue")
+                .enqueue_item("power_cell", 1, &rg, &storage_items);
+        });
+    app.world_mut().write_message(ManualCraftTrigger);
+
+    // Advance until the assembler crafts the power_cell into network storage.
+    let power_cell = |app: &App| -> u32 {
+        app.world()
+            .get::<StorageUnit>(storage_e)
+            .and_then(|s| s.items.get("power_cell").copied())
+            .unwrap_or(0)
+    };
+    let mut assembler_ran = false;
+    advance_until(&mut app, 0.25, 2_000.0, |app| {
+        if app.world().get::<MachineState>(assembler_e).copied() == Some(MachineState::Running) {
+            assembler_ran = true;
+        }
+        power_cell(app) >= 1
+    });
+    assert!(
+        assembler_ran,
+        "assembler must actually run the queued make_power_cell recipe"
+    );
+    assert!(
+        power_cell(&app) >= 1,
+        "assembler must craft a power_cell from the queued job under power"
     );
 }
