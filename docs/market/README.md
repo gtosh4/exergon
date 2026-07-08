@@ -14,6 +14,7 @@ Detailed notes:
 - [Factorio](./factorio.md)
 - [GregTech: New Horizons](./gtnh.md)
 - [Infinifactory](./infinifactory.md)
+- [Nullius](./nullius.md)
 - [Opus Magnum](./opus-magnum.md)
 - [Outer Wilds](./outer-wilds.md)
 - [Outworld Station](./outworld-station.md)
@@ -48,6 +49,7 @@ References:
 - [Outworld Station](./outworld-station.md): negative reviews warn against shallow known-recipe repetition.
 - [Outer Wilds](./outer-wilds.md): validates understanding as progression.
 - [GTNH](./gtnh.md): validates deep graph mastery, but also warns against wiki dependency.
+- [Nullius](./nullius.md): proves an internally consistent science system is itself the depth — forward reasoning, not recipe memorisation.
 - [Against the Storm](./against-the-storm.md): shows that readable run constraints drive replayable adaptation.
 
 ### 2. Difficulty Must Come From Decisions, Not Waiting

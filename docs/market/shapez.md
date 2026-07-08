@@ -66,7 +66,7 @@ Because shapez is so clean, players expect tools to be excellent. Any friction i
 | Product model | Geometric shapes, visible transformations | Materials, forms, alien recipes, escape artifacts |
 | Pressure | Minimal; self-paced | Research scarcity, world reactivity, power transitions |
 | Tooling | Central to the experience | Central to making seeded graph complexity playable |
-| Emotional context | Light, abstract, mostly mechanical | Alien world, AI journey, prior civilization, escape |
+| Emotional context | Light, abstract, mostly mechanical | Alien world, self-replicating probe, lineage drift, escape |
 | Main lesson | Factory design can stand alone if tools and legibility are excellent | Exergon's design phase needs first-class UX |
 
 shapez validates the GDD's claim that the design phase can be the game. It also sets a high bar for iteration speed and tooling.

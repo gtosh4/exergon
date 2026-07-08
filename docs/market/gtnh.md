@@ -161,6 +161,56 @@ GTNH works as a long-term hobby because players can pause at clear tiers and pro
 
 GTNH fans tolerate difficulty because they trust the pack has a deliberate progression. Exergon needs the same trust. Seeded randomness must never feel arbitrary; every hard constraint needs an in-world explanation and a visible path to mastery.
 
+## Dev-Channel Signals (Discord, ~195k messages, 1 year)
+
+A 1-year export of GTNH's **development** channels — beta-testing, github-discussion, quest-dev, wiki-dev (Jul 2025 – Jul 2026, ~195k messages) — was analysed. These are build/maintenance channels, not player-general (the player-facing HELP channel was still exporting at time of writing and is a separate later pass). This section is about **how a legendary-depth, community-maintained pack is actually built and sustained** — directly relevant because a community-maintained content pack is a plausible long-term direction for Exergon.
+
+### The maintenance is organized human infrastructure
+Depth is sustained by an **organized volunteer org**, not a lone author: ~20+ contributors posting 2,500–6,400 messages each over the year, a dedicated **Wiki Lead** (200+ pages authored solo — "That marks my 200th page 🎉"), a **quest-dev team**, named infra developers, and a formal **experimental release train** ("As of Experimental #32…"). This is the opposite of Nullius's one-to-two-person bus factor. Legendary depth carries a legendary, ongoing maintenance cost, and that cost is people.
+
+### The work is integration, tooling, and QA — not content creativity
+Keyword-matched theme volume across the four channels:
+
+| Theme | ~messages |
+|---|---|
+| recipe / NEI / AE2 integration | 7,600 |
+| tooling / PR / CI | 6,500 |
+| bug / crash / QA | 6,100 |
+| questbook | 4,000 |
+| wiki / docs | 2,700 |
+| balance | 1,700 |
+| performance / TPS | 1,200 |
+| progression blocks / softlocks | 490 |
+
+Making thousands of recipes *cohere* is the single largest ongoing job. New content is a minority of the conversation; **integration and maintenance dominate**.
+
+### The questbook is survival infrastructure, not polish
+> "a major spread of players would not play this pack if it wasn't for the questbook, myself included"
+> "if you think it is only small ores you actually kinda missed the lesson the quest teaches"
+
+The questbook is why the pack is playable at all, and it is treated as a **curriculum** (quests teach lessons, not just track objectives), authored by a standing team.
+
+### Hidden gates are the canonical anti-fun failure
+> "How is knowing you need to hold some flippers to unlock a quest with no hint that it even exists 'fun'?"
+
+An unlock the player cannot infer the *existence* of is universally called out as bad design. This is the strongest single transferable rule (now encoded in GDD §7 "Discoverability rule — every gate must be hinted").
+
+### Balance is permanently contested — by design
+> "gtnh and balance have never gotten along very well, and a lot of that is because the people who play this modpack [self-select for hardcore]"
+> "Balance gets debated too much for [fixed numbers] to be worthwhile"
+
+An open-ended, fixed pack accumulates endless balance argument. Testers surface real reachability/cost problems ("naqfuel refinery… 4x the casings… feels impossible in UHV") — the value of a beta program — but the debate never closes.
+
+### Performance is a continuous engine tax
+Ongoing hand-optimisation against the 1.7.10 engine: fps dropping 250→70 over a session, patching `canRenderInPass`, removing stray OpenGL calls, forestry-farm optimisation. Exergon on Bevy avoids *this specific class* of legacy-engine tax, but the discipline (perf as a standing budget) still applies.
+
+### Lessons for a community-maintained Exergon
+1. **A community-maintained pack is viable but not free** — it needs a wiki/curriculum team, a QA/beta cadence, and standing integration effort. Design the platform to *lower* each cost, not to assume volunteer labor.
+2. **Machine-check what GTNH litigates by hand.** The run validator (reachability, recipe bounds, balance envelopes) is the community's safety net — it lets a contributor prove a pack is solvable and in-bounds without a human playthrough. This is Exergon's structural answer to GTNH's perpetual balance debate and softlock-hunting.
+3. **The codex must carry the curriculum automatically.** GTNH's questbook works but is authored by hand at large cost. Exergon's codex, filled from content data, should deliver the same "why this matters / what this teaches" layer without a standing wiki team.
+4. **Integration over volume** — reward tightly interlocked content, not item count (now a GDD §17 principle).
+5. **Hint every gate** — encoded as a hard rule in §7.
+
 ## Store And Demo Implications
 
 Exergon should not market itself as "GTNH but standalone" to a general audience. That phrase signals grind, old-Minecraft friction, and wiki dependence to many players.

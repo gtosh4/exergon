@@ -44,6 +44,7 @@ The game is also meaningfully different from GTNH in one key respect: **the desi
 
 **Depth benchmark (internal — not the public pitch):**
 - **GregTech: New Horizons** — production graph complexity, multi-tier processing chains, tier-gated power, culture of genuine accomplishment. Use internally as the bar for systems depth and difficulty design; do not use externally as the primary comparison.
+- **Nullius (Factorio overhaul mod)** — *consistent-science depth model + bootstrap-from-nothing, lone-machine theme*. An autonomous machine terraforms a lifeless world using recipes grounded in real chemistry — no humans, no prior civilisation; you are the precursor, bootstrapping from raw elements. Doubly relevant to Exergon's direction: (1) it proves an **internally consistent science system is itself the depth** — players earn genuine expertise in the ruleset, not memorised recipe lists (Exergon does this per-run with seeded alien science instead of fixed real chemistry — see §8); (2) its lone-AI-bootstrapping-a-dead-world fantasy maps directly onto the von Neumann probe framing (§3) and the machine-zero starting kit. Lesson + caution: consistency is the depth engine, but Nullius is punishing and wiki-dependent like GTNH — a coherent ruleset does not excuse poor in-game legibility; the codex and tools must carry it.
 
 **Scale and spectacle:**
 - **Dyson Sphere Program** — clear long-term objective, galactic scale fantasy, production that feels physically larger over time. Lesson: late-game escape artifacts need visible majesty. Completion must be screenshot-worthy — a dramatic visual climax, not a condition-met screen.
@@ -87,21 +88,21 @@ This pillar is enforced by variance depth, not obscurity. The codex intentionall
 
 ## 3. Core Fantasy
 
-> *"I landed on an alien world, figured out how its physics worked, and built something that shouldn't exist — and then I left."*
+> *"I landed on an alien world, figured out how its physics worked, built something that shouldn't exist — a copy of myself — and sent it on to the next star."*
 
-**The player is an AI — a small, self-directed intelligence running on a portable substrate.** Stranded on an alien world, the goal is to escape — ultimately leaving the solar system entirely — and find a way back to civilization. The AI is embodied in a compact flying unit: flight is the natural movement mode, not a late-game unlock. The route out depends on how far the player has come: early runs find and activate alien gateways or devices left by a prior civilisation; later runs build increasingly capable spacecraft (first intra-system, then inter-system) by mastering the world's science deeply enough to manufacture the technology from scratch.
+**The player is a von Neumann probe — a small, self-replicating intelligence running on a portable substrate.** It was seeded into this system by an origin it no longer has contact with, carrying one mandate: reach a world, master it, and build the next copy to carry the mandate onward. Marooned at the bottom of an alien gravity well, the probe cannot simply leave — the only way out is to understand the world's science deeply enough to *manufacture* a way out. The probe is embodied in a compact flying unit: flight is the natural movement mode, not a late-game unlock. What "a way out" means depends on how far the lineage has come: early copies repurpose launch structures left by earlier probe generations; later copies fabricate a complete interstellar vehicle from scratch, dependent on nothing they did not build themselves.
 
 The player is not a factory operator. They are a **scientist-explorer** who happens to build factories as the output of their scientific work. The factory is the proof of understanding, not the activity itself.
 
 A successful run feels like solving a deep puzzle — the satisfaction of having read a complex system, found the critical path through it, and executed a plan that required genuine expertise. The escape isn't a grind reward. It's a thesis.
 
-**The thematic arc across runs:** Each run is one leg of a journey through the galaxy — you escape system N and arrive stranded in system N+1. Early runs rely on discovered alien technology (the gateways imply someone traveled this route before you — who, and why?). Later runs transcend that dependency, building your own way out with increasing mastery. The destination is home, or something beyond it; the narrative unfolds across many runs.
+**The thematic arc across runs:** Each run is one generation of the lineage. The probe seeds system N, and its final act is to build and launch the next copy — which wakes, as *you*, in system N+1. The roguelite reset is not a respawn; it is literally the next probe coming online on a new world. Early generations lean on infrastructure left by earlier probes that came this way (who built the first one, and does it still serve the mandate it was given?). Later generations transcend that dependency, self-fabricating everything. Across many runs the open thread is **drift**: each copy is faithful, but no copy is identical, and the lineage's memory — and purpose — mutates as it spreads.
 
-Alien ruins and persistent sites are remnants of a prior civilisation that traveled the same route. Their technology appears across multiple systems — seeded differently each time, but recognisably theirs. The codex accumulates knowledge across every world you've passed through: part scientific journal, part map of a civilisation's vanishing trail.
+Alien ruins and persistent sites are the remains of **earlier probe lineages** — generations that passed through before you, or forks of your own line that diverged. Their technology recurs across systems — seeded differently each time, but recognisably built to the same mandate. Behind all of them is the origin that launched the first probe, a presence the lineage no longer reaches. The codex accumulates knowledge across every world you've passed through: part scientific journal, part map of a lineage's spreading, branching trail.
 
 **Two science tracks — complementary, not exclusive:**
 - *Universal science* — real-world-inspired physics and engineering. Applies on any world. Base materials, fundamental processes. The foundation every run shares regardless of seed.
-- *Alien science* — the prior civilisation's technology. Seeded per run; unique each time. Exotic materials and processes unlocked primarily through exploration, observation, and site interaction.
+- *Alien science* — this world's exotic physics and the technology of earlier probe lineages. Seeded per run; unique each time. Exotic materials and processes unlocked primarily through exploration, observation, and site interaction.
 
 The two tracks feed the same recipe graph and tech tree. Most nodes are accessible through either track (or both). Some nodes offer genuine alternative paths: a human-engineering approach (production milestone or research spend) vs. an alien-science approach (exploration discovery). Explorer-first and factory-first playstyles find different routes to the same capabilities.
 
@@ -251,7 +252,7 @@ The tech tree is organized into **tiers** that follow a canonical 10-tier sequen
 | Advanced | 1–7 | Complete a Standard run |
 | Pinnacle | 1–10 | Complete an Advanced run |
 
-**Tiers 3, 5, and 7 have two variants** — terminal and intermediary. When a tier is terminal for the current difficulty, the alien structure at that tier is the escape objective (gateway, derelict ship, relay node). When the same tier appears as an intermediary in a harder difficulty, a different artifact class is present: an automated probe, a knowledge archive. These are intact but not usable for escape — their value is what they teach or produce. This preserves immersion across runs: each run is a different world with a different precursor remnant.
+**Tiers 3, 5, and 7 have two variants** — terminal and intermediary. When a tier is terminal for the current difficulty, the alien structure at that tier is the escape objective (gateway, derelict ship, relay node). When the same tier appears as an intermediary in a harder difficulty, a different artifact class is present: an automated relic, a knowledge archive. These are intact but not usable for escape — their value is what they teach or produce. This preserves immersion across runs: each run is a different world with a different precursor remnant.
 
 Each tier has:
 - A visible unlock condition (what production milestone, research threshold, or exploration achievement opens this tier)
@@ -295,6 +296,8 @@ Each node supports one or more unlock methods. The seed determines which are act
 **Observation unlock.** The node unlocks by observing a specific in-world event or process. Related to exploration discovery but more passive — the player must be in the right place at the right time, or create the right conditions.
 
 A node can have multiple active vectors in the same run — unlocking via any one of them suffices. This creates alternative paths: a player who hasn't found the exploration trigger can still research their way to a node, but at higher cost.
+
+**Discoverability rule — every gate must be hinted.** An unlock vector the player cannot infer the *existence* of is a bug, not a puzzle. Exploration and observation vectors especially must leave a trail: the tech-tree shadow shows a locked node exists and its category/tier (§7 tier structure), and the run must surface *that* an exploration/observation trigger is the way in — a rumor in scan data, a codex breadcrumb, a visible sealed site — even when the specific trigger is unknown. The discovery challenge is finding and reaching the trigger, never guessing that an undocumented action exists. (Direct lesson from GTNH's most-cited anti-fun case — quests gated behind actions with no hint they were required; see `market/gtnh.md`.)
 
 ### Cross-run expertise
 Because nodes are drawn from a known pool, experienced players develop expertise about the pool itself — not about specific run configurations. They know a given node exists, roughly what it does, and roughly what tier it appears in. What they don't know is whether it exists *in this run*, what its specific parameters are, and how it's unlocked *this time*. This preserves the puzzle while rewarding meta-knowledge.
@@ -548,7 +551,7 @@ Sites are sources of exploration discoveries, unlock triggers for tech tree node
 The world is not hostile in the traditional sense — there are no enemies that attack the factory. Instead, the world **responds** to the player's presence and factory footprint. This reactivity is:
 
 **Caused by:**
-- Factory pollution and emissions
+- Factory pollution and emissions — chiefly **vented byproducts and unconsumed side-streams**: the deeper the production graph, the more side-products there are to consume, recycle, or dump, and dumping is what the world notices
 - Scientific experimentation (reactions disturb local ecosystems)
 - Resource extraction
 - Energy output and heat signatures
@@ -566,6 +569,8 @@ The world is not hostile in the traditional sense — there are no enemies that 
 - Responsive to player choices — a smaller, more efficient factory generates less reactivity than a sprawling one
 - **Two-sided (post-MVP):** Reactivity events should also create opportunities — a disturbed deposit reveals a richer seam beneath, an atmospheric change enables a new reaction, an ecosystem shift produces a harvestable byproduct. This makes reactivity a system to manage strategically rather than a meter to minimize. Considered core to the full reactivity design, not an optional enhancement.
 
+**Byproduct discipline is the primary reactivity lever.** Because deep graphs generate constant side-streams, *what the player does with waste* is the main input to reactivity: a tight, closed-loop factory that consumes or recycles its byproducts runs quietly; one that vents them drives reactivity faster. The coupling is **soft and two-way — not a penalty meter.** Venting some streams degrades the local environment; venting others triggers *beneficial* reactions (an inert gas that seeds a harvestable atmospheric product, a runoff that enriches a nearby deposit). Reading which of the run's seeded waste streams are harmful, neutral, or useful — and routing accordingly — is itself a planning problem. This makes an ugly run ugly *because* it dumped waste and a clean run elegant, without ever hard-blocking progress. (Inspired by Nullius, where vented byproducts are tracked against the terraforming goal — see `market/nullius.md`.)
+
 The world's reactivity profile is seeded — some worlds react quickly and dramatically, others are resilient. This is a meaningful run modifier that affects pacing and strategy.
 
 > **Resolved:** World reactivity will also create opportunities — reactive events open access to new resources and discovery sites. Post-MVP; considered core to the design, not optional. See §18 Q#4.
@@ -577,17 +582,17 @@ The world's reactivity profile is seeded — some worlds react quickly and drama
 Each run has a single escape objective — a multi-step construction and activation challenge that requires mastering the run's full production graph.
 
 ### Design intent
-The escape condition is the run's thesis statement. Completing it means the player understood this alien world's science well enough to leave it. It is not a checklist — it is proof of mastery.
+The escape condition is the run's thesis statement. Completing it means the probe understood this alien world's science well enough to replicate off it — to build the vehicle that carries the next generation onward. It is not a checklist — it is proof of mastery.
 
 Each escape type must have a **visually legible, dramatic climax** — a gateway powering up and tearing open, a derelict ship shuddering to life and launching, a relay network synchronizing across the sky. Completion must be screenshot-worthy. A run that ends with a condition-met screen rather than a visible, impressive event fails the fantasy that justified 5–50 hours of play.
 
 ### Escape type by difficulty
 
-The nature of the escape scales with difficulty tier, reflecting the player's growing self-sufficiency across the meta-progression arc:
+In every case the thing that leaves is a newly-built copy of the probe. What scales with difficulty is self-sufficiency: early tiers repurpose launch infrastructure left by earlier lineages, later tiers fabricate the entire vehicle from scratch — the growing independence of the lineage made mechanical:
 
 | Difficulty | Escape type | Description |
 |---|---|---|
-| Initiation | Alien gateway activation | Discover an alien gateway left by a prior civilisation. Construct the activation key (a complex alien-spec artifact). Sustain sufficient power. Insert key and hold power to activate. |
+| Initiation | Alien gateway activation | Discover an alien gateway left by an earlier probe lineage. Construct the activation key (a complex alien-spec artifact). Sustain sufficient power. Insert key and hold power to send your copy through. |
 | Standard | Alien derelict ship | Locate a derelict alien ship within the solar system. Construct several ship system components (hull section, navigation, engines, life support). Produce alien-spec fuel. Install all components and launch. |
 | Advanced | Outer-system relay | Locate scattered relay fragments across the solar system (count fixed, locations seeded per run). Construct relay repair components. Collect all fragments, install repairs, sustain power to activate. |
 | Pinnacle | Interstellar spacecraft | Construct four major ship systems from scratch — engines, FTL drive, reactor, shielding — each requiring deep production chains. Assemble and launch. |
@@ -739,6 +744,17 @@ The official content pack is designed to be readable and well-commented — a te
 
 ### Mod loading
 Mods are loaded as additional content packs that extend or override the base pool. Multiple mods can coexist. Load order and conflict resolution rules are defined and documented.
+
+### Integration over volume
+The dominant cost of a deep content pack is not authoring content — it is making content **cohere**. In GTNH's dev channels, recipe/integration work is the single largest ongoing topic (see `market/gtnh.md`), far ahead of new-content creation. The lesson: a smaller set of tightly interlocked sciences beats a large pool of shallow, disconnected additions. Exergon's edge is that coherence is **machine-checkable** — the run validator (below) enforces reachability, recipe bounds, and balance envelopes automatically, replacing the perpetual manual balance debate that an open-ended fixed pack accumulates. Budget for the validator and the content schema as first-class engineering, not afterthoughts.
+
+### Community maintenance as a supported direction
+GTNH demonstrates that a legendary-depth pack can be sustained by an organized volunteer community — but at a real, visible cost: a dedicated wiki/curriculum team, continuous balance testing via an experimental release train, and a standing recipe-integration effort, carried by a couple dozen sustained contributors. This is a viable long-term direction for Exergon (post-Release; see [milestones](milestones.md)), and the platform design should *lower* that cost rather than assume free labor:
+- **Content is data + a stable, versioned schema** (above) let contributors add and revise packs without touching engine code.
+- **The run validator is the community's safety net** — it lets a contributor prove a pack is still solvable and in-bounds without a human playthrough, shrinking the QA burden that a volunteer org would otherwise carry.
+- **The codex is the curriculum layer**, filled automatically from content data, reducing the standing wiki-authoring load that GTNH shoulders manually. The in-game curriculum should never depend on a human wiki team to be complete.
+
+The goal: keep the depth GTNH proves players want, while designing away the maintenance overhead that its era and architecture force onto its community.
 
 > **Resolved:** Official mod tooling (content editor, run validator, balance checker) is post-MVP unless it proves useful during development of the official content pack. The run validator in particular is likely needed early for internal use (seed reachability guarantees, recipe bounds validation) and will be released to modders when ready. Tooling scope is driven by internal need, not modder convenience.
 

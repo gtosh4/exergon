@@ -66,7 +66,7 @@ Outer Wilds is unforgettable, but its core mystery is mostly one-time. That is f
 | Core fantasy | Explore and understand a mysterious solar system | Decode a seeded alien world and escape |
 | Progression | Knowledge-gated, mostly no stat growth | Research, tech reveal, factory construction, codex |
 | World | Hand-authored, highly coherent | Procedural but should feel coherent and readable |
-| Alien ruins | Story and knowledge sources | Prior civilization sites, unlock vectors, narrative trail |
+| Alien ruins | Story and knowledge sources | Earlier probe-lineage sites, unlock vectors, narrative trail |
 | Spoilability | High; one-time mystery | Seeded variance aims to make each run unspoilable |
 | Endpoint | Final knowledge-driven journey | Escape artifact activation |
 | Main lesson | Understanding can be the main reward | Exergon's science loop should create real insight moments |

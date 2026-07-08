@@ -67,7 +67,7 @@ Players arriving for Satisfactory-like factory scale may be disappointed if the 
 | Structure | Campaign progression in a cave world | Run-based procedural campaign |
 | Exploration | Caves, scanning, facilities, terrain | Drones, samples, persistent sites, domains |
 | Factory challenge | Belts and production chains | Graph discovery, planning tools, network architecture |
-| Narrative | Voiced campaign | Codex, artifacts, prior civilization, run completions |
+| Narrative | Voiced campaign | Codex, artifacts, probe-lineage arc, run completions |
 | Risk | Pacing and factory/narrative mismatch | Same risk if exploration slows design loop |
 | Main lesson | Factory + exploration works only if pacing is precise | Exergon must keep discovery tied to production decisions |
 

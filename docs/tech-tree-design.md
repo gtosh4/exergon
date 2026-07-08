@@ -84,7 +84,7 @@ The tech tree follows a canonical 10-tier sequence. Each difficulty uses a prefi
 | 2 | Roots | — | Produce 100 units of any refined base material |
 | 3 | Contact | **Initiation** | Activate alien structure (terminal: gateway; intermediary: ruin/cache unlocking alien material or machine) |
 | 4 | Reach | — | Achieve first orbital flight |
-| 5 | Salvage | **Standard** | Interact with alien structure (terminal: repair alien vessel + launch; intermediary: access alien fabrication probe, extract fabrication data) |
+| 5 | Salvage | **Standard** | Interact with alien structure (terminal: repair alien vessel + launch; intermediary: access alien fabrication relic, extract fabrication data) |
 | 6 | Traverse | — | Reach outer-system zone |
 | 7 | Interface | **Advanced** | Interact with alien megastructure (terminal: operate relay; intermediary: extract FTL theory fragments from alien archive) |
 | 8 | Revelation | — | Synthesize first exotic material |
@@ -93,7 +93,7 @@ The tech tree follows a canonical 10-tier sequence. Each difficulty uses a prefi
 
 *Gate condition = requirement that completes a tier and opens the next. Exit of tier T = entry of tier T+1. T1 has no entry gate; it is always available.*
 
-**Tiers 3, 5, and 7** each have two artifact variants. Terminal variant: the alien structure is the escape objective. Intermediary variant: a different artifact class is present (probe, cache, archive) — intact but not usable for escape, value is what it teaches or produces. This preserves immersion: each run has a different precursor remnant suited to its difficulty.
+**Tiers 3, 5, and 7** each have two artifact variants. Terminal variant: the alien structure is the escape objective. Intermediary variant: a different artifact class is present (relic, cache, archive) — intact but not usable for escape, value is what it teaches or produces. This preserves immersion: each run has a different precursor remnant suited to its difficulty.
 
 ### Tier themes
 
@@ -144,14 +144,14 @@ Each tier has a thematic identity that drives which categories dominate and what
 - **Gate:** Achieve first orbital flight
 
 #### Tier 5 — Salvage *(Standard terminal)*
-*Terminal: alien vessel — repair and launch. Intermediary: alien fabrication probe — extract and learn.*
+*Terminal: alien vessel — repair and launch. Intermediary: alien fabrication relic — extract and learn.*
 
 - Final base-material chains complete; alien science dominates
 - Orbital fabrication prerequisites
 - Network requires sub-network architecture
 - **Base/alien ratio:** ~20% base, 80% alien
 - **Gate (terminal):** Construct ship systems (hull, nav, engines, life support) + produce alien fuel + launch
-- **Gate (intermediary):** Locate alien fabrication probe → extract fabrication data → unlocks alien drive tech or fabrication machines
+- **Gate (intermediary):** Locate alien fabrication relic → extract fabrication data → unlocks alien drive tech or fabrication machines
 
 #### Tier 6 — Traverse
 *Outer-system reach.*

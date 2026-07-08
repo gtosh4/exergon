@@ -125,7 +125,7 @@ What the Demo does not need:
 - Full meta-progression depth
 - Mod schema
 - Permadeath variants
-- Narrative for Advanced/Pinnacle tiers or alien civilization arc beyond Initiation hooks
+- Narrative for Advanced/Pinnacle tiers or probe-lineage arc beyond Initiation hooks
 
 ---
 
@@ -154,8 +154,8 @@ Assets and narrative:
 - Full visual and audio polish for all four difficulties and all shipped biomes
 - Each escape type (gateway, derelict ship, relay, spacecraft) has a dramatic, screenshot-worthy climax — a visible, in-world event, not a condition-met screen
 - Full audio mix: music, ambient, reactive audio responding to factory state and world reactivity
-- Meta-progression narrative arc complete across all four difficulties — the alien civilization trail emerges coherently across many runs
-- Alien civilization lore distributed across run completion screens, artifact discoveries, and codex entries
+- Meta-progression narrative arc complete across all four difficulties — the probe-lineage trail (origin, earlier generations, drift) emerges coherently across many runs
+- Lineage and origin lore distributed across run completion screens, artifact discoveries, and codex entries
 - Codex entries carry narrative flavor for all types encountered across all difficulties
 
 What Release does not need:
@@ -184,5 +184,5 @@ Content and systems:
 - Platform ports
 - Community content pipeline support
 - Additional biome visual identities and audio environments
-- Narrative content packs expanding the alien civilization arc
+- Narrative content packs expanding the probe-lineage arc
 - Photo mode and base-sharing tooling if not shipped at Release
