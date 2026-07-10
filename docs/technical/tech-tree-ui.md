@@ -95,7 +95,7 @@ Milestone nodes (tier gate nodes): accent background (`var(--accent)`) when `kno
 Top strip. One tab per tier in the run's difficulty (Initiation: T1–T3; Standard: T1–T5; etc.).
 
 Each tab:
-- Label: `T{n} · {TIER_NAME}` (e.g. `T2 · ROOTS`)
+- Label: `T{n} · {TIER_NAME}` (e.g. `T2 · FOOTHOLD`)
 - Subtext: `{revealed}/{total} nodes` (counts `knowledge == Revealed` vs. total nodes on page)
 - Locked indicator: if the tier gate is not yet cleared, tab opacity 55% + 🔒 icon
 - Active tab: bottom accent bar, solid background
@@ -241,7 +241,7 @@ Always shows the currently `selected_node`. If none selected, shows placeholder 
 **Non-research criteria:** (visible only when `knowledge == Revealed`; omitted if none)
 - Production milestones: `produce {n} {item_class}`
 - Exploration triggers: `reach {zone_type}`
-- Alien science gates: `analyze {sample_type}`
+- exotic science gates: `analyze {sample_type}`
 
 **Flavour text:** visible at `Partial` and `Revealed` (different text per tier — partial shows "scattered references…"; revealed shows the full flavour line).
 
@@ -299,7 +299,7 @@ Full-bleed backdrop (dims tree to 35% opacity). Centered panel.
 - Effect summary: what unlocking grants (always shown at full detail — choice surface bypasses fog so the decision is informed)
 - **Unlock conditions** (members may have different requirements; show all that apply):
   - Research cost: `{n} MS · {n} FR · {n} ENG · {n} DISC` by type
-  - Non-research criteria if present: production milestones, exploration triggers, alien science gates
+  - Non-research criteria if present: production milestones, exploration triggers, exotic science gates
 - `SELECT` button
 
 **Footer:** `DECIDE LATER` button — dismisses modal and queues a reminder badge on all group member tabs. Players can explore the tree and return. The choice modal re-surfaces the next time any group member's reveal button is pressed, or the next time the tech tree opens while a pending group exists.
@@ -326,7 +326,7 @@ tech_tree_commit_choice(group_id, chosen_entity):
 
 Research display: all four research types shown as compact labeled values. Zero-balance types dimmed. (Matches HUD research pool widget layout — same resource, different density.)
 
-"Frontier" label: name of the current terminal tier for this run's difficulty (e.g. "Contact" for Initiation, "Salvage" for Standard). Functions as the escape progress anchor.
+"Frontier" label: name of the current terminal tier for this run's difficulty (e.g. "Inheritance" for Initiation, "Scion" for Standard). Functions as the escape progress anchor.
 
 **Wishlist button:** opens a right-sliding drawer listing all wishlisted nodes across all pages, grouped by tier. Each entry shows current knowledge + estimated cost to next tier. Clicking a wishlist entry navigates to that page and selects the node.
 

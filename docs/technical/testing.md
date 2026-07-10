@@ -83,7 +83,7 @@ The target arc, in stage order (from `assets path escape_synthesis`):
 ```
 science_basics → ore_extraction(30) → basic_smelting → basic_processing(150)
   → advanced_processing(300) → resonite_engineering(500)
-  → alien_materials / gateway_theory (ExplorationDiscovery, needs drone recon)
+  → exotic_materials / gateway_theory (ExplorationDiscovery, needs drone recon)
   → escape_synthesis(1000) → forge_gateway_key → activate_gateway  == victory
 ```
 

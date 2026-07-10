@@ -152,7 +152,7 @@ Marketing and outreach:
 
 Assets and narrative:
 - Full visual and audio polish for all four difficulties and all shipped biomes
-- Each escape type (gateway, derelict ship, relay, spacecraft) has a dramatic, screenshot-worthy climax — a visible, in-world event, not a condition-met screen
+- Every escape has a dramatic, screenshot-worthy climax — a visible, in-world launch cascade scaling with successor scale (GDD §12), with the run's seeded precursor variant (gateway / derelict / relay) shaping its look — not a condition-met screen
 - Full audio mix: music, ambient, reactive audio responding to factory state and world reactivity
 - Meta-progression narrative arc complete across all four difficulties — the probe-lineage trail (origin, earlier generations, drift) emerges coherently across many runs
 - Lineage and origin lore distributed across run completion screens, artifact discoveries, and codex entries

@@ -29,11 +29,11 @@
 
 ## 1. Vision & Concept
 
-This game is a **run-based factory science campaign** in which every run takes place on a procedurally generated world with alien physical laws. The player is a scientist-engineer whose job is to decode how this particular world works, design a factory that exploits those laws, and synthesize a single large escape artifact that proves they understood the system well enough to master it.
+This game is a **run-based factory science campaign** in which every run takes place on a procedurally generated world with exotic physical laws. The player is a scientist-engineer whose job is to decode how this particular world works, design a factory that exploits those laws, and synthesize a single large escape artifact that proves they understood the system well enough to master it.
 
 The primary design depth reference is **GregTech: New Horizons (GTNH)** — specifically its depth of production graph complexity, its multi-tier processing chains, its demand that players understand systems rather than execute recipes from memory, and its culture of genuine accomplishment through genuine difficulty. GTNH is an internal benchmark, not the commercial pitch — it implies grind, wiki dependency, and punishment to most players. The run structure is not a cosmetic addition. It is the mechanism by which GTNH-depth complexity becomes replayable: the graph itself is different every run.
 
-The game is also meaningfully different from GTNH in one key respect: **the design phase is the game.** Watching machines run, fixing belt bottlenecks, and grinding execution time are minimized. The intellectual work of reading a run, planning a factory, and discovering alien science is maximized. A run that takes 20 hours of engaged thinking is more satisfying than a run that takes 200 hours of engaged thinking plus 800 hours of waiting and grinding.
+The game is also meaningfully different from GTNH in one key respect: **the design phase is the game.** Watching machines run, fixing belt bottlenecks, and grinding execution time are minimized. The intellectual work of reading a run, planning a factory, and discovering exotic science is maximized. A run that takes 20 hours of engaged thinking is more satisfying than a run that takes 200 hours of engaged thinking plus 800 hours of waiting and grinding.
 
 ### Closest existing references
 
@@ -44,7 +44,7 @@ The game is also meaningfully different from GTNH in one key respect: **the desi
 
 **Depth benchmark (internal — not the public pitch):**
 - **GregTech: New Horizons** — production graph complexity, multi-tier processing chains, tier-gated power, culture of genuine accomplishment. Use internally as the bar for systems depth and difficulty design; do not use externally as the primary comparison.
-- **Nullius (Factorio overhaul mod)** — *consistent-science depth model + bootstrap-from-nothing, lone-machine theme*. An autonomous machine terraforms a lifeless world using recipes grounded in real chemistry — no humans, no prior civilisation; you are the precursor, bootstrapping from raw elements. Doubly relevant to Exergon's direction: (1) it proves an **internally consistent science system is itself the depth** — players earn genuine expertise in the ruleset, not memorised recipe lists (Exergon does this per-run with seeded alien science instead of fixed real chemistry — see §8); (2) its lone-AI-bootstrapping-a-dead-world fantasy maps directly onto the von Neumann probe framing (§3) and the machine-zero starting kit. Lesson + caution: consistency is the depth engine, but Nullius is punishing and wiki-dependent like GTNH — a coherent ruleset does not excuse poor in-game legibility; the codex and tools must carry it.
+- **Nullius (Factorio overhaul mod)** — *consistent-science depth model + bootstrap-from-nothing, lone-machine theme*. An autonomous machine terraforms a lifeless world using recipes grounded in real chemistry — no humans, no prior civilisation; you are the precursor, bootstrapping from raw elements. Doubly relevant to Exergon's direction: (1) it proves an **internally consistent science system is itself the depth** — players earn genuine expertise in the ruleset, not memorised recipe lists (Exergon does this per-run with seeded exotic science instead of fixed real chemistry — see §8); (2) its lone-AI-bootstrapping-a-dead-world fantasy maps directly onto the von Neumann probe framing (§3) and the machine-zero starting kit. Lesson + caution: consistency is the depth engine, but Nullius is punishing and wiki-dependent like GTNH — a coherent ruleset does not excuse poor in-game legibility; the codex and tools must carry it.
 
 **Scale and spectacle:**
 - **Dyson Sphere Program** — clear long-term objective, galactic scale fantasy, production that feels physically larger over time. Lesson: late-game escape artifacts need visible majesty. Completion must be screenshot-worthy — a dramatic visual climax, not a condition-met screen.
@@ -80,9 +80,9 @@ Difficulty comes from the genuine complexity of the puzzle, not from systems fri
 The game is designed from the start as a moddable platform. All content — tech nodes, recipes, planet modifiers, power sources, biome definitions — is defined in data files, not code. The official game ships as the reference content pack. Modders extend the platform by writing data, not by modifying the engine.
 
 ### Pillar 5 — Every Run Is Unspoilable
-No external knowledge — guides, wikis, prior runs, community solutions — fully substitutes for playing a new run. Universal science (base materials and fundamental processes) is intentionally stable across runs: veterans move through the early game faster because they know this layer, and that is correct behavior, not a gap. The early game is short enough that this advantage is appropriate — it gets veterans to the interesting part sooner. The unspoilable part is everything seeded per run: which alien science exists, which nodes are present, what their specific parameters are this run, and how they unlock. A guide written for seed A is a partial map of seed A. It cannot substitute for the science discovery loop on seed B.
+No external knowledge — guides, wikis, prior runs, community solutions — fully substitutes for playing a new run. Universal science (base materials and fundamental processes) is intentionally stable across runs: veterans move through the early game faster because they know this layer, and that is correct behavior, not a gap. The early game is short enough that this advantage is appropriate — it gets veterans to the interesting part sooner. The unspoilable part is everything seeded per run: which exotic science exists, which nodes are present, what their specific parameters are this run, and how they unlock. A guide written for seed A is a partial map of seed A. It cannot substitute for the science discovery loop on seed B.
 
-This pillar is enforced by variance depth, not obscurity. The codex intentionally parallels what a community wiki would contain — parameter ranges, tier windows, behaviors observed across runs — so in-game tools are never worse than external ones. The variance that matters is below that level: the run-specific values and alien science configuration that neither codex nor wiki can predict.
+This pillar is enforced by variance depth, not obscurity. The codex intentionally parallels what a community wiki would contain — parameter ranges, tier windows, behaviors observed across runs — so in-game tools are never worse than external ones. The variance that matters is below that level: the run-specific values and exotic science configuration that neither codex nor wiki can predict.
 
 ---
 
@@ -90,7 +90,7 @@ This pillar is enforced by variance depth, not obscurity. The codex intentionall
 
 > *"I landed on an alien world, figured out how its physics worked, built something that shouldn't exist — a copy of myself — and sent it on to the next star."*
 
-**The player is a von Neumann probe — a small, self-replicating intelligence running on a portable substrate.** It was seeded into this system by an origin it no longer has contact with, carrying one mandate: reach a world, master it, and build the next copy to carry the mandate onward. Marooned at the bottom of an alien gravity well, the probe cannot simply leave — the only way out is to understand the world's science deeply enough to *manufacture* a way out. The probe is embodied in a compact flying unit: flight is the natural movement mode, not a late-game unlock. What "a way out" means depends on how far the lineage has come: early copies repurpose launch structures left by earlier probe generations; later copies fabricate a complete interstellar vehicle from scratch, dependent on nothing they did not build themselves.
+**The player is a von Neumann probe — a small, self-replicating intelligence running on a portable substrate.** It was seeded into this system by an origin it no longer has contact with, carrying one mandate: reach a world, master it, prepare the ground, and build the next copy to carry the mandate onward. Marooned at the bottom of an alien gravity well, the probe cannot simply leave — the only way out is to understand the world's science deeply enough to *manufacture* a way out. The probe is embodied in a compact flying unit: flight is the natural movement mode, not a late-game unlock. What "a way out" means depends on how far the lineage has come: early copies repurpose launch structures left by earlier probe generations; later copies fabricate a complete interstellar vehicle from scratch, dependent on nothing they did not build themselves.
 
 The player is not a factory operator. They are a **scientist-explorer** who happens to build factories as the output of their scientific work. The factory is the proof of understanding, not the activity itself.
 
@@ -98,13 +98,13 @@ A successful run feels like solving a deep puzzle — the satisfaction of having
 
 **The thematic arc across runs:** Each run is one generation of the lineage. The probe seeds system N, and its final act is to build and launch the next copy — which wakes, as *you*, in system N+1. The roguelite reset is not a respawn; it is literally the next probe coming online on a new world. Early generations lean on infrastructure left by earlier probes that came this way (who built the first one, and does it still serve the mandate it was given?). Later generations transcend that dependency, self-fabricating everything. Across many runs the open thread is **drift**: each copy is faithful, but no copy is identical, and the lineage's memory — and purpose — mutates as it spreads.
 
-Alien ruins and persistent sites are the remains of **earlier probe lineages** — generations that passed through before you, or forks of your own line that diverged. Their technology recurs across systems — seeded differently each time, but recognisably built to the same mandate. Behind all of them is the origin that launched the first probe, a presence the lineage no longer reaches. The codex accumulates knowledge across every world you've passed through: part scientific journal, part map of a lineage's spreading, branching trail.
+**Precursor** ruins and persistent sites are the remains of **earlier probe generations** — copies that passed through before you, or forks of your own line that diverged. You meet them because a probe does not wander to random stars: it launches its copy *toward* a lineage-routed system, so every run lands you somewhere along the lineage's branching trail. Their remains are dense near the trunk — long-traveled space — and thin toward the branch tips: the frontier, where you arrive alone and fabricate everything from scratch. This is why harder runs sit further out the branch, and why some worlds hand you an earlier generation's half-built launch infrastructure while others hand you nothing. Their technology recurs across systems — seeded differently each time, but recognisably built to the same mandate. Behind all of them, at the trunk's root, is the origin that launched the first probe, a presence the lineage no longer reaches. The codex accumulates knowledge across every world you've passed through: part scientific journal, part map of a lineage's spreading, branching trail.
 
 **Two science tracks — complementary, not exclusive:**
 - *Universal science* — real-world-inspired physics and engineering. Applies on any world. Base materials, fundamental processes. The foundation every run shares regardless of seed.
-- *Alien science* — this world's exotic physics and the technology of earlier probe lineages. Seeded per run; unique each time. Exotic materials and processes unlocked primarily through exploration, observation, and site interaction.
+- *Exotic science* — this world's strange physics: seeded materials and processes, unique each time, unlocked primarily through exploration, observation, and site interaction. The **precursor** remains of earlier probe generations teach or shortcut it, but precursor tech is a content source, not a separate science.
 
-The two tracks feed the same recipe graph and tech tree. Most nodes are accessible through either track (or both). Some nodes offer genuine alternative paths: a human-engineering approach (production milestone or research spend) vs. an alien-science approach (exploration discovery). Explorer-first and factory-first playstyles find different routes to the same capabilities.
+The two tracks feed the same recipe graph and tech tree. Most nodes are accessible through either track (or both). Some nodes offer genuine alternative paths: a universal-engineering approach (production milestone or research spend) vs. an exotic-science approach (exploration discovery). Explorer-first and factory-first playstyles find different routes to the same capabilities.
 
 ---
 
@@ -170,6 +170,8 @@ Planet properties should reinforce a **coherent identity** for each run, not fee
 
 **World reactivity profile.** The rate and nature of the world's response to factory footprint and experimentation. Some worlds are resilient; others react quickly and severely. See Section 11.
 
+**Precursor presence.** Whether — and which — earlier-generation launch infrastructure the world holds. Worlds near the lineage trunk carry a **precursor** structure that discounts part of the escape (see §12); frontier worlds carry none, and the successor is fabricated from scratch. Correlated with the run's place on the lineage tree (§3), so difficulty tracks branch depth without a hard lock. See Section 11 Persistent Sites.
+
 ### Seed legibility
 Runs can be shared by seed string. Community discussion of specific runs ("seed 4729 has terrible solar but incredible geothermal and a near-surface rare ore deposit at coordinates X") is an intended and supported part of the game's culture, consistent with the GTNH tradition of community knowledge-building.
 
@@ -232,18 +234,20 @@ The tech tree is the skeleton of the run. It is the one structure that is always
 ### Tier structure
 The tech tree is organized into **tiers** that follow a canonical 10-tier sequence. Each difficulty uses a prefix of this sequence, producing meaningfully different run lengths:
 
-| # | Tier name | Terminal for | Gate condition |
+| # | Tier name | Terminal for | Exit gate (completes tier → opens next) |
 |---|---|---|---|
-| 1 | Landfall | — | Analyze first alien sample + deploy surface drone |
-| 2 | Roots | — | Produce 100 units of any refined base material |
-| 3 | Contact | **Initiation** | Activate alien structure (terminal: gateway; intermediary: ruin/cache unlocking alien material or machine) |
-| 4 | Reach | — | Achieve first orbital flight |
-| 5 | Salvage | **Standard** | Interact with alien vessel (terminal: repair + launch; intermediary: extract fabrication data) |
-| 6 | Traverse | — | Reach outer-system zone |
-| 7 | Interface | **Advanced** | Interact with alien megastructure (terminal: operate relay; intermediary: extract FTL theory fragments) |
-| 8 | Revelation | — | Synthesize first exotic material |
-| 9 | Forge | — | Produce all FTL drive component types + sustain FTL-grade power |
-| 10 | Transcendence | **Pinnacle** | — (escape condition is the terminal) |
+| 1 | Landfall | — | **TBD** *(theme anchor: produce 100 refined base units)* |
+| 2 | Foothold | — | **TBD** |
+| 3 | Inheritance | **Initiation** | *Terminal (Initiation):* **escape** — launch 1 minimal successor (§12). *Non-terminal:* **TBD** |
+| 4 | Ascent | — | **TBD** *(theme anchor: first orbital flight)* |
+| 5 | Scion | **Standard** | *Terminal (Standard):* **escape** — fuller successor + provisioning (§12). *Non-terminal:* **TBD** |
+| 6 | Traverse | — | **TBD** *(theme anchor: reach outer-system zone)* |
+| 7 | Propagation | **Advanced** | *Terminal (Advanced):* **escape** — commission a replication line (§12). *Non-terminal:* **TBD** |
+| 8 | Breakthrough | — | **TBD** *(theme anchor: synthesize first transcendent matter)* |
+| 9 | Forge | — | **TBD** *(theme anchor: stand up the replication forge + power)* |
+| 10 | Transcendence | **Pinnacle** | *Terminal (Pinnacle):* **escape** — self-expanding forge / swarm seed (§12) |
+
+*Gate = tier **exit** (completes a tier → opens the next); a difficulty's **terminal** tier exits via the escape (§12), not into a next tier. The run begins at **landing** (pod + starting kit) — a pre-tier start state, not a gated tier. **Non-terminal exit gates are TBD** pending progression design; theme anchors are provisional. Full node/gate design lives in `tech-tree-design.md`.*
 
 | Difficulty | Tiers | Unlocked by |
 |---|---|---|
@@ -252,7 +256,7 @@ The tech tree is organized into **tiers** that follow a canonical 10-tier sequen
 | Advanced | 1–7 | Complete a Standard run |
 | Pinnacle | 1–10 | Complete an Advanced run |
 
-**Tiers 3, 5, and 7 have two variants** — terminal and intermediary. When a tier is terminal for the current difficulty, the alien structure at that tier is the escape objective (gateway, derelict ship, relay node). When the same tier appears as an intermediary in a harder difficulty, a different artifact class is present: an automated relic, a knowledge archive. These are intact but not usable for escape — their value is what they teach or produce. This preserves immersion across runs: each run is a different world with a different precursor remnant.
+**Tiers 3, 5, and 7 have two variants** — terminal and intermediary. When a tier is terminal for the current difficulty, the run's successor launch happens there; a seeded **precursor** structure (gateway, derelict, relay) discounts part of that launch when the world sits near the lineage trunk, and a frontier world scratch-builds it (§12). When the same tier appears as an intermediary in a harder difficulty, a non-launch remnant is present — an automated relic, a knowledge archive — intact but not an escape, its value what it teaches or produces. Each run draws a different precursor remnant, so the terminal act reads differently run to run.
 
 Each tier has:
 - A visible unlock condition (what production milestone, research threshold, or exploration achievement opens this tier)
@@ -278,7 +282,7 @@ Three distinct node types exist in the tech tree:
 
 **Machine/process nodes** unlock a machine type (wiremill, crusher, smelter, etc.), enabling all recipe templates that use that machine — for all already-unlocked materials. Combined with material nodes, standard processing chains flow automatically without per-recipe unlocks.
 
-**Special recipe nodes** unlock a specific recipe that doesn't arise from template expansion — a unique item recipe, a cross-material process, an alien reaction, or an unusually efficient shortcut. These always require explicit tech tree unlock.
+**Special recipe nodes** unlock a specific recipe that doesn't arise from template expansion — a unique item recipe, a cross-material process, an exotic reaction, or an unusually efficient shortcut. These always require explicit tech tree unlock.
 
 Standard recipes (template instantiations) need no tech node — they are available automatically once both the material and the machine are known.
 
@@ -306,7 +310,7 @@ Because nodes are drawn from a known pool, experienced players develop expertise
 
 ## 8. Production & The Recipe Graph
 
-The recipe graph is the intellectual heart of the run. It defines what this world's alien science looks like — which materials exist, what items they can be formed into, and what the critical path to the escape artifact requires.
+The recipe graph is the intellectual heart of the run. It defines what this world's exotic science looks like — which materials exist, what items they can be formed into, and what the critical path to the escape artifact requires.
 
 ### Fictional science grounding
 The recipe graph is grounded in a **consistent fictional science** — not real-world chemistry, but an internally logical system with its own rules and properties. Players cannot import real-world knowledge directly, but they can develop genuine expertise in the fictional system's structure across runs.
@@ -317,7 +321,7 @@ The system has partial real-world inspiration — materials behave in ways that 
 
 Three concepts form the production vocabulary:
 
-**Materials** are abstract substance identities — *copper*, *tin*, *resonite* (alien). A material is not itself a recipe node; it is the identity that items inherit. Each material has a **kind**: base (real-world inspired, consistent across runs) or alien (seeded per run, unique to this run's science). The ratio shifts across tiers: early tiers are mostly base materials; the final tier and escape artifact are primarily alien.
+**Materials** are abstract substance identities — *copper*, *tin*, *resonite* (exotic). A material is not itself a recipe node; it is the identity that items inherit. Each material has a **kind**: base (real-world inspired, consistent across runs) or exotic (seeded per run, unique to this run's science). The ratio shifts across tiers: early tiers are mostly base materials; the final tier and escape artifact are primarily exotic.
 
 **Form groups** are content-defined categories of physical states a material can take, declared per material. Example groups: `metal` (ore, crushed_ore, dust, ingot, plate, wire, rotor…), `combustible` (ore, chunk, dust), `exotic` (shard, crystal, lens…). A material may belong to multiple groups and gets the union of their forms.
 
@@ -332,7 +336,7 @@ The recipe graph is a directed acyclic graph (DAG) of **items** with the escape 
 **Recipe templates** define item transformations at the form level: `[M]_ingot → [M]_wire (wiremill)`. Templates apply automatically to every material whose groups include both involved forms. Concrete recipes are generated at run start by expanding templates over all present materials — adding a new material with the `metal` group automatically gives it all metal processing recipes.
 
 Graph properties that vary by seed:
-- **Which alien materials exist** — determines which derived items and concrete recipes appear this run
+- **Which exotic materials exist** — determines which derived items and concrete recipes appear this run
 - **Recipe parameters** — input quantities, output quantities, processing time, energy cost — vary within bounded ranges per concrete recipe
 - **Byproduct generation** — some recipes produce secondary item outputs; which byproducts and at what rates is seeded
 - **Processing requirements** — which machine tier is required, whether special conditions (temperature, pressure, catalysts) apply
@@ -547,6 +551,8 @@ Points of interest are persistent structures that remain in the world across the
 
 Sites are sources of exploration discoveries, unlock triggers for tech tree nodes, and sometimes unique one-time resources. Their existence and placement is seeded.
 
+The largest of these are **precursor** sites — earlier-generation structures (a gateway, a stranded derelict, a decayed relay). Their presence and type is seeded by the world's place on the lineage tree (§3): common near the trunk, absent at the frontier. When present, a precursor site discounts part of the escape (§12). A derelict in particular is a sibling copy that tried to launch here and failed — salvageable for its incomplete work.
+
 ### World reactivity
 The world is not hostile in the traditional sense — there are no enemies that attack the factory. Instead, the world **responds** to the player's presence and factory footprint. This reactivity is:
 
@@ -571,6 +577,8 @@ The world is not hostile in the traditional sense — there are no enemies that 
 
 **Byproduct discipline is the primary reactivity lever.** Because deep graphs generate constant side-streams, *what the player does with waste* is the main input to reactivity: a tight, closed-loop factory that consumes or recycles its byproducts runs quietly; one that vents them drives reactivity faster. The coupling is **soft and two-way — not a penalty meter.** Venting some streams degrades the local environment; venting others triggers *beneficial* reactions (an inert gas that seeds a harvestable atmospheric product, a runoff that enriches a nearby deposit). Reading which of the run's seeded waste streams are harmful, neutral, or useful — and routing accordingly — is itself a planning problem. This makes an ugly run ugly *because* it dumped waste and a clean run elegant, without ever hard-blocking progress. (Inspired by Nullius, where vented byproducts are tracked against the terraforming goal — see `market/nullius.md`.)
 
+**The beneficial pole is terraforming.** Routing the useful seeded streams back into the world — seeding an atmospheric product, enriching a deposit — is how the probe *prepares the ground* (§3). These **terraform-products** are not only flavor: at high difficulty the escape's launch recipe consumes them as *sustained inputs* (§12), so provisioning a replication line or swarm *requires* running the world clean. Terraforming is therefore optional early and soft-required late — an incentive that feeds the finale, never a separate gate, and never a cross-run penalty (an ugly run costs only in-run difficulty). The two-sided/beneficial half of reactivity is post-MVP (below, and §18 Q#4).
+
 The world's reactivity profile is seeded — some worlds react quickly and dramatically, others are resilient. This is a meaningful run modifier that affects pacing and strategy.
 
 > **Resolved:** World reactivity will also create opportunities — reactive events open access to new resources and discovery sites. Post-MVP; considered core to the design, not optional. See §18 Q#4.
@@ -579,33 +587,46 @@ The world's reactivity profile is seeded — some worlds react quickly and drama
 
 ## 12. The Escape Condition
 
-Each run has a single escape objective — a multi-step construction and activation challenge that requires mastering the run's full production graph.
+Each run has a single escape objective — a multi-step construction and activation challenge that requires mastering the run's full production graph. Its terminal act is **replication**: fabricate the next copy of the probe and launch it onward.
 
 ### Design intent
-The escape condition is the run's thesis statement. Completing it means the probe understood this alien world's science well enough to replicate off it — to build the vehicle that carries the next generation onward. It is not a checklist — it is proof of mastery.
+The escape condition is the run's thesis statement. Completing it means the probe understood this world's science well enough to replicate off it — to build and launch the next copy of itself. It is not a checklist — it is proof of mastery. **The factory is the finale:** at scale the escape is not a bespoke artifact but a *replication line* the player designs, provisions, and fires.
 
-Each escape type must have a **visually legible, dramatic climax** — a gateway powering up and tearing open, a derelict ship shuddering to life and launching, a relay network synchronizing across the sky. Completion must be screenshot-worthy. A run that ends with a condition-met screen rather than a visible, impressive event fails the fantasy that justified 5–50 hours of play.
+Each escape must have a **visually legible, dramatic climax** — a launch cascade tearing skyward, a precursor gateway powering up, a derelict shuddering to life. Completion must be screenshot-worthy. A run that ends with a condition-met screen rather than a visible, impressive event fails the fantasy that justified 5–50 hours of play.
 
-### Escape type by difficulty
+### What scales with difficulty: successor scale
+In every case the thing that leaves is a newly-built copy of the probe. Difficulty scales **how complete a successor you build, and how many** — the lineage's growing reach and independence made mechanical:
 
-In every case the thing that leaves is a newly-built copy of the probe. What scales with difficulty is self-sufficiency: early tiers repurpose launch infrastructure left by earlier lineages, later tiers fabricate the entire vehicle from scratch — the growing independence of the lineage made mechanical:
-
-| Difficulty | Escape type | Description |
+| Difficulty | Successor scale | What you build |
 |---|---|---|
-| Initiation | Alien gateway activation | Discover an alien gateway left by an earlier probe lineage. Construct the activation key (a complex alien-spec artifact). Sustain sufficient power. Insert key and hold power to send your copy through. |
-| Standard | Alien derelict ship | Locate a derelict alien ship within the solar system. Construct several ship system components (hull section, navigation, engines, life support). Produce alien-spec fuel. Install all components and launch. |
-| Advanced | Outer-system relay | Locate scattered relay fragments across the solar system (count fixed, locations seeded per run). Construct relay repair components. Collect all fragments, install repairs, sustain power to activate. |
-| Pinnacle | Interstellar spacecraft | Construct four major ship systems from scratch — engines, FTL drive, reactor, shielding — each requiring deep production chains. Assemble and launch. |
+| Initiation | **1 minimal copy** | Fabricate a compact successor (core + body) and launch it. The simplest chain. |
+| Standard | **1 copy + provisioning** | A fuller successor plus a **provisioning module** — the starting kit the next generation wakes with. Launch. |
+| Advanced | **replication line** | A sustained line producing several successors; the launch recipe demands an input rate only the line can feed. |
+| Pinnacle | **self-expanding forge / swarm** | A forge that seeds a swarm — the highest sustained multi-input rate, fully self-fabricated. |
 
-Escape types are content-defined — modders can create new escape scenarios.
+**Provisioning** is what the successor carries — modelled as extra launch-recipe inputs scaling with the successor's completeness. It is consumed at launch and has **no cross-run material effect**; every run starts from the standard kit. The cross-run channel is *learning*, not inherited matter (§14).
+
+### Launch infrastructure: the precursor discount
+The launch is *always* buildable from scratch. Where a world sits near the lineage trunk (§3, §5), it carries a seeded **precursor** structure that acts as a **catalyst/discount** on part of the launch recipe — not a different escape, a shortcut through one step:
+
+| Precursor present | Discounts |
+|---|---|
+| **Gateway** — a durable transit structure kin left operational | the transit/launch step (send the copy through) |
+| **Derelict** — a sibling copy that tried to launch here and stranded | the hull/body step (salvage its incomplete vehicle) |
+| **Relay** — a decayed kin network, fragments scattered | the range/boost step (jump the copy outward) |
+| *(none — frontier world)* | nothing; the successor is fabricated whole |
+
+Which step a precursor discounts shapes the run's factory and its climax, so authored variety survives as **seeded content** rather than a difficulty lock. Precursor presence only *trends* with difficulty — the lineage routes fresh copies to explored space and veterans to the frontier (§3) — and Pinnacle is simply the always-frontier end. Precursor structures are content-defined; modders can author new ones.
 
 ### Structure
-The escape condition is the terminal tier of the run. Its construction prerequisites cascade through the entire production graph — no major chain can be skipped. The specific escape type is determined by the run's difficulty tier (see meta-progression).
+The escape is the terminal tier of the run. Its construction prerequisites cascade through the entire production graph — no major chain can be skipped. It resolves as a **single climactic cascade**: one launch machine runs one activation recipe, and when that recipe completes the run ends. Scale lives entirely in the recipe's inputs, not in new machinery.
 
-Each escape has three phases:
-1. **Construction** — produce all required components (multiple distinct items, each with its own production chain)
-2. **Field requirement** — a non-production prerequisite: sustained power, fuel stockpile, or fragment collection via exploration
-3. **Activation** — final trigger that ends the run once all conditions are met simultaneously
+Three informal phases:
+1. **Construction** — produce the successor(s) and their provisioning (multiple distinct chains).
+2. **Field requirement** — a sustained condition the finale holds open: sustained power, and at scale a *sustained input rate* only a replication line can supply (which at high difficulty means sustained terraform-products, §11).
+3. **Activation** — the player fires the launch once all conditions hold simultaneously; the cascade completes and the run ends.
+
+Because the win is one cascade gated on a *sustained rate*, the player proves the line's design sustains and fires — never babysitting individual craft cycles (Pillar 2).
 
 ### Player-initiated
 The player chooses when to attempt the escape. No forced end condition. A player who wants to optimize further can do so; a player satisfied with a functional solution can attempt immediately. This respects the "variable length" run philosophy.
@@ -628,6 +649,7 @@ Multiple axes are tuned independently to create the difficulty ladder:
 | World reactivity rate | Slow, forgiving | Fast, demanding |
 | Research scarcity | Research plentiful | Research scarce |
 | Exploration unlock frequency | Few nodes gated to exploration | Many nodes exploration-only |
+| Successor scale (escape) | One minimal copy | Replication line → forge swarm (§12) |
 
 ### Difficulty tiers (design targets)
 
@@ -645,6 +667,8 @@ Multiple axes are tuned independently to create the difficulty ladder:
 
 Meta-progression persists across runs and expands the game's possibility space without reducing the difficulty of individual runs. Unlocks make the game *broader*, not *easier*.
 
+Diegetically, meta-progression is **the lineage learning** — the same probe line growing more capable generation over generation. Persistence across runs is not a menu of upgrades bolted onto a reset; it is the accumulation and drift of a spreading lineage (§3). This is also the *only* cross-run channel: knowledge carries forward, never a run's material output and never a penalty for a messy run.
+
 ### Unlock categories
 
 **Biomes.** New biome types added to the world generation pool. Each new biome brings new planet modifier combinations, new sample types, and new visual environments. Biomes expand the variety of runs, not their tractability.
@@ -655,7 +679,7 @@ Run modifiers use a **point-buy system** at run start. Challenges (harder planet
 
 The tool-access boons specifically shift the in-run Engineering research unlock window for a given tool to an earlier tier, not to run start. Boon cost scales with the depth of challenge the tool removes — early ratio calculator costs less than early auto-crafting network. No tool access boon should be an obvious always-buy.
 
-**Narrative.** Completing runs at various difficulty tiers unlocks story content — lore about the world(s), the character's history, the reason for the escape conditions. Narrative is delivered through the field computer, discovered artifacts, and run completion screens. The story emerges across many runs, rewarding long-term play.
+**Narrative.** Completing runs at various difficulty tiers unlocks story content — lore about the world(s), the lineage's origin and drift, and the earlier generations whose remains you find. Narrative is delivered through the field computer, discovered artifacts, and run completion screens. The story emerges across many runs, rewarding long-term play.
 
 **Blueprint slots.** Additional blueprint save slots unlock across progression. Blueprints save sub-factory layouts as templates. Critically, **blueprints are templates, not solutions** — they require adaptation to each run's specific ratios and machine parameters. They save layout time, not thinking.
 
@@ -671,7 +695,7 @@ Examples of what the codex surfaces:
 
 The codex rewards thorough play and reduces the "I've never seen this before" friction on repeat encounters. It does not reduce run difficulty — experienced players read the map faster, not more easily. Codex content is a meta-progression unlock in the sense that it fills in over time, but it is not gated — it expands automatically through play.
 
-The codex is intentionally designed to be equivalent in scope to a community wiki for parameter ranges and node behaviors. When a node is first unlocked, the codex records its observed range — the same information a wiki would surface. This is deliberate: external resources for ranges should provide no advantage over the codex, and the codex should never be worse than external resources. The discovery value in each run lies below this level — in the run-specific parameter values, alien science configuration, and unlock vectors that neither codex nor wiki can predict. Before a node is first encountered, knowing its range from a wiki provides minimal advantage: the discovery loop gates access to run-specific values, not knowledge of the range that value falls within.
+The codex is intentionally designed to be equivalent in scope to a community wiki for parameter ranges and node behaviors. When a node is first unlocked, the codex records its observed range — the same information a wiki would surface. This is deliberate: external resources for ranges should provide no advantage over the codex, and the codex should never be worse than external resources. The discovery value in each run lies below this level — in the run-specific parameter values, exotic science configuration, and unlock vectors that neither codex nor wiki can predict. Before a node is first encountered, knowing its range from a wiki provides minimal advantage: the discovery loop gates access to run-specific values, not knowledge of the range that value falls within.
 
 ---
 

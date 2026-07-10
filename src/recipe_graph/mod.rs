@@ -25,7 +25,7 @@ pub type MachineTypeId = String;
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum MaterialKind {
     Base,
-    Alien,
+    Exotic,
 }
 
 #[derive(Deserialize, Clone, Debug)]

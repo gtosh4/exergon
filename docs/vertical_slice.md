@@ -141,7 +141,7 @@ Minimum node set:
 - Basic logistics/storage
 - Basic analysis/research
 - Land drone
-- Alien material or site theory
+- Exotic material or site theory
 - Escape synthesis
 
 Required interfaces:
@@ -397,7 +397,7 @@ Required:
   - Power viability
   - Resource geography
   - Discovery-site location
-  - Alien material chain
+  - Exotic material chain
   - Research pressure
 - Seeds must be valid and comparable.
 

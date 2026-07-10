@@ -4,7 +4,7 @@
     category: Science,
     tier: 2,
     rarity: Rare,
-    prerequisites: ["alien_materials"],
+    prerequisites: ["exotic_materials"],
     primary_unlock: ExplorationDiscovery("gateway_ruins"),
     effects: [UnlockMachine("Gateway")],
 )

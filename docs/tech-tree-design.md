@@ -18,7 +18,7 @@
 
 ## 1. Design Goals
 
-- **Choice, not wait.** Research is plentiful enough to always unlock *something*. The constraint is deciding which of several visible options to take, not waiting for currency to accumulate. Scarcity comes from unlock conditions (milestones, exploration, alien science gates) tightening across tiers — not from rate slowdown alone.
+- **Choice, not wait.** Research is plentiful enough to always unlock *something*. The constraint is deciding which of several visible options to take, not waiting for currency to accumulate. Scarcity comes from unlock conditions (milestones, exploration, exotic science gates) tightening across tiers — not from rate slowdown alone.
 - **Constant momentum.** Players should feel forward motion throughout. Early tiers unlock fast; later tiers slow down but each unlock is a milestone. The gradient from fast → slow should feel like deepening, not grinding.
 - **Lots of options.** At any moment, 3–5 nodes should be unlockable. Players build their own ordering within a tier, not a fixed sequence. Different orderings produce meaningfully different early factories.
 - **Shadow legibility.** Locked nodes show category, tier, and rarity. Players can plan toward things they haven't revealed yet.
@@ -34,13 +34,13 @@ Rate grows near-linearly (+2–3 min per tier). Node count grows with tier; term
 | Tier | Rate | Nodes | Duration | Notes |
 |---|---|---|---|---|
 | T1 Landfall | 1 / 6 min | 8 | ~0.8h | |
-| T2 Roots | 1 / 8 min | 12 | ~1.6h | |
-| T3 Contact | 1 / 10 min | 16 | ~2.7h | **Initiation terminal** |
-| T4 Reach | 1 / 12 min | 20 | ~4.0h | |
-| T5 Salvage | 1 / 14 min | 15 | ~3.5h | **Standard terminal** (−25% vs T4) |
+| T2 Foothold | 1 / 8 min | 12 | ~1.6h | |
+| T3 Inheritance | 1 / 10 min | 16 | ~2.7h | **Initiation terminal** |
+| T4 Ascent | 1 / 12 min | 20 | ~4.0h | |
+| T5 Scion | 1 / 14 min | 15 | ~3.5h | **Standard terminal** (−25% vs T4) |
 | T6 Traverse | 1 / 17 min | 22 | ~6.2h | |
-| T7 Interface | 1 / 20 min | 16 | ~5.3h | **Advanced terminal** (−27% vs T6) |
-| T8 Revelation | 1 / 23 min | 24 | ~9.2h | |
+| T7 Propagation | 1 / 20 min | 16 | ~5.3h | **Advanced terminal** (−27% vs T6) |
+| T8 Breakthrough | 1 / 23 min | 24 | ~9.2h | |
 | T9 Forge | 1 / 26 min | 26 | ~11.3h | |
 | T10 Transcendence | 1 / 30 min | 20 | ~10.0h | **Pinnacle terminal** (−23% vs T9) |
 
@@ -59,7 +59,7 @@ Scarcity comes from **resource cost and unlock conditions**, not from rate. Even
 
 - **T1–T2:** Research plentiful. Rate fast; challenge is choosing among 4–5 visible nodes.
 - **T3–T5:** Research tightens. Unlocks increasingly require production milestones or exploration — research-spend alone insufficient for most nodes. More nodes visible than affordable.
-- **T6+:** Each unlock requires deliberate investment. Production milestones, exploration triggers, and alien science gates dominate. Research-spend alone very expensive. 3–4 nodes visible, 1–2 affordable at a time.
+- **T6+:** Each unlock requires deliberate investment. Production milestones, exploration triggers, and exotic science gates dominate. Research-spend alone very expensive. 3–4 nodes visible, 1–2 affordable at a time.
 
 Rate growth alone does not create scarcity — the unlock condition does. A faster rate with harder conditions feels more active and less like waiting, which serves the "Choice, not wait" design pillar.
 
@@ -78,26 +78,28 @@ The tech tree follows a canonical 10-tier sequence. Each difficulty uses a prefi
 
 ### Tier summary
 
-| # | Tier name | Terminal for | Gate condition |
+| # | Tier name | Terminal for | Exit gate (completes tier → opens next) |
 |---|---|---|---|
-| 1 | Landfall | — | — (always available) |
-| 2 | Roots | — | Produce 100 units of any refined base material |
-| 3 | Contact | **Initiation** | Activate alien structure (terminal: gateway; intermediary: ruin/cache unlocking alien material or machine) |
-| 4 | Reach | — | Achieve first orbital flight |
-| 5 | Salvage | **Standard** | Interact with alien structure (terminal: repair alien vessel + launch; intermediary: access alien fabrication relic, extract fabrication data) |
-| 6 | Traverse | — | Reach outer-system zone |
-| 7 | Interface | **Advanced** | Interact with alien megastructure (terminal: operate relay; intermediary: extract FTL theory fragments from alien archive) |
-| 8 | Revelation | — | Synthesize first exotic material |
-| 9 | Forge | — | Produce all FTL drive component types + sustain FTL-grade power |
-| 10 | Transcendence | **Pinnacle** | — (escape condition is the terminal) |
+| 1 | Landfall | — | **TBD** *(theme anchor: produce 100 refined base units)* |
+| 2 | Foothold | — | **TBD** |
+| 3 | Inheritance | **Initiation** | *Terminal (Initiation):* **escape** — launch 1 minimal successor (§12). *Non-terminal:* **TBD** |
+| 4 | Ascent | — | **TBD** *(theme anchor: first orbital flight)* |
+| 5 | Scion | **Standard** | *Terminal (Standard):* **escape** — fuller successor + provisioning (§12). *Non-terminal:* **TBD** |
+| 6 | Traverse | — | **TBD** *(theme anchor: reach outer-system zone; terraforming provisioning comes online)* |
+| 7 | Propagation | **Advanced** | *Terminal (Advanced):* **escape** — commission a replication line (§12). *Non-terminal:* **TBD** |
+| 8 | Breakthrough | — | **TBD** *(theme anchor: synthesize first transcendent matter)* |
+| 9 | Forge | — | **TBD** *(theme anchor: stand up the replication forge + forge-grade power)* |
+| 10 | Transcendence | **Pinnacle** | *Terminal (Pinnacle):* **escape** — self-expanding forge / swarm seed (§12) |
 
-*Gate condition = requirement that completes a tier and opens the next. Exit of tier T = entry of tier T+1. T1 has no entry gate; it is always available.*
+*Gate = tier **exit**: the requirement that completes a tier and opens the next. A difficulty's **terminal** tier exits via the **escape** (§12), not into a next tier. The run begins at **landing** (pod + starting kit) — a pre-tier start state, not a gated tier; the player starts inside Tier 1 (Landfall), which has its own nodes (§6). **All non-terminal exit gates are TBD pending tech-tree progression design** (§7 Q#2); the parenthetical theme anchors are provisional intent, not settled gates. Only the terminal escape exits are fixed.*
 
-**Tiers 3, 5, and 7** each have two artifact variants. Terminal variant: the alien structure is the escape objective. Intermediary variant: a different artifact class is present (relic, cache, archive) — intact but not usable for escape, value is what it teaches or produces. This preserves immersion: each run has a different precursor remnant suited to its difficulty.
+**Tiers 3, 5, and 7** each have two precursor-remnant variants. *Terminal variant:* the tier is a difficulty's terminal, and the seeded precursor (if present) discounts that run's successor launch (§12; a frontier run scratch-builds instead — the escape *type* is not locked to difficulty). *Intermediary variant:* a non-launch remnant is present (relic, cache, archive) — value is what it teaches or produces, not escape. Each run draws a different precursor remnant, so the terminal act reads differently run to run.
 
 ### Tier themes
 
 Each tier has a thematic identity that drives which categories dominate and what the factory looks like at that stage.
+
+> The **Gate** lines below are *provisional exit-gate intent*, not settled — every non-terminal exit gate is TBD pending progression design (§7 Q#2). Only the terminal **escape** gates (§12) are fixed. See the §3 summary-table note for the exit-gate semantics.
 
 #### Tier 1 — Landfall
 *Survive. First power. Basic material loop.*
@@ -108,88 +110,93 @@ Each tier has a thematic identity that drives which categories dominate and what
 - Land drone: surface scouting begins
 - Basic logistics: first network nodes, manual storage
 - Basic science: field analyzer unlocked, research loop established
-- **Base/alien ratio:** 100% base
-- **Gate:** Analyze first alien sample + deploy surface drone
+- **Base/exotic ratio:** 100% base
+- **Gate:** Analyze first exotic sample + deploy surface drone
 
-#### Tier 2 — Roots
-*Push outward. First alien science. Power begins to strain.*
+#### Tier 2 — Foothold
+*Push outward. First exotic science. Power begins to strain.*
 
-- 1–2 more base materials + first alien material (shallow, seeded)
+- 1–2 more base materials + first exotic material (shallow, seeded)
 - First multi-step processing chains (ore → crushed → dust → ingot)
 - Optional second-domain access via amphibious or digger-capable drone, if the run's resource graph needs a water or underground site
 - Network design pressure begins: channel limits first felt
 - Power efficiency issues emerge; second source type needed
-- **Base/alien ratio:** ~70% base, 30% alien
+- **Base/exotic ratio:** ~70% base, 30% exotic
 - **Gate:** Produce 100 units of any refined base material (ingot or plate form)
 
-#### Tier 3 — Contact *(Initiation terminal)*
-*First alien structure. Gateway or ruin.*
+#### Tier 3 — Inheritance *(Initiation terminal)*
+*First precursor structure. Gateway or ruin.*
 
-- 2–3 alien materials; base materials begin feeding alien chains
+- 2–3 exotic materials; base materials begin feeding exotic chains
 - Processing conditions appear: temperature, pressure, catalysts
 - Flight-capable drone *(post-MVP; T3 Initiation escape does not require atmospheric-domain content)*
 - Sub-network segmentation becomes economical
-- **Base/alien ratio:** ~40% base, 60% alien
-- **Gate (terminal):** Construct activation key + sustain gateway power + activate
-- **Gate (intermediary):** Activate alien ruin/cache → unlocks alien material or machine type
+- **Base/exotic ratio:** ~40% base, 60% exotic
+- **Terraforming:** optional beneficial-vent opportunity appears (reward: cheaper exotic inputs); not required at this scale
+- **Gate (terminal):** Fabricate + launch 1 minimal successor — a seeded precursor gateway/ruin discounts the launch step; a frontier run scratch-builds it
+- **Gate (intermediary):** Activate precursor ruin/cache → unlocks exotic material or machine type
 
-#### Tier 4 — Reach
+#### Tier 4 — Ascent
 *Spacecraft. Orbital access.*
 
-- Deeper alien chains; byproduct routing creates graph interconnections
+- Deeper exotic chains; byproduct routing creates graph interconnections
 - Space-capable drone or spacecraft prerequisites unlock
 - Orbital/space sites become accessible when the run's objective uses them
 - Power Tier 2+ required; first major renegotiation
-- **Base/alien ratio:** ~30% base, 70% alien
+- **Base/exotic ratio:** ~30% base, 70% exotic
 - **Gate:** Achieve first orbital flight
 
-#### Tier 5 — Salvage *(Standard terminal)*
-*Terminal: alien vessel — repair and launch. Intermediary: alien fabrication relic — extract and learn.*
+#### Tier 5 — Scion *(Standard terminal)*
+*Terminal: fuller successor + provisioning — fabricate and launch. Intermediary: precursor fabrication relic — extract and learn.*
 
-- Final base-material chains complete; alien science dominates
+- Final base-material chains complete; exotic science dominates
 - Orbital fabrication prerequisites
 - Network requires sub-network architecture
-- **Base/alien ratio:** ~20% base, 80% alien
-- **Gate (terminal):** Construct ship systems (hull, nav, engines, life support) + produce alien fuel + launch
-- **Gate (intermediary):** Locate alien fabrication relic → extract fabrication data → unlocks alien drive tech or fabrication machines
+- **Base/exotic ratio:** ~20% base, 80% exotic
+- **Terraforming:** optional; beneficial streams now cheapen provisioning inputs
+- **Gate (terminal):** Fabricate successor + provisioning module + exotic fuel; launch (a seeded precursor derelict, if present, discounts the hull/body step)
+- **Gate (intermediary):** Locate precursor fabrication relic → extract fabrication data → unlocks exotic drive tech or fabrication machines
 
 #### Tier 6 — Traverse
 *Outer-system reach.*
 
-- Deep alien science chains; exotic material precursors emerge
+- Deep exotic science chains; transcendent-matter precursors emerge
 - Outer-system capable spacecraft prerequisites
 - Power Tier 3+ required
-- **Base/alien ratio:** ~10% base, 90% alien
+- **Base/exotic ratio:** ~10% base, 90% exotic
+- **Terraforming:** provisioning throughput now soft-required — Advanced-scale successors need terraform-products as sustained launch inputs (§12)
 - **Gate:** Reach outer-system zone
 
-#### Tier 7 — Interface *(Advanced terminal)*
-*Alien megastructure. Operate or study.*
+#### Tier 7 — Propagation *(Advanced terminal)*
+*Precursor megastructure. Operate or study.*
 
-- Full alien science graph visible; unique escape-component chains begin
-- **Base/alien ratio:** ~5% base, 95% alien
-- **Gate (terminal):** Collect seeded relay fragments + construct repair components + sustain relay power + activate
-- **Gate (intermediary):** Access alien repository, extract FTL theory fragments → unlocks exotic material synthesis routes
+- Full exotic science graph visible; replication-line chains begin
+- **Base/exotic ratio:** ~5% base, 95% exotic
+- **Terraforming:** required for line provisioning (sustained terraform-product feed)
+- **Gate (terminal):** Commission a replication line — sustained successor output fed by terraformed throughput (a seeded precursor relay, if present, discounts the range/boost step)
+- **Gate (intermediary):** Access precursor repository, extract FTL theory → unlocks transcendent-matter synthesis routes
 
-#### Tier 8 — Revelation
-*FTL theory applied. Exotic science chains.*
+#### Tier 8 — Breakthrough
+*FTL theory applied. Transcendent-matter chains.*
 
-- Exotic material synthesis unlocked via T7 knowledge
-- New machine types for exotic processing
-- **Gate:** Synthesize first exotic material
+- Transcendent-matter synthesis unlocked via T7 knowledge
+- New machine types for transcendent-matter processing
+- **Gate:** Synthesize first transcendent matter
 
 #### Tier 9 — Forge
-*Full exotic manufacturing. Final power renegotiation.*
+*Stand up the replication forge. Final power renegotiation.*
 
-- All FTL drive component chains available
-- FTL-grade power infrastructure required
-- **Gate:** Produce all FTL drive component types + sustain FTL-grade power
+- All successor-system chains available; the forge integrates them
+- Forge-grade power infrastructure required
+- **Terraforming:** high sustained terraform-product throughput required to feed the forge
+- **Gate:** Stand up the replication forge + sustain forge-grade power
 
 #### Tier 10 — Transcendence *(Pinnacle terminal)*
-*Build the ship. Leave on your own terms.*
+*Build the self-expanding forge. Seed the swarm.*
 
-- Four major construction tracks: engines, FTL drive, reactor, shielding
-- Each track requires deep independent production chain
-- **Gate (terminal):** Construct all four ship systems + assemble + launch
+- Four major successor-system tracks: engines, FTL drive, reactor, shielding
+- Each track requires a deep independent production chain, fully self-fabricated (always-frontier — no precursor discount)
+- **Gate (terminal):** Construct all four successor systems + provision the forge + fire the swarm-seed cascade
 
 *(Tiers 8–10 not yet fully designed — nail Standard first.)*
 
@@ -208,7 +215,7 @@ Eight categories. Each node belongs to exactly one.
 | **Logistics** | Network cables, controllers, auto-crafting, storage | 1–5 |
 | **Science** | Analyzers, labs, sample processors | 1–5 |
 | **Exploration** | Drone types, scanners, aegis expanders | 1–7 |
-| **Fabrication** | Assembly machines for composite and alien items | 3–10 |
+| **Fabrication** | Assembly machines for composite and exotic items | 3–10 |
 
 **Power** is the only category that spans all tiers with equal importance. Every other category has a peak window.
 
@@ -313,7 +320,7 @@ Rules:
 - **Spawn behavior is per-group config.** A group may always spawn all members together, or spawn conditionally based on run seed. Either way, all present members appear as a set.
 - **Size:** arbitrary; in practice 2–3 members.
 
-Design uses: architectural forks (two legitimate approaches to the same problem), alien-contact path splits, risk/reward divergences at the same tier slot.
+Design uses: architectural forks (two legitimate approaches to the same problem), precursor-contact path splits, risk/reward divergences at the same tier slot.
 
 ---
 
@@ -365,9 +372,9 @@ All three hit the Tier 2 gate (50 refined base-material units) at roughly the sa
 
 ### Tier 1 → 2 gate
 
-**Condition:** Produce 100 units of any refined base material (ingot or plate form).
+**Condition (provisional — TBD):** Produce 100 units of any refined base material (ingot or plate form). This is Tier 1's *exit* gate (see §3 semantics), but the exit-gate set is TBD pending full progression design (§7 Q#1–2); it also differs from the T1 theme's `Gate:` line ("analyze first exotic sample + deploy surface drone") — one is the tier exit, the other an early intra-tier objective, to be reconciled.
 
-Broad condition intentional — the gate should accommodate whichever base material the run's seed placed in the core zone, not assume a specific one.
+If adopted, the broad condition is intentional — the gate should accommodate whichever base material the run's seed placed in the core zone, not assume a specific one.
 
 ---
 
@@ -379,7 +386,7 @@ Broad condition intentional — the gate should accommodate whichever base mater
 | 2 | T2–T5 node set — not designed yet. Nail T1 feel first. | High |
 | 3 | Are 8 fixed Tier 1 nodes the right number, or should some T1 nodes also be seeded? Fewer fixed nodes = more run variance but less reliable onboarding. | Medium |
 | 4 | "Smelting & Forming" vs "Processing" — may be confusing distinction for players in the shadow UI. Consider merging into "Material Processing" for display while keeping internal split. | Medium |
-| 5 | Alien material count per Standard run — targeting 3–4. Drives pool selection logic but not yet specified. | Medium |
+| 5 | Exotic material count per Standard run — targeting 3–4. Drives pool selection logic but not yet specified. | Medium |
 | 6 | Tier 5/6 themes for Advanced/Pinnacle — deferred until Standard is validated. | Low |
 | 7 | Are Combustion Generator and Solar Array (T1) a candidate exclusive group? Currently both always spawn; making them a choice would create a harder power commitment early. | Medium |
 | 8 | Optional pool sizing — how many optional nodes per tier? No targets set. | Medium |

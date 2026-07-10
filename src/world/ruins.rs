@@ -75,13 +75,13 @@ pub fn spawn_scout_sites(mut commands: Commands, run_q: Query<&DomainSeeds, With
         DespawnOnExit(crate::GameState::Playing),
     ));
 
-    // Site 2: alien artifact (high value, high-risk flavor)
+    // Site 2: precursor artifact (high value, high-risk flavor)
     let x2 = (derive(world_seed, "site2_x") % 400) as f32 - 200.0;
     let z2 = (derive(world_seed, "site2_z") % 400) as f32 - 200.0;
     let y2 = sampler.height_at(x2 as f64, z2 as f64);
     commands.spawn((
         ScoutSite {
-            site_id: "alien_artifact".to_string(),
+            site_id: "precursor_artifact".to_string(),
         },
         Transform::from_xyz(x2, y2, z2),
         DespawnOnExit(crate::GameState::Playing),

@@ -192,7 +192,7 @@ Design: [`drone.md`](technical/drone.md).
 - [x] Drone cargo/sample HUD — inventory panel shown in DronePilot mode (`src/ui/hud/drone.rs`)
 - [x] Return-and-deposit prompt — "E — deposit samples" when drone near aegis emitter; `drone_deposit_system`
 - [x] Mode indicator widget: Local vs Remote — `◈ LOCAL` / `◈ REMOTE` HUD top-right
-- [x] At least 2 scouted destinations in starter chunk — `mineral_deposit` + `alien_artifact` scout sites
+- [x] At least 2 scouted destinations in starter chunk — `mineral_deposit` + `precursor_artifact` scout sites
 - [x] Drone damage/delay risk model — `DroneHealth` stub; no hazard source in VS per design §11
 
 ---
@@ -218,7 +218,7 @@ Code present; verify against design.
 - [x] Audit node visual states: Shadow, Partial, Revealed, Unlockable, Locked-Out
 - [x] Locked-reason display on hover — footer line shows hovered node's locked reason (`prereq: {name} not yet unlocked` / `locked out — {peer} chosen`); insufficient RP excluded per design §blocked-reason
 - [x] Exclusive-group choice modal (per design issue #9)
-- [x] Expand node pool to design minimum: smelting, extraction, 2 power options, logistics, analysis, drone, alien material, escape synthesis
+- [x] Expand node pool to design minimum: smelting, extraction, 2 power options, logistics, analysis, drone, exotic material, escape synthesis
 - [x] Cross-tier port stubs in questbook layout — node cards show `←T{n}`/`T{n}→` for cross-tier prereq/dependent edges; detail-panel REQUIRES & LEADS-TO rows click to jump tier page
 
 ---
@@ -239,7 +239,7 @@ Do-not-stub: delivery surface required, persona deferred.
 VS §5 + milestone gate.
 
 - [x] Seed-template file (`assets/seeds/curated.ron`): 5 entries
-- [x] Each varies: power viability, resource geography, discovery-site location, alien material chain, research pressure
+- [x] Each varies: power viability, resource geography, discovery-site location, exotic material chain, research pressure
 - [x] Main menu: "Curated seed" picker alongside text input
 - [x] Validate each seed plays through Insight Run — `tests/curated_seeds.rs` sweeps all 5 curated seeds through landing→mine→first-research-unlock→atmospheric-reveal on simulated time (same `hash_text`→`DomainSeeds` path as the game)
 

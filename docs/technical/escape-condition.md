@@ -1,6 +1,6 @@
 # Escape Condition Design
 
-Specifies ECS structure, system logic, events, and edge cases for the escape condition. Vertical Slice covers Initiation (alien gateway); MVP adds Standard/Advanced/Pinnacle. Design these only in terms of other docs; do not reference current code state.
+Specifies ECS structure, system logic, events, and edge cases for the escape condition. Vertical Slice covers Initiation (precursor gateway); MVP adds Standard/Advanced/Pinnacle. Design these only in terms of other docs; do not reference current code state.
 
 ---
 
@@ -28,9 +28,9 @@ Each run has one escape objective — a machine the player constructs, enables, 
 
 When the recipe on an escape machine completes, `EscapeEvent` fires.
 
-### Initiation escape: alien gateway
+### Initiation escape: precursor gateway
 
-The player finds the alien gateway ruins via drone. They craft a Gateway Key in an assembler (Construction — standard recipe). They enable the gateway machine (Activation). The gateway draws power and runs a timed recipe; if power drops, the job stalls until power is restored and the machine is re-enabled. When the job completes, the run ends.
+The player finds the **precursor** gateway ruins via drone — a transit structure an earlier probe generation left (seeded near the lineage trunk; a frontier run has none and scratch-builds the launch instead, GDD §12). They craft the Gateway Key — the minimal **successor** payload — in an assembler (Construction — standard recipe). They enable the gateway machine (Activation). The gateway draws power and runs a timed recipe; if power drops, the job stalls until power is restored and the machine is re-enabled. When the job completes, the copy is sent through and the run ends.
 
 The gateway recipe uses the Gateway Key as a **catalyst input** — present for the job duration, not consumed on completion. Catalyst inputs are a recipe system feature; see `technical/crafting.md §catalyst-inputs`.
 
@@ -123,13 +123,13 @@ Assert: no `EscapeEvent`.
 
 ## 7. MVP Escape Types
 
-All escape types are machines with `EscapeObjective`. Construction uses the standard recipe/crafting system. Activation uses machine enabled/disabled state. Each type's power and logistics requirements are defined in the machine asset and recipe.
+All escape types are one machine with `EscapeObjective`. Construction uses the standard recipe/crafting system. Activation uses machine enabled/disabled state. **Difficulty scales the *successor* (how complete a copy, and how many — GDD §12), and scale lives in the recipe inputs, not in new machinery — the win is a single climactic cascade.** A **precursor** structure, when the world seeds one (near the lineage trunk), is a **catalyst/discount** on part of the launch recipe; a frontier world seeds none and the successor is fabricated whole.
 
-| Difficulty | Machine | Recipe requirement | Field condition |
+| Difficulty | Machine (`EscapeObjective`) | Recipe requirement (the successor) | Field condition |
 |---|---|---|---|
-| Initiation | Alien gateway | Gateway Key (catalyst) | Sustained power for `charge_duration_secs` |
-| Standard | Ship launch console | All ship components + alien fuel | None beyond recipe inputs |
-| Advanced | Relay array | All relay fragments | Sustained power while job runs |
-| Pinnacle | FTL launch system | All four ship systems | FTL-grade sustained power |
+| Initiation | Launch site — precursor **gateway** discounts the transit step, if seeded | 1 minimal successor (the Gateway Key payload when gateway-discounted) | Sustained power for `charge_duration_secs` |
+| Standard | Launch site — precursor **derelict** discounts the hull, if seeded | Fuller successor (4 systems) + provisioning module + exotic fuel | Sustained power |
+| Advanced | Replication line — precursor **relay** discounts the range/boost, if seeded | Sustained successor output + terraform-products | Sustained input rate + power |
+| Pinnacle | Self-expanding forge (always frontier — scratch) | Four successor systems + provisioning, fully self-fabricated | Forge-grade sustained power |
 
 Each MVP escape type will be specced separately before implementation, covering machine asset details and recipe structure.

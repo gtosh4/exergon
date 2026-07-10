@@ -64,18 +64,18 @@ The recipe graph does **not** know about machine entities (placed in world), cat
 Abstract substance identities. A material is not a recipe node; it is the identity items inherit. Asset format (`assets/materials/<id>.ron`):
 
 ```rust
-pub enum MaterialKind { Base, Alien }
+pub enum MaterialKind { Base, Exotic }
 
 pub struct MaterialDef {
     pub id:          MaterialId,        // e.g. "copper", "tin_oxide", "resonite"
     pub name:        String,            // display name
-    pub kind:        MaterialKind,      // Base = real-world-inspired; Alien = seeded per run
+    pub kind:        MaterialKind,      // Base = real-world-inspired; Exotic = seeded per run
     pub form_groups: HashSet<FormGroupId>,  // e.g. {"metal"} or {"exotic", "combustible"}
 }
 ```
 
 - **Base** materials are consistent across runs and form the early-tier vocabulary.
-- **Alien** materials are unique per run (post-VS: drawn from the `recipes` domain seed; VS: curated). They populate the final tier and the run's goal items.
+- **Exotic** materials are unique per run (post-VS: drawn from the `recipes` domain seed; VS: curated). They populate the final tier and the run's goal items.
 - A material may belong to multiple form groups; it gets the **union** of their forms.
 - Material IDs are lowercase snake_case (e.g. `tin_oxide`). Underscores stand in for spaces within a multi-word material name.
 
@@ -304,7 +304,7 @@ All item quantities (`RecipeInput.quantity`, `RecipeOutput::Item.quantity`) are 
 
 ### Probabilistic outputs
 
-`chance ∈ [0.0, 1.0]` is the probability that the output is emitted on a given completion (field present on both `RecipeOutput::Item` and `RecipeOutput::Energy`). `chance = 1.0` (the common case, including all primary outputs) means the output is always produced. Lower values express probabilistic byproducts (e.g. ore processing yielding trace amounts of a secondary metal `20%` of runs) or stochastic energy yield (e.g. rare alien generator doubling output `10%` of completions).
+`chance ∈ [0.0, 1.0]` is the probability that the output is emitted on a given completion (field present on both `RecipeOutput::Item` and `RecipeOutput::Energy`). `chance = 1.0` (the common case, including all primary outputs) means the output is always produced. Lower values express probabilistic byproducts (e.g. ore processing yielding trace amounts of a secondary metal `20%` of runs) or stochastic energy yield (e.g. rare exotic generator doubling output `10%` of completions).
 
 - At runtime, on completion, each output's emission is rolled against `chance` using a recipe-execution RNG seeded from `(plan_id, completion_index)` (see `crafting.md §5`, deterministic save-friendly).
 - An output that fails its roll is **not produced** — no item flows to logistics, no routing constraint applies to it for that completion.
@@ -579,7 +579,7 @@ Recipe content is loaded from `assets/` at startup. `DomainSeeds.recipes` is **u
 The recipe graph is generated from `DomainSeeds.recipes` (see [`seed.md §4`](seed.md#4-domain-seed-derivation)). Generator inputs:
 
 - Curated base materials (always present)
-- Pool of alien materials, selected by seed
+- Pool of exotic materials, selected by seed
 - Pool of wildcard and concrete recipe templates
 - Machine roster (with tier ladders)
 - Bounded variance parameters (see `gdd.md §8`)

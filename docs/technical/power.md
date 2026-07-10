@@ -92,7 +92,7 @@ pub enum EnvSource {
     Thermal,                             // env_factor from local geothermal site lookup
     Lightning,                           // env_factor = 1.0, but emission is event-driven (see BurstMode)
     Wind,                                // env_factor from planet wind_factor * altitude_bonus
-    Custom(String),                      // post-VS hook for alien sources
+    Custom(String),                      // post-VS hook for exotic sources
 }
 
 pub struct BurstMode {

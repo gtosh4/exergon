@@ -303,7 +303,7 @@ saves/
 
 | Component | Description |
 |---|---|
-| `Codex` | Discovered entries (biomes, machines, materials, planet modifiers, alien organisms). Accumulated across all runs. |
+| `Codex` | Discovered entries (biomes, machines, materials, planet modifiers, exotic organisms). Accumulated across all runs. |
 | `UnlockedContent` | Meta-progression grants: run modifiers, narrative fragments, blueprint slots, starting boons pool, challenge-point balance. |
 | `Blueprints` | Layout templates (machine positions, tiers, orientations, logistics connections). No recipe data. Slot count expandable via meta-progression. |
 
