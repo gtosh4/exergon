@@ -344,7 +344,7 @@ Write the Standard escape that `escape-condition.md §7` currently defers. No ne
 Hand-verify reachability (procedural validator stays Alpha) + extend the e2e path to victory (§1, §9 #8). Per CLAUDE.md, add a matching stage to the e2e test for each new stage on the landing→victory path.
 
 - [x] `cargo run --bin assets path launch_successor` — resolves; full chain reachable in tier order, every recipe input has a producer (hand-traced via `assets uses`). `escape_synthesis` gateway chain intact.
-- [ ] Extend `tests/landing_to_first_research.rs` with stages T3 → victory (currently stops at drone scan)
+- [ ] Extend `tests/standard_full_run.rs` with stages T3 → victory (currently stops at drone scan)
 - [ ] Curated Standard run config (the fixed Standard "seed" equivalent)
 
 ## Carried-forward open flags (§9)

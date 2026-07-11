@@ -15,7 +15,7 @@ that intent in code with minimal manual play.
 | --- | --- | --- | --- |
 | System tests | `#[cfg(test)] mod tests` next to each system (e.g. `src/logistics/miner.rs`) | fastest | Test one system directly against a bare `World`/`App` — no full plugin graph. See `.claude/skills/bevy/ecs.md`. |
 | Recipe/content tests | `tests/assembler_recipe.rs`, `tests/smelter_recipe.rs` | fast | One machine + one recipe through the real logistics plugin. |
-| End-to-end run | `tests/landing_to_first_research.rs` | ~seconds | The whole vertical slice from a fixed seed: worldgen → placement → wiring → mining → analysis → research → (future) crafting → escape. |
+| End-to-end run | `tests/standard_full_run.rs` | ~seconds | The whole vertical slice from a fixed seed: worldgen → placement → wiring → mining → analysis → research → (future) crafting → escape. |
 
 The e2e test is the regression net for "a real run still completes." It is the one place the
 systems are proven to compose. **Every new gameplay stage on the landing→victory path gets a

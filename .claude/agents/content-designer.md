@@ -32,7 +32,7 @@ After every content edit:
 1. Re-run the relevant `assets` query — confirm it deserializes and prints what you intended.
 2. `cargo run -q --bin assets path escape_synthesis` — confirm the victory chain is still reachable if you touched tech nodes.
 3. `cargo run -q --bin assets uses <item>` for any new item — an item with producers but no consumers (or vice versa) is dangling; either wire it into a chain or flag it.
-4. `cargo test` — content tests and the e2e run (`tests/landing_to_first_research.rs`) must still pass. If a grind stage's `max_secs` guard trips after a balance change, the change made a stage slower — reconsider the values before raising the guard.
+4. `cargo test` — content tests and the e2e run (`tests/standard_full_run.rs`) must still pass. If a grind stage's `max_secs` guard trips after a balance change, the change made a stage slower — reconsider the values before raising the guard.
 
 ## Reporting
 

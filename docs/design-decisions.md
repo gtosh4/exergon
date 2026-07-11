@@ -155,7 +155,7 @@ Crucially, this closes the brick risk the previous model carried: because the ma
 - Miners are now placeable (`assets/machines/miner.ron`); `place_machine_system` latches a placed miner onto the nearest deposit in range, and `miner_tick_system` resolves its network via its logistics ports.
 - Building *more* of each kit machine is now supported: `make_assembler` (via `basic_processing`), `make_analysis_station` (`science_basics`), `make_miner` (`ore_extraction`, retargeted from the never-implemented `drill`/`extract_*`), and `logistics_cable_craft` / `power_cable_craft` (`logistics_basics` / `power_basics`).
 - The `iron_copper` deposit now yields `iron_ore`/`copper_ore` (the ids the recipe graph generates from the `iron`/`copper` materials × `ore` form), fixing the mined-ore-vs-recipe-input mismatch. The `xalite` deposit (`xalite`/`resonite` vs `xalite_shard`) has the same class of mismatch and is still open.
-- End-to-end coverage: `tests/landing_to_first_research.rs` drives the real placement + cable + mining + recipe + research systems from placing machines through unlocking the first node.
+- End-to-end coverage: `tests/standard_full_run.rs` drives the real placement + cable + mining + recipe + research systems from placing machines through unlocking the first node.
 
 ---
 

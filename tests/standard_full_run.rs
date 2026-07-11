@@ -1,8 +1,9 @@
-//! End-to-end integration test for a real run, exercised through the actual
-//! world-generation + placement + logistics + recipe + research + power systems from a
-//! fixed seed (not hand-built entities), driven on simulated time (see `advance_until`).
-//! Each stage below is a milestone on the landing→victory path; new stages are appended
-//! as the systems they need land (see `docs/technical/testing.md §3`).
+//! End-to-end integration test for a full Standard run — landing all the way to launching
+//! the successor vehicle — exercised through the actual world-generation + placement +
+//! logistics + recipe + research + power systems from a fixed seed (not hand-built
+//! entities), driven on simulated time (see `advance_until`). Each stage below is a
+//! milestone on the landing→victory path; new stages are appended as the systems they need
+//! land (see `docs/technical/testing.md §3`).
 //!
 //!   Stage 0: fixed seed → generate terrain + surface ore deposits → place miner, storage,
 //!            analysis station on the generated deposit → wire them → mine → analyse.
@@ -15,19 +16,26 @@
 //!   Stage 4: craft through the NetworkCraftQueue — an assembler crafts a power_cell under
 //!            power from queued ingot inputs.
 //!   Stage 5: drone scan (fog reveal in DronePilot) reveals geological activity.
-//!   Stage 6: the full Standard victory — drive the real recipe/power systems through the
-//!            whole successor tree (refining → plates → sub-assemblies → the five successor
-//!            components → 20 exotic_fuel → the 180s launch_successor on a launch_site) until
-//!            completion fires EscapeEvent / RunState::Completed, then read the accumulated
-//!            simulated Time as the "virtual time to complete the Standard run".
+//!   Stage 6: the full Standard victory — mine EVERY raw material from real surface deposits
+//!            (iron/copper/stone, aluminum, titanium, coal, fluxite/resonite/cryophase
+//!            shards) and drive the real recipe/power systems through the whole successor
+//!            tree — smelting/crushing/washing/wire-drawing the raw ore into ingots/plates/
+//!            wire/dust, refining, sub-assemblies, the five successor components, 20
+//!            exotic_fuel, and the 180s launch_successor on a launch_site — until completion
+//!            fires EscapeEvent / RunState::Completed, then read the accumulated simulated
+//!            Time as the "virtual time to complete the Standard run". Nothing refined is
+//!            injected: every ingot, shard, plate, and intermediate is produced by a real
+//!            machine from real mined ore.
 //!
 //! World generation runs through the real `WorldgenPlugin` and the real `DepositRegistry`
 //! loaded from `assets/deposits/`, so the origin chunk's deposit is placed deterministically
 //! — the run is reproducible for a fixed seed. Machines are "placed" by emitting the same
 //! `WorldObjectEvent::Placed` the input layer produces, so `place_machine_system` (port
-//! spawning, miner→deposit latching) runs for real. GLTF-derived port layouts are stubbed
-//! (headless has no renderer), and storage / generator provisioning and tech-tree unlocks
-//! are injected — data and gating, not the logic under test.
+//! spawning, miner→deposit latching) runs for real; miners for the off-origin ores are put
+//! onto the real worldgen-spawned `OreDeposit` entities located by `nearest_vein`. GLTF-
+//! derived port layouts are stubbed (headless has no renderer), and storage / generator
+//! provisioning, tech-tree unlocks, and exotic-deposit discovery events are injected — data
+//! and gating, not the logic under test.
 
 use std::time::Duration;
 
@@ -64,6 +72,10 @@ use exergon::{GameState, PlayMode};
 
 /// Fixed master seed for this run — makes terrain + deposit placement reproducible.
 const MASTER_SEED: u64 = 0xE7E6_0007;
+/// Side of a surface-deposit cell in world units — mirrors the private
+/// `content::DEPOSIT_CELL_SIZE` (each 64×64 cell maps 1:1 to a terrain chunk). Used by
+/// `nearest_vein` to walk cells and by `mine_deposit` to derive a deposit's chunk_pos.
+const DEPOSIT_CELL_SIZE: f32 = 64.0;
 const PORT_OFFSET: Vec3 = Vec3::new(1.0, 0.0, 0.0);
 /// Energy ports sit on the opposite side from logistics ports so a power cable and a
 /// logistics cable to the same machine snap to different port entities.
@@ -190,8 +202,77 @@ fn advance_until(app: &mut App, dt: f32, max_secs: f32, mut done: impl FnMut(&Ap
     panic!("advance_until: condition not met within {max_secs}s of simulated time");
 }
 
+/// Advances simulated time until a crafting/mining target is reached, then returns. A thin
+/// wrapper over `advance_until` that reads clearer at call sites sequencing the mine→smelt→
+/// form→assemble chain: "run the factory until `ready` holds". `ready` is any predicate over
+/// the app — typically "≥ N of an item sits in network storage" via `stored()`.
+fn wait_for_recipe(app: &mut App, dt: f32, max_secs: f32, ready: impl FnMut(&App) -> bool) {
+    advance_until(app, dt, max_secs, ready);
+}
+
+/// How many of `item` sit in a machine's `StorageUnit`. Used to poll mining/craft progress.
+fn stored(app: &App, storage: Entity, item: &str) -> u32 {
+    app.world()
+        .get::<StorageUnit>(storage)
+        .and_then(|s| s.items.get(item).copied())
+        .unwrap_or(0)
+}
+
+/// Locates the nearest surface deposit that yields `ore_id` among the deposits the real
+/// world generator has actually spawned around the camera, returning `(entity, world pos)`
+/// of the one closest to origin. Nothing is hand-spawned — this only reads the real
+/// `OreDeposit` entities `spawn_deposit_markers` produced for the loaded chunks (an 81-chunk
+/// area at origin, SPAWN_DIST=4, which for this seed contains every ore type). `skip_origin`
+/// excludes the (0,0) starter deposit so a caller can mine a *fresh*, un-depleted vein of the
+/// same ore (Stage 0 mines the origin deposit down over the research grind).
+fn nearest_vein(app: &mut App, ore_id: &str, skip_origin: bool) -> (Entity, Vec3) {
+    let mut q = app.world_mut().query::<(Entity, &Transform, &OreDeposit)>();
+    q.iter(app.world())
+        .filter(|(_, _, d)| !(skip_origin && d.chunk_pos == IVec2::ZERO))
+        .filter(|(_, _, d)| d.ores.iter().any(|(id, _)| id == ore_id))
+        .map(|(e, t, _)| (e, t.translation))
+        .min_by(|(_, a), (_, b)| {
+            a.length_squared()
+                .partial_cmp(&b.length_squared())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .unwrap_or_else(|| panic!("world generation produced no loaded deposit yielding {ore_id}"))
+}
+
+/// Stands up a real mining operation for `ore_id`: finds a worldgen-spawned deposit via
+/// `nearest_vein` and drops `miners` miner machines onto it — each latching to the deposit
+/// through the real `place_machine_system` path — then wires every miner's logistics port
+/// onto the shared network at `storage_pos`. Returns the deposit entity so the caller can
+/// assert extraction. Multiple miners multiply throughput on the scarce ores (copper is only
+/// ~23% of an iron_copper deposit; cryophase feeds all 20 exotic_fuel, 60 shards).
+fn mine_deposit(
+    app: &mut App,
+    ore_id: &str,
+    storage_pos: Vec3,
+    miners: usize,
+    skip_origin: bool,
+) -> Entity {
+    let (deposit_e, pos) = nearest_vein(app, ore_id, skip_origin);
+    // Place the miners (offset so their logistics ports are distinct, all within the 8.0
+    // deposit-latch range) — the real placement path latches each onto the deposit.
+    for i in 0..miners {
+        place(app, "miner", pos + Vec3::new(i as f32 * 2.0, 0.0, 0.0));
+    }
+    app.update();
+    // Wire each miner onto the shared logistics network at storage_pos.
+    for i in 0..miners {
+        connect(
+            app,
+            storage_pos + PORT_OFFSET,
+            pos + Vec3::new(i as f32 * 2.0, 0.0, 0.0) + PORT_OFFSET,
+        );
+    }
+    app.update();
+    deposit_e
+}
+
 #[test]
-fn land_generate_place_wire_mine_and_complete_first_research() {
+fn standard_run_lands_mines_and_launches_successor() {
     let mut app = build_app();
 
     // Provide a run seed the way the real game does: a Run entity carrying the
@@ -601,35 +682,41 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
         "a drone scan (fog reveal in DronePilot) must reveal geological activity"
     );
 
-    // Stage 6 — the full Standard victory: craft the successor and launch it. This is the
-    // payoff — it drives the real recipe/power systems through the whole successor tree to
+    // Stage 6 — the full Standard victory: MINE every raw material and craft the successor
+    // from scratch, then launch it. This is the payoff — it mines from real surface deposits
+    // and drives the real recipe/power systems through the whole successor tree to
     // `launch_successor` on a `launch_site`, whose completion fires `EscapeEvent` (via the
     // auto-tagged `EscapeObjective`) and sets `RunState::Completed`. We then read the
-    // accumulated simulated `Time` as "virtual time to complete the run".
+    // accumulated simulated `Time` as "virtual time to complete the run" — a number that is
+    // now meaningful because it includes real mining and smelting, not just top-tier assembly.
     //
     // What is DRIVEN for real (this is what consumes the measured virtual time):
-    //   the entire assembly tree — refining (silicon, fluxite_lattice, vitreite, exotic_fuel),
-    //   plate rolling, sub-assemblies (silicon_chip, resonite_circuit/lattice, fluxite_coil,
-    //   power_cell, the three provisioning kits), the five successor components, and the final
-    //   180s launch — each as a real queued job dispatched by `recipe_check_system` onto an
-    //   idle machine, drawing energy per tick from a generator and integrating time in
-    //   `recipe_advance_system`. Machines are `ManualCraftOnly` so *only* queued jobs run
-    //   (no auto-craft noise), making the schedule deterministic.
+    //   * MINING every raw input from a real `DepositRegistry` deposit — iron/copper/stone
+    //     from iron_copper, plus aluminum, titanium, coal, and the fluxite/resonite/cryophase
+    //     shards — via miners latched onto deposits found by `nearest_vein` (Stage 0's origin
+    //     miner covers the starter deposit; the rest get fresh off-origin veins).
+    //   * REFINING that raw ore up the tree with real machines: smelting ore→ingot, crushing
+    //     stone/aluminum, washing aluminum_crushed→dust, drawing copper wire, making circuit
+    //     boards, refining silicon/fluxite_lattice/vitreite/exotic_fuel, rolling plates, the
+    //     sub-assemblies, the five successor components, and the 180s launch — each a real
+    //     queued job dispatched by `recipe_check_system` (which scans the whole queue for the
+    //     first feasible job, so mining and crafting overlap) onto an idle machine, drawing
+    //     energy per tick and integrating time in `recipe_advance_system`. Machines are
+    //     `ManualCraftOnly` so *only* queued jobs run (no auto-craft noise) — deterministic.
     //
-    // What is INJECTED (gating / upstream we already proved, not the logic under measurement):
+    // What is INJECTED (gating / provisioning, not the logic under measurement):
     //   * tech-node/recipe unlocks (same as earlier stages) + `DiscoveryEvent`s for the exotic
     //     keys (deposit discovery is hardcoded to xalite in worldgen, so fluxite/cryophase/
-    //     derelict caches are surfaced via `DiscoveryEvent` the way real recon would).
-    //   * raw leaf materials in storage — ores/ingots/shards/wire/dust/coal/crushed_stone —
-    //     i.e. everything mining + smelting (proven in stages 1–3) would have supplied.
+    //     derelict caches are surfaced via `DiscoveryEvent` the way real recon would). Nothing
+    //     REFINED is injected — every ingot/shard/plate/wire/dust is machine-produced from ore.
     //   * generator sizing (as stage 3 provisions one) — cranked so power is genuinely drawn
-    //     every tick but never the bottleneck, so the measured time is the crafting critical path.
+    //     every tick but never the bottleneck, so the measured time is the mine+craft path.
     //
     // Content dependencies (from `assets path launch_successor` / `assets recipe <id>`):
     //   launch_successor = 1 successor_{core,chassis,drive,sensor} + 1 provisioning_module
-    //   + 20 exotic_fuel, on launch_site (tier 2), 180s / 8000 energy. If any recipe in the
-    //   tree changes machine/inputs, the driven job list or leaf provisioning below is what to
-    //   update — the milestone (RunState::Completed) stays fixed.
+    //   + 20 exotic_fuel, on launch_site (tier 2), 180s / 8000 energy. The full leaf→root job
+    //   list and per-ore mining targets below are computed from the tree; if a recipe changes
+    //   machine/inputs, update those — the milestone (RunState::Completed) stays fixed.
 
     // Exotic-material discovery gating (represents drone recon / precursor survey finds).
     for key in [
@@ -644,9 +731,21 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
     app.update();
 
     // Unlock every recipe the driven tree executes (gating is not what's under test here).
+    // Includes the raw-refining leaves now driven for real: the non-iron smelts, the ore
+    // crushers, the aluminum washer, copper wire drawing, and circuit-board assembly.
     {
         let mut progress = app.world_mut().resource_mut::<TechTreeProgress>();
         for r in [
+            // raw-material processing (mined ore → basic intermediates)
+            "smelt_metal__copper",
+            "smelt_metal__aluminum",
+            "smelt_metal__titanium",
+            "crush_stone",
+            "crush_aluminum",
+            "wash_aluminum",
+            "draw_metal__copper",
+            "make_circuit",
+            // refining + forming up to the successor components
             "refine_silicon",
             "refine_fluxite",
             "synth_vitreite",
@@ -673,10 +772,14 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
         }
     }
 
-    // Stub port layouts for the four new machine types (logistics + energy ports).
+    // Stub port layouts for the new machine types (logistics + energy ports). Adds the raw-
+    // processing machines (crusher/washer/wire_drawer) alongside the assembly-tree machines.
     {
         let mut layouts = app.world_mut().resource_mut::<MachinePortLayouts>();
         for id in [
+            "crusher",
+            "washer",
+            "wire_drawer",
             "refinery",
             "plate_roller",
             "advanced_assembler",
@@ -692,13 +795,20 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
         }
     }
 
-    // Place the machine types the tree needs (assembler tier-2 is reused from stage 4).
-    // Placement auto-assigns each its max defined tier: refinery/plate_roller=1,
-    // advanced_assembler/launch_site=2 — matching the recipes' required tiers.
-    let refinery_pos = deposit_pos + Vec3::new(24.0, 0.0, 0.0);
-    let roller_pos = deposit_pos + Vec3::new(28.0, 0.0, 0.0);
-    let adv_asm_pos = deposit_pos + Vec3::new(32.0, 0.0, 0.0);
-    let launch_pos = deposit_pos + Vec3::new(36.0, 0.0, 0.0);
+    // Place the machine types the tree needs (smelter + assembler tier-2 are reused from
+    // stages 3–4). Placement auto-assigns each its max defined tier: crusher/washer/
+    // wire_drawer/refinery/plate_roller=1, advanced_assembler/launch_site=2 — matching the
+    // recipes' required tiers.
+    let crusher_pos = deposit_pos + Vec3::new(24.0, 0.0, 0.0);
+    let washer_pos = deposit_pos + Vec3::new(28.0, 0.0, 0.0);
+    let drawer_pos = deposit_pos + Vec3::new(32.0, 0.0, 0.0);
+    let refinery_pos = deposit_pos + Vec3::new(36.0, 0.0, 0.0);
+    let roller_pos = deposit_pos + Vec3::new(40.0, 0.0, 0.0);
+    let adv_asm_pos = deposit_pos + Vec3::new(44.0, 0.0, 0.0);
+    let launch_pos = deposit_pos + Vec3::new(48.0, 0.0, 0.0);
+    place(&mut app, "crusher", crusher_pos);
+    place(&mut app, "washer", washer_pos);
+    place(&mut app, "wire_drawer", drawer_pos);
     place(&mut app, "refinery", refinery_pos);
     place(&mut app, "plate_roller", roller_pos);
     place(&mut app, "advanced_assembler", adv_asm_pos);
@@ -718,7 +828,15 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
     // Wire each new machine onto the shared logistics + power networks, and force all
     // crafting machines (incl. the stage-3/4 smelter + assembler) to ManualCraftOnly so the
     // queue is the sole scheduler — deterministic, no auto-craft consuming raw leaves.
-    for pos in [refinery_pos, roller_pos, adv_asm_pos, launch_pos] {
+    for pos in [
+        crusher_pos,
+        washer_pos,
+        drawer_pos,
+        refinery_pos,
+        roller_pos,
+        adv_asm_pos,
+        launch_pos,
+    ] {
         connect(&mut app, storage_pos + PORT_OFFSET, pos + PORT_OFFSET);
         connect_power(&mut app, generator_pos + ENERGY_OFFSET, pos + ENERGY_OFFSET);
     }
@@ -726,6 +844,9 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
     for machine in [
         smelter_e,
         assembler_e,
+        machine_entity(&mut app, "crusher"),
+        machine_entity(&mut app, "washer"),
+        machine_entity(&mut app, "wire_drawer"),
         machine_entity(&mut app, "refinery"),
         machine_entity(&mut app, "plate_roller"),
         machine_entity(&mut app, "advanced_assembler"),
@@ -746,33 +867,33 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
         generator.max_buffer_joules = 1.0e9;
     }
 
-    // Inject the raw leaf materials (mining + smelting output — proven in stages 1–3).
-    // Quantities are generous headroom over the tree's real demand.
-    {
-        let mut storage = app.world_mut().get_mut::<StorageUnit>(storage_e).unwrap();
-        for (item, qty) in [
-            ("crushed_stone", 20u32),
-            ("copper_wire", 40),
-            ("circuit_board", 20),
-            ("resonite_shard", 20),
-            ("fluxite_shard", 40),
-            ("coal", 20),
-            ("cryophase_shard", 100),
-            ("aluminum_dust", 20),
-            ("iron_ingot", 40),
-            ("copper_ingot", 20),
-            ("aluminum_ingot", 20),
-            ("titanium_ingot", 20),
-        ] {
-            *storage.items.entry(item.into()).or_insert(0) += qty;
-        }
-    }
+    // Mine every raw material for real. Each `mine_deposit` locates a fresh off-origin
+    // worldgen deposit (`nearest_vein`) and drops miners onto it wired to the shared
+    // network — the miners then feed raw ore into storage every tick for the whole run, so
+    // the queue's smelt/crush/wash/draw jobs become feasible as ore arrives (mining and
+    // crafting overlap). Miner counts scale with the tree's per-ore demand and each ore's
+    // deposit weight (from `assets recipe`/deposit RON): iron_copper is the scarce-copper
+    // source (~23% copper), and cryophase feeds all 20 exotic_fuel (60 shards).
+    //   iron_copper → iron_ore(10) + copper_ore(18) + stone(8);  aluminum_ore(10),
+    //   titanium_ore(2), coal(4), fluxite_shard(8), resonite_shard(4), cryophase_shard(60).
+    // iron/copper/stone: mine a FRESH off-origin iron_copper vein (the origin deposit is
+    // depleted from the Stage 1–2 research grind) — Stage 0's origin miner also keeps running.
+    let iron_copper_deposit = mine_deposit(&mut app, "copper_ore", storage_pos, 4, true);
+    mine_deposit(&mut app, "aluminum_ore", storage_pos, 2, false);
+    mine_deposit(&mut app, "titanium_ore", storage_pos, 1, false);
+    mine_deposit(&mut app, "coal", storage_pos, 1, false);
+    mine_deposit(&mut app, "fluxite_shard", storage_pos, 2, false);
+    mine_deposit(&mut app, "resonite_shard", storage_pos, 2, false);
+    let cryophase_deposit = mine_deposit(&mut app, "cryophase_shard", storage_pos, 3, false);
 
-    // Enqueue the full driven job list, leaves→root. `launch_successor` has no output item so
-    // it cannot be resolved by `enqueue_item`; we push explicit `QueuedJob`s (topological
-    // order is a hint — `recipe_check_system` gates each on real input feasibility). Job
-    // multiplicities cover the tree: 4 silicon, 4 fluxite_lattice, 2 vitreite, 6 iron/alu
-    // plate + 3 titanium plate, the sub-assemblies, 5 components, 20 exotic_fuel, 1 launch.
+    // Enqueue the full driven job list, leaves→root, starting from the mined ore. We push
+    // explicit `QueuedJob`s (`launch_successor` has no output item so `enqueue_item` can't
+    // resolve it); the order is only a hint — `recipe_check_system` scans the whole queue and
+    // gates each job on real input feasibility, so leaf jobs fire as mined ore arrives and
+    // upper jobs fire as their intermediates are produced. Multiplicities are the exact tree
+    // demand (mass-balanced): e.g. 18 copper smelts → 17 copper_wire draws + 1 power_cell;
+    // 8 crush_stone → 4 silicon; 60 cryophase (mined) → 20 exotic_fuel. See the per-recipe
+    // arithmetic in `assets recipe <id>`.
     let craft_net = net_of(&mut app, storage_e);
     {
         let mut queue = app
@@ -786,12 +907,25 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
                 });
             }
         };
+        // Raw ore → basic intermediates (smelt / crush / wash / draw / circuit).
+        push("crush_stone", 8);
+        push("crush_aluminum", 6);
+        push("smelt_metal__iron", 10);
+        push("smelt_metal__copper", 18);
+        push("smelt_metal__aluminum", 4);
+        push("smelt_metal__titanium", 2);
+        push("draw_metal__copper", 17);
+        push("wash_aluminum", 2);
+        push("make_circuit", 4);
+        // Refining + rolling (kept ahead of exotic_fuel so the single refinery works the
+        // shorter jobs first, then churns the 20× exotic_fuel while cryophase is mined).
         push("refine_silicon", 4);
         push("refine_fluxite", 4);
         push("synth_vitreite", 2);
         push("roll_iron_plate", 2);
         push("roll_aluminum_plate", 2);
         push("roll_titanium_plate", 1);
+        // Sub-assemblies.
         push("form_silicon_chip", 4);
         push("make_resonite_circuit", 2);
         push("form_resonite_lattice", 1);
@@ -800,12 +934,13 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
         push("make_miner_kit", 1);
         push("make_generator_kit", 1);
         push("make_assembler_kit", 1);
+        // Exotic fuel (long serial pole) then the five components and the launch.
+        push("refine_exotic_fuel__raw", 20);
         push("make_successor_core", 1);
         push("make_successor_sensor", 1);
         push("make_successor_chassis", 1);
         push("make_successor_drive", 1);
         push("make_provisioning_module", 1);
-        push("refine_exotic_fuel__raw", 20);
         push("launch_successor", 1);
     }
 
@@ -829,6 +964,26 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
     assert!(
         launch_ran.get(),
         "launch_site must actually run the launch_successor recipe (not just be granted the win)"
+    );
+    // The victory must have been fed by REAL mining, not injected refined items. The
+    // cryophase deposit alone supplies all 60 shards for the 20 exotic_fuel, and the fresh
+    // iron_copper vein supplies the copper/iron: assert both were extracted from for real.
+    let extracted = |app: &App, deposit: Entity| -> f32 {
+        app.world()
+            .get::<OreDeposit>(deposit)
+            .map(|d| d.total_extracted)
+            .unwrap_or(0.0)
+    };
+    assert!(
+        extracted(&app, cryophase_deposit) >= 60.0,
+        "cryophase deposit must have been mined for ≥60 shards (the 20 exotic_fuel), \
+         got {}",
+        extracted(&app, cryophase_deposit)
+    );
+    assert!(
+        extracted(&app, iron_copper_deposit) >= 18.0,
+        "fresh iron_copper vein must have been mined for real to feed the smelters, got {}",
+        extracted(&app, iron_copper_deposit)
     );
     assert_eq!(
         *app.world().resource::<RunState>(),

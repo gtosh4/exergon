@@ -31,7 +31,7 @@ Query the game's RON assets (recipes, tech nodes) with the `assets` CLI instead 
 `cargo run -q --bin assets recipe|recipes|tech|techs|path <node>|uses <item>`. See [testing.md](docs/technical/testing.md) §4.
 
 ## Verifying gameplay in tests
-The landing→victory path is regression-tested end-to-end in `tests/landing_to_first_research.rs`, which fast-forwards simulated time (no manual play). **When you implement a new stage on that path (research tier, crafting step, exploration unlock, escape), add a matching stage to that test.** See [testing.md](docs/technical/testing.md) §3 for the step-by-step recipe. This keeps the dev loop at `cargo test`.
+The landing→victory path is regression-tested end-to-end in `tests/standard_full_run.rs`, which fast-forwards simulated time (no manual play). **When you implement a new stage on that path (research tier, crafting step, exploration unlock, escape), add a matching stage to that test.** See [testing.md](docs/technical/testing.md) §3 for the step-by-step recipe. This keeps the dev loop at `cargo test`.
 
 ## Development
 Exergon is in very early development and is a solo-developer effort for now. Thus, don't use remote branches / PRs. Local branches are okay if necessary, but development is mostly single-threaded so they aren't needed by default.

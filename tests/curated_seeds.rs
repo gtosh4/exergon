@@ -9,7 +9,7 @@
 //! simulated time (see `advance_until`) — no hand-poked internal state — so a pass means
 //! the real systems carried that seed to first insight.
 //!
-//! This mirrors Stage 0–1b of `landing_to_first_research.rs` (see that file for the
+//! This mirrors Stage 0–1b of `standard_full_run.rs` (see that file for the
 //! full-fidelity walkthrough); here the same milestone is swept across all curated seeds.
 
 use std::time::Duration;
