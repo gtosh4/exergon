@@ -15,11 +15,11 @@
 //!   Stage 4: craft through the NetworkCraftQueue — an assembler crafts a power_cell under
 //!            power from queued ingot inputs.
 //!   Stage 5: drone scan (fog reveal in DronePilot) reveals geological activity.
-//!
-//! The victory chain past stage 4 (xalite→resonite→gateway_key→escape) is currently
-//! blocked on unauthored content (exotic-form processing template + a coal source), so the
-//! test stops at the reachable frontier. Add the exploration/crafting/escape stages when
-//! that content lands.
+//!   Stage 6: the full Standard victory — drive the real recipe/power systems through the
+//!            whole successor tree (refining → plates → sub-assemblies → the five successor
+//!            components → 20 exotic_fuel → the 180s launch_successor on a launch_site) until
+//!            completion fires EscapeEvent / RunState::Completed, then read the accumulated
+//!            simulated Time as the "virtual time to complete the Standard run".
 //!
 //! World generation runs through the real `WorldgenPlugin` and the real `DepositRegistry`
 //! loaded from `assets/deposits/`, so the origin chunk's deposit is placed deterministically
@@ -40,17 +40,21 @@ use bevy::world_serialization::WorldAsset;
 
 use exergon::content::ContentPlugin;
 use exergon::drone::FogCellRevealedEvent;
+use exergon::escape::{EscapeObjective, EscapePlugin, RunState};
 use exergon::logistics::{
-    LogisticsNetworkMember, LogisticsSimPlugin, ManualCraftTrigger, NetworkCraftQueue, StorageUnit,
+    LogisticsNetworkMember, LogisticsSimPlugin, ManualCraftTrigger, NetworkCraftQueue, QueuedJob,
+    StorageUnit,
 };
 use exergon::machine::{
     EnvSource, Machine, MachinePlugin, MachinePortLayout, MachinePortLayouts, MachineState,
-    MinerMachine,
+    ManualCraftOnly, MinerMachine,
 };
 use exergon::planet::{Planet, PlanetPlugin, PlanetPropertyVisibility, PropertyVisibility};
 use exergon::power::{GeneratorUnit, PowerPlugin};
 use exergon::recipe_graph::{RecipeGraph, RecipeGraphPlugin};
-use exergon::research::{ResearchPlugin, ResearchPool, TechTreeProgress, UnlockNodeRequest};
+use exergon::research::{
+    DiscoveryEvent, ResearchPlugin, ResearchPool, TechTreeProgress, UnlockNodeRequest,
+};
 use exergon::seed::DomainSeeds;
 use exergon::tech_tree::TechTreePlugin;
 use exergon::world::{
@@ -85,6 +89,9 @@ fn build_app() -> App {
         // Fog reveal events come from DronePlugin in the real game; it is not in this
         // headless test (avian physics), so register the message the reveal system reads.
         .add_message::<FogCellRevealedEvent>()
+        // EscapePlugin writes RunEndEvent (normally registered by SavePlugin, which we omit
+        // here to avoid its persistence deps); register the message it needs directly.
+        .add_message::<exergon::save::RunEndEvent>()
         .init_state::<GameState>()
         .add_sub_state::<PlayMode>()
         .add_plugins((
@@ -97,6 +104,7 @@ fn build_app() -> App {
             PowerPlugin,
             ResearchPlugin,
             PlanetPlugin,
+            EscapePlugin,
         ));
     app
 }
@@ -591,5 +599,247 @@ fn land_generate_place_wire_mine_and_complete_first_research() {
         planet_vis(&mut app).geological_activity,
         PropertyVisibility::Qualitative,
         "a drone scan (fog reveal in DronePilot) must reveal geological activity"
+    );
+
+    // Stage 6 — the full Standard victory: craft the successor and launch it. This is the
+    // payoff — it drives the real recipe/power systems through the whole successor tree to
+    // `launch_successor` on a `launch_site`, whose completion fires `EscapeEvent` (via the
+    // auto-tagged `EscapeObjective`) and sets `RunState::Completed`. We then read the
+    // accumulated simulated `Time` as "virtual time to complete the run".
+    //
+    // What is DRIVEN for real (this is what consumes the measured virtual time):
+    //   the entire assembly tree — refining (silicon, fluxite_lattice, vitreite, exotic_fuel),
+    //   plate rolling, sub-assemblies (silicon_chip, resonite_circuit/lattice, fluxite_coil,
+    //   power_cell, the three provisioning kits), the five successor components, and the final
+    //   180s launch — each as a real queued job dispatched by `recipe_check_system` onto an
+    //   idle machine, drawing energy per tick from a generator and integrating time in
+    //   `recipe_advance_system`. Machines are `ManualCraftOnly` so *only* queued jobs run
+    //   (no auto-craft noise), making the schedule deterministic.
+    //
+    // What is INJECTED (gating / upstream we already proved, not the logic under measurement):
+    //   * tech-node/recipe unlocks (same as earlier stages) + `DiscoveryEvent`s for the exotic
+    //     keys (deposit discovery is hardcoded to xalite in worldgen, so fluxite/cryophase/
+    //     derelict caches are surfaced via `DiscoveryEvent` the way real recon would).
+    //   * raw leaf materials in storage — ores/ingots/shards/wire/dust/coal/crushed_stone —
+    //     i.e. everything mining + smelting (proven in stages 1–3) would have supplied.
+    //   * generator sizing (as stage 3 provisions one) — cranked so power is genuinely drawn
+    //     every tick but never the bottleneck, so the measured time is the crafting critical path.
+    //
+    // Content dependencies (from `assets path launch_successor` / `assets recipe <id>`):
+    //   launch_successor = 1 successor_{core,chassis,drive,sensor} + 1 provisioning_module
+    //   + 20 exotic_fuel, on launch_site (tier 2), 180s / 8000 energy. If any recipe in the
+    //   tree changes machine/inputs, the driven job list or leaf provisioning below is what to
+    //   update — the milestone (RunState::Completed) stays fixed.
+
+    // Exotic-material discovery gating (represents drone recon / precursor survey finds).
+    for key in [
+        "xalite_deposit",
+        "fluxite_relic_cache",
+        "cryophase_deposit",
+        "derelict_ship",
+    ] {
+        app.world_mut()
+            .write_message(DiscoveryEvent(key.to_string()));
+    }
+    app.update();
+
+    // Unlock every recipe the driven tree executes (gating is not what's under test here).
+    {
+        let mut progress = app.world_mut().resource_mut::<TechTreeProgress>();
+        for r in [
+            "refine_silicon",
+            "refine_fluxite",
+            "synth_vitreite",
+            "refine_exotic_fuel__raw",
+            "roll_iron_plate",
+            "roll_aluminum_plate",
+            "roll_titanium_plate",
+            "form_silicon_chip",
+            "make_resonite_circuit",
+            "form_resonite_lattice",
+            "make_fluxite_coil",
+            "make_power_cell",
+            "make_miner_kit",
+            "make_generator_kit",
+            "make_assembler_kit",
+            "make_successor_core",
+            "make_successor_chassis",
+            "make_successor_drive",
+            "make_successor_sensor",
+            "make_provisioning_module",
+            "launch_successor",
+        ] {
+            progress.unlocked_recipes.insert(r.to_string());
+        }
+    }
+
+    // Stub port layouts for the four new machine types (logistics + energy ports).
+    {
+        let mut layouts = app.world_mut().resource_mut::<MachinePortLayouts>();
+        for id in [
+            "refinery",
+            "plate_roller",
+            "advanced_assembler",
+            "launch_site",
+        ] {
+            layouts.by_machine.insert(
+                id.to_string(),
+                MachinePortLayout {
+                    energy: vec![ENERGY_OFFSET],
+                    logistics: vec![PORT_OFFSET],
+                },
+            );
+        }
+    }
+
+    // Place the machine types the tree needs (assembler tier-2 is reused from stage 4).
+    // Placement auto-assigns each its max defined tier: refinery/plate_roller=1,
+    // advanced_assembler/launch_site=2 — matching the recipes' required tiers.
+    let refinery_pos = deposit_pos + Vec3::new(24.0, 0.0, 0.0);
+    let roller_pos = deposit_pos + Vec3::new(28.0, 0.0, 0.0);
+    let adv_asm_pos = deposit_pos + Vec3::new(32.0, 0.0, 0.0);
+    let launch_pos = deposit_pos + Vec3::new(36.0, 0.0, 0.0);
+    place(&mut app, "refinery", refinery_pos);
+    place(&mut app, "plate_roller", roller_pos);
+    place(&mut app, "advanced_assembler", adv_asm_pos);
+    place(&mut app, "launch_site", launch_pos);
+    app.update();
+    // tag_escape_machines_system observes `Added<Machine>` the frame after the placement
+    // command flushes — one more update lets it tag the launch_site.
+    app.update();
+
+    // The placed launch_site must have been auto-tagged as the escape objective.
+    let launch_e = machine_entity(&mut app, "launch_site");
+    assert!(
+        app.world().get::<EscapeObjective>(launch_e).is_some(),
+        "a placed launch_site must be tagged EscapeObjective so its recipe fires the win"
+    );
+
+    // Wire each new machine onto the shared logistics + power networks, and force all
+    // crafting machines (incl. the stage-3/4 smelter + assembler) to ManualCraftOnly so the
+    // queue is the sole scheduler — deterministic, no auto-craft consuming raw leaves.
+    for pos in [refinery_pos, roller_pos, adv_asm_pos, launch_pos] {
+        connect(&mut app, storage_pos + PORT_OFFSET, pos + PORT_OFFSET);
+        connect_power(&mut app, generator_pos + ENERGY_OFFSET, pos + ENERGY_OFFSET);
+    }
+    app.update();
+    for machine in [
+        smelter_e,
+        assembler_e,
+        machine_entity(&mut app, "refinery"),
+        machine_entity(&mut app, "plate_roller"),
+        machine_entity(&mut app, "advanced_assembler"),
+        launch_e,
+    ] {
+        app.world_mut().entity_mut(machine).insert(ManualCraftOnly);
+    }
+
+    // Size the generator so 8000-energy launch + the whole tree never stalls on power (power
+    // is still drawn every tick — this just makes crafting time, not charging, the bottleneck).
+    {
+        let mut generator = app
+            .world_mut()
+            .get_mut::<GeneratorUnit>(generator_e)
+            .unwrap();
+        generator.watts = 1.0e7;
+        generator.buffer_joules = 1.0e8;
+        generator.max_buffer_joules = 1.0e9;
+    }
+
+    // Inject the raw leaf materials (mining + smelting output — proven in stages 1–3).
+    // Quantities are generous headroom over the tree's real demand.
+    {
+        let mut storage = app.world_mut().get_mut::<StorageUnit>(storage_e).unwrap();
+        for (item, qty) in [
+            ("crushed_stone", 20u32),
+            ("copper_wire", 40),
+            ("circuit_board", 20),
+            ("resonite_shard", 20),
+            ("fluxite_shard", 40),
+            ("coal", 20),
+            ("cryophase_shard", 100),
+            ("aluminum_dust", 20),
+            ("iron_ingot", 40),
+            ("copper_ingot", 20),
+            ("aluminum_ingot", 20),
+            ("titanium_ingot", 20),
+        ] {
+            *storage.items.entry(item.into()).or_insert(0) += qty;
+        }
+    }
+
+    // Enqueue the full driven job list, leaves→root. `launch_successor` has no output item so
+    // it cannot be resolved by `enqueue_item`; we push explicit `QueuedJob`s (topological
+    // order is a hint — `recipe_check_system` gates each on real input feasibility). Job
+    // multiplicities cover the tree: 4 silicon, 4 fluxite_lattice, 2 vitreite, 6 iron/alu
+    // plate + 3 titanium plate, the sub-assemblies, 5 components, 20 exotic_fuel, 1 launch.
+    let craft_net = net_of(&mut app, storage_e);
+    {
+        let mut queue = app
+            .world_mut()
+            .get_mut::<NetworkCraftQueue>(craft_net)
+            .expect("logistics network carries a craft queue");
+        let mut push = |recipe: &str, n: usize| {
+            for _ in 0..n {
+                queue.jobs.push_back(QueuedJob {
+                    recipe_id: recipe.to_string(),
+                });
+            }
+        };
+        push("refine_silicon", 4);
+        push("refine_fluxite", 4);
+        push("synth_vitreite", 2);
+        push("roll_iron_plate", 2);
+        push("roll_aluminum_plate", 2);
+        push("roll_titanium_plate", 1);
+        push("form_silicon_chip", 4);
+        push("make_resonite_circuit", 2);
+        push("form_resonite_lattice", 1);
+        push("make_fluxite_coil", 2);
+        push("make_power_cell", 1);
+        push("make_miner_kit", 1);
+        push("make_generator_kit", 1);
+        push("make_assembler_kit", 1);
+        push("make_successor_core", 1);
+        push("make_successor_sensor", 1);
+        push("make_successor_chassis", 1);
+        push("make_successor_drive", 1);
+        push("make_provisioning_module", 1);
+        push("refine_exotic_fuel__raw", 20);
+        push("launch_successor", 1);
+    }
+
+    // Drive real time until the run completes. dt=0.5 is below the shortest recipe (6s roll)
+    // so no recipe edge is skipped. The critical path is dominated by the single refinery's
+    // 20× exotic_fuel (~600s) plus the 180s launch, so 6000s is ample headroom.
+    let launch_ran = std::cell::Cell::new(false);
+    advance_until(&mut app, 0.5, 6_000.0, |app| {
+        if app.world().get::<MachineState>(launch_e).copied() == Some(MachineState::Running) {
+            launch_ran.set(true);
+        }
+        *app.world().resource::<RunState>() == RunState::Completed
+    });
+
+    let virtual_secs = app.world().resource::<Time>().elapsed_secs();
+    let virtual_hours = virtual_secs / 3600.0;
+    println!(
+        "\n=== Standard run complete: virtual time to victory = {virtual_secs:.1}s ({virtual_hours:.2}h) ===\n"
+    );
+
+    assert!(
+        launch_ran.get(),
+        "launch_site must actually run the launch_successor recipe (not just be granted the win)"
+    );
+    assert_eq!(
+        *app.world().resource::<RunState>(),
+        RunState::Completed,
+        "completing launch_successor on the launch_site must set RunState::Completed \
+         (measured virtual time to victory = {virtual_secs:.1}s / {virtual_hours:.2}h)"
+    );
+    // Sanity bound only (the number itself is unvalidated content balance): a real run's
+    // crafting critical path is well under a simulated day but not trivially instant.
+    assert!(
+        (100.0..86_400.0).contains(&virtual_secs),
+        "virtual time to victory {virtual_secs:.1}s outside the sane [100s, 24h) bound"
     );
 }
