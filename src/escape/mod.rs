@@ -3,6 +3,7 @@ use bevy::prelude::*;
 
 use crate::GameState;
 use crate::logistics::JobComplete;
+use crate::machine::Machine;
 use crate::planet::PlanetProperties;
 use crate::research::{DiscoveryEvent, TechTreeProgress};
 use crate::save::{Run, RunEndEvent, RunSaveHeader, RunStatus};
@@ -59,6 +60,7 @@ impl Plugin for EscapePlugin {
             .add_systems(
                 Update,
                 (
+                    tag_escape_machines_system,
                     escape_objective_system,
                     on_escape_system,
                     spawn_escape_vfx.run_if(resource_added::<EscapeSequence>),
@@ -81,6 +83,24 @@ fn escape_objective_system(
             escape_events.write(EscapeEvent {
                 escape_time_secs: time.elapsed_secs(),
             });
+        }
+    }
+}
+
+/// Content-defined machine types that are escape objectives. A player-placed escape
+/// structure gets the `EscapeObjective` marker here; the run-generated gateway gets it
+/// at spawn (`world::ruins`). Keeps escape completion real for the launch site (VS §8).
+const ESCAPE_MACHINE_TYPES: &[&str] = &["launch_site"];
+
+/// Tag a newly-placed escape-structure machine with `EscapeObjective` so its recipe
+/// completion fires the win, exactly like the run-generated gateway.
+fn tag_escape_machines_system(
+    mut commands: Commands,
+    q: Query<(Entity, &Machine), (Added<Machine>, Without<EscapeObjective>)>,
+) {
+    for (entity, machine) in &q {
+        if ESCAPE_MACHINE_TYPES.contains(&machine.machine_type.as_str()) {
+            commands.entity(entity).insert(EscapeObjective);
         }
     }
 }
@@ -219,6 +239,41 @@ mod tests {
                 (escape_objective_system, count_escape_events).chain(),
             );
         app
+    }
+
+    fn escape_machine(machine_type: &str) -> Machine {
+        use crate::machine::{Mirror, Orientation, Rotation};
+        Machine {
+            machine_type: machine_type.to_string(),
+            tier: 2,
+            orientation: Orientation {
+                rotation: Rotation::North,
+                mirror: Mirror::Normal,
+            },
+            energy_ports: vec![],
+            logistics_ports: vec![],
+        }
+    }
+
+    #[test]
+    fn launch_site_machine_gets_escape_objective() {
+        let mut app = App::new();
+        app.add_systems(Update, tag_escape_machines_system);
+        let e = app.world_mut().spawn(escape_machine("launch_site")).id();
+        app.update();
+        assert!(
+            app.world().get::<EscapeObjective>(e).is_some(),
+            "placed launch_site must become an escape objective"
+        );
+    }
+
+    #[test]
+    fn ordinary_machine_gets_no_escape_objective() {
+        let mut app = App::new();
+        app.add_systems(Update, tag_escape_machines_system);
+        let e = app.world_mut().spawn(escape_machine("smelter")).id();
+        app.update();
+        assert!(app.world().get::<EscapeObjective>(e).is_none());
     }
 
     #[test]

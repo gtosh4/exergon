@@ -224,7 +224,9 @@ One entry per module slot defined in `MachineDef.module_slots` for the current t
 | Speed modifier | `MachineModifierState.speed_multiplier` (aggregate across all installed modules) |
 | Efficiency modifier | `MachineModifierState.efficiency_multiplier` |
 
-Empty slots show a placeholder with the slot kind (speed / efficiency / parallel).
+Empty slots show a placeholder with the slot kind (speed / efficiency / parallel / **config**).
+
+**Config slot kind.** A config module sets the machine's `MachineConfig` and thereby gates *which* recipes it can run (hard capability gate — see `crafting.md §3, §7`), unlike speed/efficiency modules which only alter execution rate. Editing a config slot follows the module snap system and requires all slots idle; the recipe table (§5) re-populates from the config-narrowed `MachineCapability.capable` when config changes. *(Follow-up: surfacing recipes that are unlocked but config-gated as a distinct "needs config X" row is a UX improvement to spec later.)*
 
 ### 4.5 Port binding section
 

@@ -292,6 +292,7 @@ pub struct ConcreteRecipe {
     pub min_voltage_tier: u8,                  // minimum network voltage tier; independent of machine_tier
     pub processing_time:  f32,                 // seconds at base speed
     pub energy_cost:      f32,                 // joules per completion
+    pub required_config:  Vec<ConfigReq>,      // machine config gate; empty = config-agnostic (types + semantics in crafting.md §3)
     pub tags:             HashSet<RecipeTag>,  // free-form recipe tags; "recycle" is a reserved tag (see §8)
 }
 ```

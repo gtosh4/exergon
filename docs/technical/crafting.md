@@ -210,7 +210,52 @@ pub struct MachineCapability {
 
 The dispatcher reads `MachineCapability` directly; it does not re-query `RecipeGraph` and `TechTreeProgress` per dispatch cycle.
 
-> **Planned — config-dedication gate (design-decisions.md 2026-07-10).** `capable` will be further narrowed by the machine's physical **config**: `capable = (type+tier ∩ unlocked_recipes) ∩ config-satisfied`, where a recipe declares `required_config` and the machine provides config via a derived `MachineConfig` component (§7). This makes a machine dedicated to a subset of its type's recipes (GTNH-style), so distinct configs must be built as distinct instances — the machine-side factory-scale lever. `machine_capability_register_system` then also recomputes on module/config change, not only on `TechNodeUnlocked` + placement. Dispatch (§8) is unchanged — it reads the narrowed set. Config source is **resolved: config modules** — durable, tech-gated items installed in the module system (§7). Axis model resolved: **both** (categorical `==` and ordered `≥`). All sub-decisions resolved — this section can now be specced formally.
+### Config gate — `required_config` + `MachineConfig`
+
+`capable` is further narrowed by the machine's physical **config**, so one machine is dedicated to a subset of its type's recipes (design intent: `gdd.md §10` Machine dedication; rationale: `design-decisions.md 2026-07-10`). Config is provided by installed **config modules** (§7).
+
+```rust
+/// One configuration axis' value. Shared by machine (provided) and recipe (required).
+pub enum ConfigValue {
+    Key(String),   // categorical axis, e.g. bed_type = "acidic"
+    Level(u8),     // ordered axis,     e.g. coil_tier = 3
+}
+
+/// Derived component — the config a machine currently provides, aggregated from its
+/// installed config modules by `module_effect_system` (§7). ≤1 entry per axis.
+#[derive(Component, Default)]
+pub struct MachineConfig {
+    pub axes: HashMap<String, ConfigValue>,   // axis id → provided value
+}
+
+/// A recipe's requirement on one axis. `ConcreteRecipe.required_config: Vec<ConfigReq>`
+/// (canonical struct in `recipe-graph.md §3`); empty = config-agnostic (the common case).
+pub struct ConfigReq {
+    pub axis: String,
+    pub req:  ConfigReqKind,
+}
+
+pub enum ConfigReqKind {
+    Exact(String),   // categorical: provided value must be Key(==)
+    AtLeast(u8),     // ordered:     provided value must be Level(>=)
+}
+```
+
+**Satisfaction** — a `MachineConfig` satisfies a recipe iff *every* `ConfigReq` in `required_config` holds:
+
+| `ConfigReqKind` | Satisfied iff |
+|---|---|
+| `Exact(k)`   | `axes.get(axis) == Some(Key(k))` |
+| `AtLeast(n)` | `axes.get(axis) == Some(Level(m))` and `m >= n` |
+| *(axis absent from `axes`)* | never — a missing axis fails the requirement |
+
+Config-agnostic recipes (`required_config` empty) are satisfied by any machine; most recipes are agnostic — config requirements are authored only on the workhorse recipe families per archetype (granularity knob, `design-decisions.md`). The narrowed set is therefore:
+
+```
+capable = { r ∈ by_machine[(type, ≤tier)] ∩ unlocked_recipes | MachineConfig satisfies r.required_config }
+```
+
+Filtering happens once, here — dispatch (§8) and passive selection (§4) both read `capable` and need no config awareness. A recipe gated out only by config (unlocked but config-mismatched) is absent from `capable`; installing the matching config module re-adds it (see `machine_capability_register_system`, §8).
 
 ---
 
@@ -365,7 +410,25 @@ If `available < required_quantity`, the job blocks (`RecipeBlockedCatalysts`). I
 
 Module attachment and slot snap detection are specified in the module system doc. This section covers only the runtime effects on `RecipeProcessor`.
 
-> **Planned — config module class (design-decisions.md 2026-07-10).** In addition to the speed/efficiency/parallel modules below (which only *multiply* execution), a **config module class** will gate *which recipes a machine can run at all*. A machine's installed config is aggregated into a derived `MachineConfig` component (recomputed on attach/detach, mirroring `MachineModifierState`); recipes declare `required_config`; §3's capability filter keeps only config-satisfied recipes. A config swap requires all slots idle (same constraint as the parallel-slot module). This is a hard gate, distinct from the soft `category_filter` policy (`machine-ui §3`). Config modules are **durable installed items** — crafted, tech-tree-unlocked, and removable, **not consumed per recipe** — so a config class is gated and costed like any other item (double-gate: recipe unlocked *and* config module installed). Axis model resolved: **both** (categorical `==` and ordered `≥`). All sub-decisions resolved; ready to spec.
+### Config modules
+
+A distinct module **class** from the speed/efficiency/parallel modules below. Config modules do not multiply execution — they set `MachineConfig` (§3), gating *which* recipes the machine can run. This is the machine-side factory-scale lever (`design-decisions.md 2026-07-10`): dedicated instances recombined into lines. A config gate is **hard**, distinct from the soft `category_filter` policy (`machine-ui §3`).
+
+```rust
+/// Content definition for a config module item. Declares the single axis+value it provides.
+pub struct ConfigModuleDef {
+    pub axis:  String,        // "bed_type", "coil_tier"
+    pub value: ConfigValue,   // Key("acidic") | Level(3)  — see §3
+}
+```
+
+Config modules are ordinary items — crafted, tech-tree-unlocked, carrying their own cost — so a config class is gated like any other content. This yields the **double-gate**: a recipe runs only when it is unlocked *and* the machine holds the matching config module. They are **durable fittings**: installed into a config slot, removable, and **not consumed per recipe** (unlike catalyst inputs, §6).
+
+**Slots.** `MachineDef.module_slots` (`machine-ui §4.4`) gains a **config** slot kind alongside speed/efficiency/parallel; a config module snaps only into a config slot. Slot count scales with tier, so higher-tier machines hold more config axes at once (multi-config) — the sprawl-early / consolidate-late progression. Invariant: **at most one config module per axis**; the snap system rejects a second module for an already-configured axis (to change an axis, incl. an ordered upgrade, remove the current module then install the new one).
+
+**Effect.** `module_effect_system` (which already recomputes `MachineModifierState`) also rebuilds `MachineConfig` from the installed config modules — `axes = { def.axis → def.value }` — and, when the config-module set changed, emits `MachineConfigChanged { machine }`. That triggers `machine_capability_register_system` (§8) to re-narrow `capable` for the one machine.
+
+**Changeover.** A config module may be attached or detached only while **all slots are idle** (`SlotState::Idle`) — same rule as the parallel-slot module, because a running recipe may depend on the current config. Speed/efficiency modules are not subject to this constraint.
 
 ### Parallel slot module
 
@@ -453,7 +516,7 @@ Step by step:
 
 **System:** `machine_capability_register_system`
 
-**Trigger:** `TechNodeUnlocked { node }` and machine entity creation.
+**Trigger:** `TechNodeUnlocked { node }`, `MachineConfigChanged { machine }`, and machine entity creation.
 
 Step by step:
 
@@ -461,10 +524,11 @@ Step by step:
    a. Read machine type and tier.
    b. Query `RecipeGraph.by_machine` for `(type, tier)` and all lower tiers of the same type.
    c. Intersect with `TechTreeProgress.unlocked_recipes`.
-   d. Write result to `MachineCapability.capable`.
+   d. **Config filter** — retain only recipes whose `required_config` is satisfied by the machine's `MachineConfig` (§3). Config-agnostic recipes (empty `required_config`) always pass.
+   e. Write result to `MachineCapability.capable`.
 2. Emit `MachineCapabilityUpdated { machine }`.
 
-On `TechNodeUnlocked`, re-run for all machines of the types affected by the newly unlocked node — not all machines.
+On `TechNodeUnlocked`, re-run for all machines of the types affected by the newly unlocked node — not all machines. On `MachineConfigChanged { machine }`, re-run for that one machine only (its installed config changed).
 
 ### Plan cancellation
 
@@ -510,7 +574,7 @@ Step by step:
 | System | Trigger | Purpose |
 |---|---|---|
 | `crafting_plan_resolver_system` | `RequestCraft` | Walk recipe graph; spawn plan + job entities |
-| `machine_capability_register_system` | Machine placed, `TechNodeUnlocked` | Rebuild `MachineCapability` for affected machines |
+| `machine_capability_register_system` | Machine placed, `TechNodeUnlocked`, `MachineConfigChanged` | Rebuild `MachineCapability` for affected machines (type+tier ∩ unlocked ∩ config-satisfied) |
 | `job_dispatcher_system` | `MachineSlotIdle`, `JobQueued` | Assign queued jobs to idle machine slots |
 | `recipe_start_system` | `JobDispatched`, `PassiveRecipeStart` | Check power/inputs/catalysts; consume inputs; release plan output reservations; reserve catalysts; start slot |
 | `recipe_progress_system` | Every tick | Advance progress on running slots; withdraw power |
@@ -518,7 +582,7 @@ Step by step:
 | `job_prerequisite_system` | `JobComplete` | Unblock dependent jobs; reserve plan outputs; emit `JobQueued` |
 | `plan_cancellation_system` | `CancelCraftingPlan` | Release reservations; despawn non-InProgress jobs; despawn plan |
 | `passive_recipe_system` | `MachineSlotIdle`, `NetworkStorageChanged` (passive-mode machines) | Start PassiveLoop/PassiveOnce recipe without job dispatch |
-| `module_effect_system` | Module attached/detached | Recompute `MachineModifierState` |
+| `module_effect_system` | Module attached/detached | Recompute `MachineModifierState` and `MachineConfig`; emit `MachineConfigChanged` when config modules change |
 
 ---
 
@@ -535,6 +599,7 @@ Step by step:
 | `JobComplete` | `job, machine, slot` | `recipe_completion_system` |
 | `MachineSlotIdle` | `machine, slot` | `recipe_completion_system` |
 | `MachineCapabilityUpdated` | `machine: Entity` | `machine_capability_register_system` |
+| `MachineConfigChanged` | `machine: Entity` | `module_effect_system` (config module attached/detached) |
 | `RecipeStarted` | `machine, slot, recipe_id` | `recipe_start_system` |
 | `RecipeBlockedVoltage` | `machine, slot` | `recipe_start_system` |
 | `RecipeBlockedAmps` | `machine, slot` | `recipe_start_system` |
@@ -580,7 +645,7 @@ All crafting systems belong to `LogisticsSimSystems` and run after `PowerSimSyst
 
 [Event-driven, not tick-ordered]
 ├── crafting_plan_resolver_system    (on RequestCraft)
-├── machine_capability_register_system  (on machine placed, TechNodeUnlocked)
+├── machine_capability_register_system  (on machine placed, TechNodeUnlocked, MachineConfigChanged)
 └── module_effect_system             (on module attached/detached)
 ```
 
@@ -609,6 +674,7 @@ Power systems complete before `LogisticsSimSystems` — generator buffers are fi
 | Recipe-level policy overrides | — | ✓ |
 | Parallel slot module | — | ✓ |
 | Speed/efficiency module effects | — | ✓ |
+| Config-dedication gate (`required_config` + `MachineConfig` + config modules) | — | ✓ |
 For VS: one machine type, one tier. `MachineJobPolicy` defaults to one hardcoded recipe with `passive = true`. No dispatcher, no plans, no catalysts. `RecipeGraph` resource exists but contains only the VS recipe set. `TechTreeProgress.unlocked_recipes` is not gated.
 
 ---
@@ -621,6 +687,9 @@ For VS: one machine type, one tier. `MachineJobPolicy` defaults to one hardcoded
 | Machine tier upgraded while job in progress | Higher tiers can run recipes for their tier and below. Recipe remains valid; `RecipeSlot` continues uninterrupted. `MachineCapability` is rebuilt on upgrade event. |
 | Parallel slot module detached while slot 1 is running | Detachment blocked: module system rejects detach while any slot `state != Idle`. Player must wait for slot 1 to complete. |
 | Parallel slot module attached while slot 0 is running | Allowed: slot 0 continues; slot 1 starts idle. `RecipeProcessor.slots.push(RecipeSlot::default())`. |
+| Config module attached/detached while any slot is running | Blocked: module system rejects a config-module swap while any slot `state != Idle` (a running recipe may depend on the current config). Player idles the machine first. Speed/efficiency modules are unaffected by this rule. |
+| Recipe requires a config no placed machine provides | Plan resolves; job spawns `Queued` and waits (same as no-capable-machine below). Installing the matching config module fires `MachineConfigChanged` → `machine_capability_register_system` re-narrows `capable` → `MachineCapabilityUpdated` triggers the dispatcher. |
+| Second config module installed for an axis already configured | Rejected by the snap system — at most one config module per axis. Changing an axis (incl. ordered upgrades, e.g. `coil_tier` 2→3) means removing the current module then installing the new one, machine idle. |
 | PassiveLoop machine: inputs unavailable at completion | `recipe_completion_system` emits `PassiveRecipeStart`. `recipe_start_system` checks input availability, blocks on `RecipeBlockedInputs`. Machine idles until `NetworkStorageChanged` fires with sufficient inputs. |
 | Craft job requested for item with no unlocked recipe | `crafting_plan_resolver_system` emits `PlanResolutionFailed { reason: NoRecipe }`. No jobs created. |
 | Craft job requested; recipe exists but no capable machine exists | Plan resolves and jobs are spawned as `Queued`. Jobs remain queued indefinitely until a capable machine is placed and `MachineCapabilityUpdated` triggers the dispatcher. |
