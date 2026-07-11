@@ -10,7 +10,7 @@ use crate::machine::{MachineActivity, MachineEnergyPorts, MachineLogisticsPorts,
 use crate::network::{NetworkChanged, Power};
 use crate::power::{GeneratorUnit, PowerNetworkMember, PowerNetworkMembers};
 use crate::recipe_graph::{ConcreteRecipe, RecipeGraph};
-use crate::research::{RESEARCH_POINTS_ID, ResearchPool, TechTreeProgress};
+use crate::research::{ProductionTally, RESEARCH_POINTS_ID, ResearchPool, TechTreeProgress};
 
 use super::items::{give_items, has_items, take_items};
 use crate::network::NetworkMembersComponent;
@@ -500,6 +500,7 @@ pub(super) fn recipe_finish_system(
     port_net_q: Query<&LogisticsNetworkMember>,
     mut storage_changed: MessageWriter<NetworkStorageChanged>,
     mut research_pool: Option<ResMut<ResearchPool>>,
+    mut tally: Option<ResMut<ProductionTally>>,
     mut gen_q: Query<&mut GeneratorUnit>,
     policy_q: Query<&PortPolicy>,
     mut queue_q: Query<&mut NetworkCraftQueue>,
@@ -516,6 +517,10 @@ pub(super) fn recipe_finish_system(
             }
             if *count == 0 {
                 continue;
+            }
+            // Count genuine production (outputs + byproducts) toward ProductionMilestone.
+            if let Some(ref mut tally) = tally {
+                tally.record(item_id, *count as f32);
             }
             let target_net = completion.port_entities.iter().find_map(|&port_e| {
                 let policy_ok = policy_q

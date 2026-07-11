@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
@@ -31,6 +31,27 @@ pub struct ResearchPool {
     pub points: f32,
 }
 
+/// Cumulative gross count of every item produced this run, keyed by item id.
+/// Feeds the `ProductionMilestone` unlock vector. Incremented at genuine production
+/// sites only (recipe completion outputs, miner extraction) — never on item transfer.
+#[derive(Resource, Default, Debug, Reflect)]
+#[reflect(Resource)]
+pub struct ProductionTally {
+    pub produced: HashMap<String, f32>,
+}
+
+impl ProductionTally {
+    /// Add `qty` to the cumulative total for `item`.
+    pub fn record(&mut self, item: &str, qty: f32) {
+        *self.produced.entry(item.to_string()).or_default() += qty;
+    }
+
+    /// Cumulative quantity of `item` produced so far (0.0 if never produced).
+    pub fn get(&self, item: &str) -> f32 {
+        self.produced.get(item).copied().unwrap_or(0.0)
+    }
+}
+
 #[derive(Resource, Default, Debug, Reflect)]
 #[reflect(Resource)]
 pub struct TechTreeProgress {
@@ -50,8 +71,10 @@ impl Plugin for ResearchPlugin {
             .add_message::<UnlockNodeRequest>()
             .register_type::<ResearchPool>()
             .register_type::<TechTreeProgress>()
+            .register_type::<ProductionTally>()
             .init_resource::<ResearchPool>()
             .init_resource::<TechTreeProgress>()
+            .init_resource::<ProductionTally>()
             .add_systems(
                 Update,
                 check_research_unlocks
@@ -124,6 +147,7 @@ fn check_research_unlocks(
     recipe_graph: Option<Res<RecipeGraph>>,
     mut pool: ResMut<ResearchPool>,
     mut progress: ResMut<TechTreeProgress>,
+    tally: Option<Res<ProductionTally>>,
     mut unlock_requests: MessageReader<UnlockNodeRequest>,
     mut discovery_events: MessageReader<DiscoveryEvent>,
     mut unlocked_events: MessageWriter<TechNodeUnlocked>,
@@ -182,6 +206,36 @@ fn check_research_unlocks(
                 !progress.unlocked_nodes.contains(*id)
                     && !progress.disabled_nodes.contains(*id)
                     && matches!(&node.primary_unlock, UnlockVector::ExplorationDiscovery(key) if discovered_keys.contains(key))
+                    && node
+                        .prerequisites
+                        .iter()
+                        .all(|p| progress.unlocked_nodes.contains(p))
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in to_unlock {
+            do_unlock(
+                &mut progress,
+                &tech_tree,
+                &id,
+                false,
+                &mut unlocked_events,
+                rg,
+            );
+        }
+    }
+
+    // Auto-unlock: ProductionMilestone (cumulative produced count reaches threshold)
+    if let Some(tally) = tally.as_deref() {
+        let to_unlock: Vec<NodeId> = tech_tree
+            .nodes
+            .iter()
+            .filter(|(id, node)| {
+                !progress.unlocked_nodes.contains(*id)
+                    && !progress.disabled_nodes.contains(*id)
+                    && matches!(&node.primary_unlock,
+                        UnlockVector::ProductionMilestone { material, quantity }
+                            if tally.get(material) >= *quantity)
                     && node
                         .prerequisites
                         .iter()
@@ -425,6 +479,88 @@ mod tests {
 
         let progress = app.world().resource::<TechTreeProgress>();
         assert!(!progress.unlocked_nodes.contains("alpha"));
+    }
+
+    fn milestone_node(id: &str, material: &str, quantity: f32, prereqs: Vec<String>) -> NodeDef {
+        let mut node = base_node(id, 0, prereqs);
+        node.primary_unlock = UnlockVector::ProductionMilestone {
+            material: material.to_string(),
+            quantity,
+        };
+        node
+    }
+
+    #[test]
+    fn production_milestone_unlocks_when_threshold_reached() {
+        let mut app = make_app();
+        app.insert_resource(make_tree(vec![milestone_node(
+            "miner",
+            "stone",
+            50.0,
+            vec![],
+        )]));
+        app.insert_resource(ResearchPool { points: 0.0 });
+        app.init_resource::<TechTreeProgress>();
+        let mut tally = ProductionTally::default();
+        tally.record("stone", 50.0);
+        app.insert_resource(tally);
+
+        app.update();
+
+        let progress = app.world().resource::<TechTreeProgress>();
+        assert!(progress.unlocked_nodes.contains("miner"));
+    }
+
+    #[test]
+    fn production_milestone_does_not_unlock_below_threshold() {
+        let mut app = make_app();
+        app.insert_resource(make_tree(vec![milestone_node(
+            "miner",
+            "stone",
+            50.0,
+            vec![],
+        )]));
+        app.insert_resource(ResearchPool { points: 0.0 });
+        app.init_resource::<TechTreeProgress>();
+        let mut tally = ProductionTally::default();
+        tally.record("stone", 49.0);
+        app.insert_resource(tally);
+
+        app.update();
+
+        let progress = app.world().resource::<TechTreeProgress>();
+        assert!(!progress.unlocked_nodes.contains("miner"));
+    }
+
+    #[test]
+    fn production_milestone_respects_prerequisites() {
+        let mut app = make_app();
+        app.insert_resource(make_tree(vec![
+            base_node("alpha", 50, vec![]),
+            milestone_node("beta", "stone", 10.0, vec!["alpha".to_string()]),
+        ]));
+        app.insert_resource(ResearchPool { points: 0.0 });
+        app.init_resource::<TechTreeProgress>();
+        let mut tally = ProductionTally::default();
+        tally.record("stone", 10.0);
+        app.insert_resource(tally);
+
+        app.update();
+
+        let progress = app.world().resource::<TechTreeProgress>();
+        assert!(
+            !progress.unlocked_nodes.contains("beta"),
+            "milestone met but prereq alpha not unlocked"
+        );
+    }
+
+    #[test]
+    fn production_tally_record_accumulates() {
+        let mut tally = ProductionTally::default();
+        tally.record("iron_ingot", 3.0);
+        tally.record("iron_ingot", 2.0);
+        assert_eq!(tally.get("iron_ingot"), 5.0);
+        assert_eq!(tally.get("never_made"), 0.0);
     }
 
     #[test]

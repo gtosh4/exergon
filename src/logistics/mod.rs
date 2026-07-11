@@ -239,7 +239,7 @@ mod tests {
     };
     use crate::network::{NetworkChanged, NetworkPlugin, NetworkSystems};
     use crate::recipe_graph::{ConcreteRecipe, ItemStack, RecipeGraph};
-    use crate::research::{RESEARCH_POINTS_ID, ResearchPool, TechTreeProgress};
+    use crate::research::{ProductionTally, RESEARCH_POINTS_ID, ResearchPool, TechTreeProgress};
     use crate::world::{CableConnectionEvent, WorldObjectEvent, WorldObjectKind};
 
     fn logistics_app() -> App {
@@ -805,6 +805,51 @@ mod tests {
         app.update();
 
         assert_eq!(app.world().resource::<ResearchPool>().points, 5.0);
+    }
+
+    #[test]
+    fn recipe_completion_records_production() {
+        let rg = single_recipe_graph(test_recipe_def("smelter", &[], &[("iron_ingot", 3.0)]));
+        let mut app = recipe_io_app(rg);
+        app.insert_resource(ProductionTally::default());
+
+        let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
+        let storage_e = app
+            .world_mut()
+            .spawn(StorageUnit {
+                items: HashMap::new(),
+            })
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(storage_e),
+            Transform::default(),
+            LogisticsNetworkMember(net_entity),
+        ));
+        let machine_entity = app
+            .world_mut()
+            .spawn((
+                bare_machine("smelter"),
+                MachineState::Running,
+                MachineActivity {
+                    recipe_id: "test_recipe".to_string(),
+                    progress: 10.0,
+                    speed_factor: 1.0,
+                },
+            ))
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(machine_entity),
+            Transform::default(),
+            LogisticsNetworkMember(net_entity),
+        ));
+
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<ProductionTally>().get("iron_ingot"),
+            3.0,
+            "completed recipe output must be tallied as production"
+        );
     }
 
     #[test]

@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use crate::{
     GameState,
     recipe_graph::RecipeGraph,
-    research::{ResearchPool, TechTreeProgress, UnlockNodeRequest},
+    research::{ProductionTally, ResearchPool, TechTreeProgress, UnlockNodeRequest},
     tech_tree::{NodeCategory, NodeDef, NodeEffect, TechTree, UnlockVector},
     ui::{
         TechTreePanelOpen,
@@ -512,6 +512,7 @@ fn rebuild_detail(
     tech_tree: Option<Res<TechTree>>,
     progress: Option<Res<TechTreeProgress>>,
     pool: Option<Res<ResearchPool>>,
+    tally: Option<Res<ProductionTally>>,
     recipe_graph: Option<Res<RecipeGraph>>,
     detail_root_q: Query<Entity, With<TechDetailRoot>>,
     detail_content_q: Query<Entity, With<TechDetailContent>>,
@@ -523,6 +524,7 @@ fn rebuild_detail(
         && !tech_tree.as_ref().map(|r| r.is_changed()).unwrap_or(false)
         && !progress.as_ref().map(|r| r.is_changed()).unwrap_or(false)
         && !pool.as_ref().map(|r| r.is_changed()).unwrap_or(false)
+        && !tally.as_ref().map(|r| r.is_changed()).unwrap_or(false)
     {
         return;
     }
@@ -727,11 +729,38 @@ fn rebuild_detail(
             UnlockVector::ExplorationDiscovery(loc) => format!("Discover: {loc}"),
             UnlockVector::PrerequisiteChain => "Complete prerequisites".to_string(),
             UnlockVector::ProductionMilestone { material, quantity } => {
-                format!("Produce {quantity:.0}× {material}")
+                let have = tally.as_ref().map(|t| t.get(material)).unwrap_or(0.0);
+                format!("Produce {have:.0} / {quantity:.0}× {material}")
             }
             UnlockVector::Observation(loc) => format!("Observe: {loc}"),
         };
         c.spawn(label(&unlock_text));
+
+        if !unlocked
+            && let UnlockVector::ProductionMilestone { material, quantity } = &node.primary_unlock
+        {
+            let have = tally.as_ref().map(|t| t.get(material)).unwrap_or(0.0);
+            if !prereqs_met {
+                c.spawn((
+                    Text::new("↑ Prereqs not met"),
+                    TextFont {
+                        font_size: FontSize::Px(font_size::LABEL_SM),
+                        ..default()
+                    },
+                    TextColor(palette::ERR),
+                ));
+            } else if have < *quantity {
+                let deficit = *quantity - have;
+                c.spawn((
+                    Text::new(format!("Produce {deficit:.0} more {material}")),
+                    TextFont {
+                        font_size: FontSize::Px(font_size::LABEL_SM),
+                        ..default()
+                    },
+                    TextColor(palette::WARN),
+                ));
+            }
+        }
 
         if !unlocked && let UnlockVector::ResearchSpend(cost) = &node.primary_unlock {
             if !prereqs_met {

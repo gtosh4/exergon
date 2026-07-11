@@ -33,7 +33,7 @@ use crate::planet::{Planet, PlanetProperties};
 use crate::pod::PodNetwork;
 use crate::power::{GeneratorUnit, PodPowered};
 use crate::power::{PowerCableSegment, PowerNetwork, PowerNetworkMember};
-use crate::research::{ResearchPool, TechTreeProgress};
+use crate::research::{ProductionTally, ResearchPool, TechTreeProgress};
 use crate::seed::{DomainSeeds, RunSeed, hash_text};
 
 /// Marker for the run-scoped entity. Any entity carrying `Run` is auto-tagged
@@ -311,7 +311,8 @@ pub fn trigger_run_save(commands: &mut Commands, save_root: &SaveRoot, run_id: &
     }
     let mut save = SaveWorld::default_into_file(path)
         .include_resource::<TechTreeProgress>()
-        .include_resource::<ResearchPool>();
+        .include_resource::<ResearchPool>()
+        .include_resource::<ProductionTally>();
     save.components = WorldFilter::deny_all()
         .allow::<Run>()
         .allow::<RunSaveHeader>()

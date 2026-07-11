@@ -6,6 +6,7 @@ use rand_pcg::Pcg64;
 
 use crate::drone::{sample_ore, yield_factor};
 use crate::machine::{LogisticsPortOf, MachineLogisticsPorts, MinerMachine};
+use crate::research::ProductionTally;
 use crate::world::generation::OreDeposit;
 
 use super::items::give_items;
@@ -35,6 +36,7 @@ pub(super) fn miner_tick_system(
     mut storage_q: Query<&mut StorageUnit>,
     port_of_q: Query<&LogisticsPortOf>,
     mut storage_changed: MessageWriter<NetworkStorageChanged>,
+    mut tally: Option<ResMut<ProductionTally>>,
 ) {
     let dt = time.delta_secs();
     for (mut miner, ports) in &mut miner_q {
@@ -55,6 +57,9 @@ pub(super) fn miner_tick_system(
         };
         if let Some(ore_id) = tick_miner(&mut deposit, &mut miner.accumulator, dt) {
             give_items(members, &mut storage_q, &port_of_q, &ore_id, 1);
+            if let Some(ref mut tally) = tally {
+                tally.record(&ore_id, 1.0);
+            }
             storage_changed.write(NetworkStorageChanged { network: net_e });
         }
     }
@@ -173,6 +178,34 @@ mod tests {
                 .unwrap()
                 .total_extracted,
             1.0
+        );
+    }
+
+    #[test]
+    fn miner_tick_system_records_production() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_message::<NetworkStorageChanged>()
+            .init_resource::<ProductionTally>()
+            .add_systems(Update, miner_tick_system);
+
+        let deposit_entity = app
+            .world_mut()
+            .spawn(OreDeposit {
+                chunk_pos: IVec2::ZERO,
+                ores: vec![("iron_ore".to_string(), 1.0)],
+                total_extracted: 0.0,
+                depletion_seed: 0,
+            })
+            .id();
+        spawn_miner_and_storage(&mut app, deposit_entity, 1.0);
+
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<ProductionTally>().get("iron_ore"),
+            1.0,
+            "mined ore must be tallied as production"
         );
     }
 
