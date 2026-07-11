@@ -15,7 +15,7 @@ that intent in code with minimal manual play.
 | --- | --- | --- | --- |
 | System tests | `#[cfg(test)] mod tests` next to each system (e.g. `src/logistics/miner.rs`) | fastest | Test one system directly against a bare `World`/`App` — no full plugin graph. See `.claude/skills/bevy/ecs.md`. |
 | Recipe/content tests | `tests/assembler_recipe.rs`, `tests/smelter_recipe.rs` | fast | One machine + one recipe through the real logistics plugin. |
-| End-to-end run | `tests/standard_full_run.rs` | ~seconds | The whole vertical slice from a fixed seed: worldgen → placement → wiring → mining → analysis → research → (future) crafting → escape. |
+| End-to-end run | `tests/standard_full_run.rs` | ~seconds | The whole vertical slice from a fixed seed: worldgen → placement → wiring → mining every raw material → analysis → research → power → crafting the successor → launch/escape. |
 
 The e2e test is the regression net for "a real run still completes." It is the one place the
 systems are proven to compose. **Every new gameplay stage on the landing→victory path gets a
@@ -56,7 +56,7 @@ Do **not** reintroduce the old approach of hand-poking internal state (`accumula
 ## 3. Adding a stage to the e2e test
 
 Each stage of the game (research tier, crafting step, exploration unlock, escape) becomes one
-labelled block in `land_generate_place_wire_mine_and_complete_first_research`, appended after
+labelled block in `standard_run_lands_mines_and_launches_successor`, appended after
 the previous stage. The pattern is always the same:
 
 1. **Look up the content** the stage needs with the `assets` CLI (§4): recipe inputs/outputs,

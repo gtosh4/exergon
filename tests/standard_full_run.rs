@@ -72,10 +72,6 @@ use exergon::{GameState, PlayMode};
 
 /// Fixed master seed for this run — makes terrain + deposit placement reproducible.
 const MASTER_SEED: u64 = 0xE7E6_0007;
-/// Side of a surface-deposit cell in world units — mirrors the private
-/// `content::DEPOSIT_CELL_SIZE` (each 64×64 cell maps 1:1 to a terrain chunk). Used by
-/// `nearest_vein` to walk cells and by `mine_deposit` to derive a deposit's chunk_pos.
-const DEPOSIT_CELL_SIZE: f32 = 64.0;
 const PORT_OFFSET: Vec3 = Vec3::new(1.0, 0.0, 0.0);
 /// Energy ports sit on the opposite side from logistics ports so a power cable and a
 /// logistics cable to the same machine snap to different port entities.
@@ -944,11 +940,24 @@ fn standard_run_lands_mines_and_launches_successor() {
         push("launch_successor", 1);
     }
 
-    // Drive real time until the run completes. dt=0.5 is below the shortest recipe (6s roll)
-    // so no recipe edge is skipped. The critical path is dominated by the single refinery's
-    // 20× exotic_fuel (~600s) plus the 180s launch, so 6000s is ample headroom.
+    // Checkpoint — prove the raw mine→smelt→draw chain runs for real before the long haul:
+    // copper_wire can only appear if copper_ore was mined, smelted to copper_ingot, and drawn
+    // into wire, all through real machines. `wait_for_recipe` sequences the factory to this
+    // milestone off the same simulated clock.
+    wait_for_recipe(&mut app, 0.5, 3_000.0, |app| {
+        stored(app, storage_e, "copper_wire") >= 1
+    });
+    assert!(
+        stored(&app, storage_e, "copper_wire") >= 1,
+        "mined copper_ore must smelt→draw into copper_wire through real machines"
+    );
+
+    // Drive real time until the run completes. dt=0.5 is below the shortest recipe (4s crush)
+    // so no recipe edge is skipped. The critical path is the single refinery's 20× exotic_fuel
+    // (~600s) plus downstream assembly and the 180s launch — and now also the up-front mining
+    // ramp — so 8000s is ample headroom.
     let launch_ran = std::cell::Cell::new(false);
-    advance_until(&mut app, 0.5, 6_000.0, |app| {
+    advance_until(&mut app, 0.5, 8_000.0, |app| {
         if app.world().get::<MachineState>(launch_e).copied() == Some(MachineState::Running) {
             launch_ran.set(true);
         }

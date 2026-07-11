@@ -403,6 +403,21 @@ fn world_to_cell(pos: Vec3) -> IVec2 {
 
 const DISCOVERY_RADIUS: f32 = 8.0;
 
+/// The ExplorationDiscovery key a deposit fires when a drone finds it, keyed off the unique
+/// signature ore each special deposit carries (see `assets/deposits/*.ron`). Ordinary metal
+/// deposits carry none of these and are never "discovered" — only exotic/precursor sites are.
+/// (A fully general mechanism would thread the deposit's own id through `OreDeposit`; this
+/// signature-ore map closes every key the tech tree actually listens for — see flags.)
+fn discovery_key_for_ores(ores: &[(String, f32)]) -> Option<&'static str> {
+    ores.iter().find_map(|(id, _)| match id.as_str() {
+        "xalite" => Some("xalite_deposit"),
+        "cryophase_shard" => Some("cryophase_deposit"),
+        "fluxite_shard" => Some("fluxite_relic_cache"),
+        "salvaged_hull" => Some("derelict_ship"),
+        _ => None,
+    })
+}
+
 fn deposit_discovery_system(
     mut commands: Commands,
     drone_q: Query<&Transform, With<Drone>>,
@@ -413,11 +428,11 @@ fn deposit_discovery_system(
         return;
     };
     for (entity, deposit_transform, deposit) in &deposit_q {
-        if !deposit.ores.iter().any(|(id, _)| id == "xalite") {
+        let Some(key) = discovery_key_for_ores(&deposit.ores) else {
             continue;
-        }
+        };
         if drone.translation.distance(deposit_transform.translation) <= DISCOVERY_RADIUS {
-            events.write(DiscoveryEvent("xalite_deposit".to_string()));
+            events.write(DiscoveryEvent(key.to_string()));
             commands.entity(entity).insert(Discovered);
         }
     }
@@ -623,6 +638,54 @@ mod tests {
 
         app.update();
         assert!(app.world().get::<Discovered>(deposit).is_some());
+    }
+
+    #[test]
+    fn discovery_key_maps_signature_ores() {
+        assert_eq!(
+            discovery_key_for_ores(&[("xalite".into(), 1.0)]),
+            Some("xalite_deposit")
+        );
+        assert_eq!(
+            discovery_key_for_ores(&[("cryophase_shard".into(), 1.0)]),
+            Some("cryophase_deposit")
+        );
+        assert_eq!(
+            discovery_key_for_ores(&[("fluxite_shard".into(), 1.0)]),
+            Some("fluxite_relic_cache")
+        );
+        assert_eq!(discovery_key_for_ores(&[("iron_ore".into(), 1.0)]), None);
+    }
+
+    #[test]
+    fn deposit_discovery_fires_for_cryophase() {
+        use crate::research::{Discovered, DiscoveryEvent};
+        use crate::world::generation::OreDeposit;
+
+        let mut app = App::new();
+        app.add_message::<DiscoveryEvent>()
+            .add_systems(Update, deposit_discovery_system);
+
+        app.world_mut()
+            .spawn((Drone, Transform::from_xyz(0.0, 0.0, 0.0)));
+        let deposit = app
+            .world_mut()
+            .spawn((
+                OreDeposit {
+                    chunk_pos: IVec2::ZERO,
+                    ores: vec![("cryophase_shard".to_string(), 1.0)],
+                    total_extracted: 0.0,
+                    depletion_seed: 0,
+                },
+                Transform::from_xyz(1.0, 0.0, 0.0),
+            ))
+            .id();
+
+        app.update();
+        assert!(
+            app.world().get::<Discovered>(deposit).is_some(),
+            "cryophase deposit within radius should be discovered"
+        );
     }
 
     #[test]

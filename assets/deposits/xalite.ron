@@ -1,6 +1,6 @@
 (
     id: "xalite",
-    // Keep a bare "xalite" entry: engine deposit_discovery_system matches id == "xalite"
-    // to fire DiscoveryEvent("xalite_deposit") (see flags — that check needs generalizing).
+    // The bare "xalite" ore is this deposit's discovery signature: deposit_discovery_system
+    // maps it (via discovery_key_for_ores) to DiscoveryEvent("xalite_deposit") on drone recon.
     ores: [("xalite", 40.0), ("xalite_shard", 30.0), ("resonite_shard", 20.0), ("field_sample", 10.0)],
 )
