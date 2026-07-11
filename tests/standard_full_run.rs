@@ -47,7 +47,7 @@ use bevy::time::TimeUpdateStrategy;
 use bevy::world_serialization::WorldAsset;
 
 use exergon::content::ContentPlugin;
-use exergon::drone::FogCellRevealedEvent;
+use exergon::drone::{Drone, FogCellRevealedEvent, deposit_discovery_system};
 use exergon::escape::{EscapeObjective, EscapePlugin, RunState};
 use exergon::logistics::{
     LogisticsNetworkMember, LogisticsSimPlugin, ManualCraftTrigger, NetworkCraftQueue, QueuedJob,
@@ -61,7 +61,7 @@ use exergon::planet::{Planet, PlanetPlugin, PlanetPropertyVisibility, PropertyVi
 use exergon::power::{GeneratorUnit, PowerPlugin};
 use exergon::recipe_graph::{RecipeGraph, RecipeGraphPlugin};
 use exergon::research::{
-    DiscoveryEvent, ResearchPlugin, ResearchPool, TechTreeProgress, UnlockNodeRequest,
+    Discovered, ResearchPlugin, ResearchPool, TechTreeProgress, UnlockNodeRequest,
 };
 use exergon::seed::DomainSeeds;
 use exergon::tech_tree::TechTreePlugin;
@@ -113,7 +113,14 @@ fn build_app() -> App {
             ResearchPlugin,
             PlanetPlugin,
             EscapePlugin,
-        ));
+        ))
+        // Real exotic-site recon: the full DronePlugin pulls avian physics we can't run
+        // headless, so register just the discovery system it owns (gated on DronePilot, same as
+        // the game) — a piloted drone near a special deposit fires the real DiscoveryEvent.
+        .add_systems(
+            Update,
+            deposit_discovery_system.run_if(in_state(PlayMode::DronePilot)),
+        );
     app
 }
 
@@ -294,6 +301,33 @@ fn mine_deposit(
             storage_pos + PORT_OFFSET,
             pos + Vec3::new(i as f32 * 2.0, 0.0, 0.0) + PORT_OFFSET,
         );
+    }
+    app.update();
+    deposit_e
+}
+
+/// Pilots the drone to the deposit carrying `signature_ore` and runs one frame so the real
+/// `deposit_discovery_system` fires its `DiscoveryEvent`. Requires `PlayMode::DronePilot` and a
+/// spawned `Drone` (reused across calls by moving its transform). Returns the deposit entity so
+/// the caller can assert it was marked `Discovered`. NB: a deposit fires exactly once (then is
+/// `Discovered` forever) and the research systems only honor the event in the frame it fires —
+/// so a site must be reconned only once its tech node's prerequisites are already met.
+fn recon_deposit(app: &mut App, signature_ore: &str) -> Entity {
+    let (deposit_e, pos) = nearest_vein(app, signature_ore, false);
+    let existing = {
+        let mut q = app.world_mut().query_filtered::<Entity, With<Drone>>();
+        q.iter(app.world()).next()
+    };
+    match existing {
+        Some(e) => {
+            app.world_mut()
+                .entity_mut(e)
+                .insert(Transform::from_translation(pos));
+        }
+        None => {
+            app.world_mut()
+                .spawn((Drone, Transform::from_translation(pos)));
+        }
     }
     app.update();
     deposit_e
@@ -733,10 +767,10 @@ fn standard_run_lands_mines_and_launches_successor() {
     //     `ManualCraftOnly` so *only* queued jobs run (no auto-craft noise) — deterministic.
     //
     // What is INJECTED (gating / provisioning, not the logic under measurement):
-    //   * tech-node/recipe unlocks (same as earlier stages) + `DiscoveryEvent`s for the exotic
-    //     keys (deposit discovery is hardcoded to xalite in worldgen, so fluxite/cryophase/
-    //     derelict caches are surfaced via `DiscoveryEvent` the way real recon would). Nothing
-    //     REFINED is injected — every ingot/shard/plate/wire/dust is machine-produced from ore.
+    //   * tech-node/recipe unlocks (same as earlier stages). Exotic-site discovery is NOT
+    //     injected — the drone flies to each special deposit and the real deposit_discovery_system
+    //     fires the DiscoveryEvent (see the recon block below). Nothing REFINED is injected —
+    //     every ingot/shard/plate/wire/dust is machine-produced from ore.
     //   * a real solar farm powers it (12×100 W panels, built + charged below) — no hand-fed
     //     joules; energy is generated and drawn every tick like real play.
     //
@@ -746,17 +780,33 @@ fn standard_run_lands_mines_and_launches_successor() {
     //   list and per-ore mining targets below are computed from the tree; if a recipe changes
     //   machine/inputs, update those — the milestone (RunState::Completed) stays fixed.
 
-    // Exotic-material discovery gating (represents drone recon / precursor survey finds).
-    for key in [
-        "xalite_deposit",
-        "fluxite_relic_cache",
-        "cryophase_deposit",
-        "derelict_ship",
+    // Exotic-site discovery via REAL drone recon (not injected events): still in DronePilot
+    // from Stage 5, pilot the drone to each special deposit so the real deposit_discovery_system
+    // fires its DiscoveryEvent. The generalized discovery map (see drone::discovery_key_for_ores)
+    // turns each site's signature ore into its ExplorationDiscovery key. xalite→exotic_materials
+    // unlocks now (its prereq science_basics is a free chain); the fluxite/cryophase nodes gate
+    // on researched prereqs and unlock during the grind — here we confirm the sites are found.
+    // (derelict_ship isn't on the launch path, so it's not surveyed.)
+    let xalite_site = recon_deposit(&mut app, "xalite");
+    let fluxite_site = recon_deposit(&mut app, "fluxite_shard");
+    let cryophase_site = recon_deposit(&mut app, "cryophase_shard");
+    for (site, ore) in [
+        (xalite_site, "xalite"),
+        (fluxite_site, "fluxite_shard"),
+        (cryophase_site, "cryophase_shard"),
     ] {
-        app.world_mut()
-            .write_message(DiscoveryEvent(key.to_string()));
+        assert!(
+            app.world().get::<Discovered>(site).is_some(),
+            "drone recon must mark the {ore} deposit Discovered (real DiscoveryEvent fired)"
+        );
     }
-    app.update();
+    assert!(
+        app.world()
+            .resource::<TechTreeProgress>()
+            .unlocked_nodes
+            .contains("exotic_materials"),
+        "recon of the xalite site must unlock exotic_materials (prereq science_basics is free)"
+    );
 
     // Unlock every recipe the driven tree executes (gating is not what's under test here).
     // Includes the raw-refining leaves now driven for real: the non-iron smelts, the ore

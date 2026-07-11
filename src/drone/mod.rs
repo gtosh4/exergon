@@ -418,7 +418,7 @@ fn discovery_key_for_ores(ores: &[(String, f32)]) -> Option<&'static str> {
     })
 }
 
-fn deposit_discovery_system(
+pub fn deposit_discovery_system(
     mut commands: Commands,
     drone_q: Query<&Transform, With<Drone>>,
     deposit_q: Query<(Entity, &Transform, &OreDeposit), Without<Discovered>>,
