@@ -1,0 +1,14 @@
+(
+    id: "launch_site",
+    name: "Launch Site",
+    stack_size: 1,
+    tiers: [
+        (tier: 2),
+    ],
+    interaction: Single,
+    surface: Ground,
+    snap: Free,
+    orientation: AxisY,
+    ghost: Scene,
+    footprint: (4.0, 4.0, 4.0),
+)

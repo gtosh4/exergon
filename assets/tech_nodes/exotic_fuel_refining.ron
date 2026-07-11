@@ -1,0 +1,10 @@
+(
+    id: "exotic_fuel_refining",
+    name: "Exotic Fuel Refining",
+    category: Processing,
+    tier: 5,
+    rarity: Rare,
+    prerequisites: ["cryophase_extraction", "coolant_reclaim"],
+    primary_unlock: ResearchSpend(type_id: "synthesis", amount: 250),
+    effects: [UnlockRecipes(["refine_exotic_fuel", "refine_exotic_fuel__raw"])],
+)

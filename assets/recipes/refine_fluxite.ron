@@ -1,0 +1,13 @@
+(
+    id: "refine_fluxite",
+    inputs: [
+        (item: "fluxite_shard", quantity: 2.0),
+        (item: "coal",          quantity: 1.0),
+    ],
+    outputs:    [(item: "fluxite_lattice", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "refinery",
+    machine_tier: 1,
+    processing_time: 22.0,
+    energy_cost: 160.0,
+)

@@ -1,0 +1,13 @@
+(
+    id: "make_successor_chassis",
+    inputs: [
+        (item: "aluminum_plate", quantity: 4.0),
+        (item: "vitreite",       quantity: 2.0),
+    ],
+    outputs:    [(item: "successor_chassis", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "advanced_assembler",
+    machine_tier: 2,
+    processing_time: 70.0,
+    energy_cost: 450.0,
+)

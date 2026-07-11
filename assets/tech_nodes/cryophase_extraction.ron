@@ -1,0 +1,10 @@
+(
+    id: "cryophase_extraction",
+    name: "Cryophase Extraction",
+    category: Exploration,
+    tier: 5,
+    rarity: Rare,
+    prerequisites: ["cryophase_prospecting"],
+    primary_unlock: ExplorationDiscovery("cryophase_deposit"),
+    effects: [],
+)

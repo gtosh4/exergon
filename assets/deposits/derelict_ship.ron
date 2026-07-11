@@ -1,0 +1,4 @@
+(
+    id: "derelict_ship",
+    ores: [("salvaged_hull", 100.0)],
+)

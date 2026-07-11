@@ -1,0 +1,10 @@
+(
+    id: "launch_successor",
+    name: "Launch Successor",
+    category: Escape,
+    tier: 5,
+    rarity: Unique,
+    prerequisites: ["launch_site_assembly", "synthesis_lab", "provisioning_module", "exotic_fuel_refining"],
+    primary_unlock: ResearchSpend(type_id: "synthesis", amount: 500),
+    effects: [UnlockRecipes(["launch_successor"])],
+)

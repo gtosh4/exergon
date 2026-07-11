@@ -1,0 +1,10 @@
+(
+    id: "form_resonite_lattice",
+    inputs:     [(item: "resonite_shard", quantity: 2.0)],
+    outputs:    [(item: "resonite_lattice", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 2,
+    processing_time: 18.0,
+    energy_cost: 90.0,
+)

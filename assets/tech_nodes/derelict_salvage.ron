@@ -1,0 +1,10 @@
+(
+    id: "derelict_salvage",
+    name: "Derelict Salvage",
+    category: Exploration,
+    tier: 5,
+    rarity: Rare,
+    prerequisites: ["space_scanner"],
+    primary_unlock: ExplorationDiscovery("derelict_ship"),
+    effects: [UnlockRecipes(["make_successor_chassis__salvaged"])],
+)

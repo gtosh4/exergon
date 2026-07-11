@@ -317,26 +317,33 @@ The 4-theme research ladder (§3.2). **Reverses the VS single-currency stance** 
 
 The ~63 tier-2–5 nodes (T2 12 / T3 16 / T4 20 / T5 15), exotic lines, and the successor systems. Each successor system pulls a different exotic line so the launch needs the whole graph (§2.2, §5, §8.1). (§9 #3 RON renames land here)
 
-- [ ] Exotic materials + deposits: Fluxite (relic cache), Vitreite (research/prereq), Cryophase (remote second-site, drone-gated — §7); Resonite/Xalite chain folded in from T2
-- [ ] Exotic processing recipes + coolant-runoff byproduct (harmful/neutral streams only for now — §4)
-- [ ] Successor systems (core/chassis/drive/sensor) + provisioning module + launch cascade recipe inputs
-- [ ] ~63 tech nodes across T2–T5 with unlock vectors + §7 hints (per §5 node tables)
-- [ ] Voltage-tier-2 Fluxite generator + Voltage-2 network (the power transition, §6); advanced assembler for exotic assemblies
-- [ ] Port the T2–T5 node definitions to `tech-tree-design.md`
+- [x] Exotic materials + deposits: Fluxite (`fluxite_relic_cache`), Vitreite (synthesized composite item), Cryophase (`cryophase_deposit`, remote second-site); `derelict_ship` for the discount; Resonite/Xalite chain folded in (xalite deposit now emits minable `_shard` forms)
+- [x] Exotic processing recipes + `coolant_runoff` byproduct + `reclaim_coolant` sink (loop closes to `exotic_solvent` → fuel; soft two-recipe fuel path keeps venting non-blocking — §4/§11)
+- [x] Successor systems (core/chassis/drive/sensor) + provisioning module (kit chain) + `launch_successor` cascade recipe
+- [~] Tech nodes T3–T5: **launch spine authored** (26 new nodes) with unlock vectors + §7 hints; **optional/yield nodes deferred** (design-only, see `tech-tree-design.md §6bis`). T2 nodes already shipped Phase B/C.
+- [~] **Fluxite generator** (higher-output V2 stand-in) + **advanced assembler** authored. **No engine voltage tier** exists (`min_voltage_tier`/`RecipeBlockedVoltage` absent) — power transition modeled *softly* via high exotic `energy_cost` + the Fluxite generator's higher output, **not** a hard block. Voltage-2 network N/A. **Flagged.**
+- [x] Port the T3–T5 node definitions to `tech-tree-design.md` (§6bis)
+
+> **Phase D notes / flags** (`content-designer`): The chain **loads and resolves** (`assets path launch_successor`) and `cargo test` stays green (283 unit + curated_seeds + landing e2e). Three **engine gaps** surfaced — none block the reachability proof or tests (e2e stops at drone scan), but all block an actual in-game Standard win and are engine follow-ups:
+> 1. **Deposit discovery is hardcoded to xalite.** `drone::deposit_discovery_system` only fires `DiscoveryEvent("xalite_deposit")` when a deposit ore id `== "xalite"`. The new `ExplorationDiscovery` keys (`fluxite_relic_cache`, `cryophase_deposit`, `derelict_ship`) — and now the xalite one, since the deposit gained `_shard` forms — need a general deposit→discovery-key mechanism. (The xalite deposit keeps a bare `"xalite"` ore entry so its existing discovery still fires; that entry is a pre-existing dangling mined item.)
+> 2. **`EscapeObjective` is never attached to a player-built `launch_site`.** Only the run-gen gateway gets it (`world::ruins`). See `escape-condition.md §7.1`.
+> 3. **No voltage-tier system.** `min_voltage_tier`/`RecipeBlockedVoltage` do not exist in the engine (contrary to the brief); the T4 power transition is modeled softly (high `energy_cost` + higher-output Fluxite generator), never a hard block.
+>
+> **Deviations:** optional/yield nodes deferred to design-only (spine-only RON); base-metal "Extraction" gates folded (the `smelt_metal` template already yields all ingots); `launch_site_assembly` ProductionMilestone("4 systems") → ResearchSpend+prereqs+recipe-inputs (single-material limit of the vector). Numbers representative/unvalidated (§9 #4). Byproduct loop (`coolant_runoff`→`exotic_solvent`) kept closable and non-blocking via the `refine_exotic_fuel__raw` fallback.
 
 ## Phase E — Escape spec + wiring `[content-designer + docs-curator]` (dep: D)
 
 Write the Standard escape that `escape-condition.md §7` currently defers. No new engine — launch site is an `EscapeObjective` running one recipe (§8). (§9 #3)
 
-- [ ] Write §7 successor-launch spec into `technical/escape-condition.md`
-- [ ] RON: launch-site `EscapeObjective` machine + `launch_successor` recipe (systems + provisioning + fuel → `EscapeEvent`)
-- [ ] RON: `make_successor_chassis__salvaged` derelict-discount variant consuming `salvaged_hull` (fixed run = derelict present, §8.3)
+- [x] Write §7 successor-launch spec into `technical/escape-condition.md` (§7.1)
+- [~] RON: launch-site machine + `launch_successor` recipe authored. **Engine hook flagged:** a player-built `launch_site` is never given the `EscapeObjective` marker (only the run-gen gateway is, via `world::ruins`); the win won't fire until placement/run-gen attaches it (§7.1 flag).
+- [x] RON: `make_successor_chassis__salvaged` derelict-discount variant consuming `salvaged_hull` (fixed run = derelict present, §8.3)
 
 ## Phase F — Reachability + tests `[playtest-verifier]` (dep: all)
 
 Hand-verify reachability (procedural validator stays Alpha) + extend the e2e path to victory (§1, §9 #8). Per CLAUDE.md, add a matching stage to the e2e test for each new stage on the landing→victory path.
 
-- [ ] `cargo run --bin assets path launch_successor` — confirm reachability from landing
+- [x] `cargo run --bin assets path launch_successor` — resolves; full chain reachable in tier order, every recipe input has a producer (hand-traced via `assets uses`). `escape_synthesis` gateway chain intact.
 - [ ] Extend `tests/landing_to_first_research.rs` with stages T3 → victory (currently stops at drone scan)
 - [ ] Curated Standard run config (the fixed Standard "seed" equivalent)
 

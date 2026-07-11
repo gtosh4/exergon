@@ -1,0 +1,14 @@
+(
+    id: "make_fluxite_generator",
+    inputs: [
+        (item: "steel_ingot",     quantity: 4.0),
+        (item: "fluxite_lattice", quantity: 1.0),
+        (item: "copper_wire",     quantity: 2.0),
+    ],
+    outputs:    [(item: "fluxite_generator", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 2,
+    processing_time: 45.0,
+    energy_cost: 140.0,
+)

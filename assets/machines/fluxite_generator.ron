@@ -1,0 +1,14 @@
+(
+    id: "fluxite_generator",
+    name: "Fluxite Generator",
+    stack_size: 5,
+    tiers: [
+        (tier: 2, generator: Some((watts: 0.0, env_source: Combustion, max_buffer_joules: 20000.0))),
+    ],
+    interaction: Single,
+    surface: Ground,
+    snap: Free,
+    orientation: AxisY,
+    ghost: Scene,
+    footprint: (2.0, 2.0, 2.0),
+)

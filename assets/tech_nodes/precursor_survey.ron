@@ -1,0 +1,10 @@
+(
+    id: "precursor_survey",
+    name: "Precursor Survey",
+    category: Exploration,
+    tier: 4,
+    rarity: Rare,
+    prerequisites: ["drone_recon"],
+    primary_unlock: ResearchSpend(type_id: "discovery", amount: 120),
+    effects: [],
+)

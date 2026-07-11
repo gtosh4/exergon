@@ -1,0 +1,4 @@
+(
+    id: "fluxite_relic_cache",
+    ores: [("fluxite_shard", 100.0)],
+)

@@ -1,0 +1,11 @@
+(
+    id: "generate_fluxite",
+    inputs:     [(item: "fluxite_lattice", quantity: 1.0)],
+    outputs:    [],
+    byproducts: [],
+    machine_type: "fluxite_generator",
+    machine_tier: 2,
+    processing_time: 10.0,
+    energy_cost: 0.0,
+    energy_output: 2000.0,
+)

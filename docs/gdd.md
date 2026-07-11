@@ -420,7 +420,7 @@ These are opt-in difficulty axes, not default behavior. Veterans who want GT-sty
 
 ## 10. The Factory Layer
 
-The factory is the physical consequence of good planning. The world is fully three-dimensional — machines are building-scale prefab structures placed in the environment. Spatial optimization is not the primary challenge; the complexity comes from the logistics network, recipe graph, and machine configuration.
+The factory is the physical consequence of good planning. The world is fully three-dimensional — machines are building-scale prefab structures placed in the environment. Spatial optimization is not the primary challenge; the complexity comes from the logistics network, recipe graph, and machine configuration (see **Machine dedication** below — configuration is what makes the factory *scale*, not just tune).
 
 ### Design intent
 Factory layout should feel satisfying and consequential without being the game's central puzzle. A player who makes good planning decisions should be able to build a functional factory without needing spatial optimization expertise. A player who is also a strong spatial thinker gets additional satisfaction from elegant, impressive-looking layouts — and base aesthetics are a first-class feature, not an afterthought. Sharing well-built bases is an intended community behavior.
@@ -432,6 +432,11 @@ The game is fully 3D. Machines are building-scale prefab structures; players pla
 Item and fluid transport uses a logistics network model (ME-style) rather than physical belt routing. The network is physical infrastructure — cables and conduits are visible blocks that must be placed and routed — but the challenge is network design rather than belt-path puzzles. Network cables as visible infrastructure contribute to base aesthetics.
 
 **Capacity — discrete channel limits.** Cables have a discrete channel capacity (like AE2). Exceeding capacity requires higher-tier cables, sub-network segmentation, or architectural redesign. This is the primary driver of network complexity and a revisitable design parameter. Channel limits are intentionally the pressure that encourages players to segment their network into logical sub-networks (e.g. a smelting network, a processing network) connected via defined interfaces — segmentation is a solution to be discovered, not a forced constraint.
+
+### Machine dedication
+The item network stays convenient (ME-style, above); factory *scale* comes from the **machines**, not from routing puzzles. A machine's config narrows *which* recipes it can physically run: a `chem_reactor` built with an acidic bed cannot run alkaline recipes, an EBF-analog with tier-2 coils cannot run tier-3 blasts. One machine therefore cannot timeshare its whole recipe space — distinct configs must be built as distinct **dedicated** instances, recombined into production lines. This is where the impressive, sizable factory comes from: few workhorse archetypes (GTNH-style — chem reactor, blast furnace, distillation tower) × a large recipe space × config, arranged into many dedicated lines. Variety is combinatorial, not roster count.
+
+The friction lives in **building and configuring** machines — the planning fun — never in longer recipe times or watch-and-fix. Recipes stay short; you scale by *building more dedicated lines*, not by waiting on one machine. A craft that needs a config no machine currently holds simply waits for the player to build one — a prompt to expand, not a failure. Config granularity (roughly one axis per archetype, a few values) is the tuning knob for how large a Standard factory must grow. See `design-decisions.md` (2026-07-10) and `technical/crafting.md §3, §7` for the mechanism.
 
 **Auto-crafting.** The network handles on-demand crafting automatically on request. The design challenge is configuring the crafting graph correctly, not clicking through individual recipes. This directly serves Pillar 2 — the work is in the planning, not the execution.
 

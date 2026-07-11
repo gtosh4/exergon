@@ -1,0 +1,10 @@
+(
+    id: "fluxite_studies",
+    name: "Fluxite Studies",
+    category: Science,
+    tier: 4,
+    rarity: Rare,
+    prerequisites: ["precursor_survey"],
+    primary_unlock: ExplorationDiscovery("fluxite_relic_cache"),
+    effects: [UnlockRecipes(["refine_fluxite"])],
+)

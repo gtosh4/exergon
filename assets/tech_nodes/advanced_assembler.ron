@@ -1,0 +1,10 @@
+(
+    id: "advanced_assembler",
+    name: "Advanced Assembler",
+    category: Processing,
+    tier: 4,
+    rarity: Rare,
+    prerequisites: ["resonite_engineering"],
+    primary_unlock: ResearchSpend(type_id: "engineering", amount: 400),
+    effects: [UnlockMachine("advanced_assembler"), UnlockRecipes(["make_advanced_assembler"])],
+)

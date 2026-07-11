@@ -1,0 +1,10 @@
+(
+    id: "analyze_exotic_reaction",
+    inputs:     [(item: "resonite_shard", quantity: 1.0)],
+    outputs:    [(item: "research.synthesis", quantity: 20.0)],
+    byproducts: [],
+    machine_type: "analysis_station",
+    machine_tier: 1,
+    processing_time: 12.0,
+    energy_cost: 60.0,
+)

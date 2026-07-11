@@ -1,0 +1,10 @@
+(
+    id: "coolant_reclaim",
+    name: "Coolant Reclaim",
+    category: Processing,
+    tier: 4,
+    rarity: Uncommon,
+    prerequisites: ["vitreite_synthesis"],
+    primary_unlock: ResearchSpend(type_id: "synthesis", amount: 120),
+    effects: [UnlockRecipes(["reclaim_coolant"])],
+)

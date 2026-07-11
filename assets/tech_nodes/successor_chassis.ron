@@ -1,0 +1,10 @@
+(
+    id: "successor_chassis",
+    name: "Successor Chassis",
+    category: Processing,
+    tier: 5,
+    rarity: Rare,
+    prerequisites: ["advanced_assembler", "vitreite_synthesis"],
+    primary_unlock: ResearchSpend(type_id: "synthesis", amount: 300),
+    effects: [UnlockRecipes(["make_successor_chassis"])],
+)

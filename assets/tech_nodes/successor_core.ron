@@ -1,0 +1,10 @@
+(
+    id: "successor_core",
+    name: "Successor Core",
+    category: Processing,
+    tier: 5,
+    rarity: Rare,
+    prerequisites: ["advanced_assembler"],
+    primary_unlock: ResearchSpend(type_id: "synthesis", amount: 300),
+    effects: [UnlockRecipes(["make_successor_core"])],
+)

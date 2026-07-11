@@ -1,0 +1,13 @@
+(
+    id: "synth_vitreite",
+    inputs: [
+        (item: "aluminum_dust",   quantity: 2.0),
+        (item: "fluxite_lattice", quantity: 1.0),
+    ],
+    outputs:    [(item: "vitreite", quantity: 1.0)],
+    byproducts: [(item: "coolant_runoff", quantity: 1.0)],
+    machine_type: "refinery",
+    machine_tier: 1,
+    processing_time: 28.0,
+    energy_cost: 300.0,
+)

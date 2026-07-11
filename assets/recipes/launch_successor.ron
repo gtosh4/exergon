@@ -1,0 +1,17 @@
+(
+    id: "launch_successor",
+    inputs: [
+        (item: "successor_core",      quantity: 1.0),
+        (item: "successor_chassis",   quantity: 1.0),
+        (item: "successor_drive",     quantity: 1.0),
+        (item: "successor_sensor",    quantity: 1.0),
+        (item: "provisioning_module", quantity: 1.0),
+        (item: "exotic_fuel",         quantity: 20.0),
+    ],
+    outputs:    [],
+    byproducts: [],
+    machine_type: "launch_site",
+    machine_tier: 2,
+    processing_time: 180.0,
+    energy_cost: 8000.0,
+)

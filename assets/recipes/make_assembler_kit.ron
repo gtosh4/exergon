@@ -1,0 +1,14 @@
+(
+    id: "make_assembler_kit",
+    inputs: [
+        (item: "iron_plate",    quantity: 2.0),
+        (item: "circuit_board", quantity: 1.0),
+        (item: "copper_wire",   quantity: 1.0),
+    ],
+    outputs:    [(item: "assembler_kit", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 2,
+    processing_time: 30.0,
+    energy_cost: 90.0,
+)

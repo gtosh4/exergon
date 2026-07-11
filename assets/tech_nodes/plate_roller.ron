@@ -1,0 +1,10 @@
+(
+    id: "plate_roller",
+    name: "Plate Roller",
+    category: Processing,
+    tier: 4,
+    rarity: Uncommon,
+    prerequisites: ["ore_washer"],
+    primary_unlock: ProductionMilestone(material: "iron_ingot", quantity: 150.0),
+    effects: [UnlockMachine("plate_roller"), UnlockRecipes(["roll_iron_plate", "roll_aluminum_plate"])],
+)

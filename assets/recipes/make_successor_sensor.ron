@@ -1,0 +1,13 @@
+(
+    id: "make_successor_sensor",
+    inputs: [
+        (item: "resonite_lattice", quantity: 1.0),
+        (item: "silicon_chip",     quantity: 2.0),
+    ],
+    outputs:    [(item: "successor_sensor", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "advanced_assembler",
+    machine_tier: 2,
+    processing_time: 55.0,
+    energy_cost: 380.0,
+)

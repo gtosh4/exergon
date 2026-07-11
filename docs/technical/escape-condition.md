@@ -133,3 +133,29 @@ All escape types are one machine with `EscapeObjective`. Construction uses the s
 | Pinnacle | Self-expanding forge (always frontier — scratch) | Four successor systems + provisioning, fully self-fabricated | Forge-grade sustained power |
 
 Each MVP escape type will be specced separately before implementation, covering machine asset details and recipe structure.
+
+### 7.1 Standard escape: successor launch *(specced — content shipped Phase D)*
+
+The Standard escape is the successor-launch cascade (`standard-run-design.md §8`). **No new engine** — it reuses the Initiation mechanism: an `EscapeObjective` machine running one recipe; `JobComplete → EscapeEvent → win`. Scale lives entirely in the recipe inputs (four successor systems + provisioning + exotic fuel), not in new machinery.
+
+**Machine — `launch_site`** (`assets/machines/launch_site.ron`): a tier-2, single-interaction ground machine. It is the Standard analog of the gateway. Like the gateway, it must carry the `EscapeObjective` marker for `escape_objective_system` to fire the win on its `JobComplete`.
+
+> **Engine hook (flag).** The gateway receives `EscapeObjective` because `world::ruins::spawn_gateway_ruins_system` attaches it at run-gen. A **player-built** `launch_site` has no such attachment path — placement (`machine/placement.rs`) never inserts `EscapeObjective`. To fire the win for a player-built launch site the engine must either (a) attach `EscapeObjective` on placement of `machine_type == "launch_site"`, or (b) spawn a pre-marked launch site at run-gen (mirroring the gateway). This is the one engine hook the Standard escape needs; the content (machine + recipe + tech chain) is complete and loads.
+
+**Recipe — `launch_successor`** (`assets/recipes/launch_successor.ron`), the single launch cascade:
+
+| Field | Value |
+|---|---|
+| machine | `launch_site` (tier 2) |
+| inputs | 1 `successor_core`, 1 `successor_chassis`, 1 `successor_drive`, 1 `successor_sensor`, 1 `provisioning_module`, 20 `exotic_fuel` |
+| outputs | — (empty; the escape is the completion event, as with `activate_gateway`) |
+| processing_time | 180 s (sustained-power field requirement) |
+| energy_cost | 8000 |
+
+Each system pulls a **different exotic line** so the launch needs the whole graph: core ← Resonite (`resonite_circuit`) + silicon; chassis ← Vitreite + aluminum plate; drive ← Fluxite (`fluxite_coil`) + titanium plate; sensor ← Resonite lattice + silicon; fuel ← Cryophase (second-site, `standard-run-design.md §7`). Numbers are representative/unvalidated (`standard-run-design.md §9 #4`).
+
+**The derelict discount** (`standard-run-design.md §8.3`, fixed run = derelict present): the `derelict_ship` site (drone-discovered) yields `salvaged_hull`. `derelict_salvage` (ExplorationDiscovery: `derelict_ship`) unlocks `make_successor_chassis__salvaged` — `2 aluminum_plate + 1 vitreite + 1 salvaged_hull → 1 successor_chassis`, roughly half the aluminum+Vitreite of the scratch `make_successor_chassis` (`4 aluminum_plate + 2 vitreite`). Both produce the same `successor_chassis`, so a run with the derelict has a lighter chassis burden; a frontier run (no derelict) scratch-builds. The frontier variant is a deferred second config (`standard-run-design.md §9 #7`).
+
+**Tech gating.** The launch machine unlocks at `launch_site_assembly` (ResearchSpend synthesis — modeling "all 4 systems built" pragmatically via the recipe's own inputs; see below). The launch recipe unlocks at the terminal `launch_successor` node (category `Escape`), whose prerequisites are `launch_site_assembly`, `synthesis_lab`, `provisioning_module`, and `exotic_fuel_refining` — i.e. all six input lines must be researched before the cascade recipe is available.
+
+> **ProductionMilestone deviation (flag).** Design §5 gates Launch Site Assembly on "all 4 successor systems built". `ProductionMilestone` tracks a **single** material id, so it cannot express "4 distinct systems". Modeled pragmatically per the design's own fallback: `launch_site_assembly` gates on `ResearchSpend(synthesis)` and lists the four `successor_*` nodes as **prerequisites**, and the `launch_successor` **recipe itself** requires all four systems as inputs — so the "whole graph" requirement is enforced by the recipe, not the unlock vector.

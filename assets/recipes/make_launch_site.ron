@@ -1,0 +1,14 @@
+(
+    id: "make_launch_site",
+    inputs: [
+        (item: "steel_ingot",    quantity: 12.0),
+        (item: "titanium_plate", quantity: 4.0),
+        (item: "circuit_board",  quantity: 4.0),
+    ],
+    outputs:    [(item: "launch_site", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 2,
+    processing_time: 90.0,
+    energy_cost: 200.0,
+)

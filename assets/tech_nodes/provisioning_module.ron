@@ -1,0 +1,10 @@
+(
+    id: "provisioning_module",
+    name: "Provisioning Module",
+    category: Processing,
+    tier: 5,
+    rarity: Uncommon,
+    prerequisites: ["advanced_assembler"],
+    primary_unlock: ResearchSpend(type_id: "engineering", amount: 350),
+    effects: [UnlockRecipes(["make_miner_kit", "make_generator_kit", "make_assembler_kit", "make_provisioning_module"])],
+)

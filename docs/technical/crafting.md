@@ -210,6 +210,8 @@ pub struct MachineCapability {
 
 The dispatcher reads `MachineCapability` directly; it does not re-query `RecipeGraph` and `TechTreeProgress` per dispatch cycle.
 
+> **Planned — config-dedication gate (design-decisions.md 2026-07-10).** `capable` will be further narrowed by the machine's physical **config**: `capable = (type+tier ∩ unlocked_recipes) ∩ config-satisfied`, where a recipe declares `required_config` and the machine provides config via a derived `MachineConfig` component (§7). This makes a machine dedicated to a subset of its type's recipes (GTNH-style), so distinct configs must be built as distinct instances — the machine-side factory-scale lever. `machine_capability_register_system` then also recomputes on module/config change, not only on `TechNodeUnlocked` + placement. Dispatch (§8) is unchanged — it reads the narrowed set. Config source is **resolved: config modules** — durable, tech-gated items installed in the module system (§7). Axis model resolved: **both** (categorical `==` and ordered `≥`). All sub-decisions resolved — this section can now be specced formally.
+
 ---
 
 ## 4. Machine Job Policy
@@ -362,6 +364,8 @@ If `available < required_quantity`, the job blocks (`RecipeBlockedCatalysts`). I
 ## 7. Module Effects on Recipe Execution
 
 Module attachment and slot snap detection are specified in the module system doc. This section covers only the runtime effects on `RecipeProcessor`.
+
+> **Planned — config module class (design-decisions.md 2026-07-10).** In addition to the speed/efficiency/parallel modules below (which only *multiply* execution), a **config module class** will gate *which recipes a machine can run at all*. A machine's installed config is aggregated into a derived `MachineConfig` component (recomputed on attach/detach, mirroring `MachineModifierState`); recipes declare `required_config`; §3's capability filter keeps only config-satisfied recipes. A config swap requires all slots idle (same constraint as the parallel-slot module). This is a hard gate, distinct from the soft `category_filter` policy (`machine-ui §3`). Config modules are **durable installed items** — crafted, tech-tree-unlocked, and removable, **not consumed per recipe** — so a config class is gated and costed like any other item (double-gate: recipe unlocked *and* config module installed). Axis model resolved: **both** (categorical `==` and ordered `≥`). All sub-decisions resolved; ready to spec.
 
 ### Parallel slot module
 

@@ -1,0 +1,13 @@
+(
+    id: "make_fluxite_coil",
+    inputs: [
+        (item: "fluxite_lattice", quantity: 1.0),
+        (item: "copper_wire",     quantity: 2.0),
+    ],
+    outputs:    [(item: "fluxite_coil", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 2,
+    processing_time: 24.0,
+    energy_cost: 120.0,
+)

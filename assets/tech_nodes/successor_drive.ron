@@ -1,0 +1,10 @@
+(
+    id: "successor_drive",
+    name: "Successor Drive",
+    category: Processing,
+    tier: 5,
+    rarity: Rare,
+    prerequisites: ["fluxite_coil", "titanium_forming"],
+    primary_unlock: ResearchSpend(type_id: "synthesis", amount: 300),
+    effects: [UnlockRecipes(["make_successor_drive"])],
+)

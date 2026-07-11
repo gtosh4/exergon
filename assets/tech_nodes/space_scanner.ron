@@ -1,0 +1,10 @@
+(
+    id: "space_scanner",
+    name: "Space Scanner",
+    category: Exploration,
+    tier: 4,
+    rarity: Rare,
+    prerequisites: ["precursor_survey"],
+    primary_unlock: ResearchSpend(type_id: "discovery", amount: 300),
+    effects: [],
+)

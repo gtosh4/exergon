@@ -1,0 +1,13 @@
+(
+    id: "make_generator_kit",
+    inputs: [
+        (item: "iron_plate", quantity: 2.0),
+        (item: "power_cell", quantity: 1.0),
+    ],
+    outputs:    [(item: "generator_kit", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 2,
+    processing_time: 25.0,
+    energy_cost: 80.0,
+)

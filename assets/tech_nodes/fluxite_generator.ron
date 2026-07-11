@@ -1,0 +1,10 @@
+(
+    id: "fluxite_generator",
+    name: "Fluxite Generator",
+    category: Power,
+    tier: 4,
+    rarity: Rare,
+    prerequisites: ["fluxite_studies", "advanced_processing"],
+    primary_unlock: ResearchSpend(type_id: "engineering", amount: 300),
+    effects: [UnlockMachine("fluxite_generator"), UnlockRecipes(["make_fluxite_generator", "generate_fluxite"])],
+)

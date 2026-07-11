@@ -1,0 +1,10 @@
+(
+    id: "crush_aluminum",
+    inputs:     [(item: "aluminum_ore", quantity: 1.0)],
+    outputs:    [(item: "aluminum_crushed", quantity: 1.0)],
+    byproducts: [(item: "gravel", quantity: 1.0)],
+    machine_type: "crusher",
+    machine_tier: 1,
+    processing_time: 4.0,
+    energy_cost: 15.0,
+)

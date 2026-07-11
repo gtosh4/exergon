@@ -1,0 +1,10 @@
+(
+    id: "launch_site_assembly",
+    name: "Launch Site Assembly",
+    category: Processing,
+    tier: 5,
+    rarity: Unique,
+    prerequisites: ["successor_core", "successor_chassis", "successor_drive", "successor_sensor"],
+    primary_unlock: ResearchSpend(type_id: "synthesis", amount: 400),
+    effects: [UnlockMachine("launch_site"), UnlockRecipes(["make_launch_site"])],
+)

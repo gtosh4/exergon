@@ -1,0 +1,13 @@
+(
+    id: "refine_exotic_fuel",
+    inputs: [
+        (item: "cryophase_shard", quantity: 2.0),
+        (item: "exotic_solvent",  quantity: 1.0),
+    ],
+    outputs:    [(item: "exotic_fuel", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "refinery",
+    machine_tier: 1,
+    processing_time: 26.0,
+    energy_cost: 360.0,
+)

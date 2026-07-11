@@ -1,0 +1,10 @@
+(
+    id: "reclaim_coolant",
+    inputs:     [(item: "coolant_runoff", quantity: 2.0)],
+    outputs:    [(item: "exotic_solvent", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "refinery",
+    machine_tier: 1,
+    processing_time: 14.0,
+    energy_cost: 80.0,
+)

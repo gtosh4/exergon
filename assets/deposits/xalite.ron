@@ -1,4 +1,6 @@
 (
     id: "xalite",
-    ores: [("xalite", 70.0), ("resonite", 30.0)],
+    // Keep a bare "xalite" entry: engine deposit_discovery_system matches id == "xalite"
+    // to fire DiscoveryEvent("xalite_deposit") (see flags — that check needs generalizing).
+    ores: [("xalite", 40.0), ("xalite_shard", 30.0), ("resonite_shard", 20.0), ("field_sample", 10.0)],
 )

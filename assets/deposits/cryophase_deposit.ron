@@ -1,0 +1,4 @@
+(
+    id: "cryophase_deposit",
+    ores: [("cryophase_shard", 100.0)],
+)

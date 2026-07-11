@@ -1,0 +1,10 @@
+(
+    id: "fluxite_coil",
+    name: "Fluxite Coil",
+    category: Processing,
+    tier: 4,
+    rarity: Rare,
+    prerequisites: ["fluxite_studies"],
+    primary_unlock: ResearchSpend(type_id: "engineering", amount: 250),
+    effects: [UnlockRecipes(["make_fluxite_coil"])],
+)

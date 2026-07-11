@@ -1,0 +1,10 @@
+(
+    id: "titanium_forming",
+    name: "Titanium Forming",
+    category: Processing,
+    tier: 4,
+    rarity: Rare,
+    prerequisites: ["plate_roller"],
+    primary_unlock: ResearchSpend(type_id: "material", amount: 200),
+    effects: [UnlockRecipes(["roll_titanium_plate"])],
+)

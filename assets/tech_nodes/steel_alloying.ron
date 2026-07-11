@@ -1,0 +1,10 @@
+(
+    id: "steel_alloying",
+    name: "Steel Alloying",
+    category: Processing,
+    tier: 3,
+    rarity: Uncommon,
+    prerequisites: ["basic_smelting"],
+    primary_unlock: ResearchSpend(type_id: "material", amount: 150),
+    effects: [UnlockRecipes(["alloy_steel"])],
+)

@@ -379,6 +379,62 @@ If adopted, the broad condition is intentional — the gate should accommodate w
 
 ---
 
+## 6bis. Tiers 3–5 — RON node set *(Phase D, authored)*
+
+The full T3–T5 design node tables live in [`standard-run-design.md §5`](standard-run-design.md#5-tier-by-tier-progression). This section records the **nodes actually authored in RON** (`assets/tech_nodes/`) for the fixed Standard run — the reachable spine that makes `assets path launch_successor` resolve. It builds on the existing T1–T2 nodes; T3+ nodes carry `tier: 3/4/5` and take T2 nodes (`exotic_materials`, `resonite_engineering`, `ore_crusher`, `drone_recon`, `advanced_processing`) as prerequisites.
+
+**Category mapping** (engine `NodeCategory` has no Extraction/Fabrication variants): design *Extraction* → `Exploration`; *Smelting & Forming* and *Fabrication* → `Processing`; *Science (exotic)* → `Science`.
+
+**Research-theme earn order (soft-lock-free).** Material (turn 0) → Engineering (circuits, T2) → **Discovery** (from `analyze_field_sample`, unlocked by `drone_recon`, fed by `field_sample` collected at the xalite site) → **Synthesis** (from `analyze_exotic_reaction`, unlocked by `synthesis_lab` which is *Discovery*-gated, fed by `resonite_shard`). Each theme's generator is unlocked by a node that does **not** cost that theme, so no currency gates its own source.
+
+### Tier 3 — Inheritance (RON)
+
+| Node | Category | Unlock vector | Prereq | Effect (recipes/machines) |
+|---|---|---|---|---|
+| `steel_alloying` | Processing | ResearchSpend material 150 | basic_smelting | `alloy_steel` |
+| `aluminum_extraction` | Exploration | ResearchSpend material 150 | ore_extraction | `crush_aluminum`, `smelt_aluminum_crushed` |
+| `ore_washer` | Processing | ProductionMilestone iron_crushed 50 | ore_crusher | `wash_iron/copper/tin/aluminum`, `scrub_slag` |
+| `exotic_processing` | Processing | ResearchSpend discovery 150 | exotic_materials | `form_resonite_lattice` |
+
+### Tier 4 — Ascent (RON)
+
+| Node | Category | Unlock vector | Prereq | Effect |
+|---|---|---|---|---|
+| `plate_roller` | Processing | ProductionMilestone iron_ingot 150 | ore_washer | machine `plate_roller`; `roll_iron_plate`, `roll_aluminum_plate` |
+| `titanium_forming` | Processing | ResearchSpend material 200 | plate_roller | `roll_titanium_plate` |
+| `precursor_survey` | Exploration | ResearchSpend discovery 120 | drone_recon | — (survey gate; enables Fluxite/Space discovery) |
+| `fluxite_studies` | Science | ExplorationDiscovery `fluxite_relic_cache` | precursor_survey | `refine_fluxite` |
+| `synthesis_lab` | Science | ResearchSpend discovery 200 | exotic_processing | `analyze_exotic_reaction` (Synthesis generator) |
+| `vitreite_synthesis` | Processing | ResearchSpend synthesis 150 | exotic_processing, fluxite_studies | `synth_vitreite` |
+| `coolant_reclaim` | Processing | ResearchSpend synthesis 120 | vitreite_synthesis | `reclaim_coolant` |
+| `fluxite_generator` | Power | ResearchSpend engineering 300 | fluxite_studies, advanced_processing | machine `fluxite_generator`; `make_fluxite_generator`, `generate_fluxite` |
+| `fluxite_coil` | Processing | ResearchSpend engineering 250 | fluxite_studies | `make_fluxite_coil` |
+| `advanced_assembler` | Processing | ResearchSpend engineering 400 | resonite_engineering | machine `advanced_assembler`; `make_advanced_assembler` |
+| `space_scanner` | Exploration | ResearchSpend discovery 300 | precursor_survey | — (second-site + derelict gate) |
+
+### Tier 5 — Scion / Standard terminal (RON)
+
+| Node | Category | Unlock vector | Prereq | Effect |
+|---|---|---|---|---|
+| `cryophase_prospecting` | Exploration | ResearchSpend discovery 300 | space_scanner | — (surfaces cryogenic-signature rumor) |
+| `cryophase_extraction` | Exploration | ExplorationDiscovery `cryophase_deposit` | cryophase_prospecting | — (second-site; enables mining cryophase) |
+| `exotic_fuel_refining` | Processing | ResearchSpend synthesis 250 | cryophase_extraction, coolant_reclaim | `refine_exotic_fuel`, `refine_exotic_fuel__raw` |
+| `derelict_salvage` | Exploration | ExplorationDiscovery `derelict_ship` | space_scanner | `make_successor_chassis__salvaged` |
+| `successor_core` | Processing | ResearchSpend synthesis 300 | advanced_assembler | `make_successor_core` |
+| `successor_chassis` | Processing | ResearchSpend synthesis 300 | advanced_assembler, vitreite_synthesis | `make_successor_chassis` |
+| `successor_drive` | Processing | ResearchSpend synthesis 300 | fluxite_coil, titanium_forming | `make_successor_drive` |
+| `successor_sensor` | Processing | ResearchSpend synthesis 250 | successor_core, exotic_processing | `make_successor_sensor` |
+| `provisioning_module` | Processing | ResearchSpend engineering 350 | advanced_assembler | `make_miner_kit`, `make_generator_kit`, `make_assembler_kit`, `make_provisioning_module` |
+| `launch_site_assembly` | Processing | ResearchSpend synthesis 400 | successor_core, chassis, drive, sensor | machine `launch_site`; `make_launch_site` |
+| `launch_successor` | **Escape** | ResearchSpend synthesis 500 | launch_site_assembly, synthesis_lab, provisioning_module, exotic_fuel_refining | `launch_successor` (the escape cascade) |
+
+**Deviations from design §5 (flagged).**
+- **Optional nodes deferred.** The §5 tables list optional yield/insurance nodes (Gravel Sink exists; Digger Drone, Efficiency Module I/II, Reinforced Scaffold, Fluxite Capacitor, Terraform Router/Provisioning, Deep Survey, Redundant Core, Field Lab, Sustained Power Array, Fuel Depot) that are **not** on the launch spine. They are omitted from RON for now (representative fixed run) and remain design-only.
+- **Base-metal extraction folded.** The `smelt_metal` template (unlocked at `basic_smelting`) already yields every metal ingot, so separate Titanium/Aluminum "Extraction" gates have little to unlock; aluminum's crush/wash forms hang off `aluminum_extraction`/`ore_washer`, titanium's plate off `titanium_forming`. Design's Steel Alloying / Ore Washer / Plate Roller also **adopt previously-orphaned Phase B recipes** (`alloy_steel`, `wash_*`, `scrub_slag`, `roll_iron_plate`), wiring them to real gates.
+- **Launch gate.** See [`technical/escape-condition.md §7.1`](technical/escape-condition.md#71-standard-escape-successor-launch) for the ProductionMilestone("all 4 systems") → ResearchSpend+recipe-inputs modeling.
+
+---
+
 ## 7. Open Questions
 
 | # | Question | Priority |

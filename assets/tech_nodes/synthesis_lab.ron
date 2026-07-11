@@ -1,0 +1,10 @@
+(
+    id: "synthesis_lab",
+    name: "Synthesis Lab",
+    category: Science,
+    tier: 4,
+    rarity: Rare,
+    prerequisites: ["exotic_processing"],
+    primary_unlock: ResearchSpend(type_id: "discovery", amount: 200),
+    effects: [UnlockRecipes(["analyze_exotic_reaction"])],
+)

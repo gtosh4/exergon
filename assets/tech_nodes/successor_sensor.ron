@@ -1,0 +1,10 @@
+(
+    id: "successor_sensor",
+    name: "Successor Sensor",
+    category: Processing,
+    tier: 5,
+    rarity: Rare,
+    prerequisites: ["successor_core", "exotic_processing"],
+    primary_unlock: ResearchSpend(type_id: "synthesis", amount: 250),
+    effects: [UnlockRecipes(["make_successor_sensor"])],
+)

@@ -1,0 +1,14 @@
+(
+    id: "make_provisioning_module",
+    inputs: [
+        (item: "miner_kit",     quantity: 1.0),
+        (item: "generator_kit", quantity: 1.0),
+        (item: "assembler_kit", quantity: 1.0),
+    ],
+    outputs:    [(item: "provisioning_module", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "advanced_assembler",
+    machine_tier: 2,
+    processing_time: 60.0,
+    energy_cost: 300.0,
+)

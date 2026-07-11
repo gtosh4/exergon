@@ -1,0 +1,14 @@
+(
+    id: "make_advanced_assembler",
+    inputs: [
+        (item: "steel_ingot",   quantity: 4.0),
+        (item: "circuit_board", quantity: 2.0),
+        (item: "iron_plate",    quantity: 2.0),
+    ],
+    outputs:    [(item: "advanced_assembler", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 2,
+    processing_time: 40.0,
+    energy_cost: 120.0,
+)

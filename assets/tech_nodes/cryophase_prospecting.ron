@@ -1,0 +1,10 @@
+(
+    id: "cryophase_prospecting",
+    name: "Cryophase Prospecting",
+    category: Exploration,
+    tier: 5,
+    rarity: Rare,
+    prerequisites: ["space_scanner"],
+    primary_unlock: ResearchSpend(type_id: "discovery", amount: 300),
+    effects: [],
+)

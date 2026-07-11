@@ -1,0 +1,10 @@
+(
+    id: "exotic_processing",
+    name: "Exotic Processing",
+    category: Processing,
+    tier: 3,
+    rarity: Rare,
+    prerequisites: ["exotic_materials"],
+    primary_unlock: ResearchSpend(type_id: "discovery", amount: 150),
+    effects: [UnlockRecipes(["form_resonite_lattice"])],
+)

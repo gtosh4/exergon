@@ -1,0 +1,10 @@
+(
+    id: "vitreite_synthesis",
+    name: "Vitreite Synthesis",
+    category: Processing,
+    tier: 4,
+    rarity: Rare,
+    prerequisites: ["exotic_processing", "fluxite_studies"],
+    primary_unlock: ResearchSpend(type_id: "synthesis", amount: 150),
+    effects: [UnlockRecipes(["synth_vitreite"])],
+)

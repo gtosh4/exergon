@@ -1,0 +1,10 @@
+(
+    id: "aluminum_extraction",
+    name: "Aluminum Extraction",
+    category: Exploration,
+    tier: 3,
+    rarity: Uncommon,
+    prerequisites: ["ore_extraction"],
+    primary_unlock: ResearchSpend(type_id: "material", amount: 150),
+    effects: [UnlockRecipes(["crush_aluminum", "smelt_aluminum_crushed"])],
+)

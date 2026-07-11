@@ -1,0 +1,10 @@
+(
+    id: "roll_titanium_plate",
+    inputs:     [(item: "titanium_ingot", quantity: 2.0)],
+    outputs:    [(item: "titanium_plate", quantity: 3.0)],
+    byproducts: [(item: "metal_scrap", quantity: 1.0)],
+    machine_type: "plate_roller",
+    machine_tier: 1,
+    processing_time: 8.0,
+    energy_cost: 45.0,
+)
