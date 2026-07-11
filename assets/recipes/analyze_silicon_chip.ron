@@ -1,0 +1,10 @@
+(
+    id: "analyze_silicon_chip",
+    inputs:     [(item: "silicon_chip", quantity: 1.0)],
+    outputs:    [(item: "research.material", quantity: 25.0)],
+    byproducts: [],
+    machine_type: "analysis_station",
+    machine_tier: 1,
+    processing_time: 8.0,
+    energy_cost: 40.0,
+)

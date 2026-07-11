@@ -1,0 +1,10 @@
+(
+    id: "analyze_circuit",
+    inputs:     [(item: "circuit_board", quantity: 1.0)],
+    outputs:    [(item: "research.engineering", quantity: 20.0)],
+    byproducts: [],
+    machine_type: "analysis_station",
+    machine_tier: 1,
+    processing_time: 10.0,
+    energy_cost: 30.0,
+)

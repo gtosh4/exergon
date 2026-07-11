@@ -5,6 +5,6 @@
     tier: 2,
     rarity: Uncommon,
     prerequisites: ["basic_processing", "science_basics"],
-    primary_unlock: ResearchSpend(type_id: "material", amount: 300),
+    primary_unlock: ResearchSpend(type_id: "engineering", amount: 300),
     effects: [UnlockRecipes(["make_power_cell"])],
 )

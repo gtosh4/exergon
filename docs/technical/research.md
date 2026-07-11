@@ -129,16 +129,35 @@ impl ResearchPool {
 }
 ```
 
-Research types are **content-defined strings** — no hardcoded enum. The base content pack defines the four types from `technical-design.md §9`:
+Research types are **content-defined strings** — no hardcoded enum. The Standard run uses a **4-theme ladder** (`standard-run-design.md §3.2`). A theme's currency is set by **what feeds it** (generation), separate from **what it unlocks** (spend):
 
-| Type ID | Earned from | Gates |
-|---|---|---|
-| `material_science` | Mineral/ore/ingot inputs to research station | Recipe reveals, machine tier unlocks |
-| `field_research` | Biological/ecosystem sample inputs | Exploration-gated nodes, biome knowledge |
-| `engineering` | Production milestone recipes, machine operation recipes | Module unlocks, logistics upgrades |
-| `discovery` | Exploration find / site interaction recipes | Exploration-only nodes, tier unlocks |
+| Theme (`type_id`) | Fed with (generation) | Gates (spend) | Online | Status |
+|---|---|---|---|---|
+| `material` | **single-material forms** — ore, dust, ingot, plate, wire, **gear**, alloy, exotic shard | forming ladder, extraction, base fabrication | T1 | **live** |
+| `engineering` | **multi-material assemblies** — circuit, motor, module, controller | logistics, modules, efficiency, automation | T2 | **live** |
+| `discovery` | field samples, site-interaction finds | exotic reveals, exploration-gated nodes | T2–3 (drone) | **content pending Phase D** |
+| `synthesis` | exotic reaction products + routed terraform/void streams (`standard-run-design.md §4`) | exotic chains, successor systems | T4 | **content pending Phase D** |
 
-**Vertical Slice uses only `material_science`.**
+> **Legacy alias.** `material_science` was the VS-era name for the material theme. The current content uses the short id **`material`**; the legacy item `research_points` routes there via `DEFAULT_RESEARCH_THEME` (see §4). VS/e2e tests read the pool as `ResearchPool.get("material")`.
+
+**Material vs Engineering — the split rule.** *Material is depth within one material; Engineering is breadth across materials.* A **single-material form** (any form of one material, **including a gear**) generates **Material**; a **multi-material assembly** (a device combining ≥2 materials) generates **Engineering**. No item is ever both — the test is "one material's form, or a device of several?" So a **gear = Material** (bronze, shaped), a **circuit = Engineering** (silicon + copper, combined). Applied in content: `analyze_bronze_gear`/`analyze_silicon_chip` credit `material`; `analyze_circuit` credits `engineering`.
+
+> **Bootstrap exception (why some Engineering-category nodes still cost `material`).** Engineering isn't earnable until circuits come online (T1→T2). Early nodes in Engineering-ish categories (e.g. `logistics_basics` at T1) therefore *cost* Material — generation stays disjoint regardless of category. Only nodes reachable **after** an engineering generator is available are themed `engineering`.
+
+**Per-theme yield ladder (Material, live).** Each theme's pack escalates: deeper input = better pts/sec at the cost of a longer chain. You upgrade the research line as you tier — you don't clone T1 analyzers. Numbers unvalidated (playtest-tuned):
+
+| Rung | Recipe | Input | Output | pts/sec | Unlocked by |
+|---|---|---|---|---|---|
+| T1 | `basic_analysis` | 4 stone | 10 `research_points` (→`material`) | 1.25 | `science_basics` |
+| T2 | `analyze_bronze_gear` | 1 bronze_gear | 15 `research.material` | 1.88 | `bronze_alloying` |
+| T3 | `form_silicon_chip` → `analyze_silicon_chip` | 1 silicon + 1 copper_wire → 1 silicon_chip | 25 `research.material` | 3.13 | `silicon_refining` |
+
+**Engineering generator (live).** `analyze_circuit` (1 `circuit_board` → 20 `research.engineering`), unlocked by `basic_processing` (which also unlocks `make_circuit`). Engineering thus comes online exactly when circuits do — funding `advanced_processing` (300) and `resonite_engineering` (500).
+
+**Lockout mitigation** (multi-currency can strand a player — `standard-run-design.md §3.4`). Themes are complementary, not competitive:
+- Every live theme is **always-earnable from its intro tier** — none can be permanently missed. Material feeds from the origin stone loop (turn 0); Engineering from any circuit the player already builds.
+- Theme sources **overlap the main line** — automating circuits *is* the engineering source, so no theme needs a dedicated, neglectable subfactory.
+- **Discovery/Synthesis deferred to Phase D** — their currencies need drone samples / exotic-reaction + void streams that aren't online yet. Re-theming a node to a currency nothing produces would soft-lock the run, so those nodes stay `material` until their generators ship.
 
 Research points are always earnable via the research station recipe (`basic_analysis`) — this path is guaranteed viable for progression. Other sources may exist. `ProductionMilestone` satisfies a node's unlock requirement but does not add to `ResearchPool`.
 
@@ -160,11 +179,12 @@ This makes the research loop reachable from turn 0 without a dedicated bootstrap
 Research recipes are standard recipe assets with one convention: research point outputs use item IDs with the prefix `"research."`.
 
 ```
-"research.material_science"   → 10u32 added to ResearchPool
-"research.field_research"     → 5u32 added to ResearchPool
+"research.material"      → adds to the `material` theme
+"research.engineering"   → adds to the `engineering` theme
+"research_points"        → adds to the `material` theme (legacy alias, DEFAULT_RESEARCH_THEME)
 ```
 
-The suffix after `"research."` is the type ID passed to `ResearchPool.add`. Amount is the item quantity in the recipe output stack.
+The suffix after `"research."` is the type ID passed to `ResearchPool.add`. The bare legacy id `research_points` routes to `DEFAULT_RESEARCH_THEME` (`material`) for back-compat — `basic_analysis` still uses it. Amount is the item quantity in the recipe output stack. `research_theme_of` (`src/research/mod.rs`) performs this mapping; a `research.*` / `research_points` output is routed to the pool and **never** to the logistics network, so these outputs need no `assets/items` entry (they show as producer-only in `assets uses`, which is expected for currency).
 
 `recipe_progress_system` on recipe completion checks each output item: if its ID starts with `"research."`, route to `ResearchPool.add(suffix, quantity)` instead of the logistics network. This is the only special-casing needed. All other recipe logic is identical to any other machine.
 

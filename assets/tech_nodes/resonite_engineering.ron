@@ -5,6 +5,6 @@
     tier: 2,
     rarity: Rare,
     prerequisites: ["exotic_materials", "advanced_processing"],
-    primary_unlock: ResearchSpend(type_id: "material", amount: 500),
+    primary_unlock: ResearchSpend(type_id: "engineering", amount: 500),
     effects: [UnlockRecipes(["make_resonite_circuit"])],
 )

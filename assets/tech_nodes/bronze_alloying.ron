@@ -6,5 +6,5 @@
     rarity: Uncommon,
     prerequisites: ["tin_extraction", "basic_smelting"],
     primary_unlock: ResearchSpend(type_id: "material", amount: 120),
-    effects: [UnlockRecipes(["alloy_bronze", "form_gear_bronze"])],
+    effects: [UnlockRecipes(["alloy_bronze", "form_gear_bronze", "analyze_bronze_gear"])],
 )

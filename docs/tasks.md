@@ -307,9 +307,11 @@ The base material spine (§2.1) and the staggered forming ladder (§3.1). Interl
 
 The 4-theme research ladder (§3.2). **Reverses the VS single-currency stance** (VS §3.4 / Phase 5) — validate lockout mitigations hold (no theme strandable) in the Phase F sweep. (§9 #9)
 
-- [ ] Extend `research.md` with the 4-theme ladder (Material / Engineering / Discovery / Synthesis): generation source, spend gates, online tier, per-theme yield-recipe ladder, Synthesis↔void coupling
-- [ ] RON research recipes per theme per tier (Material yield ladder `3 ore→10 / bronze gear→15 / silicon chip→25`, etc.)
-- [ ] Encode the Material-vs-Engineering classification rule: single-material-form = Material, multi-material-assembly = Engineering (no item is both)
+- [x] Extend `research.md` with the 4-theme ladder (Material / Engineering / Discovery / Synthesis): generation source, spend gates, online tier, per-theme yield-recipe ladder, Synthesis↔void coupling — **§3/§4 rewritten** (Discovery/Synthesis documented but marked "content pending Phase D")
+- [x] RON research recipes per theme per tier — **Material ladder**: T1 `basic_analysis` (4 stone→10, existing, `research_points` alias) / T2 `analyze_bronze_gear` (1 gear→15 `research.material`) / T3 `form_silicon_chip` + `analyze_silicon_chip` (1 chip→25). **Engineering generator**: `analyze_circuit` (1 circuit_board→20 `research.engineering`). New item `silicon_chip`
+- [x] Encode the Material-vs-Engineering classification rule in `research.md §3` (single-material-form = Material, multi-material-assembly = Engineering; no item is both). Applied: bronze_gear/silicon_chip → Material generators; circuit_board → Engineering generator
+
+> **Phase C notes / flags** (`content-designer`): (1) **Re-themed to `engineering`**: `advanced_processing` (300) + `resonite_engineering` (500) — both are T2 Processing nodes whose prereq chain passes through `basic_processing` (unlocks `make_circuit`→`analyze_circuit`), so engineering is earnable before either is reachable. Both sit on the escape path; reachability confirmed. (2) **Left `material`, flagged**: `logistics_basics` (T1, no prereqs — bootstrap node; engineering isn't online at T1, per §3.2 note) and `gravel_sink` (T2 optional; reachable via `ore_crusher` *without* `basic_processing`, so engineering isn't guaranteed earnable — re-theming would risk stranding the optional node). (3) **Deferred to Phase D**: `drone_recon` (Discovery theme) and `escape_synthesis` (Synthesis theme) stay `material` — their currencies need drone/exotic sources not yet online (re-theming now would soft-lock). (4) `research.material`/`research.engineering` outputs show as producer-only in `assets uses` — expected; they are currency routed by `research_theme_of`, not logistics items.
 
 ## Phase D — Content: exotic chains + T2–T5 nodes `[content-designer]` (dep: B, C)
 
