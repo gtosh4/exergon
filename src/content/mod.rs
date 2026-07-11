@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use rand::Rng;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use xxhash_rust::xxh64::xxh64;
 
 pub struct ContentPlugin;
@@ -19,14 +19,14 @@ impl Plugin for ContentPlugin {
 // Data types (deserialised from RON)
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct OreSpec {
     pub name: String,
     pub material: u8,
     pub weight: u32,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct VeinDef {
     pub id: String,
     /// Fraction of positions within the vein volume that are replaced with ore (0–1).
@@ -57,7 +57,7 @@ impl VeinDef {
     }
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct LayerDef {
     pub id: String,
     pub name: String,
@@ -65,7 +65,7 @@ pub struct LayerDef {
     pub y_cell_range: (i32, i32),
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct BiomeDef {
     pub id: String,
     /// ID of the layer this biome belongs to.
@@ -290,7 +290,7 @@ fn validate_layers(layers: &[LayerDef]) {
 const DEPOSIT_CELL_SIZE: f32 = 64.0;
 
 /// Surface-level ore deposit definition loaded from `assets/deposits/`.
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct DepositDef {
     pub id: String,
     /// (material_id, weight) pairs. Weights are normalised to sum to 1.0 at load.

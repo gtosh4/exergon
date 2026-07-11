@@ -26,9 +26,8 @@ Docs and code diverge → reconcile explicitly. Never leave silent.
 - Always add non-test code above `mod tests`
 - When writing code, make sure to run `cargo fmt`, `cargo clippy` and `cargo test`; make sure lints and tests pass
 
-## Exploring RON content
-Query the game's RON assets (recipes, tech nodes) with the `assets` CLI instead of reading `assets/**.ron` by hand — it loads through the real deserializers, so output = what the game sees:
-`cargo run -q --bin assets recipe|recipes|tech|techs|path <node>|uses <item>`. See [testing.md](docs/technical/testing.md) §4.
+## Exploring & editing RON content
+Query and edit the game's RON assets with the `assets` **MCP server** (registered in `.mcp.json` as `exergon-assets`) instead of reading/editing `assets/**.ron` by hand — it loads and writes through the real (de)serializers, so what you see/write = what the game sees. Generic over a `kind` argument (recipe, tech, item, material, machine, placeable, vein, …): `list_assets`, `get_asset`, `create_asset`, `update_asset` (JSON merge-patch), `delete_asset`; plus `list_kinds` / `describe_kind` (schema) for discovery and graph queries `resolve_recipe` / `list_all_recipes` / `tech_path` / `item_uses`. See [testing.md](docs/technical/testing.md) §4.
 
 ## Verifying gameplay in tests
 The landing→victory path is regression-tested end-to-end in `tests/standard_full_run.rs`, which fast-forwards simulated time (no manual play). **When you implement a new stage on that path (research tier, crafting step, exploration unlock, escape), add a matching stage to that test.** See [testing.md](docs/technical/testing.md) §3 for the step-by-step recipe. This keeps the dev loop at `cargo test`.

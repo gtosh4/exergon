@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::placeables::{
     GhostHint, InteractionShape, ItemKind, ItemSpec, OrientationSupport, PlaceableDef,
@@ -7,14 +7,16 @@ use super::placeables::{
 };
 use crate::content::load_ron_dir;
 
-#[derive(Deserialize, Clone, Debug, Default, PartialEq, Eq, Reflect)]
+#[derive(
+    Deserialize, Serialize, Clone, Debug, Default, PartialEq, Eq, Reflect, schemars::JsonSchema,
+)]
 pub enum EnvSource {
     #[default]
     Solar,
     Combustion,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct GeneratorDef {
     pub watts: f32,
     pub env_source: EnvSource,
@@ -23,20 +25,20 @@ pub struct GeneratorDef {
     pub max_buffer_joules: f32,
 }
 
-#[derive(Deserialize, Clone, Debug, Default)]
+#[derive(Deserialize, Serialize, Clone, Debug, Default, schemars::JsonSchema)]
 pub struct MachineTierDef {
     pub tier: u8,
     #[serde(default)]
     pub generator: Option<GeneratorDef>,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct MachineDef {
     pub id: String,
     pub tiers: Vec<MachineTierDef>,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct MachineFileDef {
     pub id: String,
     pub name: String,

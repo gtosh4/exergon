@@ -4,7 +4,7 @@
 use bevy::prelude::*;
 use moonshine_save::prelude::Save;
 use rand::Rng;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::content::load_ron_dir;
 use crate::drone::FogCellRevealedEvent;
@@ -287,7 +287,7 @@ pub struct PropertyDecisionValidated {
 // Archetype asset
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct PlanetArchetypeDef {
     pub name: String,
     pub temperature: (f32, f32),

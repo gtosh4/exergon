@@ -2,6 +2,7 @@
 #![allow(clippy::type_complexity, clippy::too_many_arguments)]
 
 pub mod aegis;
+pub mod asset_store;
 pub mod content;
 pub mod debug;
 pub mod drone;

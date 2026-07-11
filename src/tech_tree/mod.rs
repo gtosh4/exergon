@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::content::load_ron_dir;
 
@@ -15,7 +15,7 @@ impl Plugin for TechTreePlugin {
 
 pub type NodeId = String;
 
-#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, schemars::JsonSchema)]
 pub enum NodeCategory {
     Power,
     Processing,
@@ -25,7 +25,9 @@ pub enum NodeCategory {
     Escape,
 }
 
-#[derive(Deserialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Deserialize, Serialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, schemars::JsonSchema,
+)]
 pub enum NodeRarity {
     Common,
     Uncommon,
@@ -33,7 +35,7 @@ pub enum NodeRarity {
     Unique,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub enum UnlockVector {
     /// Spend `amount` of the `type_id` research currency (content-defined theme string).
     ResearchSpend {
@@ -49,7 +51,7 @@ pub enum UnlockVector {
     Observation(String),
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub enum NodeEffect {
     UnlockRecipes(Vec<String>),
     UnlockMachine(String),
@@ -57,7 +59,7 @@ pub enum NodeEffect {
     UnlockRecipeTemplate(String),
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct NodeDef {
     pub id: NodeId,
     pub name: String,

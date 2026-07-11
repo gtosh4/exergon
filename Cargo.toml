@@ -25,6 +25,11 @@ thiserror = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
 
+# `assets` MCP server (src/bin/assets.rs). Only used by that binary + src/asset_store.
+rmcp = { version = "0.9", features = ["server", "transport-io", "macros", "schemars"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std"] }
+schemars = "1"
+
 [profile.dev]
 opt-level = 1
 

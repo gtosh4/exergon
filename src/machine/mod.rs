@@ -12,7 +12,9 @@ pub use placeables::{
     SurfaceRule, TileSnap,
 };
 pub use placement::MachineBundle;
-pub use registry::{EnvSource, GeneratorDef, MachineDef, MachineRegistry, MachineTierDef};
+pub use registry::{
+    EnvSource, GeneratorDef, MachineDef, MachineFileDef, MachineRegistry, MachineTierDef,
+};
 pub(crate) use visuals::GhostAssets;
 pub use visuals::{MachineColliders, MachinePortLayout, MachinePortLayouts, MachineVisualAssets};
 

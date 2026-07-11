@@ -1,8 +1,9 @@
 # Testing & Dev Tooling
 
 Two things live here: how the end-to-end integration test is built and extended, and the
-`assets` CLI for inspecting the RON content the game loads. They belong together — you use
-the `assets` CLI to look up the recipes / tech nodes a new test stage must exercise.
+`assets` MCP server for inspecting and editing the RON content the game loads. They belong
+together — you use the `assets` tools to look up the recipes / tech nodes a new test stage must
+exercise.
 
 Read `gdd.md` / the relevant `technical/*.md` for design intent; this doc is about *verifying*
 that intent in code with minimal manual play.
@@ -59,7 +60,7 @@ Each stage of the game (research tier, crafting step, exploration unlock, escape
 labelled block in `standard_run_lands_mines_and_launches_successor`, appended after
 the previous stage. The pattern is always the same:
 
-1. **Look up the content** the stage needs with the `assets` CLI (§4): recipe inputs/outputs,
+1. **Look up the content** the stage needs with the `assets` MCP tools (§4): recipe inputs/outputs,
    machine type, tech-node cost and prerequisites.
 2. **Set up** whatever the stage consumes — place & wire the machines via `place()` / `connect()`
    (the real `WorldObjectEvent` / `CableConnectionEvent` contracts), provision storage, and stub
@@ -75,8 +76,8 @@ the previous stage. The pattern is always the same:
    just that an end resource appeared — otherwise a stage can pass without doing any work.
 
 Keep stages **surgical and self-documenting**: a comment saying what the stage proves and which
-content values (from the `assets` CLI) it depends on, so a later content tweak points the reader
-straight at the assertion to update.
+content values (from the `assets` MCP tools) it depends on, so a later content tweak points the
+reader straight at the assertion to update.
 
 The target arc, in stage order (from `assets path escape_synthesis`):
 
@@ -98,39 +99,63 @@ has likely decayed toward its yield floor — raise `max_secs`, don't lower the 
 
 ---
 
-## 4. `assets` — RON content query CLI
+## 4. `assets` — RON content MCP server
 
-`src/bin/assets.rs` loads the game's content through the **real loaders**
-(`build_recipe_graph()`, `load_ron_dir::<NodeDef>`), so what it prints is exactly what the game
-deserializes — schema drift or a malformed RON shows up here, not just at runtime. Prefer it
-over reading `assets/**.ron` by hand.
+`src/bin/assets.rs` is a **Model Context Protocol (MCP) stdio server** that loads *and edits* the
+game's content through the **real (de)serializers** (`load_ron_dir`, `build_recipe_graph()`), so
+what a tool returns/writes is exactly what the game loads — schema drift or malformed RON shows up
+here, not just at runtime. Prefer it over reading/editing `assets/**.ron` by hand.
 
-Run from the repo root (so `assets/` is reachable):
+It is registered for this repo in `.mcp.json` as `exergon-assets`, so Claude Code auto-discovers
+it. It launches via `cargo run -q --bin assets` from the repo root (so `assets/` is reachable);
+logs go to stderr, stdout is the JSON-RPC channel.
+
+### Tools
+
+The write surface is **generic over a `kind` argument** — five CRUD tools plus two discovery
+tools, so the whole surface is ~13 tools rather than one set per type:
+
+| tool | purpose |
+|---|---|
+| `list_kinds` | the kinds this server manages + each kind's identity field |
+| `describe_kind` | JSON schema for a kind's entity (call before `create_asset`/`update_asset` to see required fields) |
+| `list_assets` | `{kind}` → all ids of that kind |
+| `get_asset` | `{kind, id}` → one entity |
+| `create_asset` | `{kind, value}` → create from a JSON object, validated against the kind's schema (errors if the id exists) |
+| `update_asset` | `{kind, id, patch}` → JSON merge-patch (`{ "energy_cost": 50 }`) — nested objects merge, arrays/scalars replace wholesale |
+| `delete_asset` | `{kind, id}` → remove the file |
+
+`kind` is one of: `recipe`, `tech` (tech node), `item`, `material`, `form_group`,
+`recipe_template`, `vein`, `layer`, `biome`, `deposit`, `machine`, `placeable`,
+`planet_archetype`, `seed`. The `id` is the entity's `id` field, except `placeable` (its
+`item.id`) and `planet_archetype` / `seed` (their `name`); curated seeds live in the single
+`curated.ron` list. The block texture atlas has its own pair (it isn't an id-keyed entity):
+`get_texture_manifest` / `update_texture_manifest`.
+
+Resolved-graph **read** queries — the full graph, including template-expanded recipes and derived
+items that have no backing file:
+
+| tool | purpose |
+|---|---|
+| `resolve_recipe` | one recipe from the resolved graph (incl. template-expanded) |
+| `list_all_recipes` | every resolved recipe id |
+| `tech_path` | prerequisite chain to reach a node, in dependency order |
+| `item_uses` | recipes that produce / consume an item |
+
+`tech_path` is the tool for sequencing e2e stages — it returns prerequisites before the node that
+needs them, i.e. the order the test must unlock them in (e.g. `tech_path basic_processing` →
+`["basic_smelting", "basic_processing"]`).
+
+**Writes are canonical:** the server re-emits every field, so `#[serde(default)]` fields (e.g.
+`energy_output`, `template_id`, `max_reach`) become explicit on any file it rewrites. The file
+still loads identically.
+
+Manual poke without an MCP client — newline-delimited JSON-RPC over stdio:
 
 ```
-cargo run -q --bin assets recipe <id>    # one recipe: inputs, outputs, machine, time, energy
-cargo run -q --bin assets recipes        # list every recipe id
-cargo run -q --bin assets tech <id>      # one tech node: tier, unlock cost, prereqs, effects
-cargo run -q --bin assets techs          # list every tech node id
-cargo run -q --bin assets path <node>    # full prerequisite chain to reach a node
-cargo run -q --bin assets uses <item>    # recipes that produce / consume an item
+$ printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"c","version":"0"}}}' \
+  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_asset","arguments":{"kind":"recipe","id":"make_miner"}}}' \
+  | cargo run -q --bin assets
 ```
-
-Examples:
-
-```
-$ cargo run -q --bin assets recipe make_miner
-make_miner
-  machine : assembler (tier 1)
-  time    : 25s   energy_cost: 0
-  inputs  : 25xstone, 20xiron_ore
-  outputs : 1xminer
-
-$ cargo run -q --bin assets path basic_processing
-prerequisite chain for basic_processing:
-  basic_smelting (PrerequisiteChain)
-  basic_processing (ResearchSpend(150))
-```
-
-`path` is the tool for sequencing e2e stages — it prints prerequisites before the node that
-needs them, i.e. the order the test must unlock them in.

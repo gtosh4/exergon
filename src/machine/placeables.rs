@@ -1,13 +1,13 @@
 use avian3d::prelude::Collider;
 use bevy::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // ---------------------------------------------------------------------------
 // Data structures
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct PlaceableDef {
     pub item: ItemSpec,
     pub interaction: InteractionShape,
@@ -28,7 +28,7 @@ impl PlaceableDef {
     }
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct ItemSpec {
     pub id: String,
     pub name: String,
@@ -36,7 +36,7 @@ pub struct ItemSpec {
     pub kind: ItemKind,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub enum ItemKind {
     Machine { tier: u8 },
     Cable { network: String },
@@ -44,21 +44,21 @@ pub enum ItemKind {
     Generator,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub enum InteractionShape {
     Single,
     TwoEndpoint { item_id: String },
     AreaRect { tile_size: f32 },
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub enum SurfaceRule {
     Ground,
     Anywhere,
     Port,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub enum SnapRule {
     /// Free placement — no snapping.
     Free,
@@ -66,14 +66,14 @@ pub enum SnapRule {
     PortRaycast,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub enum TileSnap {
     Horizontal { step: f32 },
     Vertical { step: f32 },
 }
 
 /// How player input maps to Build orientation before placement.
-#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, schemars::JsonSchema)]
 pub enum OrientationSupport {
     /// Always placed at identity rotation; R-key ignored.
     Fixed,
@@ -84,7 +84,7 @@ pub enum OrientationSupport {
     Free,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub enum GhostHint {
     Scene,
     TiledScene,
