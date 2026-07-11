@@ -1,0 +1,4 @@
+(
+    id: "titanium",
+    ores: [("titanium_ore", 1.0)],
+)
