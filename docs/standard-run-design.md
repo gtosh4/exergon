@@ -61,9 +61,9 @@ Interlock target: no exotic material is a dead-end line. Resonite → core/senso
 
 ---
 
-## 3. Staggered-Complexity Ladders
+## 3. Depth & Scale Levers
 
-One principle across the run: **a deeper chain trades steps for better yield.** It governs three subsystems — material forming (§3.1), research generation (§3.2), and (via void) reactivity (§4). Deeper is always *optional*: the simple chain never stops working. This is the coherence lesson from Nullius — the whole game rhymes on one lever.
+Engagement comes from a few orthogonal levers. Two are **staggered-complexity ladders** — a deeper chain trades steps for better yield: material forming (§3.1) and research generation (§3.2), plus (via void) reactivity (§4); deeper is always *optional*, the simple chain never stops working (the Nullius coherence lesson). The third is **machine dedication** (§3.3) — the machine-side *scale* lever: config modules force a run to build many dedicated instances rather than timeshare one universal machine, so the factory grows by combinatorial variety, not copy-paste.
 
 ### 3.1 Forming ladder
 
@@ -110,6 +110,25 @@ Themes arrive as capabilities do (drone → Discovery, exotic processing → Syn
 - Every theme is **always-earnable** from its intro tier — none can be permanently missed.
 - Theme sources **overlap the main line** — Engineering accrues just by automating, Discovery by droning, Synthesis by running clean — so no theme needs a dedicated, neglectable subfactory.
 - Most tiers offer spendable nodes across ≥2 themes → you can always spend *something* ("choice, not wait").
+
+### 3.3 Machine dedication (config modules)
+
+The machine-side **scale** lever (`design-decisions.md` 2026-07-10). Item transport is ME-style (no belts, Pillar 2), so a run's factory *scale* — why you build more than ~1 machine per type — comes from **dedication**, not belt lines. A flexible processor's runnable recipe set is narrowed by an installed **config module** (a crafted, tech-gated item in a config slot). A recipe runs only when **double-gated**: its tech node is unlocked *and* the machine holds the matching config (recipe `required_config` satisfied by the machine's `MachineConfig`). One machine can't timeshare its whole recipe space, so distinct configs are built as distinct dedicated instances, recombined into lines — GTNH-style combinatorial variety without belts.
+
+- **Granularity is the tuning knob:** ~1 config axis per archetype, 3–5 values — categorical (`reaction`, `==`) or ordered (`coil_tier`, `≥`). Higher machine tiers add config slots → multi-config → **sprawl-early, consolidate-late**.
+- **Friction in build/config, not runtime:** recipe times stay short (no waiting, Pillar 2); a changeover requires the machine idle (discourages thrashing). A config-mismatched craft job just queues until a matching machine exists — a signal to build one, not a failure.
+- **Complementary to channel capacity** (the item-network throughput lever, GDD §10): config gates *machine count*; channels gate *item flow*. Two orthogonal scale layers. This is the **mid-run** scale pressure; the escape's sustained-input finale (§8) is the end-game pressure.
+
+Representative Standard-run config axes (each value = a crafted, tech-gated **config module item**; a new config = a new gated item that widens an archetype's reach):
+
+| Archetype | Axis | Values | Dedication effect |
+|---|---|---|---|
+| **Refinery** | `reaction` | fluxite · vitreite · coolant-reclaim · exotic-fuel | one refinery per exotic reaction (§5 T4–T5) |
+| **Analysis station** | `theme` | material · engineering · discovery · synthesis | one analyzer per research theme (§3.2) |
+| **Smelter** | `mode` | direct · alloy | separate direct-smelt from alloying (§3.1) |
+| **Advanced assembler** | `assembly` | circuit · successor-system · kit | dedicate successor-system fabrication (§8) |
+
+> **Not in the current completable-run build.** Config-dedication is direction-locked but *no code yet* — it needs an engine capability (a config-satisfaction filter on `MachineCapability`, a `MachineConfig` component, a recipe `required_config` field, a config-module class in the module system) plus content (the axes above + config-module items). It layers on **after** the Phase A–F completable run as the mid-run machine-scale lever. See §9 #10.
 
 ---
 
@@ -647,7 +666,8 @@ Initiation = 1 **minimal** successor (a compact core+chassis payload; if a precu
 | 7 | **Frontier variant** — this fixed run seeds a precursor derelict (discount path). The no-precursor scratch-build chassis path (§8.3) is the harder alt; spec a second Standard config to exercise it later. | scope |
 | 8 | e2e test must gain stages T3→victory (currently stops at drone scan) — `tests/landing_to_first_research.rs` per CLAUDE.md. | test |
 | 9 | **Research ladder (§3.2) is new content-design** — extend `research.md` with the 4 themes, per-theme yield-recipe ladder, and Synthesis↔void coupling. Adopts **multi-theme** currency — reverses the VS single-currency stance (VS §3.4); validate the lockout mitigations hold (no theme strandable) in the e2e/curated sweep. | content-designer + research.md |
+| 10 | **Machine dedication / config modules (§3.3)** — direction-locked (`design-decisions.md` 2026-07-10), **no code yet**. Engine: config-satisfaction filter on `MachineCapability`, `MachineConfig` component, recipe `required_config`, config-module class in the module system (`crafting.md §3/§7` specced). Content: per-archetype config axes + config-module items. Layers on **after** the Phase A–F completable run as the mid-run machine-scale lever — not required for a completable run, but the primary mid-run scale/planning pressure. | engine + content |
 
 ---
 
-*v0.4 — T1–T5 fully specced (≈71 nodes, key recipes, research packs, per-tier mermaid graphs); Material/Engineering split rule locked (§3.2). Next: break into content + engine + test tasks, then port node defs to `tech-tree-design.md` + RON, extend `research.md` with the theme ladder, write §8 into `escape-condition.md §7` (all at implementation, via content-designer).*
+*v0.5 — folded in **machine dedication / config modules** (§3.3, §9 #10) as the mid-run machine-scale lever per `design-decisions.md` 2026-07-10; §3 reframed to "Depth & Scale Levers" (staggered-complexity ladders + machine dedication). v0.4: T1–T5 fully specced (≈71 nodes, key recipes, research packs, per-tier graphs); Material/Engineering split (§3.2). Config-dedication is direction-locked, engine+content deferred (post the Phase A–F completable run).*
