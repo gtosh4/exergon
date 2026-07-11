@@ -91,6 +91,8 @@ The Demo exists to answer four questions:
 3. **Run-stakes positioning:** Is non-punishing failure an acceptable commercial model, or does the Demo require a stakes hook before public exposure?
 4. **Meta-progression hook:** Does first-pass meta-progression (codex, biome unlocks) give players reason to start a second run immediately after completion?
 
+> Scope note: the Full-Standard content push (fixed hand-authored tier 1–5 run, ~71 nodes, successor-launch escape) is tracked in [`tasks.md`](tasks.md) "Standard Run Content — Full Standard" and serves the first gate below. The seeded ~215-node pool + procedural graph validator remain Alpha scope, not this push.
+
 Gate conditions:
 - Standard difficulty playable end-to-end
 - External playtesting confirms Standard pacing holds across seeds

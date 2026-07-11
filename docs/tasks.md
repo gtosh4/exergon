@@ -272,3 +272,78 @@ Phase 0 (Save, Telemetry, Seed) ──┬──► Phase 1 (Planet) ──┬─
 ```
 
 Phases 3–10 mostly independent once Phase 0 ships. Pick by team capacity. Phase 11 gates VS completion.
+
+---
+
+# Standard Run Content — Full Standard
+
+> **Milestone placement: NOT Vertical Slice.** This block builds toward the **Demo (MVP)** gate "Standard difficulty playable end-to-end" (`milestones.md`). It is a **single fixed, hand-authored Standard run** (tiers 1–5, ~71 nodes, ~13h design target, successor-launch escape) — the Standard analog of the VS curated seed. The **seeded ~215-node pool + per-run selection and the procedural graph validator stay deferred to Alpha** (`milestones.md` Alpha gate); they are *not* in this push. Do not fold these phases into VS phases 0–11.
+>
+> Source of truth: [`standard-run-design.md`](standard-run-design.md) (esp. §5 tiers, §8 escape, §9 flags). Node tables live there and in [`tech-tree-design.md`](tech-tree-design.md); escape ECS in [`technical/escape-condition.md`](technical/escape-condition.md); research themes in [`technical/research.md`](technical/research.md). Numbers throughout are representative and **unvalidated** — playtest-tuned after e2e completability (§9 #4).
+
+Phases are dependency-ordered (§10). Owner tags: `engine` · `content-designer` · `docs-curator` · `playtest-verifier`.
+
+## Phase A — Engine: `ProductionMilestone` unlock vector `[engine]`
+
+The one true blocker. The vector is a stub (`tech_tree/mod.rs` enum variant + UI render only); the auto-unlock loop (`research/mod.rs`) handles `ExplorationDiscovery` + `PrerequisiteChain` but not this. Required by the T1 skeleton (Basic Miner ← 50 stone, Land Drone Mk1 ← 20 iron) and every production-milestone tier gate. Gates Phase B onward. (§1, §9 #1)
+
+- [ ] Per-material running produced-count tracking
+- [ ] Auto-unlock a node when its produced-count threshold is met
+- [ ] Hinted progress readout on the node card (e.g. "50/100 refined units")
+- [ ] Tests: count accrues on job completion; node auto-unlocks at threshold; progress hint renders
+
+## Phase B — Content: materials + forming ladder `[content-designer]` (dep: A)
+
+The base material spine (§2.1) and the staggered forming ladder (§3.1). Interlock via byproducts is the planning content (§1 principle 1). (§9 #2)
+
+- [ ] 10 base materials incl. bronze (Cu+Sn) and steel (Fe+C) alloys, with form groups (ore/crushed/washed/dust/ingot/plate/wire/gear)
+- [ ] Forming machines: crusher, washer, plate-roller, wire-drawer, alloy-smelt + template recipes (`crush_ore`, `wash_ore`, `roll_plate`, `draw_wire`, `alloy_bronze`, `alloy_steel`)
+- [ ] Byproducts + sinks: gravel (→ construction filler), slag (→ scrub → trace metal), metal scrap (recyclable); trace-copper cross-feed on iron washing
+- [ ] T1 reconciliation: move Ore Crusher to T2, T1 drops to 7 fixed direct-smelt nodes; reconcile `tech-tree-design.md §6` skeleton to the staggered ladder
+
+## Phase C — Content: research themes + packs `[content-designer + docs-curator]` (parallel with B)
+
+The 4-theme research ladder (§3.2). **Reverses the VS single-currency stance** (VS §3.4 / Phase 5) — validate lockout mitigations hold (no theme strandable) in the Phase F sweep. (§9 #9)
+
+- [ ] Extend `research.md` with the 4-theme ladder (Material / Engineering / Discovery / Synthesis): generation source, spend gates, online tier, per-theme yield-recipe ladder, Synthesis↔void coupling
+- [ ] RON research recipes per theme per tier (Material yield ladder `3 ore→10 / bronze gear→15 / silicon chip→25`, etc.)
+- [ ] Encode the Material-vs-Engineering classification rule: single-material-form = Material, multi-material-assembly = Engineering (no item is both)
+
+## Phase D — Content: exotic chains + T2–T5 nodes `[content-designer]` (dep: B, C)
+
+The ~63 tier-2–5 nodes (T2 12 / T3 16 / T4 20 / T5 15), exotic lines, and the successor systems. Each successor system pulls a different exotic line so the launch needs the whole graph (§2.2, §5, §8.1). (§9 #3 RON renames land here)
+
+- [ ] Exotic materials + deposits: Fluxite (relic cache), Vitreite (research/prereq), Cryophase (remote second-site, drone-gated — §7); Resonite/Xalite chain folded in from T2
+- [ ] Exotic processing recipes + coolant-runoff byproduct (harmful/neutral streams only for now — §4)
+- [ ] Successor systems (core/chassis/drive/sensor) + provisioning module + launch cascade recipe inputs
+- [ ] ~63 tech nodes across T2–T5 with unlock vectors + §7 hints (per §5 node tables)
+- [ ] Voltage-tier-2 Fluxite generator + Voltage-2 network (the power transition, §6); advanced assembler for exotic assemblies
+- [ ] Port the T2–T5 node definitions to `tech-tree-design.md`
+
+## Phase E — Escape spec + wiring `[content-designer + docs-curator]` (dep: D)
+
+Write the Standard escape that `escape-condition.md §7` currently defers. No new engine — launch site is an `EscapeObjective` running one recipe (§8). (§9 #3)
+
+- [ ] Write §7 successor-launch spec into `technical/escape-condition.md`
+- [ ] RON: launch-site `EscapeObjective` machine + `launch_successor` recipe (systems + provisioning + fuel → `EscapeEvent`)
+- [ ] RON: `make_successor_chassis__salvaged` derelict-discount variant consuming `salvaged_hull` (fixed run = derelict present, §8.3)
+
+## Phase F — Reachability + tests `[playtest-verifier]` (dep: all)
+
+Hand-verify reachability (procedural validator stays Alpha) + extend the e2e path to victory (§1, §9 #8). Per CLAUDE.md, add a matching stage to the e2e test for each new stage on the landing→victory path.
+
+- [ ] `cargo run --bin assets path launch_successor` — confirm reachability from landing
+- [ ] Extend `tests/landing_to_first_research.rs` with stages T3 → victory (currently stops at drone scan)
+- [ ] Curated Standard run config (the fixed Standard "seed" equivalent)
+
+## Carried-forward open flags (§9)
+
+Design questions, not tasks — track as risks; do not lock into content yet.
+
+- [ ] **Non-terminal tier exit gates are TBD** (§9 #6) — the §5 tier-exit anchors are provisional; full tier-gate design is a separate pass (`tech-tree-design.md §7 Q#1–2). Don't lock gate quantities in content.
+- [ ] **Beneficial coolant-runoff → terraform-product is post-MVP stretch** (§9 #5, GDD §11) — ship harmful/neutral streams now; coolant-as-terraform + the provisioning discount (Terraform Router, Terraform Provisioning nodes) are optional stretch.
+- [ ] **Frontier (no-precursor) variant is a later second config** (§9 #7) — this run seeds the derelict (discount path); the scratch-build chassis alt is a separate curated Standard config, deferred.
+
+Ambiguities flagged for the design owner (not decided here):
+- Phase D lumps the Resonite/Xalite chain into the T2–T5 node work; the source task list named only Fluxite/Vitreite/Cryophase. Resonite is a T2/T3 exotic (§2.2) and part of the same node tables — confirm it belongs in D rather than a separate item.
+- Node totals: 7 (T1) + 12 + 16 + 20 + 15 = 70; design states ~71. Representative and unvalidated (§9 #4) — reconcile the exact count at content authoring.
