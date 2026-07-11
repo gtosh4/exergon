@@ -1,0 +1,10 @@
+(
+    id: "wash_tin",
+    inputs:     [(item: "tin_crushed", quantity: 2.0)],
+    outputs:    [(item: "tin_dust", quantity: 2.0)],
+    byproducts: [(item: "slag", quantity: 1.0)],
+    machine_type: "washer",
+    machine_tier: 1,
+    processing_time: 6.0,
+    energy_cost: 20.0,
+)

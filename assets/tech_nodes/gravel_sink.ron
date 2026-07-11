@@ -1,0 +1,10 @@
+(
+    id: "gravel_sink",
+    name: "Gravel Sink",
+    category: Processing,
+    tier: 2,
+    rarity: Common,
+    prerequisites: ["ore_crusher"],
+    primary_unlock: ResearchSpend(60),
+    effects: [UnlockRecipes(["gravel_filler"])],
+)

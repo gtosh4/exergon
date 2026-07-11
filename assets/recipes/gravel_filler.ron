@@ -1,0 +1,10 @@
+(
+    id: "gravel_filler",
+    inputs:     [(item: "gravel", quantity: 4.0)],
+    outputs:    [(item: "construction_filler", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 1,
+    processing_time: 5.0,
+    energy_cost: 10.0,
+)

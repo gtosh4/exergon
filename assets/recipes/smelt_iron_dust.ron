@@ -1,0 +1,10 @@
+(
+    id: "smelt_iron_dust",
+    inputs:     [(item: "iron_dust", quantity: 1.0)],
+    outputs:    [(item: "iron_ingot", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "smelter",
+    machine_tier: 1,
+    processing_time: 4.0,
+    energy_cost: 18.0,
+)

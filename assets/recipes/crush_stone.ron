@@ -1,0 +1,10 @@
+(
+    id: "crush_stone",
+    inputs:     [(item: "stone", quantity: 1.0)],
+    outputs:    [(item: "crushed_stone", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "crusher",
+    machine_tier: 1,
+    processing_time: 4.0,
+    energy_cost: 15.0,
+)

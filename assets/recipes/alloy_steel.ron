@@ -1,0 +1,13 @@
+(
+    id: "alloy_steel",
+    inputs: [
+        (item: "iron_ingot", quantity: 2.0),
+        (item: "coal",       quantity: 1.0),
+    ],
+    outputs:    [(item: "steel_ingot", quantity: 2.0)],
+    byproducts: [],
+    machine_type: "smelter",
+    machine_tier: 1,
+    processing_time: 8.0,
+    energy_cost: 40.0,
+)

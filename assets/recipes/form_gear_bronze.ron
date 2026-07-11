@@ -1,0 +1,10 @@
+(
+    id: "form_gear_bronze",
+    inputs:     [(item: "bronze_ingot", quantity: 2.0)],
+    outputs:    [(item: "bronze_gear", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 1,
+    processing_time: 6.0,
+    energy_cost: 25.0,
+)

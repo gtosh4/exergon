@@ -1,0 +1,10 @@
+(
+    id: "smelt_tin_crushed",
+    inputs:     [(item: "tin_crushed", quantity: 2.0)],
+    outputs:    [(item: "tin_ingot", quantity: 3.0)],
+    byproducts: [],
+    machine_type: "smelter",
+    machine_tier: 1,
+    processing_time: 6.0,
+    energy_cost: 25.0,
+)

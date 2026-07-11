@@ -1,0 +1,16 @@
+(
+    id: "ore_crusher",
+    name: "Ore Crusher",
+    category: Processing,
+    tier: 2,
+    rarity: Uncommon,
+    prerequisites: ["basic_smelting"],
+    primary_unlock: ProductionMilestone(material: "iron_ingot", quantity: 100.0),
+    effects: [
+        UnlockMachine("crusher"),
+        UnlockRecipes([
+            "crush_iron", "crush_copper", "crush_tin",
+            "smelt_iron_crushed", "smelt_copper_crushed", "smelt_tin_crushed",
+        ]),
+    ],
+)

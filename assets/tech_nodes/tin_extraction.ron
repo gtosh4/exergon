@@ -1,0 +1,10 @@
+(
+    id: "tin_extraction",
+    name: "Tin Extraction",
+    category: Exploration,
+    tier: 2,
+    rarity: Uncommon,
+    prerequisites: ["ore_extraction"],
+    primary_unlock: ResearchSpend(80),
+    effects: [UnlockRecipes(["smelt_metal__tin"])],
+)

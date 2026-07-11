@@ -340,14 +340,15 @@ The **first source of research** is the analysis station: place the solar genera
 
 The origin deposit is guaranteed (always within the Aegis radius and always stone-bearing), and the starting machines are non-consumable, so the opening can never brick for lack of the right parts or a mineable deposit.
 
-### Tier 1 node set (8 nodes, representative)
+### Tier 1 node set (7 nodes, representative)
 
-These are the 8 nodes that appear in *every* Standard run (all Common, Tier 1 only). They form the fixed skeleton; seeded nodes extend this in higher tiers.
+These are the 7 nodes that appear in *every* Standard run (all Common, Tier 1 only). They form the fixed skeleton; seeded nodes extend this in higher tiers.
+
+> **Ore Crusher moved to Tier 2** (`standard-run-design.md §3.1` staggered forming ladder, §5 T2 note). T1 is now **direct-smelt-only** — the simplest `ore → ingot` chain. The crusher (and the `ore → crushed → ingot` +yield chain with its **gravel** byproduct) is the first *optional* forming deepening, unlocked at T2 by a production milestone (100 refined units). Authored in RON as the `ore_crusher` T2 node (`assets/tech_nodes/ore_crusher.ron`).
 
 | Node | Category | Effect | Primary unlock | Prerequisite |
 |---|---|---|---|---|
 | **Stone Furnace** | Smelting & Forming | Unlocks `smelter` machine type Tier 1; enables all ore→ingot recipes for known materials | Research spend (small) | — |
-| **Ore Crusher** | Smelting & Forming | Unlocks `crusher` machine type Tier 1; enables ore→crushed_ore, crushed_ore→dust | Research spend (small) | Stone Furnace |
 | **Basic Miner** | Extraction | Unlocks `miner` machine type Tier 1; automatic ore extraction from surface deposits | Production milestone: 50 stone | — |
 | **Combustion Generator** | Power | Unlocks `combustion_generator` machine type; burns fuel items for power | Research spend (small) | Stone Furnace |
 | **Solar Array** | Power | Unlocks `solar_array` machine type; passive power scaled by planet solar modifier | Research spend (small) | — |
@@ -360,15 +361,15 @@ These are the 8 nodes that appear in *every* Standard run (all Common, Tier 1 on
 ### Tier 1 unlock ordering examples
 
 **Power-first player:**
-Solar Array → Stone Furnace → Basic Miner → Field Analyzer → Basic Network Node → Ore Crusher → Combustion Generator → Land Drone Mk1
+Solar Array → Stone Furnace → Basic Miner → Field Analyzer → Basic Network Node → Combustion Generator → Land Drone Mk1
 
 **Production-first player:**
-Stone Furnace → Basic Miner → Ore Crusher → Basic Network Node → Field Analyzer → Combustion Generator → Solar Array → Land Drone Mk1
+Stone Furnace → Basic Miner → Basic Network Node → Field Analyzer → Combustion Generator → Solar Array → Land Drone Mk1
 
 **Science-first player:**
-Field Analyzer → Stone Furnace → Combustion Generator → Basic Miner → Basic Network Node → Ore Crusher → Land Drone Mk1 → Solar Array
+Field Analyzer → Stone Furnace → Combustion Generator → Basic Miner → Basic Network Node → Land Drone Mk1 → Solar Array
 
-All three hit the Tier 2 gate (50 refined base-material units) at roughly the same clock time. The difference is which infrastructure is built out first.
+All three hit the Tier 2 gate at roughly the same clock time. The difference is which infrastructure is built out first. The Ore Crusher (now the first T2 forming deepening) is the natural next unlock once the direct-smelt loop has produced its first 100 refined units.
 
 ### Tier 1 → 2 gate
 

@@ -1,0 +1,10 @@
+(
+    id: "silicon_refining",
+    name: "Silicon Refining",
+    category: Processing,
+    tier: 2,
+    rarity: Uncommon,
+    prerequisites: ["ore_crusher"],
+    primary_unlock: ResearchSpend(150),
+    effects: [UnlockRecipes(["crush_stone", "refine_silicon"])],
+)

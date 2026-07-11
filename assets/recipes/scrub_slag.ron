@@ -1,0 +1,10 @@
+(
+    id: "scrub_slag",
+    inputs:     [(item: "slag", quantity: 3.0)],
+    outputs:    [(item: "iron_dust", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "refinery",
+    machine_tier: 1,
+    processing_time: 8.0,
+    energy_cost: 30.0,
+)

@@ -1,0 +1,10 @@
+(
+    id: "crush_tin",
+    inputs:     [(item: "tin_ore", quantity: 1.0)],
+    outputs:    [(item: "tin_crushed", quantity: 1.0)],
+    byproducts: [(item: "gravel", quantity: 1.0)],
+    machine_type: "crusher",
+    machine_tier: 1,
+    processing_time: 4.0,
+    energy_cost: 15.0,
+)

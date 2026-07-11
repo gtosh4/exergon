@@ -296,10 +296,12 @@ The one true blocker. The vector is a stub (`tech_tree/mod.rs` enum variant + UI
 
 The base material spine (§2.1) and the staggered forming ladder (§3.1). Interlock via byproducts is the planning content (§1 principle 1). (§9 #2)
 
-- [ ] 10 base materials incl. bronze (Cu+Sn) and steel (Fe+C) alloys, with form groups (ore/crushed/washed/dust/ingot/plate/wire/gear)
-- [ ] Forming machines: crusher, washer, plate-roller, wire-drawer, alloy-smelt + template recipes (`crush_ore`, `wash_ore`, `roll_plate`, `draw_wire`, `alloy_bronze`, `alloy_steel`)
-- [ ] Byproducts + sinks: gravel (→ construction filler), slag (→ scrub → trace metal), metal scrap (recyclable); trace-copper cross-feed on iron washing
-- [ ] T1 reconciliation: move Ore Crusher to T2, T1 drops to 7 fixed direct-smelt nodes; reconcile `tech-tree-design.md §6` skeleton to the staggered ladder
+- [x] 10 base materials incl. bronze (Cu+Sn) and steel (Fe+C) alloys, with form groups (`metal`: ore/crushed/dust/ingot/plate/wire; `alloy`: ingot/plate/wire). Silicon = Unique item (refined from crushed stone); gears = per-alloy Composite (bronze_gear) rather than a universal form — see Phase B notes below
+- [x] Forming machines: crusher, washer, plate_roller, wire_drawer (alloy-smelt reuses `smelter`) + ladder recipes `crush_*`+gravel, `smelt_*_crushed` (2→3 yield), `wash_*`+slag, `wash_iron` (+trace copper), `smelt_*_dust`, `roll_iron_plate`+scrap, `draw_metal` (retargeted to wire_drawer), `alloy_bronze`, `alloy_steel`, `form_gear_bronze`
+- [x] Byproducts + sinks: gravel (→ `gravel_filler` → construction_filler), slag (→ `scrub_slag` → recovered iron_dust), metal scrap (→ `recycle_scrap` → iron_dust); trace-copper cross-feed on `wash_iron`
+- [x] T1 reconciliation: Ore Crusher authored as T2 node (`ore_crusher`, ProductionMilestone 100 iron_ingot); T1 skeleton in `tech-tree-design.md §6` reconciled to 7 fixed direct-smelt nodes. T2 forming/material nodes added: `tin_extraction`, `ore_crusher`, `bronze_alloying`, `silicon_refining`, `gravel_sink`
+
+> **Phase B notes / flags** (`content-designer`): (1) The RON `RecipeTemplate` engine hardcodes `output qty 1.0` + `byproducts: []` — it cannot express the ladder's byproducts, non-unit yields, or cross-feed. The byproduct/yield ladder steps are therefore hand-authored **concrete** recipes (iron/copper/tin exemplars) rather than templates; a template-engine extension would DRY this to all metals (engine follow-up). (2) `draw_metal` kept at 1 ingot→1 wire (design §5 wanted 1→2 — blocked by the template output-qty limit; changed, flagged). (3) `ProductionMilestone` gating applied only to the new `ore_crusher` node; the design's Basic Miner←50 stone / Land Drone←20 iron would require switching `ore_extraction`/`drone_recon` to milestones, but the e2e test hard-codes `ore_extraction` as a player-requested ResearchSpend unlock — that conversion is an engine+test task, not RON-only. (4) Wash/plate/steel recipes are graph-coherent but their unlock nodes (Ore Washer, Slag Scrubber, Steel Alloying T3; Plate Roller T4) land in later phases. Known future-consumer danglers: `bronze_gear`, `silicon` (Phase C), `iron_plate`, `steel_ingot`, `*_wire` (T3–T5).
 
 ## Phase C — Content: research themes + packs `[content-designer + docs-curator]` (parallel with B)
 

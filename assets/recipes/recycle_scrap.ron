@@ -1,0 +1,10 @@
+(
+    id: "recycle_scrap",
+    inputs:     [(item: "metal_scrap", quantity: 3.0)],
+    outputs:    [(item: "iron_dust", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 1,
+    processing_time: 6.0,
+    energy_cost: 25.0,
+)

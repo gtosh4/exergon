@@ -1,0 +1,10 @@
+(
+    id: "bronze_alloying",
+    name: "Bronze Alloying",
+    category: Processing,
+    tier: 2,
+    rarity: Uncommon,
+    prerequisites: ["tin_extraction", "basic_smelting"],
+    primary_unlock: ResearchSpend(120),
+    effects: [UnlockRecipes(["alloy_bronze", "form_gear_bronze"])],
+)

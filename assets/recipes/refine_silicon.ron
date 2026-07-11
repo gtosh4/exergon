@@ -1,0 +1,10 @@
+(
+    id: "refine_silicon",
+    inputs:     [(item: "crushed_stone", quantity: 2.0)],
+    outputs:    [(item: "silicon", quantity: 1.0)],
+    byproducts: [],
+    machine_type: "refinery",
+    machine_tier: 1,
+    processing_time: 10.0,
+    energy_cost: 35.0,
+)
