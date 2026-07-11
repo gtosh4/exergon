@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 pub struct SeedPlugin;
 
@@ -14,7 +14,7 @@ impl Plugin for SeedPlugin {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct CuratedSeedEntry {
     pub name: String,
     pub seed: String,

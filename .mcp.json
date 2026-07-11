@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "exergon-assets": {
+      "command": "cargo",
+      "args": ["run", "-q", "--bin", "assets"]
+    }
+  }
+}

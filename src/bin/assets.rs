@@ -1,137 +1,509 @@
-//! Query the game's RON asset definitions from the terminal, using the real loaders
-//! (so what you see is exactly what the game deserializes).
+//! `assets` — a Model Context Protocol (MCP) stdio server exposing the game's RON content
+//! for read/write access, using the real deserializers so what a tool sees/writes is exactly
+//! what the game loads.
 //!
-//! Run from repo root so `assets/` is reachable:
-//!   cargo run --bin assets recipe make_miner     # one recipe (inputs/outputs/machine/time)
-//!   cargo run --bin assets recipes                # list every recipe id
-//!   cargo run --bin assets tech ore_extraction    # one tech node (prereqs, cost, effects)
-//!   cargo run --bin assets techs                   # list every tech node id
-//!   cargo run --bin assets path drone_recon        # prerequisite chain to reach a node
-//!   cargo run --bin assets uses stone              # recipes that produce / consume an item
+//! The write surface is **generic over a `kind` argument** rather than one tool per asset type:
+//! `list_assets` / `get_asset` / `create_asset` / `update_asset` / `delete_asset` all take a
+//! `kind` (see `list_kinds`). `describe_kind` returns the JSON schema for a kind's entity, so a
+//! client still gets the exact shape to build a `create_asset` / `update_asset` payload. Plus
+//! resolved-graph queries (`resolve_recipe`, `list_all_recipes`, `tech_path`, `item_uses`) that
+//! expose template-expanded recipes / derived items the raw files don't contain, and a dedicated
+//! pair for the (non-entity) block texture manifest.
+//!
+//! Writes are canonical RON (every field explicit). `update_asset` takes a JSON merge-patch:
+//! `{ "energy_cost": 50 }` overwrites just that field; nested objects merge, arrays/scalars
+//! replace wholesale.
+//!
+//! Must run with the repo root as the working directory so `assets/` is reachable.
+//! stdout is the JSON-RPC channel — all logging goes to stderr; never `println!`.
 
-use exergon::content::load_ron_dir;
-use exergon::recipe_graph::{ConcreteRecipe, build_recipe_graph};
+use std::path::Path;
+
+use rmcp::{
+    ServerHandler, ServiceExt,
+    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
+    model::{ServerCapabilities, ServerInfo},
+    tool, tool_handler, tool_router,
+    transport::stdio,
+};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+use serde_json::Value;
+
+use exergon::asset_store;
+use exergon::content::{BiomeDef, DepositDef, LayerDef, VeinDef, load_ron_dir};
+use exergon::machine::{MachineFileDef, PlaceableDef};
+use exergon::planet::PlanetArchetypeDef;
+use exergon::recipe_graph::{
+    ConcreteRecipe, FormGroup, ItemDef, MaterialDef, RecipeTemplate, build_recipe_graph,
+};
+use exergon::seed::CuratedSeedEntry;
 use exergon::tech_tree::NodeDef;
 
-fn print_recipe(r: &ConcreteRecipe) {
-    let stacks = |ss: &[exergon::recipe_graph::ItemStack]| {
-        if ss.is_empty() {
-            "-".to_string()
-        } else {
-            ss.iter()
-                .map(|s| format!("{}x{}", s.quantity, s.item))
-                .collect::<Vec<_>>()
-                .join(", ")
+const SEEDS_PATH: &str = "assets/seeds/curated.ron";
+const TEXTURES_PATH: &str = "assets/textures/blocks/manifest.ron";
+
+// ---------------------------------------------------------------------------
+// Tool argument structs
+// ---------------------------------------------------------------------------
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+struct KindArg {
+    /// Asset kind — see `list_kinds`.
+    kind: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+struct KindIdArg {
+    /// Asset kind — see `list_kinds`.
+    kind: String,
+    /// Entity identity: its `id`, or `item.id` (placeable), or `name` (planet_archetype, seed).
+    id: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+struct KindValueArg {
+    /// Asset kind — see `list_kinds`.
+    kind: String,
+    /// The full entity as a JSON object (validated against the kind's schema — see `describe_kind`).
+    value: Value,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+struct KindUpdateArg {
+    /// Asset kind — see `list_kinds`.
+    kind: String,
+    /// Identity of the entity to update.
+    id: String,
+    /// Fields to overwrite. Nested objects merge; arrays and scalars replace wholesale.
+    patch: Value,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+struct IdArg {
+    /// The id to query.
+    id: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+struct ItemArg {
+    /// Item id to search recipes for.
+    item: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+struct StringListArg {
+    /// Full replacement list.
+    entries: Vec<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Generic dispatch over `kind`
+// ---------------------------------------------------------------------------
+
+/// Runs `$op::<T, _>(dir, <extra args...>, id_of)` for the concrete type behind `$kind`.
+/// Every directory-backed kind (one `.ron` file per entity) is listed once here; the `seed`
+/// kind is a single list file and is handled before this macro by the dispatch fns.
+macro_rules! by_kind {
+    ($kind:expr, $op:ident $(, $arg:expr)*) => {
+        match $kind {
+            "recipe" => $op::<ConcreteRecipe, _>("assets/recipes" $(, $arg)*, |v| v.id.as_str()),
+            "tech" => $op::<NodeDef, _>("assets/tech_nodes" $(, $arg)*, |v| v.id.as_str()),
+            "item" => $op::<ItemDef, _>("assets/items" $(, $arg)*, |v| v.id.as_str()),
+            "material" => $op::<MaterialDef, _>("assets/materials" $(, $arg)*, |v| v.id.as_str()),
+            "form_group" => $op::<FormGroup, _>("assets/form_groups" $(, $arg)*, |v| v.id.as_str()),
+            "recipe_template" => {
+                $op::<RecipeTemplate, _>("assets/recipe_templates" $(, $arg)*, |v| v.id.as_str())
+            }
+            "vein" => $op::<VeinDef, _>("assets/veins" $(, $arg)*, |v| v.id.as_str()),
+            "layer" => $op::<LayerDef, _>("assets/layers" $(, $arg)*, |v| v.id.as_str()),
+            "biome" => $op::<BiomeDef, _>("assets/biomes" $(, $arg)*, |v| v.id.as_str()),
+            "deposit" => $op::<DepositDef, _>("assets/deposits" $(, $arg)*, |v| v.id.as_str()),
+            "machine" => $op::<MachineFileDef, _>("assets/machines" $(, $arg)*, |v| v.id.as_str()),
+            "placeable" => {
+                $op::<PlaceableDef, _>("assets/placeables" $(, $arg)*, |v| v.item.id.as_str())
+            }
+            "planet_archetype" => {
+                $op::<PlanetArchetypeDef, _>("assets/planet/archetypes" $(, $arg)*, |v| {
+                    v.name.as_str()
+                })
+            }
+            other => Err(unknown_kind(other)),
         }
     };
-    println!("{}", r.id);
-    println!("  machine : {} (tier {})", r.machine_type, r.machine_tier);
-    println!(
-        "  time    : {}s   energy_cost: {}",
-        r.processing_time, r.energy_cost
-    );
-    println!("  inputs  : {}", stacks(&r.inputs));
-    println!("  outputs : {}", stacks(&r.outputs));
-    if !r.byproducts.is_empty() {
-        println!("  byproduct: {}", stacks(&r.byproducts));
-    }
 }
 
-fn print_node(n: &NodeDef) {
-    println!("{}  \"{}\"", n.id, n.name);
-    println!("  tier {} / {:?} / {:?}", n.tier, n.category, n.rarity);
-    println!("  unlock_via : {:?}", n.primary_unlock);
-    println!(
-        "  prereqs    : {}",
-        if n.prerequisites.is_empty() {
-            "-".to_string()
-        } else {
-            n.prerequisites.join(", ")
-        }
-    );
-    for e in &n.effects {
-        println!("  effect     : {e:?}");
+fn dispatch_list(kind: &str) -> Result<String, String> {
+    if kind == "seed" {
+        return seed_list();
     }
+    by_kind!(kind, list_kind)
 }
 
-/// Depth-first prerequisite walk, printing each node once in dependency order
-/// (a node's prerequisites are printed before the node itself).
+fn dispatch_get(kind: &str, id: &str) -> Result<String, String> {
+    if kind == "seed" {
+        return seed_get(id);
+    }
+    by_kind!(kind, get_kind, id)
+}
+
+fn dispatch_create(kind: &str, value: Value) -> Result<String, String> {
+    if kind == "seed" {
+        return seed_create(value);
+    }
+    by_kind!(kind, create_kind, value)
+}
+
+fn dispatch_update(kind: &str, id: &str, patch: &Value) -> Result<String, String> {
+    if kind == "seed" {
+        return seed_update(id, patch);
+    }
+    by_kind!(kind, update_kind, id, patch)
+}
+
+fn dispatch_delete(kind: &str, id: &str) -> Result<String, String> {
+    if kind == "seed" {
+        return seed_delete(id);
+    }
+    by_kind!(kind, delete_kind, id)
+}
+
+fn schema_for_kind(kind: &str) -> Result<String, String> {
+    let schema = match kind {
+        "recipe" => schemars::schema_for!(ConcreteRecipe),
+        "tech" => schemars::schema_for!(NodeDef),
+        "item" => schemars::schema_for!(ItemDef),
+        "material" => schemars::schema_for!(MaterialDef),
+        "form_group" => schemars::schema_for!(FormGroup),
+        "recipe_template" => schemars::schema_for!(RecipeTemplate),
+        "vein" => schemars::schema_for!(VeinDef),
+        "layer" => schemars::schema_for!(LayerDef),
+        "biome" => schemars::schema_for!(BiomeDef),
+        "deposit" => schemars::schema_for!(DepositDef),
+        "machine" => schemars::schema_for!(MachineFileDef),
+        "placeable" => schemars::schema_for!(PlaceableDef),
+        "planet_archetype" => schemars::schema_for!(PlanetArchetypeDef),
+        "seed" => schemars::schema_for!(CuratedSeedEntry),
+        other => return Err(unknown_kind(other)),
+    };
+    to_json(&schema)
+}
+
+/// The kinds this server manages, with each kind's identity field, for `list_kinds`.
+const KIND_CATALOG: &[(&str, &str)] = &[
+    ("recipe", "id"),
+    ("tech", "id"),
+    ("item", "id"),
+    ("material", "id"),
+    ("form_group", "id"),
+    ("recipe_template", "id"),
+    ("vein", "id"),
+    ("layer", "id"),
+    ("biome", "id"),
+    ("deposit", "id"),
+    ("machine", "id"),
+    ("placeable", "item.id"),
+    ("planet_archetype", "name"),
+    ("seed", "name"),
+];
+
+fn kinds_catalog() -> Result<String, String> {
+    let kinds: Vec<Value> = KIND_CATALOG
+        .iter()
+        .map(|(kind, identity)| serde_json::json!({ "kind": kind, "identity": identity }))
+        .collect();
+    to_json(&serde_json::json!({
+        "writable_kinds": kinds,
+        "note": "Use these with list_assets/get_asset/create_asset/update_asset/delete_asset. \
+                 Call describe_kind first to get a kind's JSON schema.",
+        "special_tools": ["get_texture_manifest", "update_texture_manifest"],
+        "graph_queries": ["resolve_recipe", "list_all_recipes", "tech_path", "item_uses"],
+    }))
+}
+
+fn unknown_kind(kind: &str) -> String {
+    let names: Vec<&str> = KIND_CATALOG.iter().map(|(k, _)| *k).collect();
+    format!("unknown kind '{kind}'; valid kinds: {}", names.join(", "))
+}
+
+// ---------------------------------------------------------------------------
+// Generic CRUD helpers over a one-file-per-entity directory
+// ---------------------------------------------------------------------------
+
+fn to_json<T: Serialize>(value: &T) -> Result<String, String> {
+    serde_json::to_string_pretty(value).map_err(|e| format!("json encode failed: {e}"))
+}
+
+fn list_kind<T, F>(dir: &str, id_of: F) -> Result<String, String>
+where
+    T: DeserializeOwned,
+    F: Fn(&T) -> &str,
+{
+    let ids = asset_store::list_ids::<T, _>(Path::new(dir), id_of)?;
+    to_json(&ids)
+}
+
+fn get_kind<T, F>(dir: &str, id: &str, id_of: F) -> Result<String, String>
+where
+    T: Serialize + DeserializeOwned,
+    F: Fn(&T) -> &str,
+{
+    let (_, value) = asset_store::find_by::<T, _>(Path::new(dir), id, id_of)?
+        .ok_or_else(|| format!("no '{id}' in {dir}"))?;
+    to_json(&value)
+}
+
+/// Parse `value` into the concrete type (validating it), then create a new file.
+fn create_kind<T, F>(dir: &str, value: Value, id_of: F) -> Result<String, String>
+where
+    T: Serialize + DeserializeOwned,
+    F: Fn(&T) -> &str,
+{
+    let parsed: T = serde_json::from_value(value).map_err(|e| format!("invalid asset: {e}"))?;
+    let path = asset_store::create(Path::new(dir), &parsed, id_of)?;
+    Ok(format!("created {}", path.display()))
+}
+
+fn update_kind<T, F>(dir: &str, id: &str, patch: &Value, id_of: F) -> Result<String, String>
+where
+    T: Serialize + DeserializeOwned,
+    F: Fn(&T) -> &str,
+{
+    let updated: T = asset_store::update(Path::new(dir), id, patch, id_of)?;
+    to_json(&updated)
+}
+
+fn delete_kind<T, F>(dir: &str, id: &str, id_of: F) -> Result<String, String>
+where
+    T: DeserializeOwned,
+    F: Fn(&T) -> &str,
+{
+    asset_store::delete::<T, _>(Path::new(dir), id, id_of)?;
+    Ok(format!("deleted '{id}' from {dir}"))
+}
+
+// ---------------------------------------------------------------------------
+// `seed` kind — a single list file (`curated.ron`) keyed by entry `name`
+// ---------------------------------------------------------------------------
+
+fn read_seeds() -> Result<Vec<CuratedSeedEntry>, String> {
+    asset_store::read_file(Path::new(SEEDS_PATH))
+}
+
+fn write_seeds(seeds: &[CuratedSeedEntry]) -> Result<(), String> {
+    asset_store::write_ron(Path::new(SEEDS_PATH), &seeds.to_vec())
+}
+
+fn seed_list() -> Result<String, String> {
+    let names: Vec<String> = read_seeds()?.into_iter().map(|s| s.name).collect();
+    to_json(&names)
+}
+
+fn seed_get(name: &str) -> Result<String, String> {
+    let seeds = read_seeds()?;
+    let entry = seeds
+        .iter()
+        .find(|s| s.name == name)
+        .ok_or_else(|| format!("no seed '{name}'"))?;
+    to_json(entry)
+}
+
+fn seed_create(value: Value) -> Result<String, String> {
+    let entry: CuratedSeedEntry =
+        serde_json::from_value(value).map_err(|e| format!("invalid seed: {e}"))?;
+    let mut seeds = read_seeds()?;
+    if seeds.iter().any(|s| s.name == entry.name) {
+        return Err(format!("seed '{}' already exists", entry.name));
+    }
+    let name = entry.name.clone();
+    seeds.push(entry);
+    write_seeds(&seeds)?;
+    Ok(format!("added seed '{name}'"))
+}
+
+fn seed_update(name: &str, patch: &Value) -> Result<String, String> {
+    let mut seeds = read_seeds()?;
+    let entry = seeds
+        .iter_mut()
+        .find(|s| s.name == name)
+        .ok_or_else(|| format!("no seed '{name}'"))?;
+    *entry = asset_store::apply_patch(entry, patch)?;
+    let out = to_json(entry)?;
+    write_seeds(&seeds)?;
+    Ok(out)
+}
+
+fn seed_delete(name: &str) -> Result<String, String> {
+    let mut seeds = read_seeds()?;
+    let before = seeds.len();
+    seeds.retain(|s| s.name != name);
+    if seeds.len() == before {
+        return Err(format!("no seed '{name}'"));
+    }
+    write_seeds(&seeds)?;
+    Ok(format!("deleted seed '{name}'"))
+}
+
+/// Depth-first prerequisite walk: a node's prerequisites are pushed before the node itself.
 fn walk_path(id: &str, nodes: &[NodeDef], seen: &mut Vec<String>) {
     if seen.iter().any(|s| s == id) {
         return;
     }
     let Some(node) = nodes.iter().find(|n| n.id == id) else {
-        println!("  ??? unknown node: {id}");
         return;
     };
-    for p in &node.prerequisites {
-        walk_path(p, nodes, seen);
+    for prereq in &node.prerequisites {
+        walk_path(prereq, nodes, seen);
     }
     seen.push(id.to_string());
-    println!("  {} ({:?})", id, node.primary_unlock);
 }
 
-fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let cmd = args.first().map(String::as_str).unwrap_or("help");
-    let arg = args.get(1).map(String::as_str);
+// ---------------------------------------------------------------------------
+// Server
+// ---------------------------------------------------------------------------
 
-    let graph = build_recipe_graph();
-    let nodes = load_ron_dir::<NodeDef>("assets/tech_nodes", "tech node");
+#[derive(Clone)]
+struct AssetServer {
+    tool_router: ToolRouter<Self>,
+}
 
-    match (cmd, arg) {
-        ("recipe", Some(id)) => match graph.recipes.get(id) {
-            Some(r) => print_recipe(r),
-            None => eprintln!("no recipe '{id}' (try `recipes`)"),
-        },
-        ("recipes", _) => {
-            let mut ids: Vec<&String> = graph.recipes.keys().collect();
-            ids.sort();
-            for id in ids {
-                println!("{id}");
-            }
-        }
-        ("tech", Some(id)) => match nodes.iter().find(|n| n.id == id) {
-            Some(n) => print_node(n),
-            None => eprintln!("no tech node '{id}' (try `techs`)"),
-        },
-        ("techs", _) => {
-            let mut ids: Vec<&String> = nodes.iter().map(|n| &n.id).collect();
-            ids.sort();
-            for id in ids {
-                println!("{id}");
-            }
-        }
-        ("path", Some(id)) => {
-            println!("prerequisite chain for {id}:");
-            walk_path(id, &nodes, &mut Vec::new());
-        }
-        ("uses", Some(item)) => {
-            let produces: Vec<&String> = graph
-                .recipes
-                .iter()
-                .filter(|(_, r)| {
-                    r.outputs
-                        .iter()
-                        .chain(&r.byproducts)
-                        .any(|s| s.item == item)
-                })
-                .map(|(id, _)| id)
-                .collect();
-            let consumes: Vec<&String> = graph
-                .recipes
-                .iter()
-                .filter(|(_, r)| r.inputs.iter().any(|s| s.item == item))
-                .map(|(id, _)| id)
-                .collect();
-            println!("produced by: {produces:?}");
-            println!("consumed by: {consumes:?}");
-        }
-        _ => {
-            eprintln!(
-                "usage: cargo run --bin assets <cmd>\n  \
-                 recipe <id> | recipes | tech <id> | techs | path <node> | uses <item>"
-            );
+impl AssetServer {
+    fn new() -> Self {
+        Self {
+            tool_router: Self::tool_router(),
         }
     }
+}
+
+#[tool_router]
+impl AssetServer {
+    // --- discovery -----------------------------------------------------------
+    #[tool(
+        description = "List the asset kinds this server manages and each kind's identity field."
+    )]
+    fn list_kinds(&self) -> Result<String, String> {
+        kinds_catalog()
+    }
+    #[tool(
+        description = "Get the JSON schema for a kind's entity. Call before create_asset/update_asset to see the required fields. kind: see list_kinds."
+    )]
+    fn describe_kind(&self, Parameters(a): Parameters<KindArg>) -> Result<String, String> {
+        schema_for_kind(&a.kind)
+    }
+
+    // --- generic CRUD over `kind` --------------------------------------------
+    #[tool(description = "List all asset ids of a kind. kind: see list_kinds.")]
+    fn list_assets(&self, Parameters(a): Parameters<KindArg>) -> Result<String, String> {
+        dispatch_list(&a.kind)
+    }
+    #[tool(description = "Get one asset by id (the kind's identity field). kind: see list_kinds.")]
+    fn get_asset(&self, Parameters(a): Parameters<KindIdArg>) -> Result<String, String> {
+        dispatch_get(&a.kind, &a.id)
+    }
+    #[tool(
+        description = "Create a new asset from a JSON object, validated against the kind's schema (errors if the id already exists)."
+    )]
+    fn create_asset(&self, Parameters(a): Parameters<KindValueArg>) -> Result<String, String> {
+        dispatch_create(&a.kind, a.value)
+    }
+    #[tool(
+        description = "Update asset fields by id via a JSON merge-patch (nested objects merge; arrays/scalars replace wholesale)."
+    )]
+    fn update_asset(&self, Parameters(a): Parameters<KindUpdateArg>) -> Result<String, String> {
+        dispatch_update(&a.kind, &a.id, &a.patch)
+    }
+    #[tool(description = "Delete an asset by id.")]
+    fn delete_asset(&self, Parameters(a): Parameters<KindIdArg>) -> Result<String, String> {
+        dispatch_delete(&a.kind, &a.id)
+    }
+
+    // --- block texture manifest (a single bare-string list; not loaded by the game yet) ---
+    #[tool(
+        description = "Get the block texture manifest (ordered atlas list). Note: not loaded by the game yet."
+    )]
+    fn get_texture_manifest(&self) -> Result<String, String> {
+        let list: Vec<String> = asset_store::read_file(Path::new(TEXTURES_PATH))?;
+        to_json(&list)
+    }
+    #[tool(description = "Replace the entire block texture manifest with a new ordered list.")]
+    fn update_texture_manifest(
+        &self,
+        Parameters(a): Parameters<StringListArg>,
+    ) -> Result<String, String> {
+        asset_store::write_ron(Path::new(TEXTURES_PATH), &a.entries)?;
+        Ok(format!("wrote {} texture entries", a.entries.len()))
+    }
+
+    // --- resolved-graph read queries -----------------------------------------
+    #[tool(
+        description = "Resolve a recipe from the full graph, including template-expanded recipes"
+    )]
+    fn resolve_recipe(&self, Parameters(a): Parameters<IdArg>) -> Result<String, String> {
+        let graph = build_recipe_graph();
+        graph
+            .recipes
+            .get(&a.id)
+            .ok_or_else(|| format!("no recipe '{}' in resolved graph", a.id))
+            .and_then(to_json)
+    }
+    #[tool(description = "List every recipe id in the resolved graph (incl. template-expanded)")]
+    fn list_all_recipes(&self) -> Result<String, String> {
+        let graph = build_recipe_graph();
+        let mut ids: Vec<&String> = graph.recipes.keys().collect();
+        ids.sort();
+        to_json(&ids)
+    }
+    #[tool(description = "Prerequisite chain to reach a tech node, in dependency order")]
+    fn tech_path(&self, Parameters(a): Parameters<IdArg>) -> Result<String, String> {
+        let nodes = load_ron_dir::<NodeDef>("assets/tech_nodes", "tech node");
+        let mut seen = Vec::new();
+        walk_path(&a.id, &nodes, &mut seen);
+        to_json(&seen)
+    }
+    #[tool(description = "Recipes that produce / consume an item, from the resolved graph")]
+    fn item_uses(&self, Parameters(a): Parameters<ItemArg>) -> Result<String, String> {
+        let graph = build_recipe_graph();
+        let empty = Vec::new();
+        let produced = graph.producers.get(&a.item).unwrap_or(&empty);
+        let consumed = graph.consumers.get(&a.item).unwrap_or(&empty);
+        to_json(&serde_json::json!({
+            "produced_by": produced,
+            "consumed_by": consumed,
+        }))
+    }
+}
+
+#[tool_handler]
+impl ServerHandler for AssetServer {
+    fn get_info(&self) -> ServerInfo {
+        ServerInfo {
+            instructions: Some(
+                "Exergon RON content server. Generic CRUD over a `kind` argument: list_assets, \
+                 get_asset, create_asset, update_asset, delete_asset. Call list_kinds for the \
+                 kinds and describe_kind for a kind's JSON schema. update_asset takes a JSON \
+                 merge-patch. Also: get/update_texture_manifest, and resolved-graph queries \
+                 (resolve_recipe, list_all_recipes, tech_path, item_uses). The server must run \
+                 from the repo root so assets/ is reachable."
+                    .into(),
+            ),
+            capabilities: ServerCapabilities::builder().enable_tools().build(),
+            ..Default::default()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // stdout is the JSON-RPC channel — route all diagnostics to stderr.
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .init();
+
+    let service = AssetServer::new().serve(stdio()).await?;
+    service.waiting().await?;
+    Ok(())
 }

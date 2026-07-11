@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::content::load_ron_dir;
 use crate::inventory::ItemRegistry;
@@ -22,19 +22,19 @@ pub type ItemId = String;
 pub type RecipeId = String;
 pub type MachineTypeId = String;
 
-#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, schemars::JsonSchema)]
 pub enum MaterialKind {
     Base,
     Alien,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct FormGroup {
     pub id: FormGroupId,
     pub forms: Vec<FormId>,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct MaterialDef {
     pub id: MaterialId,
     pub name: String,
@@ -43,14 +43,14 @@ pub struct MaterialDef {
     pub form_groups: Vec<FormGroupId>,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub enum ItemKind {
     Derived { material: MaterialId, form: FormId },
     Composite { template: Option<TemplateId> },
     Unique,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct ItemDef {
     pub id: ItemId,
     pub name: String,
@@ -59,7 +59,7 @@ pub struct ItemDef {
     pub is_terminal: bool,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct RecipeTemplate {
     pub id: TemplateId,
     pub input_forms: Vec<(FormId, f32)>,
@@ -70,13 +70,13 @@ pub struct RecipeTemplate {
     pub base_energy: f32,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct ItemStack {
     pub item: ItemId,
     pub quantity: f32,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
 pub struct ConcreteRecipe {
     pub id: RecipeId,
     pub inputs: Vec<ItemStack>,
