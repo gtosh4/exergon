@@ -24,11 +24,69 @@ pub struct UnlockNodeRequest(pub NodeId);
 pub struct Discovered;
 
 pub const RESEARCH_POINTS_ID: &str = "research_points";
+/// Prefix marking a themed research-currency item, e.g. `research.engineering`.
+pub const RESEARCH_PREFIX: &str = "research.";
+/// Theme the legacy `research_points` item routes to (back-compat during migration).
+pub const DEFAULT_RESEARCH_THEME: &str = "material";
 
+/// If `item` is a research-currency item, return the theme it credits.
+/// Legacy `research_points` → the default theme; `research.<theme>` → `<theme>`.
+pub fn research_theme_of(item: &str) -> Option<&str> {
+    if item == RESEARCH_POINTS_ID {
+        Some(DEFAULT_RESEARCH_THEME)
+    } else {
+        item.strip_prefix(RESEARCH_PREFIX)
+    }
+}
+
+/// Per-theme research currency balances. Themes are content-defined strings
+/// (`material`, `engineering`, `discovery`, `synthesis`, …) — no hardcoded enum.
 #[derive(Resource, Default, Debug, Reflect)]
 #[reflect(Resource)]
 pub struct ResearchPool {
-    pub points: f32,
+    pub amounts: HashMap<String, f32>,
+}
+
+impl ResearchPool {
+    /// Credit `amount` of the `type_id` currency.
+    pub fn add(&mut self, type_id: &str, amount: f32) {
+        *self.amounts.entry(type_id.to_string()).or_default() += amount;
+    }
+
+    /// Current balance of `type_id` (0.0 if none).
+    pub fn get(&self, type_id: &str) -> f32 {
+        self.amounts.get(type_id).copied().unwrap_or(0.0)
+    }
+
+    /// Deduct `amount` of `type_id`; returns false and does nothing if insufficient.
+    pub fn spend(&mut self, type_id: &str, amount: f32) -> bool {
+        let bal = self.amounts.entry(type_id.to_string()).or_default();
+        if *bal < amount {
+            return false;
+        }
+        *bal -= amount;
+        true
+    }
+}
+
+/// Compact per-theme balance string, sorted by theme, nonzero only — e.g.
+/// `"engineering:40  material:120"`. Returns `"0"` when nothing is banked.
+pub fn format_research_balances(pool: &ResearchPool) -> String {
+    let mut parts: Vec<(&String, f32)> = pool
+        .amounts
+        .iter()
+        .filter(|(_, v)| **v > 0.0)
+        .map(|(k, v)| (k, *v))
+        .collect();
+    parts.sort_by(|a, b| a.0.cmp(b.0));
+    if parts.is_empty() {
+        return "0".to_string();
+    }
+    parts
+        .iter()
+        .map(|(k, v)| format!("{k}:{v:.0}"))
+        .collect::<Vec<_>>()
+        .join("  ")
 }
 
 /// Cumulative gross count of every item produced this run, keyed by item id.
@@ -178,14 +236,14 @@ fn check_research_unlocks(
         {
             continue;
         }
-        let UnlockVector::ResearchSpend(cost) = &node.primary_unlock else {
+        let UnlockVector::ResearchSpend { type_id, amount } = &node.primary_unlock else {
             warn!("Unlock request for non-ResearchSpend node '{}'", node_id);
             continue;
         };
-        if pool.points < *cost as f32 {
+        if pool.get(type_id) < *amount as f32 {
             continue;
         }
-        pool.points -= *cost as f32;
+        pool.spend(type_id, *amount as f32);
         do_unlock(
             &mut progress,
             &tech_tree,
@@ -312,10 +370,20 @@ mod tests {
             tier: 1,
             rarity: NodeRarity::Common,
             prerequisites: prereqs,
-            primary_unlock: UnlockVector::ResearchSpend(cost),
+            primary_unlock: UnlockVector::ResearchSpend {
+                type_id: "material".to_string(),
+                amount: cost,
+            },
             effects: vec![NodeEffect::UnlockRecipes(vec![format!("recipe_{id}")])],
             exclusive_group: None,
         }
+    }
+
+    /// A pool holding `amount` of the default `material` currency.
+    fn material_pool(amount: f32) -> ResearchPool {
+        let mut p = ResearchPool::default();
+        p.add("material", amount);
+        p
     }
 
     fn make_app() -> App {
@@ -331,7 +399,7 @@ mod tests {
     fn unlocks_node_on_player_request_with_enough_points() {
         let mut app = make_app();
         app.insert_resource(make_tree(vec![base_node("alpha", 50, vec![])]));
-        app.insert_resource(ResearchPool { points: 50.0 });
+        app.insert_resource(material_pool(50.0));
         app.init_resource::<TechTreeProgress>();
 
         app.world_mut()
@@ -342,14 +410,14 @@ mod tests {
         assert!(progress.unlocked_nodes.contains("alpha"));
         assert!(progress.unlocked_recipes.contains("recipe_alpha"));
         let pool = app.world().resource::<ResearchPool>();
-        assert_eq!(pool.points, 0.0);
+        assert_eq!(pool.get("material"), 0.0);
     }
 
     #[test]
     fn does_not_unlock_without_enough_points() {
         let mut app = make_app();
         app.insert_resource(make_tree(vec![base_node("alpha", 50, vec![])]));
-        app.insert_resource(ResearchPool { points: 49.0 });
+        app.insert_resource(material_pool(49.0));
         app.init_resource::<TechTreeProgress>();
 
         app.world_mut()
@@ -359,7 +427,11 @@ mod tests {
         let progress = app.world().resource::<TechTreeProgress>();
         assert!(!progress.unlocked_nodes.contains("alpha"));
         let pool = app.world().resource::<ResearchPool>();
-        assert_eq!(pool.points, 49.0, "no RP deducted on failed unlock");
+        assert_eq!(
+            pool.get("material"),
+            49.0,
+            "no RP deducted on failed unlock"
+        );
     }
 
     #[test]
@@ -369,7 +441,7 @@ mod tests {
             base_node("alpha", 50, vec![]),
             base_node("beta", 50, vec!["alpha".to_string()]),
         ]));
-        app.insert_resource(ResearchPool { points: 50.0 });
+        app.insert_resource(material_pool(50.0));
         app.init_resource::<TechTreeProgress>();
 
         app.world_mut()
@@ -382,7 +454,11 @@ mod tests {
             "beta needs alpha first"
         );
         let pool = app.world().resource::<ResearchPool>();
-        assert_eq!(pool.points, 50.0, "no RP deducted when prereqs not met");
+        assert_eq!(
+            pool.get("material"),
+            50.0,
+            "no RP deducted when prereqs not met"
+        );
     }
 
     #[test]
@@ -392,7 +468,7 @@ mod tests {
             base_node("alpha", 50, vec![]),
             base_node("beta", 50, vec!["alpha".to_string()]),
         ]));
-        app.insert_resource(ResearchPool { points: 100.0 });
+        app.insert_resource(material_pool(100.0));
         app.init_resource::<TechTreeProgress>();
 
         // Both requests in same frame — alpha processes first, beta prereq then met
@@ -410,12 +486,15 @@ mod tests {
     #[test]
     fn no_tech_tree_resource_is_noop() {
         let mut app = make_app();
-        app.insert_resource(ResearchPool { points: 999.0 })
+        app.insert_resource(material_pool(999.0))
             .init_resource::<TechTreeProgress>();
         app.world_mut()
             .write_message(UnlockNodeRequest("alpha".into()));
         app.update();
-        assert_eq!(app.world().resource::<ResearchPool>().points, 999.0);
+        assert_eq!(
+            app.world().resource::<ResearchPool>().get("material"),
+            999.0
+        );
     }
 
     #[test]
@@ -424,7 +503,7 @@ mod tests {
         let mut node = base_node("alpha", 10, vec![]);
         node.effects = vec![NodeEffect::UnlockMachine("smelter".to_string())];
         app.insert_resource(make_tree(vec![node]));
-        app.insert_resource(ResearchPool { points: 10.0 });
+        app.insert_resource(material_pool(10.0));
         app.init_resource::<TechTreeProgress>();
 
         app.world_mut()
@@ -439,7 +518,7 @@ mod tests {
     fn research_spend_does_not_auto_unlock() {
         let mut app = make_app();
         app.insert_resource(make_tree(vec![base_node("alpha", 50, vec![])]));
-        app.insert_resource(ResearchPool { points: 999.0 });
+        app.insert_resource(material_pool(999.0));
         app.init_resource::<TechTreeProgress>();
         // No UnlockNodeRequest — ResearchSpend must be player-initiated
         app.update();
@@ -453,7 +532,7 @@ mod tests {
         let mut node = base_node("alpha", 0, vec![]);
         node.primary_unlock = UnlockVector::ExplorationDiscovery("xalite_deposit".to_string());
         app.insert_resource(make_tree(vec![node]));
-        app.insert_resource(ResearchPool { points: 0.0 });
+        app.insert_resource(material_pool(0.0));
         app.init_resource::<TechTreeProgress>();
 
         app.world_mut()
@@ -470,7 +549,7 @@ mod tests {
         let mut node = base_node("alpha", 0, vec![]);
         node.primary_unlock = UnlockVector::ExplorationDiscovery("xalite_deposit".to_string());
         app.insert_resource(make_tree(vec![node]));
-        app.insert_resource(ResearchPool { points: 0.0 });
+        app.insert_resource(material_pool(0.0));
         app.init_resource::<TechTreeProgress>();
 
         app.world_mut()
@@ -499,7 +578,7 @@ mod tests {
             50.0,
             vec![],
         )]));
-        app.insert_resource(ResearchPool { points: 0.0 });
+        app.insert_resource(material_pool(0.0));
         app.init_resource::<TechTreeProgress>();
         let mut tally = ProductionTally::default();
         tally.record("stone", 50.0);
@@ -520,7 +599,7 @@ mod tests {
             50.0,
             vec![],
         )]));
-        app.insert_resource(ResearchPool { points: 0.0 });
+        app.insert_resource(material_pool(0.0));
         app.init_resource::<TechTreeProgress>();
         let mut tally = ProductionTally::default();
         tally.record("stone", 49.0);
@@ -539,7 +618,7 @@ mod tests {
             base_node("alpha", 50, vec![]),
             milestone_node("beta", "stone", 10.0, vec!["alpha".to_string()]),
         ]));
-        app.insert_resource(ResearchPool { points: 0.0 });
+        app.insert_resource(material_pool(0.0));
         app.init_resource::<TechTreeProgress>();
         let mut tally = ProductionTally::default();
         tally.record("stone", 10.0);
@@ -551,6 +630,67 @@ mod tests {
         assert!(
             !progress.unlocked_nodes.contains("beta"),
             "milestone met but prereq alpha not unlocked"
+        );
+    }
+
+    #[test]
+    fn research_theme_routing() {
+        assert_eq!(research_theme_of("research_points"), Some("material"));
+        assert_eq!(
+            research_theme_of("research.engineering"),
+            Some("engineering")
+        );
+        assert_eq!(research_theme_of("iron_ingot"), None);
+    }
+
+    #[test]
+    fn pool_spend_isolated_per_theme() {
+        let mut p = ResearchPool::default();
+        p.add("material", 50.0);
+        assert!(
+            !p.spend("engineering", 10.0),
+            "no engineering balance to spend"
+        );
+        assert!(p.spend("material", 30.0));
+        assert_eq!(p.get("material"), 20.0);
+        assert_eq!(p.get("engineering"), 0.0);
+    }
+
+    #[test]
+    fn research_spend_uses_named_theme_only() {
+        let mut app = make_app();
+        let mut node = base_node("eng_node", 10, vec![]);
+        node.primary_unlock = UnlockVector::ResearchSpend {
+            type_id: "engineering".to_string(),
+            amount: 10,
+        };
+        app.insert_resource(make_tree(vec![node]));
+        app.insert_resource(material_pool(100.0)); // only material banked
+        app.init_resource::<TechTreeProgress>();
+
+        app.world_mut()
+            .write_message(UnlockNodeRequest("eng_node".into()));
+        app.update();
+        assert!(
+            !app.world()
+                .resource::<TechTreeProgress>()
+                .unlocked_nodes
+                .contains("eng_node"),
+            "material currency must not pay an engineering cost"
+        );
+
+        app.world_mut()
+            .resource_mut::<ResearchPool>()
+            .add("engineering", 10.0);
+        app.world_mut()
+            .write_message(UnlockNodeRequest("eng_node".into()));
+        app.update();
+        assert!(
+            app.world()
+                .resource::<TechTreeProgress>()
+                .unlocked_nodes
+                .contains("eng_node"),
+            "engineering balance should pay the engineering cost"
         );
     }
 
@@ -571,7 +711,7 @@ mod tests {
         let mut node_b = base_node("wind", 50, vec![]);
         node_b.exclusive_group = Some("power_tier1".into());
         app.insert_resource(make_tree(vec![node_a, node_b]));
-        app.insert_resource(ResearchPool { points: 50.0 });
+        app.insert_resource(material_pool(50.0));
         app.init_resource::<TechTreeProgress>();
 
         app.world_mut()
@@ -591,7 +731,7 @@ mod tests {
     fn disabled_node_cannot_be_unlocked() {
         let mut app = make_app();
         app.insert_resource(make_tree(vec![base_node("alpha", 10, vec![])]));
-        app.insert_resource(ResearchPool { points: 999.0 });
+        app.insert_resource(material_pool(999.0));
         let mut progress = TechTreeProgress::default();
         progress.disabled_nodes.insert("alpha".into());
         app.insert_resource(progress);
@@ -629,7 +769,7 @@ mod tests {
         let mut node = base_node("smelting", 10, vec![]);
         node.effects = vec![NodeEffect::UnlockRecipeTemplate("smelt_metal".to_string())];
         app.insert_resource(make_tree(vec![node]));
-        app.insert_resource(ResearchPool { points: 10.0 });
+        app.insert_resource(material_pool(10.0));
         app.init_resource::<TechTreeProgress>();
         app.insert_resource(make_recipe_graph_with_template(
             "smelt_metal",

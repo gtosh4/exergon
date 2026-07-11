@@ -804,7 +804,58 @@ mod tests {
 
         app.update();
 
-        assert_eq!(app.world().resource::<ResearchPool>().points, 5.0);
+        assert_eq!(app.world().resource::<ResearchPool>().get("material"), 5.0);
+    }
+
+    #[test]
+    fn recipe_completion_routes_themed_research() {
+        let rg = single_recipe_graph(test_recipe_def(
+            "analyzer",
+            &[],
+            &[("research.engineering", 7.0)],
+        ));
+        let mut app = recipe_io_app(rg);
+        app.insert_resource(ResearchPool::default());
+
+        let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
+        let storage_e = app
+            .world_mut()
+            .spawn(StorageUnit {
+                items: HashMap::new(),
+            })
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(storage_e),
+            Transform::default(),
+            LogisticsNetworkMember(net_entity),
+        ));
+        let machine_entity = app
+            .world_mut()
+            .spawn((
+                bare_machine("analyzer"),
+                MachineState::Running,
+                MachineActivity {
+                    recipe_id: "test_recipe".to_string(),
+                    progress: 10.0,
+                    speed_factor: 1.0,
+                },
+            ))
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(machine_entity),
+            Transform::default(),
+            LogisticsNetworkMember(net_entity),
+        ));
+
+        app.update();
+
+        let pool = app.world().resource::<ResearchPool>();
+        assert_eq!(
+            pool.get("engineering"),
+            7.0,
+            "themed research credits its theme"
+        );
+        assert_eq!(pool.get("material"), 0.0, "must not leak into other themes");
     }
 
     #[test]

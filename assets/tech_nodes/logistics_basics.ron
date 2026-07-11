@@ -5,6 +5,6 @@
     tier: 1,
     rarity: Common,
     prerequisites: [],
-    primary_unlock: ResearchSpend(40),
+    primary_unlock: ResearchSpend(type_id: "material", amount: 40),
     effects: [UnlockMachine("logistics_hub"), UnlockRecipes(["logistics_cable_craft"])],
 )

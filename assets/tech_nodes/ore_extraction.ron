@@ -5,6 +5,6 @@
     tier: 1,
     rarity: Common,
     prerequisites: [],
-    primary_unlock: ResearchSpend(30),
+    primary_unlock: ResearchSpend(type_id: "material", amount: 30),
     effects: [UnlockMachine("miner"), UnlockRecipes(["make_miner"])],
 )

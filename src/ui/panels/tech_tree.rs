@@ -376,29 +376,15 @@ fn rebuild(
                 .prerequisites
                 .iter()
                 .all(|p| prog.unlocked_nodes.contains(p));
-            let pts = pool.as_ref().map(|p| p.points).unwrap_or(0.0);
-            let can_afford = prereqs_met
-                && matches!(&node.primary_unlock, UnlockVector::ResearchSpend(c) if pts >= *c as f32);
+            let can_afford = can_afford_node(node, pool.as_deref(), prereqs_met);
 
             // Visual state: Unlocked > Disabled > Selected > Unlockable > Revealed > Shadow
             let (border_col, text_col, bg) = if unlocked {
-                (
-                    COLOR_GREEN,
-                    COLOR_GREEN,
-                    Color::srgb(0.071, 0.141, 0.031),
-                )
+                (COLOR_GREEN, COLOR_GREEN, Color::srgb(0.071, 0.141, 0.031))
             } else if disabled {
-                (
-                    palette::ERR,
-                    palette::ERR,
-                    Color::srgb(0.12, 0.04, 0.04),
-                )
+                (palette::ERR, palette::ERR, Color::srgb(0.12, 0.04, 0.04))
             } else if selected {
-                (
-                    COLOR_GOLD,
-                    Color::WHITE,
-                    Color::srgb(0.157, 0.204, 0.055),
-                )
+                (COLOR_GOLD, Color::WHITE, Color::srgb(0.157, 0.204, 0.055))
             } else if can_afford {
                 // Unlockable: bright white border
                 (Color::WHITE, Color::WHITE, COLOR_OVERLAY_BG)
@@ -407,11 +393,7 @@ fn rebuild(
                 (COLOR_DIM, Color::WHITE, COLOR_OVERLAY_BG)
             } else {
                 // Shadow: prereqs not met — name hidden
-                (
-                    Color::srgb(0.12, 0.10, 0.04),
-                    COLOR_DIM,
-                    COLOR_OVERLAY_BG,
-                )
+                (Color::srgb(0.12, 0.10, 0.04), COLOR_DIM, COLOR_OVERLAY_BG)
             };
 
             canvas
@@ -468,17 +450,22 @@ fn rebuild(
                             },
                             TextColor(palette::ERR),
                         ));
-                    } else if let UnlockVector::ResearchSpend(cost) = &node.primary_unlock
-                        && prereqs_met {
-                            btn.spawn((
-                                Text::new(format!("{cost} RP")),
-                                TextFont {
-                                    font_size: FontSize::Px(font_size::MONO_XS),
-                                    ..default()
-                                },
-                                TextColor(if can_afford { palette::OK } else { palette::DIM }),
-                            ));
-                        }
+                    } else if let UnlockVector::ResearchSpend { amount, .. } = &node.primary_unlock
+                        && prereqs_met
+                    {
+                        btn.spawn((
+                            Text::new(format!("{amount} RP")),
+                            TextFont {
+                                font_size: FontSize::Px(font_size::MONO_XS),
+                                ..default()
+                            },
+                            TextColor(if can_afford {
+                                palette::OK
+                            } else {
+                                palette::DIM
+                            }),
+                        ));
+                    }
 
                     // Cross-tier port stubs: ←T{n} incoming prereq, T{n}→ outgoing dependent
                     if !disabled {
@@ -562,7 +549,12 @@ fn rebuild_detail(
         .prerequisites
         .iter()
         .all(|p| prog.unlocked_nodes.contains(p));
-    let pts = pool.as_ref().map(|p| p.points).unwrap_or(0.0);
+    let have = match &node.primary_unlock {
+        UnlockVector::ResearchSpend { type_id, .. } => {
+            pool.as_ref().map(|p| p.get(type_id)).unwrap_or(0.0)
+        }
+        _ => 0.0,
+    };
 
     // Exclusive-group confirmation modal
     if pending.0.as_deref() == Some(sel_id.as_str()) {
@@ -680,7 +672,7 @@ fn rebuild_detail(
             ("✓ Unlocked", COLOR_GREEN)
         } else if disabled {
             ("✗ Locked Out", palette::ERR)
-        } else if can_afford_node(node, pts, prereqs_met) {
+        } else if can_afford_node(node, pool.as_deref(), prereqs_met) {
             ("UNLOCKABLE", palette::OK)
         } else if prereqs_met {
             ("Revealed", Color::WHITE)
@@ -723,8 +715,8 @@ fn rebuild_detail(
         // Unlock section
         c.spawn(caption("UNLOCK"));
         let unlock_text = match &node.primary_unlock {
-            UnlockVector::ResearchSpend(cost) => {
-                format!("{pts:.0} / {cost} RP")
+            UnlockVector::ResearchSpend { type_id, amount } => {
+                format!("{have:.0} / {amount} {type_id}")
             }
             UnlockVector::ExplorationDiscovery(loc) => format!("Discover: {loc}"),
             UnlockVector::PrerequisiteChain => "Complete prerequisites".to_string(),
@@ -762,7 +754,7 @@ fn rebuild_detail(
             }
         }
 
-        if !unlocked && let UnlockVector::ResearchSpend(cost) = &node.primary_unlock {
+        if !unlocked && let UnlockVector::ResearchSpend { type_id, amount } = &node.primary_unlock {
             if !prereqs_met {
                 c.spawn((
                     Text::new("↑ Prereqs not met"),
@@ -772,10 +764,10 @@ fn rebuild_detail(
                     },
                     TextColor(palette::ERR),
                 ));
-            } else if pts < *cost as f32 {
-                let deficit = *cost as f32 - pts;
+            } else if have < *amount as f32 {
+                let deficit = *amount as f32 - have;
                 c.spawn((
-                    Text::new(format!("Need {deficit:.0} more RP")),
+                    Text::new(format!("Need {deficit:.0} more {type_id}")),
                     TextFont {
                         font_size: FontSize::Px(font_size::LABEL_SM),
                         ..default()
@@ -919,7 +911,7 @@ fn rebuild_detail(
         }
 
         // Research source
-        if let UnlockVector::ResearchSpend(_) = &node.primary_unlock
+        if let UnlockVector::ResearchSpend { .. } = &node.primary_unlock
             && let Some(rg) = &recipe_graph
         {
             let sources: Vec<String> = rg
@@ -948,9 +940,13 @@ fn rebuild_detail(
     });
 }
 
-fn can_afford_node(node: &NodeDef, pts: f32, prereqs_met: bool) -> bool {
-    prereqs_met
-        && matches!(&node.primary_unlock, UnlockVector::ResearchSpend(c) if pts >= *c as f32)
+fn can_afford_node(node: &NodeDef, pool: Option<&ResearchPool>, prereqs_met: bool) -> bool {
+    match &node.primary_unlock {
+        UnlockVector::ResearchSpend { type_id, amount } => {
+            prereqs_met && pool.map(|p| p.get(type_id)).unwrap_or(0.0) >= *amount as f32
+        }
+        _ => false,
+    }
 }
 
 /// Locked reason for a node (hover surface), per `tech-tree-ui.md` §blocked-reason.
@@ -1033,7 +1029,7 @@ fn update_rp(pool: Option<Res<ResearchPool>>, mut text_q: Query<&mut Text, With<
         return;
     }
     if let Ok(mut t) = text_q.single_mut() {
-        **t = format!("{:.0} RP", pool.points);
+        **t = crate::research::format_research_balances(&pool);
     }
 }
 
@@ -1200,7 +1196,10 @@ mod tests {
             tier,
             rarity: NodeRarity::Common,
             prerequisites: prereqs.iter().map(|s| s.to_string()).collect(),
-            primary_unlock: UnlockVector::ResearchSpend(5),
+            primary_unlock: UnlockVector::ResearchSpend {
+                type_id: "material".to_string(),
+                amount: 5,
+            },
             effects: vec![],
             exclusive_group: group.map(str::to_string),
         }

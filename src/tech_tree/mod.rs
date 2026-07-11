@@ -35,9 +35,16 @@ pub enum NodeRarity {
 
 #[derive(Deserialize, Clone, Debug)]
 pub enum UnlockVector {
-    ResearchSpend(u32),
+    /// Spend `amount` of the `type_id` research currency (content-defined theme string).
+    ResearchSpend {
+        type_id: String,
+        amount: u32,
+    },
     PrerequisiteChain,
-    ProductionMilestone { material: String, quantity: f32 },
+    ProductionMilestone {
+        material: String,
+        quantity: f32,
+    },
     ExplorationDiscovery(String),
     Observation(String),
 }
@@ -127,7 +134,10 @@ mod tests {
             tier,
             rarity: NodeRarity::Common,
             prerequisites: prereqs.into_iter().map(str::to_string).collect(),
-            primary_unlock: UnlockVector::ResearchSpend(1),
+            primary_unlock: UnlockVector::ResearchSpend {
+                type_id: "material".to_string(),
+                amount: 1,
+            },
             effects: vec![],
             exclusive_group: None,
         }

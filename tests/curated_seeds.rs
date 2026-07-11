@@ -101,7 +101,7 @@ fn machine_entity(app: &mut App, machine_type: &str) -> Entity {
 }
 
 fn research_points(app: &App) -> f32 {
-    app.world().resource::<ResearchPool>().points
+    app.world().resource::<ResearchPool>().get("material")
 }
 
 fn origin_deposit(app: &mut App) -> (Entity, Vec3, Vec<(String, f32)>) {

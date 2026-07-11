@@ -68,6 +68,6 @@ fn update(
         return;
     }
     if let Ok(mut t) = text_q.single_mut() {
-        **t = format!("⚗ {:.0} RP", pool.points);
+        **t = format!("⚗ {}", crate::research::format_research_balances(&pool));
     }
 }

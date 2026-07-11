@@ -5,6 +5,6 @@
     tier: 2,
     rarity: Unique,
     prerequisites: ["resonite_engineering", "gateway_theory"],
-    primary_unlock: ResearchSpend(1000),
+    primary_unlock: ResearchSpend(type_id: "material", amount: 1000),
     effects: [UnlockRecipes(["forge_gateway_key"])],
 )

@@ -5,6 +5,6 @@
     tier: 2,
     rarity: Uncommon,
     prerequisites: ["ore_crusher"],
-    primary_unlock: ResearchSpend(150),
+    primary_unlock: ResearchSpend(type_id: "material", amount: 150),
     effects: [UnlockRecipes(["crush_stone", "refine_silicon"])],
 )

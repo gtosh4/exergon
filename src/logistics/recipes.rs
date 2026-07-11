@@ -10,7 +10,7 @@ use crate::machine::{MachineActivity, MachineEnergyPorts, MachineLogisticsPorts,
 use crate::network::{NetworkChanged, Power};
 use crate::power::{GeneratorUnit, PowerNetworkMember, PowerNetworkMembers};
 use crate::recipe_graph::{ConcreteRecipe, RecipeGraph};
-use crate::research::{ProductionTally, RESEARCH_POINTS_ID, ResearchPool, TechTreeProgress};
+use crate::research::{ProductionTally, ResearchPool, TechTreeProgress, research_theme_of};
 
 use super::items::{give_items, has_items, take_items};
 use crate::network::NetworkMembersComponent;
@@ -123,7 +123,7 @@ fn recipe_outputs_routable(
         .iter()
         .chain(recipe.byproducts.iter())
         .any(|out| {
-            if out.item == RESEARCH_POINTS_ID {
+            if research_theme_of(&out.item).is_some() {
                 return false;
             }
             let has_destination = logistics_ports.ports().iter().any(|&port_e| {
@@ -508,10 +508,9 @@ pub(super) fn recipe_finish_system(
 ) {
     for completion in to_finish.read() {
         for (item_id, count) in &completion.outputs {
-            if *item_id == RESEARCH_POINTS_ID {
+            if let Some(theme) = research_theme_of(item_id) {
                 if let Some(ref mut pool) = research_pool {
-                    pool.points += *count as f32;
-                    info!("Research pool +{} points (total: {})", count, pool.points);
+                    pool.add(theme, *count as f32);
                 }
                 continue;
             }

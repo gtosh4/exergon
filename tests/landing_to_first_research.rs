@@ -147,7 +147,7 @@ fn machine_entity(app: &mut App, machine_type: &str) -> Entity {
 }
 
 fn research_points(app: &App) -> f32 {
-    app.world().resource::<ResearchPool>().points
+    app.world().resource::<ResearchPool>().get("material")
 }
 
 /// Finds the ore deposit generated for the origin chunk, which the `DepositRegistry`

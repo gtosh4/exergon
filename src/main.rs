@@ -180,7 +180,9 @@ fn give_test_items(
 
 #[cfg(debug_assertions)]
 fn give_test_research(mut pool: ResMut<ResearchPool>, mut progress: ResMut<TechTreeProgress>) {
-    pool.points += 500.0;
+    for theme in ["material", "engineering", "discovery", "synthesis"] {
+        pool.add(theme, 500.0);
+    }
     progress
         .unlocked_recipes
         .insert("basic_analysis".to_string());

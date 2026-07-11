@@ -91,7 +91,7 @@ fn save_then_load_round_trip_preserves_run_state() {
     {
         let world = app.world_mut();
         let mut pool = world.resource_mut::<ResearchPool>();
-        pool.points = 42.0;
+        pool.add("material", 42.0);
     }
     {
         let world = app.world_mut();
@@ -135,7 +135,11 @@ fn save_then_load_round_trip_preserves_run_state() {
     assert_eq!(domains.world, DomainSeeds::from_master(seed.hash).world);
 
     let pool = world.resource::<ResearchPool>();
-    assert_eq!(pool.points, 42.0, "ResearchPool must round-trip");
+    assert_eq!(
+        pool.get("material"),
+        42.0,
+        "ResearchPool must round-trip per-theme"
+    );
     let progress = world.resource::<TechTreeProgress>();
     assert!(progress.unlocked_nodes.contains("alpha"));
     assert!(progress.unlocked_recipes.contains("smelt_iron"));
