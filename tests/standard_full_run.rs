@@ -162,6 +162,38 @@ fn machine_entity(app: &mut App, machine_type: &str) -> Entity {
         .unwrap_or_else(|| panic!("no placed machine of type {machine_type}"))
 }
 
+/// Places one real `solar_generator` at `pos`, wires it onto the power network anchored at
+/// `grid_pos`, and provisions its runtime `GeneratorUnit` at the RON's 100 W (headless
+/// placement spawns the Machine + ports but not the generator component). Panels start with an
+/// empty buffer and charge passively via `generator_tick` (buffer += watts·dt) — a farm of
+/// these is how the run powers the successor tree for real, no hand-fed joules.
+fn place_solar_panel(app: &mut App, pos: Vec3, grid_pos: Vec3) -> Entity {
+    place(app, "solar_generator", pos);
+    app.update();
+    // place_machine_system already inserts a GeneratorUnit for generators, but its watts are
+    // scaled by this world's solar modifier (unpredictable per seed). Find the panel just placed
+    // at `pos` and pin it to a known 100 W / empty buffer so the farm's sizing is deterministic.
+    let entity = {
+        let mut q = app.world_mut().query::<(Entity, &Machine, &Transform)>();
+        q.iter(app.world())
+            .find(|(_, m, t)| {
+                m.machine_type == "solar_generator" && t.translation.distance(pos) < 0.5
+            })
+            .map(|(e, _, _)| e)
+            .expect("just-placed solar_generator at pos")
+    };
+    app.world_mut().entity_mut(entity).insert(GeneratorUnit {
+        pos,
+        watts: 100.0,
+        buffer_joules: 0.0,
+        max_buffer_joules: 10_000.0,
+        env_source: EnvSource::Solar,
+    });
+    connect_power(app, grid_pos + ENERGY_OFFSET, pos + ENERGY_OFFSET);
+    app.update();
+    entity
+}
+
 fn research_points(app: &App) -> f32 {
     app.world().resource::<ResearchPool>().get("material")
 }
@@ -705,8 +737,8 @@ fn standard_run_lands_mines_and_launches_successor() {
     //     keys (deposit discovery is hardcoded to xalite in worldgen, so fluxite/cryophase/
     //     derelict caches are surfaced via `DiscoveryEvent` the way real recon would). Nothing
     //     REFINED is injected — every ingot/shard/plate/wire/dust is machine-produced from ore.
-    //   * generator sizing (as stage 3 provisions one) — cranked so power is genuinely drawn
-    //     every tick but never the bottleneck, so the measured time is the mine+craft path.
+    //   * a real solar farm powers it (12×100 W panels, built + charged below) — no hand-fed
+    //     joules; energy is generated and drawn every tick like real play.
     //
     // Content dependencies (from `assets path launch_successor` / `assets recipe <id>`):
     //   launch_successor = 1 successor_{core,chassis,drive,sensor} + 1 provisioning_module
@@ -851,17 +883,32 @@ fn standard_run_lands_mines_and_launches_successor() {
         app.world_mut().entity_mut(machine).insert(ManualCraftOnly);
     }
 
-    // Size the generator so 8000-energy launch + the whole tree never stalls on power (power
-    // is still drawn every tick — this just makes crafting time, not charging, the bottleneck).
-    {
-        let mut generator = app
-            .world_mut()
-            .get_mut::<GeneratorUnit>(generator_e)
-            .unwrap();
-        generator.watts = 1.0e7;
-        generator.buffer_joules = 1.0e8;
-        generator.max_buffer_joules = 1.0e9;
-    }
+    // Build a real solar farm to power the whole tree — no hand-fed joules. Twelve 100 W
+    // panels (1200 W) share the Stage-3 generator's power network; sized above the tree's
+    // sustained draw (the 8000-energy launch spread over 180s is only ~44 W; the refinery/
+    // assembler/analysis machines add a few hundred W peak). Panels start empty and charge via
+    // generator_tick, so we let the farm build a working reserve before the heavy craft phase —
+    // the same ramp a player waits through after laying panels down. Buffer is still drawn every
+    // tick; if draw ever outpaces 1200 W the buffer dips and crafts wait, exactly like real play.
+    let solar_farm_anchor = deposit_pos + Vec3::new(0.0, 0.0, 12.0);
+    let farm: Vec<Entity> = (0..12)
+        .map(|i| {
+            place_solar_panel(
+                &mut app,
+                solar_farm_anchor + Vec3::new(0.0, 0.0, i as f32 * 3.0),
+                generator_pos,
+            )
+        })
+        .collect();
+    // Let the farm charge a reserve: advance until every farm panel is ≥90% full (100 W into a
+    // 10 kJ buffer ≈ 90s of sim time).
+    advance_until(&mut app, 1.0, 400.0, |app| {
+        farm.iter().all(|&e| {
+            app.world()
+                .get::<GeneratorUnit>(e)
+                .is_some_and(|g| g.buffer_joules >= g.max_buffer_joules * 0.9)
+        })
+    });
 
     // Mine every raw material for real. Each `mine_deposit` locates a fresh off-origin
     // worldgen deposit (`nearest_vein`) and drops miners onto it wired to the shared
