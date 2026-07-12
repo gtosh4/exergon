@@ -8,11 +8,12 @@ use moonshine_save::prelude::Save;
 
 use crate::aegis::{AEGIS_RADIUS, AegisActive, AegisEmitter, AegisRadius, aegis_sphere_collider};
 use crate::inventory::{Hotbar, HotbarSlot};
-use crate::logistics::{LogisticsNetwork, LogisticsNetworkMember, StorageUnit};
-use crate::machine::LogisticsPortOf;
+use crate::logistics::{LogisticsNetwork, LogisticsNetworkMember, STORAGE_CRATE_ID, StorageUnit};
+use crate::machine::{LogisticsPortOf, Machine};
 use crate::network::{Logistics, NetworkChanged};
 use crate::power::PodPowered;
 use crate::world::generation::{TerrainSampler, WorldConfig};
+use crate::world::{WorldObjectEvent, WorldObjectKind};
 use crate::{GameLayer, GameState};
 
 pub struct PodPlugin;
@@ -27,6 +28,12 @@ pub struct PodNetwork;
 #[derive(Resource)]
 struct PodLogisticsNetwork(Entity);
 
+/// Set by `spawn_escape_pod` on a fresh run; `stock_bootstrap_storage` consumes it once the
+/// lander's storage_crate has been placed and given its StorageUnit, then removes it — so a
+/// later new run re-arms the stocking and no player-crafted crate is ever refilled.
+#[derive(Resource)]
+struct PendingBootstrapStock;
+
 impl Plugin for PodPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<PodNetwork>()
@@ -38,6 +45,10 @@ impl Plugin for PodPlugin {
                 spawn_escape_pod,
             )
             .add_systems(OnEnter(GameState::Playing), wire_pod_machines)
+            .add_systems(
+                Update,
+                stock_bootstrap_storage.run_if(in_state(GameState::Playing)),
+            )
             .add_systems(OnExit(GameState::Playing), |mut commands: Commands| {
                 commands.remove_resource::<PodLogisticsNetwork>()
             });
@@ -68,6 +79,7 @@ fn spawn_escape_pod(
     mut materials: ResMut<Assets<StandardMaterial>>,
     world_config: Res<WorldConfig>,
     mut hotbar: ResMut<Hotbar>,
+    mut world_events: MessageWriter<WorldObjectEvent>,
     pod_net_q: Query<Entity, With<PodNetwork>>,
 ) {
     let sampler = TerrainSampler::new(world_config.world_seed);
@@ -104,15 +116,18 @@ fn spawn_escape_pod(
     commands.insert_resource(PodLogisticsNetwork(pod_net));
 
     if new_run {
-        // Fresh run: the lander carries a starting kit of placeable machines + cables.
-        // Placement draws items from any StorageUnit, so this stash need not be networked.
-        commands.spawn((
-            StorageUnit {
-                items: starting_kit(),
-            },
-            Transform::from_translation(Vec3::new(0.0, ground_y + 1.5, 0.0)),
-            DespawnOnExit(GameState::Playing),
-        ));
+        // Fresh run: the lander sets down a storage_crate stocked with the starting kit. Emit the
+        // same placement message the input layer produces so the REAL placement path runs — it
+        // spawns the Machine, its logistics port (via `on_machine_added`), and a StorageUnit — and
+        // `stock_bootstrap_storage` fills that StorageUnit with the kit. This crate is the base's
+        // first networked storage: mined ore and crafted output route into it through `give_items`
+        // once the player wires it up, and placement draws the kit items back out of it.
+        world_events.write(WorldObjectEvent {
+            transform: Transform::from_translation(Vec3::new(0.0, ground_y + 1.5, 0.0)),
+            item_id: STORAGE_CRATE_ID.to_string(),
+            kind: WorldObjectKind::Placed,
+        });
+        commands.insert_resource(PendingBootstrapStock);
         // Bind the hotbar to the kit so the player can place immediately after landing.
         let kit_order = [
             "miner",
@@ -129,6 +144,28 @@ fn spawn_escape_pod(
         }
     }
     // Loaded run: pod machines already in world from save. wire_pod_machines handles port assignment.
+}
+
+/// Fills the lander's just-placed storage_crate with the starting kit. Runs while
+/// `PendingBootstrapStock` is armed; it mutates the StorageUnit that `storage_unit_system`
+/// creates for the crate (so there is no intra-frame race with that insertion), then disarms —
+/// leaving player-crafted storage_crates untouched. At bootstrap the lander crate is the only
+/// storage_crate in the world, so the first match is unambiguous.
+fn stock_bootstrap_storage(
+    mut commands: Commands,
+    pending: Option<Res<PendingBootstrapStock>>,
+    mut crate_q: Query<(&Machine, &mut StorageUnit)>,
+) {
+    if pending.is_none() {
+        return;
+    }
+    for (machine, mut storage) in &mut crate_q {
+        if machine.machine_type == STORAGE_CRATE_ID {
+            storage.items = starting_kit();
+            commands.remove_resource::<PendingBootstrapStock>();
+            return;
+        }
+    }
 }
 
 /// Assigns all PodPowered machine ports to the pod's private logistics network.
