@@ -16,7 +16,8 @@ that intent in code with minimal manual play.
 | --- | --- | --- | --- |
 | System tests | `#[cfg(test)] mod tests` next to each system (e.g. `src/logistics/miner.rs`) | fastest | Test one system directly against a bare `World`/`App` — no full plugin graph. See `.claude/skills/bevy/ecs.md`. |
 | Recipe/content tests | `tests/assembler_recipe.rs`, `tests/smelter_recipe.rs` | fast | One machine + one recipe through the real logistics plugin. |
-| End-to-end run | `tests/standard_full_run.rs` (+ `crates/scenario-runner`) | ~seconds | The whole vertical slice from a fixed seed: worldgen → placement → wiring → mining every raw material → analysis → research → power → crafting the successor → launch/escape. |
+| End-to-end run (Standard) | `tests/standard_full_run.rs` (+ `crates/scenario-runner`) | ~seconds | The whole vertical slice from a fixed seed: worldgen → placement → wiring → mining every raw material → analysis → research → power → crafting the successor → launch/escape. |
+| End-to-end run (Initiation) | `tests/initiation_run.rs` | ~seconds | The tier-3 difficulty: earn the T1–T3 path under a `TierCap`, build the `minimal_successor` escape (no tier-4 titanium), launch. Asserts the cap holds (no tier-4+ node unlocks). |
 
 The e2e test is the regression net for "a real run still completes." It is the one place the
 systems are proven to compose. **Every new gameplay stage on the landing→victory path gets a
@@ -26,19 +27,22 @@ The driving mechanics and the run itself live in the **`scenario-runner` workspa
 the test file:
 
 - `crates/scenario-runner/src/harness.rs` — the `Scenario` harness (placement, wiring, crafting,
-  mining, recon, `advance_until`/`run_until`) plus `Scenario::run_standard`, the whole scripted
-  landing→victory choreography.
+  mining, recon, `advance_until`/`run_until`) plus the scripted landing→victory choreographies:
+  `run_standard` (tiers 1–5 → the successor launch) and `run_initiation` (tiers 1–3 → the minimal
+  successor). `Scenario::run` dispatches on `spec.difficulty`.
 - `crates/scenario-runner/src/spec.rs` — `ScenarioSpec`, the **data-driven knobs** of a run (world
-  `seed`, the four themed research target lists, the successor `build_jobs`, `max_secs`), loaded
-  from a `.ron` file. The fixed content-graph choreography stays in Rust; only these knobs are data.
+  `seed`, `difficulty` — sets the `TierCap` + picks the driver — the four themed research target
+  lists, the successor `build_jobs`, `max_secs`), loaded from a `.ron` file. The fixed content-graph
+  choreography stays in Rust; only these knobs are data. Standard-only lists default empty, so an
+  Initiation spec is just seed + difficulty + `max_secs`.
 - `crates/scenario-runner/src/report.rs` — `RunReport`, the milestones + statistics a run produces
   (tier climb pace, node-unlock timeline, research-currency curve, ore extracted, stage checks).
 
-`tests/standard_full_run.rs` loads `scenarios/standard.ron`, calls `run_standard`, and asserts on
-the returned `RunReport`. The **`scenario` binary** replays the same code path for balancing —
-`cargo run -p scenario-runner --bin scenario -- scenarios/standard.ron` from the repo root prints
-the report. Copy `scenarios/standard.ron`, change the seed or the research/build targets, and
-compare the printed milestones across runs.
+Each e2e test loads its `scenarios/*.ron`, calls the matching driver, and asserts on the returned
+`RunReport`. The **`scenario` binary** replays the same code path for balancing —
+`cargo run -p scenario-runner --bin scenario -- scenarios/standard.ron` (or `initiation.ron`) from
+the repo root prints the report. Copy a scenario, change the seed / difficulty / research-build
+targets, and compare the printed milestones across runs.
 
 ---
 

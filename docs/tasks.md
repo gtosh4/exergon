@@ -348,17 +348,20 @@ Hand-verify reachability (procedural validator stays Alpha) + extend the e2e pat
 
 > **Dropped: "curated Standard run config."** Difficulty (`DifficultyTier`) is a real design axis — it gates which tiers are available, the victory condition, and (likely) the modifier budget — but it is **orthogonal to seed + world-gen**: world-gen is seed-driven and difficulty-blind. (Only the display-label wiring exists in code today; making difficulty actually gate tier availability / victory condition / modifier budget is unbuilt — now tracked as the deferred task below.) A "curated seed" is purely a world-gen construct, so "curated *Standard* run config" conflates two independent axes — there's no Standard-specific seed to author. The Standard content is a single fixed asset set; per-run selection from a seeded node pool is the real mechanism and stays deferred to Alpha.
 
-## Difficulty gating `[deferred — blocked on content]`
+## Difficulty gating `[Initiation done — Advanced/Pinnacle + meta-gate remain]`
 
-Wire `DifficultyTier` into the game loop so it gates **tier availability** and the **victory (terminal escape)** per `tech-tree-design.md §By difficulty` (Initiation 1–3, Standard 1–5, Advanced 1–7, Pinnacle 1–10; a difficulty's terminal tier exits via its escape, §12). Today `DifficultyTier` is selected in the new-run wizard and persisted in the save header, but **no system reads it** — only `src/ui/menus/*` labels + `src/save/`. Tier ceiling and victory are hard-fixed to the Standard (T1–5, `launch_successor`) path.
+Wire `DifficultyTier` into the game loop so it gates **tier availability** and the **victory (terminal escape)** per `tech-tree-design.md §By difficulty` (Initiation 1–3, Standard 1–5, Advanced 1–7, Pinnacle 1–10; a difficulty's terminal tier exits via its escape, §12).
 
-**Not in vertical-slice scope** — the slice targets the single Standard run, for which cosmetic difficulty selection is acceptable. Recorded here so the design→code gap is visible, not to schedule now.
+**Done (2026-07-12):**
+- [x] **Difficulty plumbing** — `NewRunEvent` + `WizardDraft` carry a `DifficultyTier`; the run header stores the chosen value (was hard-coded Initiation). `DifficultyTier::max_tier()` maps Initiation=3/Standard=5/Advanced=7/Pinnacle=10.
+- [x] **Tier cap (engine)** — `research::TierCap` refuses unlocking any node with `tier > cap`, across all four unlock vectors, spending no points on a capped node; `sync_tier_cap` derives it from the run's difficulty. Default uncapped, so non-run contexts are unaffected.
+- [x] **Initiation content** — the T3 terminal escape: `minimal_successor` node (prereqs steel_alloying + silicon_refining) → `make_launch_site__minimal` + `launch_minimal_successor` (steel + circuit + silicon, no tier-4 titanium). Reuses the existing launch_site + escape engine.
+- [x] **Initiation e2e** — `Scenario::run_initiation` + `scenarios/initiation.ron` + `tests/initiation_run.rs`: full earned T1–T3 run to victory (~5500s virtual), asserting the cap holds (no tier-4+ node unlocks; the T4/T5 Standard gates stay shut).
 
-**Blocked on content.** Only tiers 1–5 exist (`assets/tech_nodes/`: T1×7, T2×11, T3×4, T4×11, T5×11). Meaningful gating needs content that is Alpha-deferred:
-- **Initiation (1–3)** — cheapest real slice. Engine: cap unlockable tiers by difficulty + point the win at the difficulty's terminal escape. Content gap: a **T3-terminal minimal-successor** launch recipe/node (the only escape today is the T5 `launch_successor`).
-- **Advanced / Pinnacle (1–7 / 1–10)** — require the entire tier 6–10 trees, which are unspecced (`tech-tree-design.md §5` marks them TBD).
-
-**When built, the `scenario-runner` harness is the proof surface:** one `scenarios/<difficulty>.ron` per difficulty, each asserting its tier ceiling + terminal-escape victory (add `difficulty` to `ScenarioSpec` at that point — inert until the loop reads it).
+**Remaining:**
+- [ ] **Meta-progression gate** — lock Standard/Advanced/Pinnacle in the new-run wizard until a `status==Completed` run of the difficulty below exists in save history (the "beat Initiation to unlock Standard" chain, `tech-tree-design.md §72`). Engine + wizard-UI work; the save header already carries `difficulty` + `status`.
+- [ ] **Advanced / Pinnacle content** — the entire tier 6–10 trees + their T7/T10 terminal escapes, all unspecced (`tech-tree-design.md §5` marks them TBD). Alpha-scope.
+- [ ] **Modifier budget by difficulty** — the third design axis (§By difficulty), still unbuilt/untracked in code.
 
 ## Carried-forward open flags (§9)
 
