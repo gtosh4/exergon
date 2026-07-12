@@ -285,12 +285,12 @@ Phases are dependency-ordered (§10). Owner tags: `engine` · `content-designer`
 
 ## Phase A — Engine: `ProductionMilestone` unlock vector `[engine]`
 
-The one true blocker. The vector is a stub (`tech_tree/mod.rs` enum variant + UI render only); the auto-unlock loop (`research/mod.rs`) handles `ExplorationDiscovery` + `PrerequisiteChain` but not this. Required by the T1 skeleton (Basic Miner ← 50 stone, Land Drone Mk1 ← 20 iron) and every production-milestone tier gate. Gates Phase B onward. (§1, §9 #1)
+The one true blocker. Landed alongside Phase B (the `ore_crusher` milestone node). Required by the T1 skeleton (Basic Miner ← 50 stone, Land Drone Mk1 ← 20 iron) and every production-milestone tier gate. Gates Phase B onward. (§1, §9 #1)
 
-- [ ] Per-material running produced-count tracking
-- [ ] Auto-unlock a node when its produced-count threshold is met
-- [ ] Hinted progress readout on the node card (e.g. "50/100 refined units")
-- [ ] Tests: count accrues on job completion; node auto-unlocks at threshold; progress hint renders
+- [x] Per-material running produced-count tracking — `ProductionTally` resource (`research/mod.rs`), recorded at recipe completion (`logistics/recipes.rs`) + miner extraction (`logistics/miner.rs`); persisted via `SaveWorld::include_resource`
+- [x] Auto-unlock a node when its produced-count threshold is met — `check_research_unlocks` ProductionMilestone pass (`research/mod.rs`), prereq-gated
+- [x] Hinted progress readout on the node card — "Produce {have} / {quantity}× {material}" + "Produce N more {material}" (WARN) in tech-tree detail panel (`ui/panels/tech_tree.rs`)
+- [x] Tests: count accrues on job completion; node auto-unlocks at threshold (+ below-threshold, prereq-respect) — 4 tests green. Hint-render test omitted per CLAUDE.md (no unit tests on trivial UI `spawn`/`format!`)
 
 ## Phase B — Content: materials + forming ladder `[content-designer]` (dep: A)
 
@@ -324,9 +324,9 @@ The ~63 tier-2–5 nodes (T2 12 / T3 16 / T4 20 / T5 15), exotic lines, and the 
 - [~] **Fluxite generator** (higher-output V2 stand-in) + **advanced assembler** authored. **No engine voltage tier** exists (`min_voltage_tier`/`RecipeBlockedVoltage` absent) — power transition modeled *softly* via high exotic `energy_cost` + the Fluxite generator's higher output, **not** a hard block. Voltage-2 network N/A. **Flagged.**
 - [x] Port the T3–T5 node definitions to `tech-tree-design.md` (§6bis)
 
-> **Phase D notes / flags** (`content-designer`): The chain **loads and resolves** (`tech_path launch_successor`) and `cargo test` stays green (283 unit + curated_seeds + landing e2e). Three **engine gaps** surfaced — none block the reachability proof or tests (e2e stops at drone scan), but all block an actual in-game Standard win and are engine follow-ups:
-> 1. **Deposit discovery is hardcoded to xalite.** `drone::deposit_discovery_system` only fires `DiscoveryEvent("xalite_deposit")` when a deposit ore id `== "xalite"`. The new `ExplorationDiscovery` keys (`fluxite_relic_cache`, `cryophase_deposit`, `derelict_ship`) — and now the xalite one, since the deposit gained `_shard` forms — need a general deposit→discovery-key mechanism. (The xalite deposit keeps a bare `"xalite"` ore entry so its existing discovery still fires; that entry is a pre-existing dangling mined item.)
-> 2. **`EscapeObjective` is never attached to a player-built `launch_site`.** Only the run-gen gateway gets it (`world::ruins`). See `escape-condition.md §7.1`.
+> **Phase D notes / flags** (`content-designer`): The chain **loads and resolves** (`tech_path launch_successor`) and `cargo test` stays green. Of the three engine gaps originally surfaced here, **#1 and #2 have since landed** (see below); only the voltage-tier gap (#3) remains, and design accepts the soft model:
+> 1. ~~**Deposit discovery is hardcoded to xalite.**~~ **RESOLVED** — `drone::discovery_key_for_ores` maps each deposit's signature ore to its `ExplorationDiscovery` key (`xalite`→`xalite_deposit`, `cryophase_shard`→`cryophase_deposit`, `fluxite_shard`→`fluxite_relic_cache`, `salvaged_hull`→`derelict_ship`); `deposit_discovery_system` fires whichever key the found deposit carries. Covers every key the tech tree listens for.
+> 2. ~~**`EscapeObjective` is never attached to a player-built `launch_site`.**~~ **RESOLVED** — `escape::tag_escape_machines_system` tags any newly-placed `Machine` whose `machine_type ∈ ESCAPE_MACHINE_TYPES` (`["launch_site"]`) with `EscapeObjective`; regression-tested in `escape/mod.rs` and end-to-end in `standard_full_run.rs` (real placed launch_site runs `launch_successor` → `RunState::Completed`).
 > 3. **No voltage-tier system.** `min_voltage_tier`/`RecipeBlockedVoltage` do not exist in the engine (contrary to the brief); the T4 power transition is modeled softly (high `energy_cost` + higher-output Fluxite generator), never a hard block.
 >
 > **Deviations:** optional/yield nodes deferred to design-only (spine-only RON); base-metal "Extraction" gates folded (the `smelt_metal` template already yields all ingots); `launch_site_assembly` ProductionMilestone("4 systems") → ResearchSpend+prereqs+recipe-inputs (single-material limit of the vector). Numbers representative/unvalidated (§9 #4). Byproduct loop (`coolant_runoff`→`exotic_solvent`) kept closable and non-blocking via the `refine_exotic_fuel__raw` fallback.
@@ -336,7 +336,7 @@ The ~63 tier-2–5 nodes (T2 12 / T3 16 / T4 20 / T5 15), exotic lines, and the 
 Write the Standard escape that `escape-condition.md §7` currently defers. No new engine — launch site is an `EscapeObjective` running one recipe (§8). (§9 #3)
 
 - [x] Write §7 successor-launch spec into `technical/escape-condition.md` (§7.1)
-- [~] RON: launch-site machine + `launch_successor` recipe authored. **Engine hook flagged:** a player-built `launch_site` is never given the `EscapeObjective` marker (only the run-gen gateway is, via `world::ruins`); the win won't fire until placement/run-gen attaches it (§7.1 flag).
+- [x] RON: launch-site machine + `launch_successor` recipe authored; engine hook landed — `escape::tag_escape_machines_system` attaches `EscapeObjective` on placement of `machine_type == "launch_site"`, so the win fires for a player-built launch site (was §7.1 flag, now resolved).
 - [x] RON: `make_successor_chassis__salvaged` derelict-discount variant consuming `salvaged_hull` (fixed run = derelict present, §8.3)
 
 ## Phase F — Reachability + tests `[playtest-verifier]` (dep: all)

@@ -140,7 +140,7 @@ The Standard escape is the successor-launch cascade (`standard-run-design.md §8
 
 **Machine — `launch_site`** (`assets/machines/launch_site.ron`): a tier-2, single-interaction ground machine. It is the Standard analog of the gateway. Like the gateway, it must carry the `EscapeObjective` marker for `escape_objective_system` to fire the win on its `JobComplete`.
 
-> **Engine hook (flag).** The gateway receives `EscapeObjective` because `world::ruins::spawn_gateway_ruins_system` attaches it at run-gen. A **player-built** `launch_site` has no such attachment path — placement (`machine/placement.rs`) never inserts `EscapeObjective`. To fire the win for a player-built launch site the engine must either (a) attach `EscapeObjective` on placement of `machine_type == "launch_site"`, or (b) spawn a pre-marked launch site at run-gen (mirroring the gateway). This is the one engine hook the Standard escape needs; the content (machine + recipe + tech chain) is complete and loads.
+> **Engine hook (landed).** The gateway receives `EscapeObjective` at run-gen (`world::ruins::spawn_gateway_ruins_system`). A **player-built** `launch_site` receives it from `escape::tag_escape_machines_system`, which tags any newly-added `Machine` whose `machine_type` is in `ESCAPE_MACHINE_TYPES` (`["launch_site"]`) — option (a) above. Regression-tested (`escape/mod.rs::launch_site_machine_gets_escape_objective`) and end-to-end (`standard_full_run.rs`: a real placed launch_site runs `launch_successor` → `RunState::Completed`).
 
 **Recipe — `launch_successor`** (`assets/recipes/launch_successor.ron`), the single launch cascade:
 
