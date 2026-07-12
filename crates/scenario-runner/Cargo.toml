@@ -1,0 +1,17 @@
+[package]
+name = "scenario-runner"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "scenario"
+path = "src/main.rs"
+
+[dependencies]
+exergon = { path = "../.." }
+bevy = { version = "0.19", features = ["dynamic_linking"] }
+serde = { version = "1", features = ["derive"] }
+ron = "0.8"
+
+[lints]
+workspace = true

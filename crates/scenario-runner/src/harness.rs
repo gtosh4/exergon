@@ -4,8 +4,8 @@
 //! mechanics as methods: inventory-gated placement (`place_real`/`deploy`), crafting into
 //! networked storage (`craft`/`push_jobs`/`ensure_jobs`), mining (`craft_and_mine`), drone recon
 //! (`recon_deposit`), and simulated-time drivers (`advance_until`/`run_until`). Two composites do
-//! the heavy lifting: `land()` (fixed seed → terrain+deposits → real PodPlugin landing) and
-//! `drive_to_victory()` (the earned-research + real-machine-economy grind to `launch_successor`).
+//! the heavy lifting: `run_standard()` (the whole scripted standard run, driven from a
+//! [`ScenarioSpec`]) and `drive_to_victory()` (the earned-research + real-machine-economy grind).
 //!
 //! NOTHING gameplay-relevant is injected: storage comes from the real landing crate + crafted
 //! crates, generator watts are the seed-scaled values `place_machine_system` assigns, every tech
@@ -31,11 +31,11 @@ use exergon::logistics::{
 };
 use exergon::machine::{
     LogisticsPortOf, Machine, MachinePlugin, MachinePortLayout, MachinePortLayouts, MachineState,
-    ManualCraftOnly,
+    ManualCraftOnly, MinerMachine,
 };
-use exergon::planet::{Planet, PlanetPlugin, PlanetPropertyVisibility};
+use exergon::planet::{Planet, PlanetPlugin, PlanetPropertyVisibility, PropertyVisibility};
 use exergon::pod::PodPlugin;
-use exergon::power::PowerPlugin;
+use exergon::power::{GeneratorUnit, PowerPlugin};
 use exergon::recipe_graph::{RecipeGraph, RecipeGraphPlugin};
 use exergon::research::{
     Discovered, ProductionTally, ResearchPlugin, ResearchPool, TechTreeProgress, UnlockNodeRequest,
@@ -46,6 +46,9 @@ use exergon::world::{
     CableConnectionEvent, MainCamera, OreDeposit, WorldObjectEvent, WorldObjectKind, WorldgenPlugin,
 };
 use exergon::{GameState, PlayMode};
+
+use crate::report::RunReport;
+use crate::spec::ScenarioSpec;
 
 /// Logistics ports sit one unit +X of a machine; energy ports one unit −X, so a power cable and a
 /// logistics cable to the same machine snap to different port entities.
@@ -64,6 +67,8 @@ pub struct GrindPlan<'a> {
     pub build_jobs: &'a [(&'a str, usize)],
     pub fluxite_site: Entity,
     pub cryophase_deposit: Entity,
+    /// Runaway guard for the grind, in simulated seconds.
+    pub max_secs: f32,
 }
 
 /// What the victory grind observed, for the caller's post-run regression assertions.
@@ -76,7 +81,8 @@ pub struct DriveOutcome {
 
 /// A landing→victory run in progress. `app` is public as an escape hatch for one-off world reads
 /// the typed methods don't cover; the anchors (`storage`/`net`/`generator_pos`) are set by
-/// `land()` + `bind_network()` and read through getters.
+/// `land()` + `bind_network()` and read through getters. `report` accumulates milestones as the
+/// time-advancing drivers run.
 pub struct Scenario {
     pub app: App,
     storage_e: Entity,
@@ -86,6 +92,7 @@ pub struct Scenario {
     origin_deposit: Entity,
     origin_pos: Vec3,
     origin_ores: Vec<(String, f32)>,
+    report: RunReport,
 }
 
 impl Scenario {
@@ -107,6 +114,10 @@ impl Scenario {
             origin_deposit: Entity::PLACEHOLDER,
             origin_pos: Vec3::ZERO,
             origin_ores: Vec::new(),
+            report: RunReport {
+                seed,
+                ..Default::default()
+            },
         };
         s.land();
         s
@@ -224,6 +235,10 @@ impl Scenario {
     }
     pub fn origin_ores(&self) -> &[(String, f32)] {
         &self.origin_ores
+    }
+    /// The milestone/statistics report accumulated so far.
+    pub fn report(&self) -> &RunReport {
+        &self.report
     }
 
     /// Factory layout helper: a distinct X lane per machine type, copies stacked along +Z at hub y.
@@ -466,6 +481,7 @@ impl Scenario {
                 return;
             }
             self.app.update();
+            self.capture();
             elapsed += dt;
         }
         panic!("advance_until: condition not met within {max_secs}s of simulated time");
@@ -491,9 +507,20 @@ impl Scenario {
             }
             each(self);
             self.app.update();
+            self.capture();
             elapsed += dt;
         }
         panic!("run_until: condition not met within {max_secs}s of simulated time");
+    }
+
+    /// Fold this frame's world state into the accumulating [`RunReport`] (node unlocks, tier
+    /// completions, research-curve samples). Split off `self.report` first so the report's
+    /// mutable borrow doesn't collide with the immutable world read.
+    fn capture(&mut self) {
+        let secs = self.virtual_secs();
+        let mut report = std::mem::take(&mut self.report);
+        report.observe(self.app.world(), secs);
+        self.report = report;
     }
 
     // ── queries / requests ──────────────────────────────────────────────────────────────────
@@ -634,6 +661,232 @@ impl Scenario {
             .write_message(UnlockNodeRequest(node.into()));
     }
 
+    // ── the whole scripted standard run ─────────────────────────────────────────────────────
+
+    /// Drive an entire standard run from landing to `launch_successor`, parameterized by `spec`.
+    /// This is the scripted choreography the e2e smoke test proves and the `scenario` binary
+    /// replays for balancing: deploy the kit, earn the early research tiers, craft + place the
+    /// processing economy, then hand the four-currency grind to [`Scenario::drive_to_victory`].
+    /// Stage observations land in [`Scenario::report`]; returns a clone of that report.
+    pub fn run_standard(&mut self, spec: &ScenarioSpec) -> RunReport {
+        self.report.name = spec.name.clone();
+
+        let deposit_e = self.origin_deposit();
+        let deposit_pos = self.origin_pos();
+        let storage_pos = self.storage_pos();
+        let generator_pos = self.generator_pos();
+
+        // Stage 0 — deploy the four kit machines through the real inventory-gated path.
+        self.place_real("solar_generator", generator_pos);
+        self.app.update();
+        let generator_e = self.machine_at("solar_generator", generator_pos);
+
+        self.place_real("miner", deposit_pos);
+        self.wire_logi(storage_pos, deposit_pos);
+        self.app.update();
+        let miner_e = self.machine_at("miner", deposit_pos);
+        self.report.kit_miner_latched = self
+            .app
+            .world()
+            .get::<MinerMachine>(miner_e)
+            .map(|m| m.deposit)
+            == Some(deposit_e);
+
+        let assembler_pos = self.lane(25.0, 0);
+        let station_pos = self.lane(10.0, 0);
+        let assembler_e = self.deploy("assembler", assembler_pos, true);
+        let station_e = self.deploy("analysis_station", station_pos, true);
+
+        self.wire_logi(storage_pos, deposit_pos);
+        self.app.update();
+        self.bind_network();
+
+        let net = self.net();
+        self.report.networks_shared = net == self.net_of(miner_e)
+            && net == self.net_of(assembler_e)
+            && net == self.net_of(station_e);
+
+        // Stage 1 — earn ore_extraction. Queue basic_analysis and let the mine→analyse loop run.
+        let mut station_ran = false;
+        self.run_until(
+            0.5,
+            4_000.0,
+            |s| s.ensure_jobs("basic_analysis", 12),
+            |s| {
+                if s.machine_state(station_e) == Some(MachineState::Running) {
+                    station_ran = true;
+                }
+                s.research_points("material") >= 30.0
+            },
+        );
+        self.report.station_ran = station_ran;
+        self.request_node("ore_extraction");
+        self.app.update();
+
+        // Stage 1b — first research spend reveals both atmospheric properties.
+        self.app.update();
+        let vis = self.planet_vis();
+        self.report.oxygen_revealed = vis.atmospheric_oxygen == PropertyVisibility::Revealed;
+        self.report.pressure_revealed = vis.atmospheric_pressure == PropertyVisibility::Revealed;
+
+        // Stage 2 — sustained grind to basic_processing.
+        self.run_until(
+            0.5,
+            12_000.0,
+            |s| s.ensure_jobs("basic_analysis", 12),
+            |s| s.research_points("material") >= 150.0,
+        );
+        self.request_node("basic_processing");
+        self.app.update();
+
+        // Stage 3 — CRAFT a smelter, place + power it, prove the energy-gated smelt.
+        self.craft("smelter", 1);
+        self.advance_until(0.5, 6_000.0, |s| s.hub_stored("smelter") >= 1);
+        let smelter_pos = self.lane(15.0, 0);
+        let smelter_e = self.deploy("smelter", smelter_pos, true);
+        self.push_jobs("smelt_metal__iron", 3);
+        let mut smelter_ran = false;
+        self.advance_until(0.25, 6_000.0, |s| {
+            if s.machine_state(smelter_e) == Some(MachineState::Running) {
+                smelter_ran = true;
+            }
+            s.hub_stored("iron_ingot") >= 1
+        });
+        self.report.smelter_ran = smelter_ran;
+        self.report.generator_charged = self
+            .app
+            .world()
+            .get::<GeneratorUnit>(generator_e)
+            .is_some_and(|g| g.buffer_joules > 0.0);
+
+        // Stage 4 — CRAFT a wire_drawer + a second assembler, run copper→wire→circuit for real.
+        self.craft("wire_drawer", 1);
+        self.craft("assembler", 1);
+        self.advance_until(0.5, 8_000.0, |s| {
+            s.hub_stored("wire_drawer") >= 1 && s.hub_stored("assembler") >= 1
+        });
+        let drawer_pos = self.lane(20.0, 0);
+        let assembler2_pos = self.lane(25.0, 1);
+        let _drawer_e = self.deploy("wire_drawer", drawer_pos, true);
+        let assembler2_e = self.deploy("assembler", assembler2_pos, true);
+
+        self.push_jobs("smelt_metal__iron", 2);
+        self.push_jobs("smelt_metal__copper", 2);
+        self.push_jobs("draw_metal__copper", 2);
+        self.push_jobs("make_circuit", 1);
+        let mut assembler_ran = false;
+        self.advance_until(0.25, 8_000.0, |s| {
+            if s.machine_state(assembler_e) == Some(MachineState::Running)
+                || s.machine_state(assembler2_e) == Some(MachineState::Running)
+            {
+                assembler_ran = true;
+            }
+            s.hub_stored("circuit_board") >= 1
+        });
+        self.report.assembler_ran = assembler_ran;
+
+        // Stage 5 — drone scan reveals geological activity.
+        self.enter_drone_pilot();
+        self.app.update();
+        self.reveal_fog(IVec2::ZERO);
+        self.app.update();
+        self.report.geo_revealed_after_scan =
+            self.planet_vis().geological_activity == PropertyVisibility::Qualitative;
+
+        // Stage 6 — the full Standard victory with a REAL machine economy and EARNED research.
+        let xalite_site = self.recon_deposit("xalite");
+        self.report.xalite_discovered = self.discovered(xalite_site);
+
+        // Scale up the early factory: two more analysis stations, a second smelter, a solar farm.
+        self.craft("analysis_station", 2);
+        self.craft("smelter", 1);
+        self.advance_until(0.5, 25_000.0, |s| {
+            s.hub_stored("analysis_station") >= 2 && s.hub_stored("smelter") >= 1
+        });
+        let _station2 = self.deploy("analysis_station", self.lane(10.0, 1), true);
+        let _station3 = self.deploy("analysis_station", self.lane(10.0, 2), true);
+        let _smelter2 = self.deploy("smelter", self.lane(15.0, 1), true);
+
+        let panels = 6usize;
+        self.craft("solar_generator", panels as u32);
+        self.advance_until(0.5, 30_000.0, |s| {
+            s.hub_stored("solar_generator") >= panels as u32
+        });
+        let mut farm: Vec<Entity> = Vec::new();
+        for i in 0..panels {
+            farm.push(self.deploy_panel(self.lane(60.0, i)));
+        }
+        self.advance_until(1.0, 6_000.0, |s| {
+            farm.iter().all(|&e| {
+                s.app
+                    .world()
+                    .get::<GeneratorUnit>(e)
+                    .is_some_and(|g| g.buffer_joules >= g.max_buffer_joules * 0.9)
+            })
+        });
+
+        // Mine every raw material for real (miners crafted first via `craft_and_mine`).
+        let iron_copper_deposit = self.craft_and_mine("copper_ore", 2, true);
+        self.craft_and_mine("resonite_shard", 1, false);
+        self.craft_and_mine("aluminum_ore", 1, false);
+        self.craft_and_mine("titanium_ore", 1, false);
+        self.craft_and_mine("coal", 1, false);
+        let fluxite_site = self.craft_and_mine("fluxite_shard", 1, false);
+        let cryophase_deposit = self.craft_and_mine("cryophase_shard", 2, false);
+
+        // Build the grind plan from the spec's tunable node lists + build jobs.
+        let material_nodes: Vec<&str> = spec.material_nodes.iter().map(String::as_str).collect();
+        let engineering_nodes: Vec<&str> =
+            spec.engineering_nodes.iter().map(String::as_str).collect();
+        let discovery_nodes: Vec<&str> = spec.discovery_nodes.iter().map(String::as_str).collect();
+        let synthesis_nodes: Vec<&str> = spec.synthesis_nodes.iter().map(String::as_str).collect();
+        let build_jobs: Vec<(&str, usize)> = spec
+            .build_jobs
+            .iter()
+            .map(|(r, n)| (r.as_str(), *n))
+            .collect();
+
+        let plan = GrindPlan {
+            material_nodes: &material_nodes,
+            engineering_nodes: &engineering_nodes,
+            discovery_nodes: &discovery_nodes,
+            synthesis_nodes: &synthesis_nodes,
+            build_jobs: &build_jobs,
+            fluxite_site,
+            cryophase_deposit,
+            max_secs: spec.max_secs,
+        };
+        let outcome = self.drive_to_victory(&plan);
+
+        // Finalize the report.
+        self.capture();
+        self.report.build_enqueued = outcome.build_enqueued;
+        self.report.launch_ran = outcome.launch_ran;
+        self.report.ever_analyzed_circuit = outcome.ever_analyzed_circuit;
+        self.report.ever_analyzed_exotic = outcome.ever_analyzed_exotic;
+        self.report.completed = self.is_completed();
+        self.report.virtual_secs = self.virtual_secs();
+
+        let extracted = |world: &World, d: Entity| -> f32 {
+            world
+                .get::<OreDeposit>(d)
+                .map(|o| o.total_extracted)
+                .unwrap_or(0.0)
+        };
+        self.report.ore_extracted = vec![
+            (
+                "iron_copper_vein".to_string(),
+                extracted(self.app.world(), iron_copper_deposit),
+            ),
+            (
+                "cryophase_shard".to_string(),
+                extracted(self.app.world(), cryophase_deposit),
+            ),
+        ];
+
+        self.report.clone()
+    }
+
     // ── the victory grind ───────────────────────────────────────────────────────────────────
 
     /// Drives the earned-research + real-machine-economy grind to `launch_successor`. Each frame:
@@ -643,7 +896,7 @@ impl Scenario {
     /// processing machine as its gate opens; (d) top up the analysis/milestone chain (capped so
     /// the easy chains don't starve the machine-body crafts of raw ore); (e) once the whole
     /// closure is earned AND the terminal machines are placed, swap the queue to the build list.
-    /// Loops until `RunState::Completed`. Panics on a 40k-simulated-second runaway guard.
+    /// Loops until `RunState::Completed`. Panics on a `plan.max_secs` runaway guard.
     pub fn drive_to_victory(&mut self, plan: &GrindPlan) -> DriveOutcome {
         let all_nodes: Vec<&str> = plan
             .material_nodes
@@ -717,9 +970,7 @@ impl Scenario {
         ];
 
         let dt = 0.5f32;
-        // Generous runaway guard. The measured victory is ~11.5k simulated seconds; this leaves
-        // ample margin for content-balance tweaks (raise only if a slowdown is intended).
-        let max_secs = 40_000.0f32;
+        let max_secs = plan.max_secs;
         self.app
             .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
                 dt,
@@ -891,6 +1142,7 @@ impl Scenario {
             }
 
             self.app.update();
+            self.capture();
             elapsed += dt;
         }
 

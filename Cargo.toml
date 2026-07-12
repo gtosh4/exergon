@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/assets"]
+members = ["crates/assets", "crates/scenario-runner"]
 
 [workspace.lints.rust]
 dead_code = "allow" # TEMP until MVP
@@ -40,6 +40,10 @@ tracing-subscriber = { version = "0.3", features = ["fmt"] }
 # `schemars` stays here because the content def types (ItemDef, NodeDef, …) derive
 # `JsonSchema`; the `exergon-assets` MCP crate consumes those schemas.
 schemars = "1"
+
+[dev-dependencies]
+# The landing→victory smoke test drives the shared scenario harness.
+scenario-runner = { path = "crates/scenario-runner" }
 
 [profile.dev]
 opt-level = 1

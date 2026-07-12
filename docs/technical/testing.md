@@ -16,11 +16,29 @@ that intent in code with minimal manual play.
 | --- | --- | --- | --- |
 | System tests | `#[cfg(test)] mod tests` next to each system (e.g. `src/logistics/miner.rs`) | fastest | Test one system directly against a bare `World`/`App` — no full plugin graph. See `.claude/skills/bevy/ecs.md`. |
 | Recipe/content tests | `tests/assembler_recipe.rs`, `tests/smelter_recipe.rs` | fast | One machine + one recipe through the real logistics plugin. |
-| End-to-end run | `tests/standard_full_run.rs` | ~seconds | The whole vertical slice from a fixed seed: worldgen → placement → wiring → mining every raw material → analysis → research → power → crafting the successor → launch/escape. |
+| End-to-end run | `tests/standard_full_run.rs` (+ `crates/scenario-runner`) | ~seconds | The whole vertical slice from a fixed seed: worldgen → placement → wiring → mining every raw material → analysis → research → power → crafting the successor → launch/escape. |
 
 The e2e test is the regression net for "a real run still completes." It is the one place the
 systems are proven to compose. **Every new gameplay stage on the landing→victory path gets a
 stage added here** (see §3), so the dev loop is `cargo test` rather than launching the game.
+
+The driving mechanics and the run itself live in the **`scenario-runner` workspace crate**, not in
+the test file:
+
+- `crates/scenario-runner/src/harness.rs` — the `Scenario` harness (placement, wiring, crafting,
+  mining, recon, `advance_until`/`run_until`) plus `Scenario::run_standard`, the whole scripted
+  landing→victory choreography.
+- `crates/scenario-runner/src/spec.rs` — `ScenarioSpec`, the **data-driven knobs** of a run (world
+  `seed`, the four themed research target lists, the successor `build_jobs`, `max_secs`), loaded
+  from a `.ron` file. The fixed content-graph choreography stays in Rust; only these knobs are data.
+- `crates/scenario-runner/src/report.rs` — `RunReport`, the milestones + statistics a run produces
+  (tier climb pace, node-unlock timeline, research-currency curve, ore extracted, stage checks).
+
+`tests/standard_full_run.rs` loads `scenarios/standard.ron`, calls `run_standard`, and asserts on
+the returned `RunReport`. The **`scenario` binary** replays the same code path for balancing —
+`cargo run -p scenario-runner --bin scenario -- scenarios/standard.ron` from the repo root prints
+the report. Copy `scenarios/standard.ron`, change the seed or the research/build targets, and
+compare the printed milestones across runs.
 
 ---
 
@@ -57,8 +75,9 @@ Do **not** reintroduce the old approach of hand-poking internal state (`accumula
 ## 3. Adding a stage to the e2e test
 
 Each stage of the game (research tier, crafting step, exploration unlock, escape) becomes one
-labelled block in `standard_run_lands_mines_and_launches_successor`, appended after
-the previous stage. The pattern is always the same:
+labelled block in `Scenario::run_standard` (`crates/scenario-runner/src/harness.rs`), appended
+after the previous stage; the observation it proves is recorded on `RunReport` and asserted in
+`tests/standard_full_run.rs`. The pattern is always the same:
 
 1. **Look up the content** the stage needs with the `assets` MCP tools (§4): recipe inputs/outputs,
    machine type, tech-node cost and prerequisites.
