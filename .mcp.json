@@ -2,7 +2,7 @@
   "mcpServers": {
     "exergon-assets": {
       "command": "cargo",
-      "args": ["run", "-q", "--bin", "assets"]
+      "args": ["run", "-q", "-p", "exergon-assets", "--bin", "assets"]
     }
   }
 }

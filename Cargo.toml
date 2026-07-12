@@ -1,3 +1,16 @@
+[workspace]
+members = ["crates/assets"]
+
+[workspace.lints.rust]
+dead_code = "allow" # TEMP until MVP
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+indexing_slicing = "warn"
+panic = "warn"
+todo = "warn"
+
 [package]
 name = "exergon"
 version = "0.1.0"
@@ -20,18 +33,13 @@ rand = "0.8"
 rand_pcg = "0.3"
 noise = "0.9"
 xxhash-rust = { version = "0.8", features = ["xxh64"] }
-anyhow = "1"
 thiserror = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
 
-# `assets` MCP server (src/bin/assets.rs). Only used by that binary + src/asset_store.
-rmcp = { version = "0.9", features = ["server", "transport-io", "macros", "schemars"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std"] }
+# `schemars` stays here because the content def types (ItemDef, NodeDef, …) derive
+# `JsonSchema`; the `exergon-assets` MCP crate consumes those schemas.
 schemars = "1"
-jaq-core = "3.1.0"
-jaq-std = "3.0.1"
-jaq-json = { version = "2.0.1", features = ["serde"] }
 
 [profile.dev]
 opt-level = 1
@@ -39,12 +47,5 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
-[lints.rust]
-dead_code = "allow" # TEMP until MVP
-
-[lints.clippy]
-unwrap_used = "warn"
-expect_used = "warn"
-indexing_slicing = "warn"
-panic = "warn"
-todo = "warn"
+[lints]
+workspace = true

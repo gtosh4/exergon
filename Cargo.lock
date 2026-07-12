@@ -2853,7 +2853,6 @@ dependencies = [
 name = "exergon"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "avian3d",
  "base58",
  "bevy",
@@ -2861,23 +2860,35 @@ dependencies = [
  "bevy-tnua-avian3d",
  "blake3",
  "chrono",
- "jaq-core",
- "jaq-json",
- "jaq-std",
  "moonshine-save",
  "noise",
  "rand 0.8.6",
  "rand_pcg",
- "rmcp",
  "ron 0.8.1",
  "rusqlite",
  "schemars",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
- "tokio",
  "tracing-subscriber",
  "xxhash-rust",
+]
+
+[[package]]
+name = "exergon-assets"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "exergon",
+ "jaq-core",
+ "jaq-json",
+ "jaq-std",
+ "rmcp",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]

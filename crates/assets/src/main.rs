@@ -239,6 +239,7 @@ fn kinds_catalog() -> Result<String, String> {
                  Call describe_kind first to get a kind's JSON schema.",
         "special_tools": ["get_texture_manifest", "update_texture_manifest"],
         "graph_queries": ["resolve_recipe", "list_all_recipes", "tech_path", "item_uses"],
+        "query": ["query_assets (jq program over all entities of a kind)"],
     }))
 }
 
@@ -571,7 +572,8 @@ impl ServerHandler for AssetServer {
                 "Exergon RON content server. Generic CRUD over a `kind` argument: list_assets, \
                  get_asset, create_asset, update_asset, delete_asset. Call list_kinds for the \
                  kinds and describe_kind for a kind's JSON schema. update_asset takes a JSON \
-                 merge-patch. Also: get/update_texture_manifest, and resolved-graph queries \
+                 merge-patch. query_assets runs a jq program over all entities of a kind. \
+                 Also: get/update_texture_manifest, and resolved-graph queries \
                  (resolve_recipe, list_all_recipes, tech_path, item_uses). The server must run \
                  from the repo root so assets/ is reachable."
                     .into(),
