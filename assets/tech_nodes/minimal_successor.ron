@@ -1,0 +1,23 @@
+(
+    id: "minimal_successor",
+    name: "Minimal Successor",
+    category: Escape,
+    tier: 3,
+    rarity: Unique,
+    prerequisites: [
+        "steel_alloying",
+        "silicon_refining",
+    ],
+    primary_unlock: ResearchSpend(
+        type_id: "engineering",
+        amount: 400,
+    ),
+    effects: [
+        UnlockMachine("launch_site"),
+        UnlockRecipes([
+            "make_launch_site__minimal",
+            "launch_minimal_successor",
+        ]),
+    ],
+    exclusive_group: None,
+)

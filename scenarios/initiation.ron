@@ -1,0 +1,14 @@
+// The Initiation run — the easiest difficulty (tech tiers 1–3), and the prerequisite that gates
+// Standard. Its terminal escape is the "minimal successor" launch (tech-tree-design.md §By
+// difficulty): earn the T1–T3 path, build a launch site from steel + circuits + silicon (no tier-4
+// titanium), and fire `launch_minimal_successor`.
+//
+// The T1–T3 research path and the minimal-launch build are fixed choreography in
+// `Scenario::run_initiation` (dispatched by `difficulty`), so the standard node/build lists are
+// omitted here — only the seed, difficulty, and runaway guard are knobs.
+(
+    name: "initiation",
+    seed: 0xE7E60007,
+    difficulty: Initiation,
+    max_secs: 60000.0,
+)

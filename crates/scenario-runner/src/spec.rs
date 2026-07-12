@@ -7,6 +7,7 @@
 
 use std::path::Path;
 
+use exergon::save::DifficultyTier;
 use serde::Deserialize;
 
 /// A parameterized standard run. See the module docs for what is a knob vs. fixed choreography.
@@ -14,13 +15,25 @@ use serde::Deserialize;
 pub struct ScenarioSpec {
     pub name: String,
     pub seed: u64,
+    /// Difficulty of the run — sets the tech-tier ceiling (`TierCap`) and selects the driver
+    /// (`Initiation` → the T3 minimal-successor escape; others → the full standard run). Defaults
+    /// to `Standard` so an omitted field keeps the canonical standard scenario unchanged.
+    #[serde(default = "default_difficulty")]
+    pub difficulty: DifficultyTier,
     /// ResearchSpend target nodes by theme. Each list self-orders by the real tech graph (a request
     /// is a no-op until prereqs are met and the pool can pay), so order within a list is free.
+    /// These drive the standard run only; the Initiation driver has a fixed T1–T3 path, so an
+    /// Initiation spec omits them (they default empty).
+    #[serde(default)]
     pub material_nodes: Vec<String>,
+    #[serde(default)]
     pub engineering_nodes: Vec<String>,
+    #[serde(default)]
     pub discovery_nodes: Vec<String>,
+    #[serde(default)]
     pub synthesis_nodes: Vec<String>,
     /// The successor build list `(recipe_id, count)`, mass-balanced from the successor tree.
+    #[serde(default)]
     pub build_jobs: Vec<(String, usize)>,
     /// Runaway guard for the victory grind, in simulated seconds.
     #[serde(default = "default_max_secs")]
@@ -29,6 +42,10 @@ pub struct ScenarioSpec {
 
 fn default_max_secs() -> f32 {
     40_000.0
+}
+
+fn default_difficulty() -> DifficultyTier {
+    DifficultyTier::Standard
 }
 
 /// Read + parse a scenario spec from a `.ron` file. Paths are resolved against the current dir, so

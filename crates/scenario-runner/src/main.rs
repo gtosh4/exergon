@@ -27,7 +27,7 @@ fn main() {
 
     println!("running scenario `{}` (seed {:#x})…", spec.name, spec.seed);
     let mut scenario = Scenario::new(spec.seed);
-    let report = scenario.run_standard(&spec);
+    let report = scenario.run(&spec);
     report.print();
 
     if !report.completed {

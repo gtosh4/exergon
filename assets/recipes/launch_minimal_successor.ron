@@ -1,0 +1,29 @@
+(
+    id: "launch_minimal_successor",
+    inputs: [
+        (
+            item: "steel_ingot",
+            quantity: 4.0,
+        ),
+        (
+            item: "circuit_board",
+            quantity: 3.0,
+        ),
+        (
+            item: "silicon_chip",
+            quantity: 2.0,
+        ),
+        (
+            item: "copper_wire",
+            quantity: 4.0,
+        ),
+    ],
+    outputs: [],
+    byproducts: [],
+    machine_type: "launch_site",
+    machine_tier: 2,
+    processing_time: 120.0,
+    energy_cost: 3000.0,
+    energy_output: 0.0,
+    template_id: None,
+)

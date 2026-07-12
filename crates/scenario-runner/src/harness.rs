@@ -3,9 +3,10 @@
 //! crate, its logistics network, the power-anchor position) and exposes the proven, real-systems
 //! mechanics as methods: inventory-gated placement (`place_real`/`deploy`), crafting into
 //! networked storage (`craft`/`push_jobs`/`ensure_jobs`), mining (`craft_and_mine`), drone recon
-//! (`recon_deposit`), and simulated-time drivers (`advance_until`/`run_until`). Two composites do
-//! the heavy lifting: `run_standard()` (the whole scripted standard run, driven from a
-//! [`ScenarioSpec`]) and `drive_to_victory()` (the earned-research + real-machine-economy grind).
+//! (`recon_deposit`), and simulated-time drivers (`advance_until`/`run_until`). The composites do
+//! the heavy lifting: `run()` dispatches on difficulty to `run_standard()` (the whole scripted
+//! standard run) or `run_initiation()` (the tier-3 minimal-successor escape), both driven from a
+//! [`ScenarioSpec`]; `drive_to_victory()` is the standard run's earned-research grind.
 //!
 //! NOTHING gameplay-relevant is injected: storage comes from the real landing crate + crafted
 //! crates, generator watts are the seed-scaled values `place_machine_system` assigns, every tech
@@ -38,7 +39,8 @@ use exergon::pod::PodPlugin;
 use exergon::power::{GeneratorUnit, PowerPlugin};
 use exergon::recipe_graph::{RecipeGraph, RecipeGraphPlugin};
 use exergon::research::{
-    Discovered, ProductionTally, ResearchPlugin, ResearchPool, TechTreeProgress, UnlockNodeRequest,
+    Discovered, ProductionTally, ResearchPlugin, ResearchPool, TechTreeProgress, TierCap,
+    UnlockNodeRequest,
 };
 use exergon::seed::DomainSeeds;
 use exergon::tech_tree::TechTreePlugin;
@@ -670,6 +672,10 @@ impl Scenario {
     /// Stage observations land in [`Scenario::report`]; returns a clone of that report.
     pub fn run_standard(&mut self, spec: &ScenarioSpec) -> RunReport {
         self.report.name = spec.name.clone();
+        // Apply the run's difficulty tier ceiling (the harness spawns no RunSaveHeader, so
+        // `sync_tier_cap` never fires — set the cap directly).
+        self.app
+            .insert_resource(TierCap(spec.difficulty.max_tier()));
 
         let deposit_e = self.origin_deposit();
         let deposit_pos = self.origin_pos();
@@ -884,6 +890,299 @@ impl Scenario {
             ),
         ];
 
+        self.report.clone()
+    }
+
+    /// Run `spec` to victory, dispatching on difficulty: `Initiation` → the tier-3
+    /// minimal-successor escape ([`Scenario::run_initiation`]); any other difficulty → the full
+    /// standard run ([`Scenario::run_standard`]).
+    pub fn run(&mut self, spec: &ScenarioSpec) -> RunReport {
+        match spec.difficulty {
+            exergon::save::DifficultyTier::Initiation => self.run_initiation(spec),
+            _ => self.run_standard(spec),
+        }
+    }
+
+    // ── the Initiation (tier-3) run ─────────────────────────────────────────────────────────
+
+    /// Drive a full **Initiation** run (tier cap 3) from landing to the minimal-successor launch.
+    /// The tech tree is capped at tier 3, so this earns only the T1–T3 path and builds the
+    /// `minimal_successor` escape: craft a launch site through `make_launch_site__minimal` (steel +
+    /// circuit + silicon, no tier-4 titanium) and run `launch_minimal_successor` on it — the same
+    /// escape engine that wins the standard run. Every machine + material is earned for real.
+    pub fn run_initiation(&mut self, spec: &ScenarioSpec) -> RunReport {
+        self.report.name = spec.name.clone();
+        self.app
+            .insert_resource(TierCap(spec.difficulty.max_tier()));
+
+        // Stage 0 — kit deploy (same inventory-gated path as the standard run).
+        let deposit_e = self.origin_deposit();
+        let deposit_pos = self.origin_pos();
+        let storage_pos = self.storage_pos();
+        let generator_pos = self.generator_pos();
+
+        self.place_real("solar_generator", generator_pos);
+        self.app.update();
+        let _generator_e = self.machine_at("solar_generator", generator_pos);
+
+        self.place_real("miner", deposit_pos);
+        self.wire_logi(storage_pos, deposit_pos);
+        self.app.update();
+        let miner_e = self.machine_at("miner", deposit_pos);
+        self.report.kit_miner_latched = self
+            .app
+            .world()
+            .get::<MinerMachine>(miner_e)
+            .map(|m| m.deposit)
+            == Some(deposit_e);
+
+        let assembler_e = self.deploy("assembler", self.lane(25.0, 0), true);
+        let station_e = self.deploy("analysis_station", self.lane(10.0, 0), true);
+        self.wire_logi(storage_pos, deposit_pos);
+        self.app.update();
+        self.bind_network();
+        let net = self.net();
+        self.report.networks_shared = net == self.net_of(miner_e)
+            && net == self.net_of(assembler_e)
+            && net == self.net_of(station_e);
+
+        // Stage 1 — earn ore_extraction (so miners can be crafted); the kit station analyses stone.
+        let mut station_ran = false;
+        self.run_until(
+            0.5,
+            8_000.0,
+            |s| {
+                s.ensure_jobs("basic_analysis", 12);
+                s.request_node("ore_extraction");
+            },
+            |s| {
+                if s.machine_state(station_e) == Some(MachineState::Running) {
+                    station_ran = true;
+                }
+                s.node_unlocked("ore_extraction")
+            },
+        );
+        self.report.station_ran = station_ran;
+
+        // Stage 2 — real mining: a fresh iron/copper vein for throughput + a coal vein (steel needs
+        // carbon). The kit miner keeps feeding the origin stone the research grind burns.
+        let iron_copper_deposit = self.craft_and_mine("copper_ore", 2, true);
+        let coal_deposit = self.craft_and_mine("coal", 1, false);
+
+        // More analysis stations + a small solar farm — the 480-material + 400-engineering grind
+        // plus the processing line would starve/brown-out on the kit alone.
+        self.craft("analysis_station", 2);
+        self.craft("solar_generator", 4);
+        self.advance_until(0.5, 25_000.0, |s| {
+            s.hub_stored("analysis_station") >= 2 && s.hub_stored("solar_generator") >= 4
+        });
+        let _s2 = self.deploy("analysis_station", self.lane(10.0, 1), true);
+        let _s3 = self.deploy("analysis_station", self.lane(10.0, 2), true);
+        for i in 0..4 {
+            self.deploy_panel(self.lane(60.0, i));
+        }
+
+        // Lazy processing buildout — each machine crafted + placed the frame its make_* unlocks.
+        struct Slot {
+            machine: &'static str,
+            gate: &'static str,
+            pos: Vec3,
+            enqueued: bool,
+            placed: bool,
+        }
+        let mut slots = vec![
+            Slot {
+                machine: "smelter",
+                gate: "make_smelter",
+                pos: self.lane(15.0, 0),
+                enqueued: false,
+                placed: false,
+            },
+            Slot {
+                machine: "smelter",
+                gate: "make_smelter",
+                pos: self.lane(15.0, 1),
+                enqueued: false,
+                placed: false,
+            },
+            Slot {
+                machine: "wire_drawer",
+                gate: "make_wire_drawer",
+                pos: self.lane(20.0, 0),
+                enqueued: false,
+                placed: false,
+            },
+            Slot {
+                machine: "assembler",
+                gate: "make_assembler",
+                pos: self.lane(25.0, 1),
+                enqueued: false,
+                placed: false,
+            },
+            Slot {
+                machine: "crusher",
+                gate: "make_crusher",
+                pos: self.lane(30.0, 0),
+                enqueued: false,
+                placed: false,
+            },
+            Slot {
+                machine: "refinery",
+                gate: "make_refinery",
+                pos: self.lane(40.0, 0),
+                enqueued: false,
+                placed: false,
+            },
+        ];
+
+        let material_nodes = [
+            "ore_extraction",
+            "basic_processing",
+            "silicon_refining",
+            "steel_alloying",
+        ];
+        let dt = 0.5f32;
+        let max_secs = spec.max_secs;
+        self.app
+            .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+                dt,
+            )));
+        let mut elapsed = 0.0f32;
+        let mut launch_e: Option<Entity> = None;
+        let mut pad_enqueued = false;
+        let mut launch_job = false;
+        let mut launch_ran = false;
+
+        while !self.is_completed() {
+            assert!(
+                elapsed < max_secs,
+                "initiation run did not complete within {max_secs}s of simulated time \
+                 (check the T1–T3 research economy or the minimal-launch build)"
+            );
+
+            // (a) Research: the T1–T3 path + the terminal minimal_successor node.
+            for n in material_nodes {
+                self.request_node(n);
+            }
+            self.request_node("minimal_successor");
+
+            // (b) Lazy machine buildout as gates open.
+            for i in 0..slots.len() {
+                if slots[i].placed || !self.recipe_unlocked(slots[i].gate) {
+                    continue;
+                }
+                if !slots[i].enqueued {
+                    let m = slots[i].machine;
+                    self.craft(m, 1);
+                    slots[i].enqueued = true;
+                }
+                if self.hub_stored(slots[i].machine) >= 1 {
+                    let (m, pos) = (slots[i].machine, slots[i].pos);
+                    let _e = self.deploy(m, pos, true);
+                    slots[i].placed = true;
+                }
+            }
+
+            // (c) Capped job top-ups — keep every intermediate flowing without draining raw ore.
+            let mat_done = self.nodes_unlocked(&material_nodes);
+            let minimal_done = self.node_unlocked("minimal_successor");
+            if !mat_done && self.research_points("material") < 500.0 {
+                self.ensure_jobs("basic_analysis", 10);
+            }
+            if !minimal_done
+                && self.recipe_unlocked("analyze_circuit")
+                && self.research_points("engineering") < 450.0
+            {
+                self.ensure_jobs("analyze_circuit", 8);
+            }
+            // Smelting drives the ore_crusher milestone (100 iron) and feeds steel + circuits.
+            if self.hub_stored("iron_ingot") < 60 {
+                self.ensure_jobs("smelt_metal__iron", 10);
+            }
+            if self.hub_stored("copper_ingot") < 60 {
+                self.ensure_jobs("smelt_metal__copper", 10);
+            }
+            if self.hub_stored("copper_wire") < 40 {
+                self.ensure_jobs("draw_metal__copper", 10);
+            }
+            if self.hub_stored("circuit_board") < 25 {
+                self.ensure_jobs("make_circuit", 8);
+            }
+            if self.recipe_unlocked("crush_stone") && self.hub_stored("crushed_stone") < 30 {
+                self.ensure_jobs("crush_stone", 10);
+            }
+            if self.recipe_unlocked("refine_silicon") && self.hub_stored("silicon") < 15 {
+                self.ensure_jobs("refine_silicon", 8);
+            }
+            if self.recipe_unlocked("form_silicon_chip") && self.hub_stored("silicon_chip") < 8 {
+                self.ensure_jobs("form_silicon_chip", 6);
+            }
+            if self.recipe_unlocked("alloy_steel") && self.hub_stored("steel_ingot") < 16 {
+                self.ensure_jobs("alloy_steel", 8);
+            }
+
+            // (d) Terminal: build + place the minimal launch site, then run the successor launch.
+            if minimal_done {
+                if launch_e.is_none() {
+                    if !pad_enqueued
+                        && self.hub_stored("steel_ingot") >= 8
+                        && self.hub_stored("circuit_board") >= 4
+                        && self.hub_stored("silicon_chip") >= 2
+                    {
+                        self.push_jobs("make_launch_site__minimal", 1);
+                        pad_enqueued = true;
+                    }
+                    if self.hub_stored("launch_site") >= 1 {
+                        let e = self.deploy("launch_site", self.lane(55.0, 0), true);
+                        assert!(
+                            self.app.world().get::<EscapeObjective>(e).is_some(),
+                            "a placed launch_site must be tagged EscapeObjective so its recipe wins"
+                        );
+                        launch_e = Some(e);
+                    }
+                } else if !launch_job
+                    && self.hub_stored("steel_ingot") >= 4
+                    && self.hub_stored("circuit_board") >= 3
+                    && self.hub_stored("silicon_chip") >= 2
+                    && self.hub_stored("copper_wire") >= 4
+                {
+                    self.push_jobs("launch_minimal_successor", 1);
+                    launch_job = true;
+                }
+            }
+
+            if let Some(le) = launch_e
+                && self.machine_state(le) == Some(MachineState::Running)
+            {
+                launch_ran = true;
+            }
+
+            self.app.update();
+            self.capture();
+            elapsed += dt;
+        }
+
+        self.capture();
+        self.report.launch_ran = launch_ran;
+        self.report.build_enqueued = launch_job;
+        self.report.completed = self.is_completed();
+        self.report.virtual_secs = self.virtual_secs();
+        let extracted = |world: &World, d: Entity| -> f32 {
+            world
+                .get::<OreDeposit>(d)
+                .map(|o| o.total_extracted)
+                .unwrap_or(0.0)
+        };
+        self.report.ore_extracted = vec![
+            (
+                "iron_copper_vein".to_string(),
+                extracted(self.app.world(), iron_copper_deposit),
+            ),
+            (
+                "coal".to_string(),
+                extracted(self.app.world(), coal_deposit),
+            ),
+        ];
         self.report.clone()
     }
 

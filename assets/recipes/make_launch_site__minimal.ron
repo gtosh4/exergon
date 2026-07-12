@@ -1,0 +1,30 @@
+(
+    id: "make_launch_site__minimal",
+    inputs: [
+        (
+            item: "steel_ingot",
+            quantity: 8.0,
+        ),
+        (
+            item: "circuit_board",
+            quantity: 4.0,
+        ),
+        (
+            item: "silicon_chip",
+            quantity: 2.0,
+        ),
+    ],
+    outputs: [
+        (
+            item: "launch_site",
+            quantity: 1.0,
+        ),
+    ],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 2,
+    processing_time: 75.0,
+    energy_cost: 160.0,
+    energy_output: 0.0,
+    template_id: None,
+)

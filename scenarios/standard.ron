@@ -7,6 +7,7 @@
 (
     name: "standard",
     seed: 0xE7E60007,
+    difficulty: Standard,
 
     // ResearchSpend target nodes by theme. Each list self-orders by the real tech graph, so order
     // here is only for readability.
