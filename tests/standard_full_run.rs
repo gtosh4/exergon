@@ -42,10 +42,8 @@ const MASTER_SEED: u64 = 0xE7E6_0007;
 
 #[test]
 fn standard_run_lands_mines_and_launches_successor() {
+    // `new` lands: real worldgen + PodPlugin landing, origin deposit + bootstrap crate located.
     let mut s = Scenario::new(MASTER_SEED);
-
-    // Land: real worldgen + PodPlugin landing. Locates the origin deposit + bootstrap crate.
-    s.land();
 
     let deposit_e = s.origin_deposit();
     let deposit_pos = s.origin_pos();

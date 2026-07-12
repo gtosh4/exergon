@@ -89,15 +89,16 @@ pub struct Scenario {
 }
 
 impl Scenario {
-    /// Builds the headless app for `seed`, spawns the run entity + camera, and settles one frame.
-    /// Does not land yet — call `land()`.
+    /// Builds the headless app for `seed`, spawns the run entity + camera, and **lands** — every
+    /// scenario always starts landed, so this runs the real worldgen + PodPlugin landing before
+    /// returning. Ready to place the kit; wire the hub then call `bind_network()`.
     pub fn new(seed: u64) -> Self {
         let mut app = build_app();
         app.world_mut()
             .spawn((exergon::save::Run, DomainSeeds::from_master(seed)));
         app.world_mut().spawn((Transform::default(), MainCamera));
         app.update();
-        Scenario {
+        let mut s = Scenario {
             app,
             storage_e: Entity::PLACEHOLDER,
             storage_pos: Vec3::ZERO,
@@ -106,14 +107,16 @@ impl Scenario {
             origin_deposit: Entity::PLACEHOLDER,
             origin_pos: Vec3::ZERO,
             origin_ores: Vec::new(),
-        }
+        };
+        s.land();
+        s
     }
 
     /// Enters Loading (worldgen), records the origin-chunk starter deposit, stubs every machine's
     /// port layout (no GLTF headless), then enters Playing so the real PodPlugin lands the pod +
     /// a stocked `storage_crate`. Locates that crate as the bootstrap hub and fixes the power
-    /// anchor at its y. `net` is not bound yet — wire the hub, then call `bind_network()`.
-    pub fn land(&mut self) -> &mut Self {
+    /// anchor at its y. Called by `new()` — scenarios never invoke it directly.
+    fn land(&mut self) {
         self.set_game_state(GameState::Loading);
         for _ in 0..4 {
             self.app.update();
@@ -148,7 +151,6 @@ impl Scenario {
             .expect("pod crate transform")
             .translation;
         self.generator_pos = Vec3::new(5.0, self.storage_pos.y, 0.0);
-        self
     }
 
     /// Logistics-only machines (crate, miner) get one logistics port; the solar generator is
