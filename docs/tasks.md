@@ -345,7 +345,8 @@ Hand-verify reachability (procedural validator stays Alpha) + extend the e2e pat
 
 - [x] `tech_path launch_successor` (MCP) — resolves; full chain reachable in tier order, every recipe input has a producer (hand-traced via `item_uses`). `escape_synthesis` gateway chain intact.
 - [x] Extend `tests/standard_full_run.rs` with stages T3 → victory — full landing→launch on earned research (zero injected node/recipe unlocks); measured ~2979s (0.83h) automated-optimal virtual time
-- [ ] Curated Standard run config (the fixed Standard "seed" equivalent)
+
+> **Dropped: "curated Standard run config."** Difficulty (`DifficultyTier`) is a real design axis — it gates which tiers are available, the victory condition, and (likely) the modifier budget — but it is **orthogonal to seed + world-gen**: world-gen is seed-driven and difficulty-blind. (Only the display-label wiring exists in code today; making difficulty actually gate tier availability / victory condition / modifier budget is unbuilt and not yet tracked as a task.) A "curated seed" is purely a world-gen construct, so "curated *Standard* run config" conflates two independent axes — there's no Standard-specific seed to author. The Standard content is a single fixed asset set; per-run selection from a seeded node pool is the real mechanism and stays deferred to Alpha.
 
 ## Carried-forward open flags (§9)
 
