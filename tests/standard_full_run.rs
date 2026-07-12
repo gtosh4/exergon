@@ -13,29 +13,39 @@
 //!   Stage 2: sustained grind → unlock a second, higher-tier node (basic_processing).
 //!   Stage 3: bring power online — a solar generator charges its buffer over time and a
 //!            wired smelter draws that energy to smelt mined iron_ore → iron_ingot.
-//!   Stage 4: craft through the NetworkCraftQueue — an assembler crafts a power_cell under
-//!            power from queued ingot inputs.
+//!   Stage 4: bootstrap the engineering economy through the NetworkCraftQueue — mined
+//!            copper_ore/iron_ore → smelt → draw wire → assemble a circuit_board, every step
+//!            a real queued job on a ManualCraftOnly machine under power.
 //!   Stage 5: drone scan (fog reveal in DronePilot) reveals geological activity.
-//!   Stage 6: the full Standard victory — mine EVERY raw material from real surface deposits
-//!            (iron/copper/stone, aluminum, titanium, coal, fluxite/resonite/cryophase
-//!            shards) and drive the real recipe/power systems through the whole successor
-//!            tree — smelting/crushing/washing/wire-drawing the raw ore into ingots/plates/
-//!            wire/dust, refining, sub-assemblies, the five successor components, 20
-//!            exotic_fuel, and the 180s launch_successor on a launch_site — until completion
-//!            fires EscapeEvent / RunState::Completed, then read the accumulated simulated
-//!            Time as the "virtual time to complete the Standard run". Nothing refined is
-//!            injected: every ingot, shard, plate, and intermediate is produced by a real
-//!            machine from real mined ore.
+//!   Stage 6: the full Standard victory with EARNED research — mine EVERY raw material from
+//!            real surface deposits (iron/copper/stone, aluminum, titanium, coal, fluxite/
+//!            resonite/cryophase shards), convert them into the four research currencies via
+//!            real analysis recipes, and spend those through real UnlockNodeRequests to walk
+//!            the whole launch_successor tech closure (25 ResearchSpend nodes + auto milestone/
+//!            chain nodes + drone-recon discoveries). Then build the successor from scratch —
+//!            smelting/crushing/washing/wire-drawing, refining, sub-assemblies, the five
+//!            components, 20 exotic_fuel, the 180s launch_successor on a launch_site — until
+//!            EscapeEvent / RunState::Completed. Nothing refined OR researched is injected:
+//!            every ingot/shard/plate and every tech node is produced/earned by real systems.
 //!
 //! World generation runs through the real `WorldgenPlugin` and the real `DepositRegistry`
 //! loaded from `assets/deposits/`, so the origin chunk's deposit is placed deterministically
 //! — the run is reproducible for a fixed seed. Machines are "placed" by emitting the same
 //! `WorldObjectEvent::Placed` the input layer produces, so `place_machine_system` (port
 //! spawning, miner→deposit latching) runs for real; miners for the off-origin ores are put
-//! onto the real worldgen-spawned `OreDeposit` entities located by `nearest_vein`. GLTF-
-//! derived port layouts are stubbed (headless has no renderer), and storage / generator
-//! provisioning, tech-tree unlocks, and exotic-deposit discovery events are injected — data
-//! and gating, not the logic under test.
+//! onto the real worldgen-spawned `OreDeposit` entities located by `nearest_vein`.
+//!
+//! Research is EARNED, not injected: no tech node or recipe is inserted into
+//! `TechTreeProgress` by hand. The four research currencies (material/engineering/discovery/
+//! synthesis) are produced by real analysis recipes off mined + refined inputs; the
+//! grind-driver loop spends them through real `UnlockNodeRequest`s (which `check_research_unlocks`
+//! honors only when prereqs are met AND the pool can pay), and node effects cascade-unlock the
+//! successor-tree recipes. PrerequisiteChain nodes (science_basics/basic_smelting/power_basics)
+//! auto-unlock; ProductionMilestone nodes (ore_crusher/ore_washer/plate_roller) auto-unlock off
+//! the real `ProductionTally`; ExplorationDiscovery nodes unlock from real drone recon. The only
+//! headless "cheats" left are simulated-time fast-forward, instant machine placement via
+//! `WorldObjectEvent`, `StorageUnit`/`GeneratorUnit` provisioning, `MachinePortLayout` stubs,
+//! GLTF asset stubs, and the drone spawn for recon — provisioning, not the logic under test.
 
 use std::time::Duration;
 
@@ -50,8 +60,7 @@ use exergon::content::ContentPlugin;
 use exergon::drone::{Drone, FogCellRevealedEvent, deposit_discovery_system};
 use exergon::escape::{EscapeObjective, EscapePlugin, RunState};
 use exergon::logistics::{
-    LogisticsNetworkMember, LogisticsSimPlugin, ManualCraftTrigger, NetworkCraftQueue, QueuedJob,
-    StorageUnit,
+    LogisticsNetworkMember, LogisticsSimPlugin, NetworkCraftQueue, QueuedJob, StorageUnit,
 };
 use exergon::machine::{
     EnvSource, Machine, MachinePlugin, MachinePortLayout, MachinePortLayouts, MachineState,
@@ -59,9 +68,9 @@ use exergon::machine::{
 };
 use exergon::planet::{Planet, PlanetPlugin, PlanetPropertyVisibility, PropertyVisibility};
 use exergon::power::{GeneratorUnit, PowerPlugin};
-use exergon::recipe_graph::{RecipeGraph, RecipeGraphPlugin};
+use exergon::recipe_graph::RecipeGraphPlugin;
 use exergon::research::{
-    Discovered, ResearchPlugin, ResearchPool, TechTreeProgress, UnlockNodeRequest,
+    Discovered, ProductionTally, ResearchPlugin, ResearchPool, TechTreeProgress, UnlockNodeRequest,
 };
 use exergon::seed::DomainSeeds;
 use exergon::tech_tree::TechTreePlugin;
@@ -237,14 +246,6 @@ fn advance_until(app: &mut App, dt: f32, max_secs: f32, mut done: impl FnMut(&Ap
     panic!("advance_until: condition not met within {max_secs}s of simulated time");
 }
 
-/// Advances simulated time until a crafting/mining target is reached, then returns. A thin
-/// wrapper over `advance_until` that reads clearer at call sites sequencing the mine→smelt→
-/// form→assemble chain: "run the factory until `ready` holds". `ready` is any predicate over
-/// the app — typically "≥ N of an item sits in network storage" via `stored()`.
-fn wait_for_recipe(app: &mut App, dt: f32, max_secs: f32, ready: impl FnMut(&App) -> bool) {
-    advance_until(app, dt, max_secs, ready);
-}
-
 /// How many of `item` sit in a machine's `StorageUnit`. Used to poll mining/craft progress.
 fn stored(app: &App, storage: Entity, item: &str) -> u32 {
     app.world()
@@ -333,6 +334,84 @@ fn recon_deposit(app: &mut App, signature_ore: &str) -> Entity {
     deposit_e
 }
 
+/// Places `count` machines of `machine_type` spread along -Z from `base`, wires each onto the
+/// shared logistics network at `storage_pos` and the power network at `generator_pos`, marks
+/// each `ManualCraftOnly` (so the `NetworkCraftQueue` is the sole scheduler), and returns their
+/// entities. The port layout for `machine_type` must already be stubbed. This is how the Stage-6
+/// research/build factory is stood up at scale — several stations of each type so the long grind
+/// parallelises instead of serialising on one machine.
+fn place_factory(
+    app: &mut App,
+    machine_type: &str,
+    base: Vec3,
+    count: usize,
+    storage_pos: Vec3,
+    generator_pos: Vec3,
+) -> Vec<Entity> {
+    let positions: Vec<Vec3> = (0..count)
+        .map(|i| base + Vec3::new(0.0, 0.0, -3.0 * i as f32))
+        .collect();
+    for &p in &positions {
+        place(app, machine_type, p);
+    }
+    app.update();
+    for &p in &positions {
+        connect(app, storage_pos + PORT_OFFSET, p + PORT_OFFSET);
+        connect_power(app, generator_pos + ENERGY_OFFSET, p + ENERGY_OFFSET);
+    }
+    app.update();
+    let mut ents = Vec::new();
+    for &p in &positions {
+        let e = {
+            let mut q = app.world_mut().query::<(Entity, &Machine, &Transform)>();
+            q.iter(app.world())
+                .find(|(_, m, t)| m.machine_type == machine_type && t.translation.distance(p) < 0.5)
+                .map(|(e, _, _)| e)
+                .expect("just-placed factory machine")
+        };
+        app.world_mut().entity_mut(e).insert(ManualCraftOnly);
+        ents.push(e);
+    }
+    ents
+}
+
+/// True once every node id in `nodes` is in `unlocked_nodes` — a theme's grind is "done".
+fn nodes_unlocked(app: &App, nodes: &[&str]) -> bool {
+    let prog = app.world().resource::<TechTreeProgress>();
+    nodes.iter().all(|n| prog.unlocked_nodes.contains(*n))
+}
+
+fn recipe_unlocked(app: &App, recipe: &str) -> bool {
+    app.world()
+        .resource::<TechTreeProgress>()
+        .unlocked_recipes
+        .contains(recipe)
+}
+
+fn node_unlocked(app: &App, node: &str) -> bool {
+    app.world()
+        .resource::<TechTreeProgress>()
+        .unlocked_nodes
+        .contains(node)
+}
+
+fn produced(app: &App, item: &str) -> f32 {
+    app.world().resource::<ProductionTally>().get(item)
+}
+
+/// Tops the queue up so it holds at least `target` jobs of `recipe` (counts current, pushes the
+/// deficit). The grind-driver calls this each frame for the analysis chain so machines never
+/// starve of candidate jobs; over-queuing is harmless (infeasible jobs wait, surplus points/
+/// intermediates are reused by the build phase).
+fn ensure_jobs(queue: &mut NetworkCraftQueue, recipe: &str, target: usize) {
+    let have = queue.jobs.iter().filter(|j| j.recipe_id == recipe).count();
+    for _ in have..target {
+        queue.jobs.push_back(QueuedJob {
+            recipe_id: recipe.to_string(),
+        });
+    }
+}
+
 #[test]
 fn standard_run_lands_mines_and_launches_successor() {
     let mut app = build_app();
@@ -370,18 +449,17 @@ fn standard_run_lands_mines_and_launches_successor() {
         "origin deposit must yield stone to bootstrap research, got {ores:?}"
     );
 
-    // basic_analysis auto-unlocks via science_basics on a real run; ensure it here too.
-    app.world_mut()
-        .resource_mut::<TechTreeProgress>()
-        .unlocked_recipes
-        .insert("basic_analysis".to_string());
+    // basic_analysis is NOT injected — science_basics is a zero-prereq PrerequisiteChain node,
+    // so `check_research_unlocks` auto-unlocks it (and analysis_station) the first Playing frame,
+    // cascading its `basic_analysis` recipe. Likewise basic_smelting + power_basics auto-unlock,
+    // so the smelt_metal template and solar_generator are available with no injection.
 
     // Stub port layouts for the machines we place. Logistics-only machines get one
     // logistics port at PORT_OFFSET; the smelter also needs an energy port to draw power;
     // the solar generator is energy-only.
     {
         let mut layouts = app.world_mut().resource_mut::<MachinePortLayouts>();
-        for id in ["storage_crate", "miner", "analysis_station"] {
+        for id in ["storage_crate", "miner"] {
             layouts.by_machine.insert(
                 id.to_string(),
                 MachinePortLayout {
@@ -390,6 +468,16 @@ fn standard_run_lands_mines_and_launches_successor() {
                 },
             );
         }
+        // analysis_station needs an energy port too: basic_analysis is free (0E) but the higher
+        // analyses — analyze_circuit(30E)/analyze_field_sample(25E)/analyze_exotic_reaction(60E) —
+        // draw power, so without this the energy-gated analyses would never dispatch.
+        layouts.by_machine.insert(
+            "analysis_station".to_string(),
+            MachinePortLayout {
+                energy: vec![ENERGY_OFFSET],
+                logistics: vec![PORT_OFFSET],
+            },
+        );
         layouts.by_machine.insert(
             "smelter".to_string(),
             MachinePortLayout {
@@ -404,13 +492,15 @@ fn standard_run_lands_mines_and_launches_successor() {
                 logistics: vec![],
             },
         );
-        layouts.by_machine.insert(
-            "assembler".to_string(),
-            MachinePortLayout {
-                energy: vec![ENERGY_OFFSET],
-                logistics: vec![PORT_OFFSET],
-            },
-        );
+        for id in ["assembler", "wire_drawer"] {
+            layouts.by_machine.insert(
+                id.to_string(),
+                MachinePortLayout {
+                    energy: vec![ENERGY_OFFSET],
+                    logistics: vec![PORT_OFFSET],
+                },
+            );
+        }
     }
 
     // Enter Playing so placement (gated on GameState::Playing) is live.
@@ -544,14 +634,9 @@ fn standard_run_lands_mines_and_launches_successor() {
     // proof for a full landing→victory test: the exact same time-driven loop must keep the
     // factory producing research over a much longer haul (basic_processing costs 150 → ~15
     // more analysis completions off the same deposit, whose yield decays toward its floor)
-    // and chain into the next tier. basic_smelting is basic_processing's only prerequisite;
-    // inject it the way the test already injects unlocked content (it is gated on upstream
-    // nodes not exercised here — the mechanic under test is the research loop, not gating).
-    app.world_mut()
-        .resource_mut::<TechTreeProgress>()
-        .unlocked_nodes
-        .insert("basic_smelting".to_string());
-
+    // and chain into the next tier. basic_smelting is basic_processing's only prerequisite and
+    // is a zero-prereq PrerequisiteChain node, so it already auto-unlocked the first Playing
+    // frame — no injection needed; the request below simply spends material on basic_processing.
     advance_until(&mut app, 0.5, 4_000.0, |app| research_points(app) >= 150.0);
 
     let points_before = research_points(&app);
@@ -574,11 +659,15 @@ fn standard_run_lands_mines_and_launches_successor() {
     // smelting costs energy, so this proves the whole power path under simulated time: a
     // solar generator charges its buffer passively (buffer += watts*dt), and a smelter wired
     // to it on a power network draws that energy per tick to smelt mined iron_ore → iron_ingot.
-    // basic_smelting (unlocked in stage 2) grants the smelt template; unlock the iron variant.
-    app.world_mut()
-        .resource_mut::<TechTreeProgress>()
-        .unlocked_recipes
-        .insert("smelt_metal__iron".to_string());
+    // basic_smelting (auto-unlocked) grants the whole `smelt_metal` template, so every
+    // smelt_metal__* variant — iron/copper/aluminum/titanium — is already craftable, no injection.
+    assert!(
+        app.world()
+            .resource::<TechTreeProgress>()
+            .unlocked_recipes
+            .contains("smelt_metal__iron"),
+        "basic_smelting's smelt_metal template must have auto-unlocked smelt_metal__iron"
+    );
 
     // Place a smelter (logistics + energy ports) and a solar generator (energy-only).
     let smelter_pos = deposit_pos + Vec3::new(12.0, 0.0, 0.0);
@@ -646,85 +735,81 @@ fn standard_run_lands_mines_and_launches_successor() {
         "smelter must have smelted mined iron_ore into iron_ingot"
     );
 
-    // Stage 4 — assembler crafting through the NetworkCraftQueue under power. This is the
-    // craft-queue path the real game uses for escape components: enqueue a target item and
-    // recipe_check dispatches its job onto a matching idle machine, drawing energy per tick.
-    // We craft a power_cell (2 iron_ingot + 1 copper_ingot, assembler tier 2, 60 energy).
-    // The ingot inputs are injected — smelting is proven in stage 3, so re-deriving copper
-    // here adds wiring, not coverage. The xalite→resonite→gateway_key→escape branch past
-    // this is blocked on unauthored content (exotic-form processing + coal); see tasks/milestones.
-    app.world_mut()
-        .resource_mut::<TechTreeProgress>()
-        .unlocked_recipes
-        .insert("make_power_cell".to_string());
-
-    // Place an assembler and force it to tier 2 (make_power_cell is a tier-2 recipe).
+    // Stage 4 — the engineering economy bootstraps for real through the NetworkCraftQueue.
+    // This proves the multi-step craft path the research grind (Stage 6) leans on: mined
+    // copper_ore/iron_ore → smelt → draw wire → assemble a circuit_board, every step a real
+    // queued job dispatched by recipe_check onto an idle ManualCraftOnly machine under power.
+    // Nothing is injected: the origin deposit (iron_copper) already feeds copper_ore + iron_ore
+    // into storage, and every recipe here is craftable from earned nodes —
+    //   * smelt_metal__copper / smelt_metal__iron  ← basic_smelting template (auto)
+    //   * draw_metal__copper, make_circuit         ← basic_processing (earned in Stage 2)
+    // make_circuit = 1 iron_ingot + 2 copper_wire → 1 circuit_board (assembler tier 1, 15s).
+    let drawer_pos = deposit_pos + Vec3::new(32.0, 0.0, 0.0);
     let assembler_pos = deposit_pos + Vec3::new(20.0, 0.0, 0.0);
+    place(&mut app, "wire_drawer", drawer_pos);
     place(&mut app, "assembler", assembler_pos);
     app.update();
     let assembler_e = machine_entity(&mut app, "assembler");
-    app.world_mut()
-        .get_mut::<Machine>(assembler_e)
-        .unwrap()
-        .tier = 2;
+    let drawer_e = machine_entity(&mut app, "wire_drawer");
 
-    // Wire the assembler onto the logistics network (pull ingots, push power_cell) and onto
-    // the generator's power network.
-    connect(
-        &mut app,
-        storage_pos + PORT_OFFSET,
-        assembler_pos + PORT_OFFSET,
-    );
-    connect_power(
-        &mut app,
-        generator_pos + ENERGY_OFFSET,
-        assembler_pos + ENERGY_OFFSET,
-    );
+    // Wire both onto the shared logistics + power networks.
+    for pos in [drawer_pos, assembler_pos] {
+        connect(&mut app, storage_pos + PORT_OFFSET, pos + PORT_OFFSET);
+        connect_power(&mut app, generator_pos + ENERGY_OFFSET, pos + ENERGY_OFFSET);
+    }
     app.update();
 
-    // Supply the ingot inputs (upstream smelting covered in stage 3), then enqueue the craft.
-    {
-        let mut storage = app.world_mut().get_mut::<StorageUnit>(storage_e).unwrap();
-        *storage.items.entry("iron_ingot".into()).or_insert(0) += 2;
-        *storage.items.entry("copper_ingot".into()).or_insert(0) += 1;
+    // Queue is the sole scheduler from here on: make the smelter (Stage 3), wire_drawer, and
+    // assembler ManualCraftOnly so they run only queued jobs — deterministic, no auto-craft
+    // draining raw ore. (recipe_check still dispatches queued jobs onto ManualCraftOnly machines.)
+    for machine in [smelter_e, drawer_e, assembler_e] {
+        app.world_mut().entity_mut(machine).insert(ManualCraftOnly);
     }
-    let craft_net = net_of(&mut app, storage_e);
-    let storage_items = app
-        .world()
-        .get::<StorageUnit>(storage_e)
-        .unwrap()
-        .items
-        .clone();
-    app.world_mut()
-        .resource_scope(|world, rg: Mut<RecipeGraph>| {
-            world
-                .get_mut::<NetworkCraftQueue>(craft_net)
-                .expect("logistics network carries a craft queue")
-                .enqueue_item("power_cell", 1, &rg, &storage_items);
-        });
-    app.world_mut().write_message(ManualCraftTrigger);
 
-    // Advance until the assembler crafts the power_cell into network storage.
-    let power_cell = |app: &App| -> u32 {
-        app.world()
-            .get::<StorageUnit>(storage_e)
-            .and_then(|s| s.items.get("power_cell").copied())
-            .unwrap_or(0)
-    };
+    // Enqueue the real leaf→circuit chain. Producers before consumers is only a hint —
+    // recipe_check gates every job on real input feasibility, so smelt fires as ore arrives,
+    // draw fires as copper_ingot appears, make_circuit fires once wire + iron_ingot exist.
+    let craft_net = net_of(&mut app, storage_e);
+    {
+        let mut queue = app
+            .world_mut()
+            .get_mut::<NetworkCraftQueue>(craft_net)
+            .expect("logistics network carries a craft queue");
+        for recipe in [
+            "smelt_metal__copper",
+            "smelt_metal__copper",
+            "smelt_metal__iron",
+        ] {
+            queue.jobs.push_back(QueuedJob {
+                recipe_id: recipe.to_string(),
+            });
+        }
+        for _ in 0..2 {
+            queue.jobs.push_back(QueuedJob {
+                recipe_id: "draw_metal__copper".to_string(),
+            });
+        }
+        queue.jobs.push_back(QueuedJob {
+            recipe_id: "make_circuit".to_string(),
+        });
+    }
+
+    // Advance until the assembler crafts a circuit_board into network storage.
+    let circuit_board = |app: &App| -> u32 { stored(app, storage_e, "circuit_board") };
     let mut assembler_ran = false;
-    advance_until(&mut app, 0.25, 2_000.0, |app| {
+    advance_until(&mut app, 0.25, 3_000.0, |app| {
         if app.world().get::<MachineState>(assembler_e).copied() == Some(MachineState::Running) {
             assembler_ran = true;
         }
-        power_cell(app) >= 1
+        circuit_board(app) >= 1
     });
     assert!(
         assembler_ran,
-        "assembler must actually run the queued make_power_cell recipe"
+        "assembler must actually run the queued make_circuit recipe under power"
     );
     assert!(
-        power_cell(&app) >= 1,
-        "assembler must craft a power_cell from the queued job under power"
+        circuit_board(&app) >= 1,
+        "the mined-ore → smelt → draw → assemble chain must yield a real circuit_board"
     );
 
     // Stage 5 — drone scan reveals geological activity. Entering DronePilot and revealing a
@@ -744,120 +829,52 @@ fn standard_run_lands_mines_and_launches_successor() {
         "a drone scan (fog reveal in DronePilot) must reveal geological activity"
     );
 
-    // Stage 6 — the full Standard victory: MINE every raw material and craft the successor
-    // from scratch, then launch it. This is the payoff — it mines from real surface deposits
-    // and drives the real recipe/power systems through the whole successor tree to
-    // `launch_successor` on a `launch_site`, whose completion fires `EscapeEvent` (via the
-    // auto-tagged `EscapeObjective`) and sets `RunState::Completed`. We then read the
-    // accumulated simulated `Time` as "virtual time to complete the run" — a number that is
-    // now meaningful because it includes real mining and smelting, not just top-tier assembly.
+    // Stage 6 — the full Standard victory, research EARNED end-to-end. Mine every raw material,
+    // convert it into the four research currencies through real analysis recipes, spend those
+    // through real `UnlockNodeRequest`s to walk the entire `launch_successor` tech closure, then
+    // build + launch the successor. Completion fires `EscapeEvent` (via the auto-tagged
+    // `EscapeObjective`) → `RunState::Completed`, and we read simulated `Time` as the automated-
+    // optimal "virtual time to victory".
     //
-    // What is DRIVEN for real (this is what consumes the measured virtual time):
-    //   * MINING every raw input from a real `DepositRegistry` deposit — iron/copper/stone
-    //     from iron_copper, plus aluminum, titanium, coal, and the fluxite/resonite/cryophase
-    //     shards — via miners latched onto deposits found by `nearest_vein` (Stage 0's origin
-    //     miner covers the starter deposit; the rest get fresh off-origin veins).
-    //   * REFINING that raw ore up the tree with real machines: smelting ore→ingot, crushing
-    //     stone/aluminum, washing aluminum_crushed→dust, drawing copper wire, making circuit
-    //     boards, refining silicon/fluxite_lattice/vitreite/exotic_fuel, rolling plates, the
-    //     sub-assemblies, the five successor components, and the 180s launch — each a real
-    //     queued job dispatched by `recipe_check_system` (which scans the whole queue for the
-    //     first feasible job, so mining and crafting overlap) onto an idle machine, drawing
-    //     energy per tick and integrating time in `recipe_advance_system`. Machines are
-    //     `ManualCraftOnly` so *only* queued jobs run (no auto-craft noise) — deterministic.
+    // NOTHING is injected into `TechTreeProgress`. Every node unlocks by its real mechanism:
+    //   * PrerequisiteChain (auto):    science_basics, basic_smelting, power_basics
+    //   * ProductionMilestone (auto):  ore_crusher(100 iron_ingot), ore_washer(50 iron_crushed),
+    //                                  plate_roller(150 iron_ingot) — off the real ProductionTally
+    //   * ExplorationDiscovery (recon): exotic_materials(xalite, prereq free → reconned now),
+    //                                  fluxite_studies(fluxite) + cryophase_extraction(cryophase),
+    //                                  reconned inside the loop once their researched prereqs land
+    //   * ResearchSpend (earned+spent): the 25 target nodes below, funded by the analysis economy:
+    //       basic_analysis    4 stone         → 10 material   (8s, 0E)
+    //       analyze_circuit   1 circuit_board → 20 engineering(10s, 30E)  [circuit = 1 iron_ingot
+    //                                                                       + 2 copper_wire]
+    //       analyze_field_sample 1 field_sample → 12 discovery(10s, 25E)  [mined @ xalite 10%]
+    //       analyze_exotic_reaction 1 resonite_shard → 20 synthesis(12s, 60E) [xalite 20%]
+    //   Node effects then cascade-unlock every successor-tree recipe the build phase runs.
     //
-    // What is INJECTED (gating / provisioning, not the logic under measurement):
-    //   * tech-node/recipe unlocks (same as earlier stages). Exotic-site discovery is NOT
-    //     injected — the drone flies to each special deposit and the real deposit_discovery_system
-    //     fires the DiscoveryEvent (see the recon block below). Nothing REFINED is injected —
-    //     every ingot/shard/plate/wire/dust is machine-produced from ore.
-    //   * a real solar farm powers it (12×100 W panels, built + charged below) — no hand-fed
-    //     joules; energy is generated and drawn every tick like real play.
-    //
-    // Content dependencies (from `assets path launch_successor` / `assets recipe <id>`):
-    //   launch_successor = 1 successor_{core,chassis,drive,sensor} + 1 provisioning_module
-    //   + 20 exotic_fuel, on launch_site (tier 2), 180s / 8000 energy. The full leaf→root job
-    //   list and per-ore mining targets below are computed from the tree; if a recipe changes
-    //   machine/inputs, update those — the milestone (RunState::Completed) stays fixed.
+    // Only headless provisioning remains a "cheat": simulated-time fast-forward, instant
+    // placement via `WorldObjectEvent`, `StorageUnit`/`GeneratorUnit`, `MachinePortLayout` stubs,
+    // GLTF stubs, and the drone spawn for recon. Nothing refined/researched is injected.
 
-    // Exotic-site discovery via REAL drone recon (not injected events): still in DronePilot
-    // from Stage 5, pilot the drone to each special deposit so the real deposit_discovery_system
-    // fires its DiscoveryEvent. The generalized discovery map (see drone::discovery_key_for_ores)
-    // turns each site's signature ore into its ExplorationDiscovery key. xalite→exotic_materials
-    // unlocks now (its prereq science_basics is a free chain); the fluxite/cryophase nodes gate
-    // on researched prereqs and unlock during the grind — here we confirm the sites are found.
-    // (derelict_ship isn't on the launch path, so it's not surveyed.)
+    // Exotic-site discovery via REAL drone recon: still in DronePilot from Stage 5, pilot the
+    // drone to the xalite deposit so the real deposit_discovery_system fires its DiscoveryEvent.
+    // xalite→exotic_materials unlocks now (prereq science_basics is a free chain); the fluxite +
+    // cryophase sites gate on researched prereqs and are reconned inside the grind loop below.
     let xalite_site = recon_deposit(&mut app, "xalite");
-    let fluxite_site = recon_deposit(&mut app, "fluxite_shard");
-    let cryophase_site = recon_deposit(&mut app, "cryophase_shard");
-    for (site, ore) in [
-        (xalite_site, "xalite"),
-        (fluxite_site, "fluxite_shard"),
-        (cryophase_site, "cryophase_shard"),
-    ] {
-        assert!(
-            app.world().get::<Discovered>(site).is_some(),
-            "drone recon must mark the {ore} deposit Discovered (real DiscoveryEvent fired)"
-        );
-    }
     assert!(
-        app.world()
-            .resource::<TechTreeProgress>()
-            .unlocked_nodes
-            .contains("exotic_materials"),
+        app.world().get::<Discovered>(xalite_site).is_some(),
+        "drone recon must mark the xalite deposit Discovered (real DiscoveryEvent fired)"
+    );
+    assert!(
+        node_unlocked(&app, "exotic_materials"),
         "recon of the xalite site must unlock exotic_materials (prereq science_basics is free)"
     );
 
-    // Unlock every recipe the driven tree executes (gating is not what's under test here).
-    // Includes the raw-refining leaves now driven for real: the non-iron smelts, the ore
-    // crushers, the aluminum washer, copper wire drawing, and circuit-board assembly.
-    {
-        let mut progress = app.world_mut().resource_mut::<TechTreeProgress>();
-        for r in [
-            // raw-material processing (mined ore → basic intermediates)
-            "smelt_metal__copper",
-            "smelt_metal__aluminum",
-            "smelt_metal__titanium",
-            "crush_stone",
-            "crush_aluminum",
-            "wash_aluminum",
-            "draw_metal__copper",
-            "make_circuit",
-            // refining + forming up to the successor components
-            "refine_silicon",
-            "refine_fluxite",
-            "synth_vitreite",
-            "refine_exotic_fuel__raw",
-            "roll_iron_plate",
-            "roll_aluminum_plate",
-            "roll_titanium_plate",
-            "form_silicon_chip",
-            "make_resonite_circuit",
-            "form_resonite_lattice",
-            "make_fluxite_coil",
-            "make_power_cell",
-            "make_miner_kit",
-            "make_generator_kit",
-            "make_assembler_kit",
-            "make_successor_core",
-            "make_successor_chassis",
-            "make_successor_drive",
-            "make_successor_sensor",
-            "make_provisioning_module",
-            "launch_successor",
-        ] {
-            progress.unlocked_recipes.insert(r.to_string());
-        }
-    }
-
-    // Stub port layouts for the new machine types (logistics + energy ports). Adds the raw-
-    // processing machines (crusher/washer/wire_drawer) alongside the assembly-tree machines.
+    // Stub port layouts for the remaining machine types (wire_drawer stubbed in Stage 0).
     {
         let mut layouts = app.world_mut().resource_mut::<MachinePortLayouts>();
         for id in [
             "crusher",
             "washer",
-            "wire_drawer",
             "refinery",
             "plate_roller",
             "advanced_assembler",
@@ -873,75 +890,104 @@ fn standard_run_lands_mines_and_launches_successor() {
         }
     }
 
-    // Place the machine types the tree needs (smelter + assembler tier-2 are reused from
-    // stages 3–4). Placement auto-assigns each its max defined tier: crusher/washer/
-    // wire_drawer/refinery/plate_roller=1, advanced_assembler/launch_site=2 — matching the
-    // recipes' required tiers.
-    let crusher_pos = deposit_pos + Vec3::new(24.0, 0.0, 0.0);
-    let washer_pos = deposit_pos + Vec3::new(28.0, 0.0, 0.0);
-    let drawer_pos = deposit_pos + Vec3::new(32.0, 0.0, 0.0);
-    let refinery_pos = deposit_pos + Vec3::new(36.0, 0.0, 0.0);
-    let roller_pos = deposit_pos + Vec3::new(40.0, 0.0, 0.0);
-    let adv_asm_pos = deposit_pos + Vec3::new(44.0, 0.0, 0.0);
-    let launch_pos = deposit_pos + Vec3::new(48.0, 0.0, 0.0);
-    place(&mut app, "crusher", crusher_pos);
-    place(&mut app, "washer", washer_pos);
-    place(&mut app, "wire_drawer", drawer_pos);
-    place(&mut app, "refinery", refinery_pos);
-    place(&mut app, "plate_roller", roller_pos);
-    place(&mut app, "advanced_assembler", adv_asm_pos);
-    place(&mut app, "launch_site", launch_pos);
+    // Stand up the research/build factory at scale. Placement auto-assigns each machine its max
+    // tier (assembler/advanced_assembler/launch_site = 2, the rest = 1). Several stations of each
+    // type so the long grind parallelises. The Stage 0 analysis_station + Stage 3 smelter + Stage 4
+    // wire_drawer/assembler already exist; these are the additions. All are `ManualCraftOnly`, so
+    // the single shared `NetworkCraftQueue` is the only scheduler.
+    place_factory(
+        &mut app,
+        "analysis_station",
+        deposit_pos + Vec3::new(8.0, 0.0, 0.0),
+        7,
+        storage_pos,
+        generator_pos,
+    );
+    place_factory(
+        &mut app,
+        "smelter",
+        deposit_pos + Vec3::new(12.0, 0.0, 0.0),
+        3,
+        storage_pos,
+        generator_pos,
+    );
+    place_factory(
+        &mut app,
+        "wire_drawer",
+        deposit_pos + Vec3::new(32.0, 0.0, 0.0),
+        2,
+        storage_pos,
+        generator_pos,
+    );
+    place_factory(
+        &mut app,
+        "assembler",
+        deposit_pos + Vec3::new(20.0, 0.0, 0.0),
+        2,
+        storage_pos,
+        generator_pos,
+    );
+    place_factory(
+        &mut app,
+        "crusher",
+        deposit_pos + Vec3::new(24.0, 0.0, 0.0),
+        2,
+        storage_pos,
+        generator_pos,
+    );
+    place_factory(
+        &mut app,
+        "washer",
+        deposit_pos + Vec3::new(28.0, 0.0, 0.0),
+        2,
+        storage_pos,
+        generator_pos,
+    );
+    place_factory(
+        &mut app,
+        "refinery",
+        deposit_pos + Vec3::new(36.0, 0.0, 0.0),
+        2,
+        storage_pos,
+        generator_pos,
+    );
+    place_factory(
+        &mut app,
+        "plate_roller",
+        deposit_pos + Vec3::new(40.0, 0.0, 0.0),
+        1,
+        storage_pos,
+        generator_pos,
+    );
+    place_factory(
+        &mut app,
+        "advanced_assembler",
+        deposit_pos + Vec3::new(44.0, 0.0, 0.0),
+        2,
+        storage_pos,
+        generator_pos,
+    );
+    let launch_e = place_factory(
+        &mut app,
+        "launch_site",
+        deposit_pos + Vec3::new(48.0, 0.0, 0.0),
+        1,
+        storage_pos,
+        generator_pos,
+    )[0];
+    // tag_escape_machines_system observes `Added<Machine>`; place_factory's updates let it tag.
     app.update();
-    // tag_escape_machines_system observes `Added<Machine>` the frame after the placement
-    // command flushes — one more update lets it tag the launch_site.
-    app.update();
-
-    // The placed launch_site must have been auto-tagged as the escape objective.
-    let launch_e = machine_entity(&mut app, "launch_site");
     assert!(
         app.world().get::<EscapeObjective>(launch_e).is_some(),
         "a placed launch_site must be tagged EscapeObjective so its recipe fires the win"
     );
 
-    // Wire each new machine onto the shared logistics + power networks, and force all
-    // crafting machines (incl. the stage-3/4 smelter + assembler) to ManualCraftOnly so the
-    // queue is the sole scheduler — deterministic, no auto-craft consuming raw leaves.
-    for pos in [
-        crusher_pos,
-        washer_pos,
-        drawer_pos,
-        refinery_pos,
-        roller_pos,
-        adv_asm_pos,
-        launch_pos,
-    ] {
-        connect(&mut app, storage_pos + PORT_OFFSET, pos + PORT_OFFSET);
-        connect_power(&mut app, generator_pos + ENERGY_OFFSET, pos + ENERGY_OFFSET);
-    }
-    app.update();
-    for machine in [
-        smelter_e,
-        assembler_e,
-        machine_entity(&mut app, "crusher"),
-        machine_entity(&mut app, "washer"),
-        machine_entity(&mut app, "wire_drawer"),
-        machine_entity(&mut app, "refinery"),
-        machine_entity(&mut app, "plate_roller"),
-        machine_entity(&mut app, "advanced_assembler"),
-        launch_e,
-    ] {
-        app.world_mut().entity_mut(machine).insert(ManualCraftOnly);
-    }
-
-    // Build a real solar farm to power the whole tree — no hand-fed joules. Twelve 100 W
-    // panels (1200 W) share the Stage-3 generator's power network; sized above the tree's
-    // sustained draw (the 8000-energy launch spread over 180s is only ~44 W; the refinery/
-    // assembler/analysis machines add a few hundred W peak). Panels start empty and charge via
-    // generator_tick, so we let the farm build a working reserve before the heavy craft phase —
-    // the same ramp a player waits through after laying panels down. Buffer is still drawn every
-    // tick; if draw ever outpaces 1200 W the buffer dips and crafts wait, exactly like real play.
+    // A real solar farm powers it — no hand-fed joules. Sixteen 100 W panels (1600 W) share the
+    // Stage-3 generator's power network, above the whole factory's peak draw; panels charge via
+    // generator_tick, and we let them build a reserve before the heavy phase (the ramp a player
+    // waits through). Buffer is drawn every tick — if draw outpaces generation crafts just wait.
     let solar_farm_anchor = deposit_pos + Vec3::new(0.0, 0.0, 12.0);
-    let farm: Vec<Entity> = (0..12)
+    let farm: Vec<Entity> = (0..16)
         .map(|i| {
             place_solar_panel(
                 &mut app,
@@ -950,8 +996,6 @@ fn standard_run_lands_mines_and_launches_successor() {
             )
         })
         .collect();
-    // Let the farm charge a reserve: advance until every farm panel is ≥90% full (100 W into a
-    // 10 kJ buffer ≈ 90s of sim time).
     advance_until(&mut app, 1.0, 400.0, |app| {
         farm.iter().all(|&e| {
             app.world()
@@ -960,106 +1004,234 @@ fn standard_run_lands_mines_and_launches_successor() {
         })
     });
 
-    // Mine every raw material for real. Each `mine_deposit` locates a fresh off-origin
-    // worldgen deposit (`nearest_vein`) and drops miners onto it wired to the shared
-    // network — the miners then feed raw ore into storage every tick for the whole run, so
-    // the queue's smelt/crush/wash/draw jobs become feasible as ore arrives (mining and
-    // crafting overlap). Miner counts scale with the tree's per-ore demand and each ore's
-    // deposit weight (from `assets recipe`/deposit RON): iron_copper is the scarce-copper
-    // source (~23% copper), and cryophase feeds all 20 exotic_fuel (60 shards).
-    //   iron_copper → iron_ore(10) + copper_ore(18) + stone(8);  aluminum_ore(10),
-    //   titanium_ore(2), coal(4), fluxite_shard(8), resonite_shard(4), cryophase_shard(60).
-    // iron/copper/stone: mine a FRESH off-origin iron_copper vein (the origin deposit is
-    // depleted from the Stage 1–2 research grind) — Stage 0's origin miner also keeps running.
-    let iron_copper_deposit = mine_deposit(&mut app, "copper_ore", storage_pos, 4, true);
-    mine_deposit(&mut app, "aluminum_ore", storage_pos, 2, false);
-    mine_deposit(&mut app, "titanium_ore", storage_pos, 1, false);
+    // Mine every raw material for real. Each `mine_deposit` latches miners onto a worldgen
+    // deposit found by `nearest_vein`; they feed ore into shared storage every tick for the whole
+    // run so smelt/crush/analyze jobs become feasible as ore arrives. The iron_copper vein feeds
+    // the research economy heavily (stone→material, iron→circuits+milestones, copper→wire) so it
+    // gets the most miners; xalite yields resonite_shard(20%)+field_sample(10%) for synthesis +
+    // discovery; cryophase feeds all 20 exotic_fuel (60 shards). Stage 0's origin miner (also
+    // iron_copper) keeps running alongside.
+    let iron_copper_deposit = mine_deposit(&mut app, "copper_ore", storage_pos, 8, true);
+    mine_deposit(&mut app, "resonite_shard", storage_pos, 10, false);
+    mine_deposit(&mut app, "aluminum_ore", storage_pos, 3, false);
+    mine_deposit(&mut app, "titanium_ore", storage_pos, 2, false);
     mine_deposit(&mut app, "coal", storage_pos, 1, false);
-    mine_deposit(&mut app, "fluxite_shard", storage_pos, 2, false);
-    mine_deposit(&mut app, "resonite_shard", storage_pos, 2, false);
-    let cryophase_deposit = mine_deposit(&mut app, "cryophase_shard", storage_pos, 3, false);
+    let fluxite_site = mine_deposit(&mut app, "fluxite_shard", storage_pos, 2, false);
+    let cryophase_deposit = mine_deposit(&mut app, "cryophase_shard", storage_pos, 4, false);
 
-    // Enqueue the full driven job list, leaves→root, starting from the mined ore. We push
-    // explicit `QueuedJob`s (`launch_successor` has no output item so `enqueue_item` can't
-    // resolve it); the order is only a hint — `recipe_check_system` scans the whole queue and
-    // gates each job on real input feasibility, so leaf jobs fire as mined ore arrives and
-    // upper jobs fire as their intermediates are produced. Multiplicities are the exact tree
-    // demand (mass-balanced): e.g. 18 copper smelts → 17 copper_wire draws + 1 power_cell;
-    // 8 crush_stone → 4 silicon; 60 cryophase (mined) → 20 exotic_fuel. See the per-recipe
-    // arithmetic in `assets recipe <id>`.
+    // The ResearchSpend target nodes, by theme. The grind-driver spams `UnlockNodeRequest` for
+    // every one each frame — each is a no-op until its prereqs are met AND its theme's pool can
+    // pay, so they self-order by the real tech graph. (Total costs: material 760, engineering
+    // 1800, discovery 1070, synthesis 2570.)
+    let material_nodes = [
+        "ore_extraction",
+        "drone_recon",
+        "basic_processing",
+        "silicon_refining",
+        "aluminum_extraction",
+        "titanium_forming",
+    ];
+    let engineering_nodes = [
+        "advanced_processing",
+        "resonite_engineering",
+        "advanced_assembler",
+        "fluxite_coil",
+        "provisioning_module",
+    ];
+    let discovery_nodes = [
+        "exotic_processing",
+        "precursor_survey",
+        "synthesis_lab",
+        "space_scanner",
+        "cryophase_prospecting",
+    ];
+    let synthesis_nodes = [
+        "coolant_reclaim",
+        "vitreite_synthesis",
+        "exotic_fuel_refining",
+        "successor_core",
+        "successor_chassis",
+        "successor_drive",
+        "successor_sensor",
+        "launch_site_assembly",
+        "launch_successor",
+    ];
+    let all_nodes: Vec<&str> = material_nodes
+        .iter()
+        .chain(&engineering_nodes)
+        .chain(&discovery_nodes)
+        .chain(&synthesis_nodes)
+        .copied()
+        .collect();
+
+    // The build-phase job list (mass-balanced from the successor tree; unchanged from before —
+    // only its unlock source is now earned). Enqueued ONCE, when the whole research closure is
+    // unlocked. launch_successor has no output item, so these are explicit `QueuedJob`s.
+    let build_jobs: Vec<(&str, usize)> = vec![
+        ("crush_stone", 8),
+        ("crush_aluminum", 6),
+        ("smelt_metal__iron", 10),
+        ("smelt_metal__copper", 18),
+        ("smelt_metal__aluminum", 4),
+        ("smelt_metal__titanium", 2),
+        ("draw_metal__copper", 17),
+        ("wash_aluminum", 2),
+        ("make_circuit", 4),
+        ("refine_silicon", 4),
+        ("refine_fluxite", 4),
+        ("synth_vitreite", 2),
+        ("roll_iron_plate", 2),
+        ("roll_aluminum_plate", 2),
+        ("roll_titanium_plate", 1),
+        ("form_silicon_chip", 4),
+        ("make_resonite_circuit", 2),
+        ("form_resonite_lattice", 1),
+        ("make_fluxite_coil", 2),
+        ("make_power_cell", 1),
+        ("make_miner_kit", 1),
+        ("make_generator_kit", 1),
+        ("make_assembler_kit", 1),
+        ("refine_exotic_fuel__raw", 20),
+        ("make_successor_core", 1),
+        ("make_successor_sensor", 1),
+        ("make_successor_chassis", 1),
+        ("make_successor_drive", 1),
+        ("make_provisioning_module", 1),
+        ("launch_successor", 1),
+    ];
+
+    // The grind-driver loop. Advances simulated time in fixed dt steps (below the 4s shortest
+    // recipe) and, each frame: (a) requests every target node; (b) recons fluxite/cryophase once
+    // their prereqs are researched; (c) adaptively tops up the analysis chain while any theme's
+    // nodes are still locked; (d) once the full closure is unlocked, swaps the queue to the build
+    // list; then advances. Breaks on RunState::Completed. `max_secs` is a generous runaway guard —
+    // this is a long run (the whole ~6200-point research economy plus the build).
     let craft_net = net_of(&mut app, storage_e);
-    {
-        let mut queue = app
-            .world_mut()
-            .get_mut::<NetworkCraftQueue>(craft_net)
-            .expect("logistics network carries a craft queue");
-        let mut push = |recipe: &str, n: usize| {
-            for _ in 0..n {
-                queue.jobs.push_back(QueuedJob {
-                    recipe_id: recipe.to_string(),
-                });
+    let dt = 0.5f32;
+    let max_secs = 40_000.0f32;
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+        dt,
+    )));
+    let mut elapsed = 0.0f32;
+    let mut build_enqueued = false;
+    let mut launch_ran = false;
+    let mut ever_analyzed_circuit = false;
+    let mut ever_analyzed_exotic = false;
+
+    while *app.world().resource::<RunState>() != RunState::Completed {
+        assert!(
+            elapsed < max_secs,
+            "earned-research grind did not complete within {max_secs}s of simulated time \
+             (research pools/points: check the analysis economy or a stalled milestone/recon)"
+        );
+
+        // (a) Spend: request every target node (no-op unless prereqs met + pool can pay).
+        for node in &all_nodes {
+            app.world_mut()
+                .write_message(UnlockNodeRequest((*node).into()));
+        }
+
+        // (b) Conditional recon: each site fires its DiscoveryEvent exactly once, and the unlock
+        // only lands if the node's prereq is already researched — so recon only after it is.
+        if node_unlocked(&app, "precursor_survey")
+            && app.world().get::<Discovered>(fluxite_site).is_none()
+        {
+            recon_deposit(&mut app, "fluxite_shard");
+        }
+        if node_unlocked(&app, "cryophase_prospecting")
+            && app.world().get::<Discovered>(cryophase_deposit).is_none()
+        {
+            recon_deposit(&mut app, "cryophase_shard");
+        }
+
+        // (c) Adaptive top-up of the analysis chain (research phase only).
+        if !build_enqueued {
+            let mat_done = nodes_unlocked(&app, &material_nodes);
+            let eng_done = nodes_unlocked(&app, &engineering_nodes);
+            let disc_done = nodes_unlocked(&app, &discovery_nodes);
+            let synth_done = nodes_unlocked(&app, &synthesis_nodes);
+            let circuit_ready = recipe_unlocked(&app, "analyze_circuit");
+            let field_ready = recipe_unlocked(&app, "analyze_field_sample");
+            let exotic_ready = recipe_unlocked(&app, "analyze_exotic_reaction");
+            let crush_ready = recipe_unlocked(&app, "crush_iron");
+            let need_iron_crushed = produced(&app, "iron_crushed") < 55.0;
+            let plate_locked = !node_unlocked(&app, "plate_roller");
+            ever_analyzed_circuit |= circuit_ready;
+            ever_analyzed_exotic |= exotic_ready;
+            let mut queue = app
+                .world_mut()
+                .get_mut::<NetworkCraftQueue>(craft_net)
+                .expect("logistics network carries a craft queue");
+            // material: 4 stone → 10 material.
+            if !mat_done {
+                ensure_jobs(&mut queue, "basic_analysis", 16);
             }
-        };
-        // Raw ore → basic intermediates (smelt / crush / wash / draw / circuit).
-        push("crush_stone", 8);
-        push("crush_aluminum", 6);
-        push("smelt_metal__iron", 10);
-        push("smelt_metal__copper", 18);
-        push("smelt_metal__aluminum", 4);
-        push("smelt_metal__titanium", 2);
-        push("draw_metal__copper", 17);
-        push("wash_aluminum", 2);
-        push("make_circuit", 4);
-        // Refining + rolling (kept ahead of exotic_fuel so the single refinery works the
-        // shorter jobs first, then churns the 20× exotic_fuel while cryophase is mined).
-        push("refine_silicon", 4);
-        push("refine_fluxite", 4);
-        push("synth_vitreite", 2);
-        push("roll_iron_plate", 2);
-        push("roll_aluminum_plate", 2);
-        push("roll_titanium_plate", 1);
-        // Sub-assemblies.
-        push("form_silicon_chip", 4);
-        push("make_resonite_circuit", 2);
-        push("form_resonite_lattice", 1);
-        push("make_fluxite_coil", 2);
-        push("make_power_cell", 1);
-        push("make_miner_kit", 1);
-        push("make_generator_kit", 1);
-        push("make_assembler_kit", 1);
-        // Exotic fuel (long serial pole) then the five components and the launch.
-        push("refine_exotic_fuel__raw", 20);
-        push("make_successor_core", 1);
-        push("make_successor_sensor", 1);
-        push("make_successor_chassis", 1);
-        push("make_successor_drive", 1);
-        push("make_provisioning_module", 1);
-        push("launch_successor", 1);
+            // Keep iron smelting for circuits + the ore_crusher(100)/plate_roller(150) tally.
+            if !eng_done || plate_locked {
+                ensure_jobs(&mut queue, "smelt_metal__iron", 12);
+            }
+            // engineering: circuit_board → 20 engineering (copper→wire→circuit chain).
+            if !eng_done && circuit_ready {
+                ensure_jobs(&mut queue, "smelt_metal__copper", 20);
+                ensure_jobs(&mut queue, "draw_metal__copper", 20);
+                ensure_jobs(&mut queue, "make_circuit", 12);
+                ensure_jobs(&mut queue, "analyze_circuit", 12);
+            }
+            // Crush iron to clear the ore_washer(50 iron_crushed) milestone.
+            if crush_ready && need_iron_crushed {
+                ensure_jobs(&mut queue, "crush_iron", 12);
+            }
+            // discovery: field_sample → 12 discovery.
+            if !disc_done && field_ready {
+                ensure_jobs(&mut queue, "analyze_field_sample", 12);
+            }
+            // synthesis: resonite_shard → 20 synthesis.
+            if !synth_done && exotic_ready {
+                ensure_jobs(&mut queue, "analyze_exotic_reaction", 12);
+            }
+        }
+
+        // (d) Whole research closure earned → swap to the mass-balanced successor build list.
+        if !build_enqueued && node_unlocked(&app, "launch_successor") {
+            let mut queue = app
+                .world_mut()
+                .get_mut::<NetworkCraftQueue>(craft_net)
+                .expect("logistics network carries a craft queue");
+            queue.jobs.clear();
+            for (recipe, n) in &build_jobs {
+                for _ in 0..*n {
+                    queue.jobs.push_back(QueuedJob {
+                        recipe_id: (*recipe).to_string(),
+                    });
+                }
+            }
+            build_enqueued = true;
+        }
+
+        if app.world().get::<MachineState>(launch_e).copied() == Some(MachineState::Running) {
+            launch_ran = true;
+        }
+
+        app.update();
+        elapsed += dt;
     }
 
-    // Checkpoint — prove the raw mine→smelt→draw chain runs for real before the long haul:
-    // copper_wire can only appear if copper_ore was mined, smelted to copper_ingot, and drawn
-    // into wire, all through real machines. `wait_for_recipe` sequences the factory to this
-    // milestone off the same simulated clock.
-    wait_for_recipe(&mut app, 0.5, 3_000.0, |app| {
-        stored(app, storage_e, "copper_wire") >= 1
-    });
+    // Every research node must have been EARNED (spent/auto), never injected.
+    for node in &all_nodes {
+        assert!(
+            node_unlocked(&app, node),
+            "target node {node} must have been earned before the build phase"
+        );
+    }
     assert!(
-        stored(&app, storage_e, "copper_wire") >= 1,
-        "mined copper_ore must smelt→draw into copper_wire through real machines"
+        build_enqueued,
+        "the successor build list must have been enqueued after the research closure unlocked"
     );
-
-    // Drive real time until the run completes. dt=0.5 is below the shortest recipe (4s crush)
-    // so no recipe edge is skipped. The critical path is the single refinery's 20× exotic_fuel
-    // (~600s) plus downstream assembly and the 180s launch — and now also the up-front mining
-    // ramp — so 8000s is ample headroom.
-    let launch_ran = std::cell::Cell::new(false);
-    advance_until(&mut app, 0.5, 8_000.0, |app| {
-        if app.world().get::<MachineState>(launch_e).copied() == Some(MachineState::Running) {
-            launch_ran.set(true);
-        }
-        *app.world().resource::<RunState>() == RunState::Completed
-    });
+    assert!(
+        ever_analyzed_circuit && ever_analyzed_exotic,
+        "the engineering + synthesis analysis recipes must have been earned and run for real"
+    );
+    let launch_ran = std::cell::Cell::new(launch_ran);
 
     let virtual_secs = app.world().resource::<Time>().elapsed_secs();
     let virtual_hours = virtual_secs / 3600.0;

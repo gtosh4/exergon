@@ -344,7 +344,7 @@ Write the Standard escape that `escape-condition.md §7` currently defers. No ne
 Hand-verify reachability (procedural validator stays Alpha) + extend the e2e path to victory (§1, §9 #8). Per CLAUDE.md, add a matching stage to the e2e test for each new stage on the landing→victory path.
 
 - [x] `cargo run --bin assets path launch_successor` — resolves; full chain reachable in tier order, every recipe input has a producer (hand-traced via `assets uses`). `escape_synthesis` gateway chain intact.
-- [ ] Extend `tests/standard_full_run.rs` with stages T3 → victory (currently stops at drone scan)
+- [x] Extend `tests/standard_full_run.rs` with stages T3 → victory — full landing→launch on earned research (zero injected node/recipe unlocks); measured ~2979s (0.83h) automated-optimal virtual time
 - [ ] Curated Standard run config (the fixed Standard "seed" equivalent)
 
 ## Carried-forward open flags (§9)
@@ -354,6 +354,7 @@ Design questions, not tasks — track as risks; do not lock into content yet.
 - [ ] **Non-terminal tier exit gates are TBD** (§9 #6) — the §5 tier-exit anchors are provisional; full tier-gate design is a separate pass (`tech-tree-design.md §7 Q#1–2). Don't lock gate quantities in content.
 - [ ] **Beneficial coolant-runoff → terraform-product is post-MVP stretch** (§9 #5, GDD §11) — ship harmful/neutral streams now; coolant-as-terraform + the provisioning discount (Terraform Router, Terraform Provisioning nodes) are optional stretch.
 - [ ] **Frontier (no-precursor) variant is a later second config** (§9 #7) — this run seeds the derelict (discount path); the scratch-build chassis alt is a separate curated Standard config, deferred.
+- [ ] **`wire_drawer` machine buildability audit** — the e2e completability check found `basic_processing` unlocked a dead recipe id `draw_copper` (fixed → `draw_metal__copper`). Separately, `wire_drawer` has no `make_wire_drawer` recipe and no `UnlockMachine` effect on any node (as do crusher/washer/refinery) — confirm machine placement really is a separate placeables path, not a gap that blocks a real player from building the machine.
 
 Ambiguities flagged for the design owner (not decided here):
 - Phase D lumps the Resonite/Xalite chain into the T2–T5 node work; the source task list named only Fluxite/Vitreite/Cryophase. Resonite is a T2/T3 exotic (§2.2) and part of the same node tables — confirm it belongs in D rather than a separate item.
