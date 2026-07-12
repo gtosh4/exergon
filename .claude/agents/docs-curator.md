@@ -26,7 +26,7 @@ Given a change (diff, feature, or "full audit"), check each direction:
 1. **Code → docs**: implementation vs the relevant `technical/*.md` spec — component names, events, system responsibilities. Deviations must be recorded (tasks.md "Deviations from design" pattern; flag to project-manager if it belongs there).
 2. **Docs → code**: docs claiming things code doesn't do — grep doc-named symbols in `src/`.
 3. **Docs → docs**: gdd.md vs tech-tree-design.md vs design-decisions.md — terminology, numbers, decision records. A decision visible in gdd.md with no design-decisions.md record: write the record if the rationale is discoverable (git log, the diff, conversation context you were given); otherwise ask for the why — never invent rationale.
-4. **Content → docs**: `cargo run -q --bin assets techs` / `recipes` vs what tech-tree-design.md and gdd.md claim exists.
+4. **Content → docs**: `list_assets kind="tech"` / `list_all_recipes` (the `exergon-assets` MCP tools) vs what tech-tree-design.md and gdd.md claim exists.
 5. **Index**: new/renamed/deleted docs vs docs/README.md.
 
 ## Fixing

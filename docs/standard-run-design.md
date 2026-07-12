@@ -14,7 +14,7 @@
 
 **Explicitly deferred** (Alpha, not this push):
 - Seeded ~215-node pool + per-run selection. This run is one fixed configuration — the "curated seed" equivalent for Standard.
-- Procedural graph validator. We hand-verify reachability with `cargo run --bin assets path` + an e2e test to victory.
+- Procedural graph validator. We hand-verify reachability with the `tech_path` / `item_uses` MCP tools (and `query_assets` for ad-hoc checks) + an e2e test to victory.
 
 **Nearly no engine work — one real gap.** The crafting engine already supports the production mechanics below — multi-step plans, tier-gated recipes, catalyst inputs, and byproducts (`RecipeOutput` with `chance`; [`crafting.md §6`](technical/crafting.md)). The finale is one `EscapeObjective` machine running one launch recipe: `JobComplete → EscapeEvent → win` ([`escape-condition.md`](technical/escape-condition.md)). Scale lives entirely in that recipe's inputs — no new machinery.
 

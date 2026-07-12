@@ -381,7 +381,7 @@ If adopted, the broad condition is intentional — the gate should accommodate w
 
 ## 6bis. Tiers 3–5 — RON node set *(Phase D, authored)*
 
-The full T3–T5 design node tables live in [`standard-run-design.md §5`](standard-run-design.md#5-tier-by-tier-progression). This section records the **nodes actually authored in RON** (`assets/tech_nodes/`) for the fixed Standard run — the reachable spine that makes `assets path launch_successor` resolve. It builds on the existing T1–T2 nodes; T3+ nodes carry `tier: 3/4/5` and take T2 nodes (`exotic_materials`, `resonite_engineering`, `ore_crusher`, `drone_recon`, `advanced_processing`) as prerequisites.
+The full T3–T5 design node tables live in [`standard-run-design.md §5`](standard-run-design.md#5-tier-by-tier-progression). This section records the **nodes actually authored in RON** (`assets/tech_nodes/`) for the fixed Standard run — the reachable spine that makes `tech_path launch_successor` resolve. It builds on the existing T1–T2 nodes; T3+ nodes carry `tier: 3/4/5` and take T2 nodes (`exotic_materials`, `resonite_engineering`, `ore_crusher`, `drone_recon`, `advanced_processing`) as prerequisites.
 
 **Category mapping** (engine `NodeCategory` has no Extraction/Fabrication variants): design *Extraction* → `Exploration`; *Smelting & Forming* and *Fabrication* → `Processing`; *Science (exotic)* → `Science`.
 

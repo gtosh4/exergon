@@ -184,7 +184,7 @@ Research recipes are standard recipe assets with one convention: research point 
 "research_points"        → adds to the `material` theme (legacy alias, DEFAULT_RESEARCH_THEME)
 ```
 
-The suffix after `"research."` is the type ID passed to `ResearchPool.add`. The bare legacy id `research_points` routes to `DEFAULT_RESEARCH_THEME` (`material`) for back-compat — `basic_analysis` still uses it. Amount is the item quantity in the recipe output stack. `research_theme_of` (`src/research/mod.rs`) performs this mapping; a `research.*` / `research_points` output is routed to the pool and **never** to the logistics network, so these outputs need no `assets/items` entry (they show as producer-only in `assets uses`, which is expected for currency).
+The suffix after `"research."` is the type ID passed to `ResearchPool.add`. The bare legacy id `research_points` routes to `DEFAULT_RESEARCH_THEME` (`material`) for back-compat — `basic_analysis` still uses it. Amount is the item quantity in the recipe output stack. `research_theme_of` (`src/research/mod.rs`) performs this mapping; a `research.*` / `research_points` output is routed to the pool and **never** to the logistics network, so these outputs need no `assets/items` entry (they show as producer-only in `item_uses`, which is expected for currency).
 
 `recipe_progress_system` on recipe completion checks each output item: if its ID starts with `"research."`, route to `ResearchPool.add(suffix, quantity)` instead of the logistics network. This is the only special-casing needed. All other recipe logic is identical to any other machine.
 

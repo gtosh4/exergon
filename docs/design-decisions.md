@@ -4,9 +4,21 @@ Rationale and context behind key decisions. The GDD contains the *what*; this do
 
 ---
 
+## 2026-07-12 — `assets` MCP server split into its own workspace crate; `query_assets` jq tool added
+
+**Decision:** The repo becomes a Cargo **workspace**: the root package `exergon` (the game) plus a member crate `exergon-assets` (`crates/assets/`, binary still named `assets`). The MCP server source moves `src/bin/assets.rs` → `crates/assets/src/main.rs`, and the launch command changes `cargo run -q --bin assets` → `cargo run -q -p exergon-assets --bin assets` (still from the repo root so `assets/` is reachable; `.mcp.json` updated). A new tool **`query_assets(kind, jq)`** is added: it runs a jq program (via the pure-Rust `jaq-core`/`jaq-std`/`jaq-json`) over the JSON array of every entity of `kind` and returns the program's outputs — a single output bare, a multi-value stream as an array. The generic tool surface is now `list_kinds`, `describe_kind`, `list_assets`, `get_asset`, `create_asset`, `update_asset`, `delete_asset`, `query_assets`, plus the texture-manifest pair and resolved-graph queries (`resolve_recipe`, `list_all_recipes`, `tech_path`, `item_uses`).
+
+**Rationale:** Dependency separation is the point — the game crate `exergon` no longer pulls the server-only deps (`rmcp`, `tokio`, `anyhow`, and the new jq deps `jaq-core`/`jaq-std`/`jaq-json`), which now live in `crates/assets/Cargo.toml`. `schemars` deliberately **stays** in the game crate: the content def types (`ItemDef`, `NodeDef`, `MachineFileDef`, …) derive `schemars::JsonSchema`, so the derive has to live with the types; the assets crate re-lists `schemars` for the schema tools. `src/asset_store` stays in the game crate. `query_assets` gives agents a general-purpose search/filter surface over any kind (top-N by cost, id-pattern selects, counts) without a bespoke tool per query shape.
+
+**Implications:**
+- New workspace layout: `crates/assets/` member crate; server-only deps confined there.
+- Docs updated: testing.md §4, technical/README.md, this log; agent defs re-pointed at the MCP tools and the new launch command.
+
+---
+
 ## 2026-07-11 — `assets` CLI → RON content MCP server (read/write)
 
-**Decision:** The `assets` binary is no longer a read-only query CLI; it is an **MCP stdio server** (`src/bin/assets.rs`, built on the official `rmcp` SDK) exposing full **CRUD** over every RON asset kind. The tools are **generic over a `kind` argument** — `list_assets` / `get_asset` / `create_asset` / `update_asset` / `delete_asset`, plus `list_kinds` and `describe_kind` (returns a kind's JSON schema so clients still get the exact entity shape) — rather than one named tool per type (which was ~76 tools; the generic surface is ~13). Also keeps the resolved-graph read queries (`resolve_recipe`, `list_all_recipes`, `tech_path`, `item_uses`) and a texture-manifest pair. It is registered for this repo in `.mcp.json` as `exergon-assets`. All read/write goes through the game's real (de)serializers via a new engine-free `src/asset_store` module, so tools operate on exactly what the game loads. Three sub-decisions:
+**Decision:** The `assets` binary is no longer a read-only query CLI; it is an **MCP stdio server** (`crates/assets/src/main.rs`, built on the official `rmcp` SDK) exposing full **CRUD** over every RON asset kind. The tools are **generic over a `kind` argument** — `list_assets` / `get_asset` / `create_asset` / `update_asset` / `delete_asset` / `query_assets` (jq query over a kind's JSON array), plus `list_kinds` and `describe_kind` (returns a kind's JSON schema so clients still get the exact entity shape) — rather than one named tool per type (which was ~76 tools; the generic surface is ~13). Also keeps the resolved-graph read queries (`resolve_recipe`, `list_all_recipes`, `tech_path`, `item_uses`) and a texture-manifest pair. It is registered for this repo in `.mcp.json` as `exergon-assets`. All read/write goes through the game's real (de)serializers via a new engine-free `src/asset_store` module, so tools operate on exactly what the game loads. Three sub-decisions:
 - **Structured, field-level updates via JSON merge-patch:** `update_<kind>` takes `{ "field": value }`; nested objects merge, arrays/scalars replace wholesale. Implemented generically (serialize → merge → re-deserialize/validate → write) rather than per-field tools.
 - **Canonical RON on write:** every field is re-emitted, so `#[serde(default)]` fields (`energy_output`, `template_id`, `max_reach`, …) become explicit in any rewritten file. Accepted so the write path is uniform across all kinds.
 - **Lossless via the *complete* def types:** required adding `Serialize` + `schemars::JsonSchema` to every asset def and nested enum, and using the complete `MachineFileDef` (not the partial `MachineDef`/`MachineItemEntry`) so machine writes don't silently drop fields. Guarded by a round-trip regression test over every asset dir (`tests/asset_roundtrip.rs`).
@@ -19,7 +31,7 @@ Rationale and context behind key decisions. The GDD contains the *what*; this do
 - *Keep the CLI subcommands alongside MCP:* Rejected — the binary is MCP-only now; the manual-poke path is newline-delimited JSON-RPC (documented in testing.md §4).
 
 **Implications:**
-- New deps: `rmcp` (server/transport-io/macros/schemars), `tokio`, `schemars`. New module `src/asset_store`; `MachineFileDef` re-exported from `src/machine`.
+- New deps: `rmcp` (server/transport-io/macros/schemars), `tokio`. New module `src/asset_store`; `MachineFileDef` re-exported from `src/machine`. (Server-only deps later moved into the `exergon-assets` workspace crate — see the 2026-07-12 entry; `schemars` stays in the game crate for the def-type derives.)
 - Docs updated: testing.md §4 rewritten (tool reference + manual poke), §3 and CLAUDE.md now point at the MCP tools.
 - Round-tripped files normalise to canonical RON (defaults explicit) the first time they're rewritten.
 

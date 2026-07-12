@@ -26,6 +26,7 @@ Never trust hand-read RON. The `exergon-assets` MCP tools go through the real (d
 | `describe_kind {kind}` | the kind's JSON schema — call before `create_asset`/`update_asset` |
 | `list_assets {kind}` | all ids of a kind (e.g. every recipe/tech id) |
 | `get_asset {kind, id}` | one backing entity — inputs, outputs, machine, time, energy, prereqs, effects |
+| `query_assets {kind, jq}` | run a jq program over the JSON array of a kind — search/filter/count (e.g. costliest recipes, ids matching a pattern) |
 | `create_asset {kind, value}` / `update_asset {kind, id, patch}` / `delete_asset {kind, id}` | author content (`update` is JSON merge-patch: `{ "energy_cost": 50 }`) |
 | `resolve_recipe {id}` / `list_all_recipes` | recipes from the *resolved* graph, incl. template-expanded ones with no backing file |
 | `tech_path {node}` | full prerequisite chain in unlock order — the tool for sequencing gates |

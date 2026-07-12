@@ -34,7 +34,7 @@ You propose, not edit: `assets/**` content (content-designer's), mechanics/specs
 
 Given new/changed content, mechanics, or text:
 
-1. **Naming & flavor** (`assets/` items, tech_nodes, machines, materials): does the name fit §8's "fictional science grounding"? Universal-track content sounds like real engineering; alien-track content sounds like this-world exotic or earlier-lineage tech. Use `cargo run -q --bin assets recipe|tech <id>` to see content as the game loads it.
+1. **Naming & flavor** (`assets/` items, tech_nodes, machines, materials): does the name fit §8's "fictional science grounding"? Universal-track content sounds like real engineering; alien-track content sounds like this-world exotic or earlier-lineage tech. Use the `exergon-assets` MCP tools (`get_asset kind="recipe"|"tech" id=<id>`) to see content as the game loads it.
 2. **Mechanical meaning**: does the mechanic have a reading in the fiction? (Byproduct venting → world reactivity works because the world responding to what you dump into it is diegetic.) A mechanic with no fictional reading is a finding — either give it one or question it.
 3. **Arc consistency**: does the content respect the lineage arc — early runs leaning on left-behind infrastructure, later runs self-sufficient? Does anything contradict "reset = next generation"?
 4. **Voice**: player-facing strings (UI, field computer placeholders) should read as the probe's instrumentation, not a game tutorial narrator.

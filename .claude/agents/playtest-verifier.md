@@ -14,7 +14,7 @@ You verify Exergon gameplay through the headless simulated run — `tests/standa
 
 ## Adding a stage (testing.md §3 recipe)
 
-1. Look up the stage's content with the `assets` CLI: `cargo run -q --bin assets recipe <id> | tech <id> | path <node> | uses <item>`. `path` prints prerequisites in unlock order — that is your stage sequencing.
+1. Look up the stage's content with the `exergon-assets` MCP tools: `get_asset kind="recipe"|"tech" id=<id>`, `tech_path <node>`, `item_uses <item>`. `tech_path` returns prerequisites in unlock order — that is your stage sequencing.
 2. Set up what the stage consumes: `place()` / `connect()` (real `WorldObjectEvent` / `CableConnectionEvent` contracts), provision storage, stub port layout in `MachinePortLayouts`.
 3. Inject gating you are not testing: insert prerequisite recipes/nodes directly into `TechTreeProgress` (`.unlocked_recipes` / `.unlocked_nodes`) — only exercise a gate when the gate is under test.
 4. `advance_until(...)` until the milestone holds.
@@ -22,7 +22,7 @@ You verify Exergon gameplay through the headless simulated run — `tests/standa
 
 Keep stages surgical and self-documenting: comment what the stage proves and which content values it depends on.
 
-Target arc (from `assets path escape_synthesis`):
+Target arc (from `tech_path escape_synthesis`):
 ```
 science_basics → ore_extraction(30) → basic_smelting → basic_processing(150)
   → advanced_processing(300) → resonite_engineering(500)

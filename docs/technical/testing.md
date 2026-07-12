@@ -79,7 +79,7 @@ Keep stages **surgical and self-documenting**: a comment saying what the stage p
 content values (from the `assets` MCP tools) it depends on, so a later content tweak points the
 reader straight at the assertion to update.
 
-The target arc, in stage order (from `assets path escape_synthesis`):
+The target arc, in stage order (from `tech_path escape_synthesis`):
 
 ```
 science_basics → ore_extraction(30) → basic_smelting → basic_processing(150)
@@ -101,14 +101,15 @@ has likely decayed toward its yield floor — raise `max_secs`, don't lower the 
 
 ## 4. `assets` — RON content MCP server
 
-`src/bin/assets.rs` is a **Model Context Protocol (MCP) stdio server** that loads *and edits* the
-game's content through the **real (de)serializers** (`load_ron_dir`, `build_recipe_graph()`), so
-what a tool returns/writes is exactly what the game loads — schema drift or malformed RON shows up
-here, not just at runtime. Prefer it over reading/editing `assets/**.ron` by hand.
+`crates/assets/src/main.rs` (the `exergon-assets` workspace crate, binary `assets`) is a **Model
+Context Protocol (MCP) stdio server** that loads *and edits* the game's content through the **real
+(de)serializers** (`load_ron_dir`, `build_recipe_graph()`), so what a tool returns/writes is
+exactly what the game loads — schema drift or malformed RON shows up here, not just at runtime.
+Prefer it over reading/editing `assets/**.ron` by hand.
 
 It is registered for this repo in `.mcp.json` as `exergon-assets`, so Claude Code auto-discovers
-it. It launches via `cargo run -q --bin assets` from the repo root (so `assets/` is reachable);
-logs go to stderr, stdout is the JSON-RPC channel.
+it. It launches via `cargo run -q -p exergon-assets --bin assets` from the repo root (so `assets/`
+is reachable); logs go to stderr, stdout is the JSON-RPC channel.
 
 ### Tools
 
@@ -124,6 +125,13 @@ tools, so the whole surface is ~13 tools rather than one set per type:
 | `create_asset` | `{kind, value}` → create from a JSON object, validated against the kind's schema (errors if the id exists) |
 | `update_asset` | `{kind, id, patch}` → JSON merge-patch (`{ "energy_cost": 50 }`) — nested objects merge, arrays/scalars replace wholesale |
 | `delete_asset` | `{kind, id}` → remove the file |
+| `query_assets` | `{kind, jq}` → run a jq program (pure-Rust `jaq`) over the JSON array of every entity of `kind`; a single output is returned bare, a multi-value stream as an array |
+
+`query_assets` is the general-purpose search/query tool over a kind — a jq program runs over the
+JSON array of every entity of that kind, e.g. `query_assets kind="recipe" jq="[.[] | {id,
+energy_cost}] | sort_by(-.energy_cost) | .[:5]"` (5 costliest recipes),
+`query_assets kind="tech" jq="[.[] | select(.id | test(\"circuit|silicon\")) | .id]"`
+(ids matching a pattern), or `query_assets kind="item" jq="length"` (a count).
 
 `kind` is one of: `recipe`, `tech` (tech node), `item`, `material`, `form_group`,
 `recipe_template`, `vein`, `layer`, `biome`, `deposit`, `machine`, `placeable`,
@@ -157,5 +165,5 @@ $ printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"c","version":"0"}}}' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_asset","arguments":{"kind":"recipe","id":"make_miner"}}}' \
-  | cargo run -q --bin assets
+  | cargo run -q -p exergon-assets --bin assets
 ```
