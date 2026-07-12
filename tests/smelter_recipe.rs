@@ -39,6 +39,7 @@ fn make_recipe(
         energy_cost: 0.0,
         energy_output: 0.0,
         template_id: None,
+        required_config: vec![],
     }
 }
 

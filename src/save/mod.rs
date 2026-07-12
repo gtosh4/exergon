@@ -79,13 +79,28 @@ pub enum RunStatus {
     Completed,
 }
 
-#[derive(Reflect, Clone, Default, Debug, PartialEq, Eq)]
+#[derive(
+    Reflect, Clone, Copy, Default, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+)]
 pub enum DifficultyTier {
     #[default]
     Initiation,
     Standard,
     Advanced,
     Pinnacle,
+}
+
+impl DifficultyTier {
+    /// Highest tech tier this difficulty can climb — its terminal tier exits via the escape
+    /// (`tech-tree-design.md §By difficulty`). Read by `research::sync_tier_cap` into `TierCap`.
+    pub fn max_tier(self) -> u8 {
+        match self {
+            DifficultyTier::Initiation => 3,
+            DifficultyTier::Standard => 5,
+            DifficultyTier::Advanced => 7,
+            DifficultyTier::Pinnacle => 10,
+        }
+    }
 }
 
 /// Marker resource: current run started with the dev test loadout modifier.
@@ -96,6 +111,7 @@ pub struct DevTestMode;
 #[derive(Message)]
 pub struct NewRunEvent {
     pub seed_text: String,
+    pub difficulty: DifficultyTier,
     pub test_mode: bool,
 }
 
@@ -214,7 +230,7 @@ fn spawn_run_on_new_event(
         RunSaveHeader {
             run_id: run_id.clone(),
             seed_text: event.seed_text.clone(),
-            difficulty: DifficultyTier::Initiation,
+            difficulty: event.difficulty,
             status: RunStatus::InProgress,
             start_time_secs: start,
             end_time_secs: None,

@@ -234,8 +234,8 @@ mod tests {
     use super::storage::storage_unit_system;
     use super::*;
     use crate::machine::{
-        Machine, MachineActivity, MachineNetworkChanged, MachineState, Mirror, Orientation,
-        Rotation,
+        Machine, MachineActivity, MachineConfig, MachineNetworkChanged, MachineState, Mirror,
+        Orientation, Rotation,
     };
     use crate::network::{NetworkChanged, NetworkPlugin, NetworkSystems};
     use crate::recipe_graph::{ConcreteRecipe, ItemStack, RecipeGraph};
@@ -522,6 +522,7 @@ mod tests {
             energy_cost: 0.0,
             energy_output: 0.0,
             template_id: None,
+            required_config: vec![],
         }
     }
 
@@ -624,6 +625,89 @@ mod tests {
         assert!(world.get::<MachineActivity>(machine_entity).is_some());
         let storage = world.get::<StorageUnit>(storage_e).unwrap();
         assert_eq!(storage.items.get("iron").copied().unwrap_or(0), 9);
+    }
+
+    /// Spawns a `furnace` needing `iron`, stocked storage, and one machine with the given
+    /// config, all on one network. Returns (app, machine_entity) after one update.
+    fn config_dispatch_setup(
+        required: Vec<crate::recipe_graph::ConfigReq>,
+        machine_axes: MachineConfig,
+    ) -> (App, Entity) {
+        let mut recipe = test_recipe_def("furnace", &[("iron", 1.0)], &[("copper", 1.0)]);
+        recipe.required_config = required;
+        let mut app = recipe_io_app(single_recipe_graph(recipe));
+
+        let net_entity = app.world_mut().spawn(LogisticsNetwork).id();
+        let storage_e = app
+            .world_mut()
+            .spawn(StorageUnit {
+                items: [("iron".to_owned(), 10u32)].into_iter().collect(),
+            })
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(storage_e),
+            Transform::default(),
+            LogisticsNetworkMember(net_entity),
+        ));
+        let machine_entity = app
+            .world_mut()
+            .spawn((bare_machine("furnace"), MachineState::Idle, machine_axes))
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(machine_entity),
+            Transform::default(),
+            LogisticsNetworkMember(net_entity),
+        ));
+        app.world_mut().write_message(NetworkStorageChanged {
+            network: net_entity,
+        });
+        app.update();
+        (app, machine_entity)
+    }
+
+    #[test]
+    fn config_mismatched_machine_does_not_start_recipe() {
+        use crate::recipe_graph::{ConfigReq, ConfigValue};
+        // Recipe needs bed_type == basic; machine is configured acidic.
+        let (app, machine) = config_dispatch_setup(
+            vec![ConfigReq {
+                axis: "bed_type".into(),
+                value: ConfigValue::Cat("basic".into()),
+            }],
+            MachineConfig {
+                axes: [("bed_type".to_string(), ConfigValue::Cat("acidic".into()))]
+                    .into_iter()
+                    .collect(),
+            },
+        );
+        assert_eq!(
+            *app.world().get::<MachineState>(machine).unwrap(),
+            MachineState::Idle,
+            "config-mismatched machine must not start the recipe"
+        );
+        assert!(app.world().get::<MachineActivity>(machine).is_none());
+    }
+
+    #[test]
+    fn config_matched_machine_starts_recipe() {
+        use crate::recipe_graph::{ConfigReq, ConfigValue};
+        // Recipe needs bed_type == basic; machine is configured basic.
+        let (app, machine) = config_dispatch_setup(
+            vec![ConfigReq {
+                axis: "bed_type".into(),
+                value: ConfigValue::Cat("basic".into()),
+            }],
+            MachineConfig {
+                axes: [("bed_type".to_string(), ConfigValue::Cat("basic".into()))]
+                    .into_iter()
+                    .collect(),
+            },
+        );
+        assert_eq!(
+            *app.world().get::<MachineState>(machine).unwrap(),
+            MachineState::Running,
+            "config-matched machine must start the recipe"
+        );
     }
 
     #[test]

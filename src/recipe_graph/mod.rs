@@ -93,6 +93,39 @@ pub struct ConcreteRecipe {
     /// Set for recipes expanded from a template; None for hand-authored concrete recipes.
     #[serde(default)]
     pub template_id: Option<TemplateId>,
+    /// Physical config the machine must have to run this recipe (machine dedication,
+    /// `design-decisions.md` 2026-07-10). Empty = config-agnostic (runs on any machine
+    /// of the right type/tier). Every requirement must hold; see `MachineConfig::satisfies`.
+    #[serde(default)]
+    pub required_config: Vec<ConfigReq>,
+}
+
+/// A value on a machine-config axis. Categorical values compare by equality; ordered
+/// values compare by `>=` (a higher-tier config satisfies a lower requirement).
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Reflect, schemars::JsonSchema)]
+pub enum ConfigValue {
+    /// Categorical axis (e.g. reactor `bed_type`): requirement holds iff equal.
+    Cat(String),
+    /// Ordered axis (e.g. `coil_tier`): requirement holds iff the machine's value `>=` it.
+    Ord(i64),
+}
+
+impl ConfigValue {
+    /// True if a machine holding `self` on an axis meets a recipe's `required` value on it.
+    pub fn meets(&self, required: &ConfigValue) -> bool {
+        match (self, required) {
+            (ConfigValue::Cat(a), ConfigValue::Cat(b)) => a == b,
+            (ConfigValue::Ord(a), ConfigValue::Ord(b)) => a >= b,
+            _ => false,
+        }
+    }
+}
+
+/// A recipe's requirement on one machine-config axis.
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Reflect, schemars::JsonSchema)]
+pub struct ConfigReq {
+    pub axis: String,
+    pub value: ConfigValue,
 }
 
 #[derive(Resource, Clone, Debug)]
@@ -188,6 +221,7 @@ pub(crate) fn expand_templates(
                 energy_cost: template.base_energy,
                 energy_output: 0.0,
                 template_id: Some(template.id.clone()),
+                required_config: vec![],
             });
         }
     }
@@ -374,6 +408,7 @@ mod tests {
             energy_cost: 10.0,
             energy_output: 0.0,
             template_id: None,
+            required_config: vec![],
         }
     }
 

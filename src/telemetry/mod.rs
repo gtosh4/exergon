@@ -419,6 +419,7 @@ mod tests {
             .resource_mut::<Messages<NewRunEvent>>()
             .write(NewRunEvent {
                 seed_text: "t-rs".into(),
+                difficulty: crate::save::DifficultyTier::Initiation,
                 test_mode: false,
             });
         app.update();
@@ -436,6 +437,7 @@ mod tests {
             .resource_mut::<Messages<NewRunEvent>>()
             .write(NewRunEvent {
                 seed_text: "t-mp".into(),
+                difficulty: crate::save::DifficultyTier::Initiation,
                 test_mode: false,
             });
         app.update();
@@ -466,6 +468,7 @@ mod tests {
             .resource_mut::<Messages<NewRunEvent>>()
             .write(NewRunEvent {
                 seed_text: "t-dis".into(),
+                difficulty: crate::save::DifficultyTier::Initiation,
                 test_mode: false,
             });
         app.update();
@@ -492,6 +495,7 @@ mod tests {
             .resource_mut::<Messages<NewRunEvent>>()
             .write(NewRunEvent {
                 seed_text: "t-ins".into(),
+                difficulty: crate::save::DifficultyTier::Initiation,
                 test_mode: false,
             });
         app.update();
@@ -522,6 +526,7 @@ mod tests {
             .resource_mut::<Messages<NewRunEvent>>()
             .write(NewRunEvent {
                 seed_text: "t-tr".into(),
+                difficulty: crate::save::DifficultyTier::Initiation,
                 test_mode: false,
             });
         app.update();
@@ -593,6 +598,7 @@ mod tests {
             .resource_mut::<Messages<NewRunEvent>>()
             .write(NewRunEvent {
                 seed_text: "t-blk".into(),
+                difficulty: crate::save::DifficultyTier::Initiation,
                 test_mode: false,
             });
         app.update();
@@ -632,6 +638,7 @@ mod tests {
             .resource_mut::<Messages<NewRunEvent>>()
             .write(NewRunEvent {
                 seed_text: "t-sum".into(),
+                difficulty: crate::save::DifficultyTier::Initiation,
                 test_mode: false,
             });
         app.update();
@@ -672,6 +679,7 @@ mod tests {
             .resource_mut::<Messages<NewRunEvent>>()
             .write(NewRunEvent {
                 seed_text: "t-re".into(),
+                difficulty: crate::save::DifficultyTier::Initiation,
                 test_mode: false,
             });
         app.update();
@@ -705,6 +713,7 @@ mod tests {
             .resource_mut::<Messages<NewRunEvent>>()
             .write(NewRunEvent {
                 seed_text: "t-ms".into(),
+                difficulty: crate::save::DifficultyTier::Initiation,
                 test_mode: false,
             });
         app.update();
@@ -756,6 +765,7 @@ mod tests {
             .resource_mut::<Messages<NewRunEvent>>()
             .write(NewRunEvent {
                 seed_text: "t-pr".into(),
+                difficulty: crate::save::DifficultyTier::Initiation,
                 test_mode: false,
             });
         app.update();

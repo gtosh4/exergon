@@ -123,8 +123,8 @@ Two routing strategies, both producing `Vec<IVec3>` paths:
 |---|---|---|
 | `LogisticsNetwork` | Network entity | Marker; no data |
 | `LogisticsNetworkMember(Entity)` | Cable segment or port entity | Points to owning network |
-| `LogisticsNetworkMembers(Vec<Entity>)` | Network entity | Lists all member entities; exposes `has_items`, `take_items`, `give_items` with priority-ordered iteration across member `StorageUnit`s |
-| `LogisticsCableSegment` | Cable segment entity | `from`, `to`, `path` |
+| `LogisticsNetworkMembers(Vec<Entity>)` | Network entity | Lists all member entities; exposes `has_items`, `take_items`, `give_items` with priority-ordered iteration across member `StorageUnit`s; exposes `channel_capacity()` and `channels_in_use()` for the throughput check (see Channel Capacity below) |
+| `LogisticsCableSegment` | Cable segment entity | `from`, `to`, `path`, `channel_capacity: u8` |
 | `LogisticsPortOf(Entity)` | Port entity | Points to owning machine |
 | `PortPolicy { default_mode: PortMode, item_overrides: HashMap<String, PortMode> }` | Port entity | Controls which items flow in which direction through this port |
 | `StorageUnit { items: HashMap<String, u32> }` | Machine entity | Item inventory for storage crates |
@@ -162,6 +162,17 @@ Run after `NetworkSystems::of::<Logistics>()` and after `PowerSimSystems`:
 ### Unified Storage
 
 `LogisticsNetworkMembers` exposes `has_items`, `take_items`, and `give_items` as methods. It owns the iteration order across member `StorageUnit` entities, allowing priority ordering between storage units to be encapsulated here. Items are not centralized — each `StorageUnit` holds its own `HashMap<String, u32>`; `LogisticsNetworkMembers` is the index and the access point. When the `CatalystReservationBook` resource is present, `has_items` subtracts `CatalystReservationBook.reserved[item_id]` from the total available count before returning — items with active catalyst reservations are physically present in storage but treated as unavailable (see `crafting.md §6`).
+
+### Channel Capacity
+
+The item-network's throughput lever is **discrete channel capacity** (AE2-style, GDD §10) — the mirror of amperage on the power network (§3). It is **not** a per-tick flow rate.
+
+- **Unit — per port.** Each connected machine `LogisticsPortOf` member consumes **1 channel**. `channels_in_use()` = the count of connected machine ports on the network. (Cable segments and storage-crate ports themselves are the transport; the count is of machine-serving ports, matching AE2's "one channel per device.")
+- **Capacity — cable tier.** `channel_capacity()` = the **minimum** `channel_capacity` among the network's `LogisticsCableSegment`s (weakest-link, so raising a network's ceiling means upgrading its cable, not just one segment). Higher cable tiers carry more channels; tier ratings are authored content (`standard-run-design.md §5`).
+- **Over-budget behavior — non-destructive.** When `channels_in_use() > channel_capacity()`, the ports past the budget are **inactive**: excluded from `has_items` / `take_items` / `give_items` iteration, so their machines are neither fed nor drained (they block at `recipe_start_system`'s input/output checks like any unconnected machine). No cable or machine damage — the mirror of power's amp-overload pause (§3, and the topology-recompute rule at the amp check). The drop order is deterministic and priority-ordered (least-priority ports shed first), recomputed on `NetworkChanged<Logistics>` when membership changes.
+- **Resolution — upgrade or segment.** A player over budget either lays higher-tier cable (raises the floor) or **segments** the network into sub-networks joined via controller/interface boundaries — each sub-net carries its own channel budget. Segmentation is the discovered solution the GDD intends, not a forced constraint; the Logistics Controller / Sub-network Router nodes (`standard-run-design.md §5`) unlock it.
+
+> **Status:** design-locked (design-decisions.md 2026-07-12), not yet implemented. `src/logistics/` today is an uncapped shared pool — `channel_capacity()`/`channels_in_use()` and the over-budget shed are pending engine work, sequenced to Demo scope after the Vertical Slice playtest gate.
 
 ### Messages
 

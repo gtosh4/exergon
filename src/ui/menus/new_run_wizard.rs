@@ -8,7 +8,7 @@ use crate::{
         PlanetArchetypes, PlanetProperties, PlanetPropertyKey, PlanetPropertyVisibility,
         PropertyVisibility, generate_properties_from, qualitative_label,
     },
-    save::NewRunEvent,
+    save::{DifficultyTier, NewRunEvent},
     seed::{CuratedSeeds, DomainSeeds, hash_text},
     ui::{
         input::{FocusedInput, TextInput},
@@ -30,6 +30,9 @@ pub struct WizardDraft {
     pub step: WizardStep,
     pub seed_text: String,
     pub planet_preview: Option<PlanetProperties>,
+    /// Chosen difficulty. Only Initiation is selectable today; the meta-progression lock that
+    /// opens the higher tiers (beat the tier below) is a follow-up. Threaded into `NewRunEvent`.
+    pub difficulty: DifficultyTier,
     pub test_mode: bool,
 }
 
@@ -672,6 +675,7 @@ fn handle_nav(
             WizardNav::Land => {
                 new_run.write(NewRunEvent {
                     seed_text: draft.seed_text.clone(),
+                    difficulty: draft.difficulty,
                     test_mode: draft.test_mode,
                 });
                 focus.0 = None;

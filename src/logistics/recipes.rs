@@ -5,11 +5,11 @@ use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 
 use crate::logistics::job_queue::NetworkCraftQueue;
-use crate::machine::{EnergyPortOf, Machine, ManualCraftOnly};
+use crate::machine::{EnergyPortOf, Machine, MachineConfig, ManualCraftOnly};
 use crate::machine::{MachineActivity, MachineEnergyPorts, MachineLogisticsPorts, MachineState};
 use crate::network::{NetworkChanged, Power};
 use crate::power::{GeneratorUnit, PowerNetworkMember, PowerNetworkMembers};
-use crate::recipe_graph::{ConcreteRecipe, RecipeGraph};
+use crate::recipe_graph::{ConcreteRecipe, ConfigReq, RecipeGraph};
 use crate::research::{ProductionTally, ResearchPool, TechTreeProgress, research_theme_of};
 
 use super::items::{give_items, has_items, take_items};
@@ -137,6 +137,13 @@ fn recipe_outputs_routable(
         })
 }
 
+/// Machine-dedication gate: a recipe with `required_config` runs only on a machine whose
+/// installed `MachineConfig` satisfies every requirement. A machine with no config component
+/// runs only config-agnostic recipes (`design-decisions.md` 2026-07-10).
+fn config_satisfied(config: Option<&MachineConfig>, required: &[ConfigReq]) -> bool {
+    config.map_or(required.is_empty(), |c| c.satisfies(required))
+}
+
 // -- Systems -----------------------------------------------------------------
 
 pub(super) fn recipe_check_system(
@@ -154,6 +161,7 @@ pub(super) fn recipe_check_system(
             &MachineLogisticsPorts,
             Option<&crate::power::PodPowered>,
             Option<&ManualCraftOnly>,
+            Option<&MachineConfig>,
         ),
         Without<MachineActivity>,
     >,
@@ -176,7 +184,7 @@ pub(super) fn recipe_check_system(
             let Ok(energy_port) = power.energy_port_of_q.get(port_e) else {
                 continue;
             };
-            if let Ok((_, _, _, logistics_ports, _, _)) = machine_q.get(energy_port.0) {
+            if let Ok((_, _, _, logistics_ports, _, _, _)) = machine_q.get(energy_port.0) {
                 for &lport_e in logistics_ports.ports() {
                     if let Ok(member) = port_net_q.get(lport_e) {
                         affected.insert(member.0);
@@ -216,7 +224,16 @@ pub(super) fn recipe_check_system(
         }
         debug!("recipe_check: checking network {:?}", net_entity);
 
-        for (machine_e, machine, state, logistics_ports, pod_powered, manual_only) in &machine_q {
+        for (
+            machine_e,
+            machine,
+            state,
+            logistics_ports,
+            pod_powered,
+            manual_only,
+            machine_config,
+        ) in &machine_q
+        {
             if dispatched.contains(&machine_e) {
                 continue;
             }
@@ -240,6 +257,9 @@ pub(super) fn recipe_check_system(
                     if recipe.machine_type != machine.machine_type
                         || recipe.machine_tier > machine.tier
                     {
+                        continue;
+                    }
+                    if !config_satisfied(machine_config, &recipe.required_config) {
                         continue;
                     }
                     if let Some(ref prog) = progress
@@ -310,7 +330,9 @@ pub(super) fn recipe_check_system(
                 .recipes
                 .values()
                 .filter(|r| {
-                    r.machine_type == machine.machine_type && r.machine_tier <= machine.tier
+                    r.machine_type == machine.machine_type
+                        && r.machine_tier <= machine.tier
+                        && config_satisfied(machine_config, &r.required_config)
                 })
                 .collect();
 

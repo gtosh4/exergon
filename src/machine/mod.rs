@@ -93,6 +93,7 @@ impl Plugin for MachinePlugin {
         app.register_type::<Machine>()
             .register_type::<MachineState>()
             .register_type::<ManualCraftOnly>()
+            .register_type::<MachineConfig>()
             .register_type::<Orientation>()
             .register_type::<Rotation>()
             .register_type::<Mirror>()
@@ -158,6 +159,29 @@ pub struct Machine {
 #[derive(Component, Debug, Reflect, Default)]
 #[reflect(Component)]
 pub struct ManualCraftOnly;
+
+/// The machine's installed physical config — one value per axis. A recipe's
+/// `required_config` (`recipe_graph`) is satisfied only when every requirement holds
+/// against these axes, so distinct configs must be built as distinct dedicated machine
+/// instances (machine dedication, `design-decisions.md` 2026-07-10). Absent component =
+/// empty config = runs only config-agnostic recipes.
+#[derive(Component, Debug, Default, Clone, Reflect)]
+#[reflect(Component)]
+pub struct MachineConfig {
+    pub axes: std::collections::HashMap<String, crate::recipe_graph::ConfigValue>,
+}
+
+impl MachineConfig {
+    /// True iff every requirement in `reqs` holds against this config. Empty `reqs`
+    /// (a config-agnostic recipe) is always satisfied, including by an empty config.
+    pub fn satisfies(&self, reqs: &[crate::recipe_graph::ConfigReq]) -> bool {
+        reqs.iter().all(|req| {
+            self.axes
+                .get(&req.axis)
+                .is_some_and(|v| v.meets(&req.value))
+        })
+    }
+}
 
 /// Marker: machine entity exists but is not fully operational (e.g. during removal).
 #[derive(Component)]
@@ -328,6 +352,54 @@ mod tests {
     #[test]
     fn orientation_all_returns_8() {
         assert_eq!(Orientation::all().len(), 8);
+    }
+
+    #[test]
+    fn machine_config_satisfies_categorical_and_ordered() {
+        use crate::recipe_graph::{ConfigReq, ConfigValue};
+
+        let cfg = MachineConfig {
+            axes: [
+                (
+                    "bed_type".to_string(),
+                    ConfigValue::Cat("acidic".to_string()),
+                ),
+                ("coil_tier".to_string(), ConfigValue::Ord(3)),
+            ]
+            .into_iter()
+            .collect(),
+        };
+        let req = |axis: &str, v: ConfigValue| ConfigReq {
+            axis: axis.to_string(),
+            value: v,
+        };
+
+        // Empty requirement is always satisfied (config-agnostic recipe).
+        assert!(cfg.satisfies(&[]));
+        // Categorical: equality holds / mismatch fails.
+        assert!(cfg.satisfies(&[req("bed_type", ConfigValue::Cat("acidic".into()))]));
+        assert!(!cfg.satisfies(&[req("bed_type", ConfigValue::Cat("basic".into()))]));
+        // Ordered: machine value must be >= required.
+        assert!(cfg.satisfies(&[req("coil_tier", ConfigValue::Ord(2))]));
+        assert!(cfg.satisfies(&[req("coil_tier", ConfigValue::Ord(3))]));
+        assert!(!cfg.satisfies(&[req("coil_tier", ConfigValue::Ord(4))]));
+        // Missing axis / type mismatch fails.
+        assert!(!cfg.satisfies(&[req("missing", ConfigValue::Cat("x".into()))]));
+        assert!(!cfg.satisfies(&[req("bed_type", ConfigValue::Ord(1))]));
+        // All requirements must hold.
+        assert!(cfg.satisfies(&[
+            req("bed_type", ConfigValue::Cat("acidic".into())),
+            req("coil_tier", ConfigValue::Ord(1)),
+        ]));
+        assert!(!cfg.satisfies(&[
+            req("bed_type", ConfigValue::Cat("acidic".into())),
+            req("coil_tier", ConfigValue::Ord(9)),
+        ]));
+
+        // Absent config (default) runs only agnostic recipes.
+        let empty = MachineConfig::default();
+        assert!(empty.satisfies(&[]));
+        assert!(!empty.satisfies(&[req("bed_type", ConfigValue::Cat("acidic".into()))]));
     }
 
     #[test]

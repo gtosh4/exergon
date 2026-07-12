@@ -4,6 +4,7 @@ use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
 use crate::recipe_graph::RecipeGraph;
+use crate::save::{Run, RunSaveHeader};
 use crate::tech_tree::{NodeEffect, NodeId, TechTree, UnlockVector};
 
 #[derive(Debug, Clone, Message)]
@@ -120,6 +121,30 @@ pub struct TechTreeProgress {
     pub disabled_nodes: HashSet<NodeId>,
 }
 
+/// Highest tech tier the current run may unlock, derived from the run's `DifficultyTier` by
+/// [`sync_tier_cap`]. Defaults to uncapped (`u8::MAX`) so contexts without a run header — unit
+/// tests, tools — behave exactly as before. Node unlocks above the cap are refused in
+/// [`check_research_unlocks`], across all four unlock vectors.
+#[derive(Resource, Clone, Copy)]
+pub struct TierCap(pub u8);
+
+impl Default for TierCap {
+    fn default() -> Self {
+        Self(u8::MAX)
+    }
+}
+
+/// Keep [`TierCap`] in step with the active run's difficulty. No-op when no run header exists (the
+/// scenario harness inserts `TierCap` directly), so it only ever tightens the cap for real runs.
+fn sync_tier_cap(header_q: Query<&RunSaveHeader, With<Run>>, mut cap: ResMut<TierCap>) {
+    if let Ok(header) = header_q.single() {
+        let want = header.difficulty.max_tier();
+        if cap.0 != want {
+            cap.0 = want;
+        }
+    }
+}
+
 pub struct ResearchPlugin;
 
 impl Plugin for ResearchPlugin {
@@ -133,9 +158,11 @@ impl Plugin for ResearchPlugin {
             .init_resource::<ResearchPool>()
             .init_resource::<TechTreeProgress>()
             .init_resource::<ProductionTally>()
+            .init_resource::<TierCap>()
             .add_systems(
                 Update,
-                check_research_unlocks
+                (sync_tier_cap, check_research_unlocks)
+                    .chain()
                     .in_set(crate::GameSystems::Simulation)
                     .run_if(in_state(crate::GameState::Playing)),
             );
@@ -209,11 +236,14 @@ fn check_research_unlocks(
     mut unlock_requests: MessageReader<UnlockNodeRequest>,
     mut discovery_events: MessageReader<DiscoveryEvent>,
     mut unlocked_events: MessageWriter<TechNodeUnlocked>,
+    tier_cap: Option<Res<TierCap>>,
 ) {
     let Some(tech_tree) = tech_tree else {
         return;
     };
     let rg = recipe_graph.as_deref();
+    // The active difficulty's tier ceiling — nodes above it never unlock, on any vector.
+    let max_tier = tier_cap.as_deref().map(|c| c.0).unwrap_or(u8::MAX);
 
     // Player-initiated ResearchSpend unlocks
     let requests: Vec<NodeId> = unlock_requests.read().map(|r| r.0.clone()).collect();
@@ -229,6 +259,9 @@ fn check_research_unlocks(
             warn!("Unlock request for unknown node '{}'", node_id);
             continue;
         };
+        if node.tier > max_tier {
+            continue; // above the run's difficulty ceiling — don't spend, don't unlock
+        }
         if !node
             .prerequisites
             .iter()
@@ -263,6 +296,7 @@ fn check_research_unlocks(
             .filter(|(id, node)| {
                 !progress.unlocked_nodes.contains(*id)
                     && !progress.disabled_nodes.contains(*id)
+                    && node.tier <= max_tier
                     && matches!(&node.primary_unlock, UnlockVector::ExplorationDiscovery(key) if discovered_keys.contains(key))
                     && node
                         .prerequisites
@@ -291,6 +325,7 @@ fn check_research_unlocks(
             .filter(|(id, node)| {
                 !progress.unlocked_nodes.contains(*id)
                     && !progress.disabled_nodes.contains(*id)
+                    && node.tier <= max_tier
                     && matches!(&node.primary_unlock,
                         UnlockVector::ProductionMilestone { material, quantity }
                             if tally.get(material) >= *quantity)
@@ -321,6 +356,7 @@ fn check_research_unlocks(
             .filter(|(id, node)| {
                 !progress.unlocked_nodes.contains(*id)
                     && !progress.disabled_nodes.contains(*id)
+                    && node.tier <= max_tier
                     && matches!(node.primary_unlock, UnlockVector::PrerequisiteChain)
                     && node
                         .prerequisites
@@ -411,6 +447,37 @@ mod tests {
         assert!(progress.unlocked_recipes.contains("recipe_alpha"));
         let pool = app.world().resource::<ResearchPool>();
         assert_eq!(pool.get("material"), 0.0);
+    }
+
+    #[test]
+    fn tier_cap_gates_unlocks_by_node_tier() {
+        let mut app = make_app();
+        let mut ok = base_node("t3", 10, vec![]);
+        ok.tier = 3;
+        let mut hi = base_node("t4", 10, vec![]);
+        hi.tier = 4;
+        app.insert_resource(make_tree(vec![ok, hi]));
+        app.insert_resource(material_pool(100.0));
+        app.init_resource::<TechTreeProgress>();
+        app.insert_resource(TierCap(3));
+
+        app.world_mut()
+            .write_message(UnlockNodeRequest("t3".into()));
+        app.world_mut()
+            .write_message(UnlockNodeRequest("t4".into()));
+        app.update();
+
+        let progress = app.world().resource::<TechTreeProgress>();
+        assert!(
+            progress.unlocked_nodes.contains("t3"),
+            "tier 3 <= cap 3 must unlock"
+        );
+        assert!(
+            !progress.unlocked_nodes.contains("t4"),
+            "tier 4 > cap 3 must stay locked"
+        );
+        // Only t3's 10 points were spent; a capped node must never be charged.
+        assert_eq!(app.world().resource::<ResearchPool>().get("material"), 90.0);
     }
 
     #[test]

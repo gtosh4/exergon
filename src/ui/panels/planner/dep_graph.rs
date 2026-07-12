@@ -448,6 +448,7 @@ mod tests {
             energy_cost: 10.0,
             energy_output: 0.0,
             template_id: None,
+            required_config: vec![],
         };
         let recipe_c = ConcreteRecipe {
             id: "recipe_c".into(),
@@ -466,6 +467,7 @@ mod tests {
             energy_cost: 10.0,
             energy_output: 0.0,
             template_id: None,
+            required_config: vec![],
         };
         RecipeGraph::from_vecs(
             vec![],

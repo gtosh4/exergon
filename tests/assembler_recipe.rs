@@ -39,6 +39,7 @@ fn make_recipe_tier2(
         energy_cost: 0.0,
         energy_output: 0.0,
         template_id: None,
+        required_config: vec![],
     }
 }
 
