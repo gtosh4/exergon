@@ -104,9 +104,6 @@ fn build_app() -> App {
         .add_message::<exergon::save::RunEndEvent>()
         .init_state::<GameState>()
         .add_sub_state::<PlayMode>()
-        // Hotbar is the only resource PodPlugin needs that the full InventoryPlugin would
-        // otherwise provide; init just the resource to avoid pulling the UI/input plugin.
-        .init_resource::<Hotbar>()
         .add_plugins((
             ContentPlugin,
             WorldgenPlugin,

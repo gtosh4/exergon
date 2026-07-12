@@ -37,6 +37,9 @@ struct PendingBootstrapStock;
 impl Plugin for PodPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<PodNetwork>()
+            // make sure the Hotbar resource is added. Normally done in the UI plugin, but tests
+            // don't use it, so ensure that dependency here.
+            .init_resource::<Hotbar>()
             .add_systems(
                 OnTransition {
                     exited: GameState::Loading,
