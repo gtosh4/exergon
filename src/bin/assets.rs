@@ -97,6 +97,15 @@ struct StringListArg {
     entries: Vec<String>,
 }
 
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+struct QueryArg {
+    /// Asset kind — see `list_kinds`.
+    kind: String,
+    /// A jq program. Its input is the JSON array of every entity of `kind`; every value
+    /// the program yields is returned. E.g. `[.[] | select(.energy_cost > 50) | .id]`.
+    jq: String,
+}
+
 // ---------------------------------------------------------------------------
 // Generic dispatch over `kind`
 // ---------------------------------------------------------------------------
@@ -166,6 +175,18 @@ fn dispatch_delete(kind: &str, id: &str) -> Result<String, String> {
         return seed_delete(id);
     }
     by_kind!(kind, delete_kind, id)
+}
+
+/// JSON array of every entity of `kind`, used as the input document for `query_assets`.
+fn dispatch_values(kind: &str) -> Result<String, String> {
+    if kind == "seed" {
+        let values: Vec<Value> = read_seeds()?
+            .iter()
+            .map(|s| serde_json::to_value(s).map_err(|e| format!("to_value: {e}")))
+            .collect::<Result<_, _>>()?;
+        return to_json(&values);
+    }
+    by_kind!(kind, values_kind)
 }
 
 fn schema_for_kind(kind: &str) -> Result<String, String> {
@@ -241,6 +262,18 @@ where
 {
     let ids = asset_store::list_ids::<T, _>(Path::new(dir), id_of)?;
     to_json(&ids)
+}
+
+fn values_kind<T, F>(dir: &str, _id_of: F) -> Result<String, String>
+where
+    T: Serialize + DeserializeOwned,
+    F: Fn(&T) -> &str,
+{
+    let values: Vec<Value> = asset_store::load_all::<T>(Path::new(dir))?
+        .iter()
+        .map(|(_, v)| serde_json::to_value(v).map_err(|e| format!("to_value: {e}")))
+        .collect::<Result<_, _>>()?;
+    to_json(&values)
 }
 
 fn get_kind<T, F>(dir: &str, id: &str, id_of: F) -> Result<String, String>
@@ -358,6 +391,57 @@ fn walk_path(id: &str, nodes: &[NodeDef], seen: &mut Vec<String>) {
     seen.push(id.to_string());
 }
 
+/// Run a jq `program` over the JSON array of every entity of `kind`, returning the
+/// program's outputs as a pretty JSON array. Uses jaq (pure-Rust jq).
+fn run_query(kind: &str, program: &str) -> Result<String, String> {
+    use jaq_core::load::{Arena, File, Loader};
+    use jaq_core::{Compiler, Ctx, Vars, data, unwrap_valr};
+    use jaq_json::Val;
+
+    let input: Val = serde_json::from_str(&dispatch_values(kind)?)
+        .map_err(|e| format!("build query input: {e}"))?;
+
+    let defs = jaq_core::defs()
+        .chain(jaq_std::defs())
+        .chain(jaq_json::defs());
+    let funs = jaq_core::funs()
+        .chain(jaq_std::funs())
+        .chain(jaq_json::funs());
+    let arena = Arena::default();
+    let modules = Loader::new(defs)
+        .load(
+            &arena,
+            File {
+                code: program,
+                path: (),
+            },
+        )
+        .map_err(|errs| format!("jq parse error: {errs:?}"))?;
+    let filter = Compiler::default()
+        .with_funs(funs)
+        .compile(modules)
+        .map_err(|errs| format!("jq compile error: {errs:?}"))?;
+
+    let ctx = Ctx::<data::JustLut<Val>>::new(&filter.lut, Vars::new([]));
+    let mut outputs: Vec<Value> = filter
+        .id
+        .run((ctx, input))
+        .map(unwrap_valr)
+        .map(|r| {
+            let val = r.map_err(|e| format!("jq runtime error: {e}"))?;
+            // Val's Display is canonical JSON; re-parse so output formatting matches
+            // the rest of the server.
+            serde_json::from_str(&val.to_string()).map_err(|e| format!("decode jq output: {e}"))
+        })
+        .collect::<Result<_, _>>()?;
+    // A jq program most often yields a single value (e.g. a `[...]` collection); return it
+    // bare so the output isn't needlessly wrapped. A multi-value stream stays an array.
+    if outputs.len() == 1 {
+        return to_json(&outputs.remove(0));
+    }
+    to_json(&outputs)
+}
+
 // ---------------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------------
@@ -404,13 +488,13 @@ impl AssetServer {
         description = "Create a new asset from a JSON object, validated against the kind's schema (errors if the id already exists)."
     )]
     fn create_asset(&self, Parameters(a): Parameters<KindValueArg>) -> Result<String, String> {
-        dispatch_create(&a.kind, a.value)
+        dispatch_create(&a.kind, asset_store::coerce_json_arg(a.value))
     }
     #[tool(
         description = "Update asset fields by id via a JSON merge-patch (nested objects merge; arrays/scalars replace wholesale)."
     )]
     fn update_asset(&self, Parameters(a): Parameters<KindUpdateArg>) -> Result<String, String> {
-        dispatch_update(&a.kind, &a.id, &a.patch)
+        dispatch_update(&a.kind, &a.id, &asset_store::coerce_json_arg(a.patch))
     }
     #[tool(description = "Delete an asset by id.")]
     fn delete_asset(&self, Parameters(a): Parameters<KindIdArg>) -> Result<String, String> {
@@ -470,6 +554,12 @@ impl AssetServer {
             "produced_by": produced,
             "consumed_by": consumed,
         }))
+    }
+    #[tool(
+        description = "Query assets of a kind with a jq program. The input document is the JSON array of every entity of `kind`; every value the program yields is returned. E.g. kind=machine jq='[.[] | select(.power_draw > 100) | .id]'."
+    )]
+    fn query_assets(&self, Parameters(a): Parameters<QueryArg>) -> Result<String, String> {
+        run_query(&a.kind, &a.jq)
     }
 }
 

@@ -146,6 +146,23 @@ where
         .map_err(|e| format!("patch produced an invalid {}: {e}", short_type::<T>()))
 }
 
+/// Normalize a JSON argument that some MCP clients deliver as a JSON-encoded *string*
+/// instead of the object/array it represents (a bridge that stringifies params whose
+/// schema has no declared `type`). If `v` is a string whose content parses as a JSON
+/// object or array, return the parsed value; otherwise return `v` unchanged so a genuine
+/// scalar string (e.g. a `name` field patched to a value) is never re-interpreted.
+pub fn coerce_json_arg(v: serde_json::Value) -> serde_json::Value {
+    if let serde_json::Value::String(s) = &v {
+        let trimmed = s.trim_start();
+        if (trimmed.starts_with('{') || trimmed.starts_with('['))
+            && let Ok(parsed) = serde_json::from_str::<serde_json::Value>(s)
+        {
+            return parsed;
+        }
+    }
+    v
+}
+
 /// Delete the asset file with identity `id`.
 pub fn delete<T, F>(dir: &Path, id: &str, id_of: F) -> Result<(), String>
 where
@@ -272,6 +289,39 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.contains("invalid"), "got: {err}");
+    }
+
+    #[test]
+    fn coerce_parses_stringified_object_and_array() {
+        // A bridge that stringifies untyped params sends the patch as a JSON string.
+        let obj = coerce_json_arg(serde_json::json!(r#"{ "power": 42.0 }"#));
+        assert_eq!(obj, serde_json::json!({ "power": 42.0 }));
+        let arr = coerce_json_arg(serde_json::json!(r#"["x", "y"]"#));
+        assert_eq!(arr, serde_json::json!(["x", "y"]));
+    }
+
+    #[test]
+    fn coerce_leaves_objects_and_scalar_strings_untouched() {
+        // A genuine object passes through.
+        let obj = serde_json::json!({ "power": 1.0 });
+        assert_eq!(coerce_json_arg(obj.clone()), obj);
+        // A scalar string field value is NOT a stringified container — leave it alone.
+        assert_eq!(
+            coerce_json_arg(serde_json::json!("miner_v2")),
+            serde_json::json!("miner_v2")
+        );
+    }
+
+    #[test]
+    fn update_accepts_stringified_patch_via_coerce() {
+        // Regression: the MCP write path fed a stringified patch, which merge() replaced
+        // the whole asset with, failing re-deserialization. Coercing first fixes it.
+        let dir = temp_dir("update_str");
+        create(&dir, &widget("miner", 5.0), id_of).unwrap();
+        let patch = coerce_json_arg(serde_json::json!(r#"{ "power": 7.0 }"#));
+        let patched: Widget = update(&dir, "miner", &patch, id_of).unwrap();
+        assert_eq!(patched.power, 7.0);
+        assert_eq!(patched.tags, vec!["a".to_string()]);
     }
 
     #[test]
