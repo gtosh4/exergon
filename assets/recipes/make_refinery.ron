@@ -1,0 +1,30 @@
+(
+    id: "make_refinery",
+    inputs: [
+        (
+            item: "stone",
+            quantity: 20.0,
+        ),
+        (
+            item: "iron_ore",
+            quantity: 15.0,
+        ),
+        (
+            item: "copper_ore",
+            quantity: 5.0,
+        ),
+    ],
+    outputs: [
+        (
+            item: "refinery",
+            quantity: 1.0,
+        ),
+    ],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 1,
+    processing_time: 25.0,
+    energy_cost: 0.0,
+    energy_output: 0.0,
+    template_id: None,
+)

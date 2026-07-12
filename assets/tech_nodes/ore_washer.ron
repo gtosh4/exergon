@@ -4,7 +4,23 @@
     category: Processing,
     tier: 3,
     rarity: Uncommon,
-    prerequisites: ["ore_crusher"],
-    primary_unlock: ProductionMilestone(material: "iron_crushed", quantity: 50.0),
-    effects: [UnlockRecipes(["wash_iron", "wash_copper", "wash_tin", "wash_aluminum", "scrub_slag"])],
+    prerequisites: [
+        "ore_crusher",
+    ],
+    primary_unlock: ProductionMilestone(
+        material: "iron_crushed",
+        quantity: 50.0,
+    ),
+    effects: [
+        UnlockMachine("washer"),
+        UnlockRecipes([
+            "wash_iron",
+            "wash_copper",
+            "wash_tin",
+            "wash_aluminum",
+            "scrub_slag",
+            "make_washer",
+        ]),
+    ],
+    exclusive_group: None,
 )

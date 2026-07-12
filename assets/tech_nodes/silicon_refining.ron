@@ -4,7 +4,22 @@
     category: Processing,
     tier: 2,
     rarity: Uncommon,
-    prerequisites: ["ore_crusher"],
-    primary_unlock: ResearchSpend(type_id: "material", amount: 150),
-    effects: [UnlockRecipes(["crush_stone", "refine_silicon", "form_silicon_chip", "analyze_silicon_chip"])],
+    prerequisites: [
+        "ore_crusher",
+    ],
+    primary_unlock: ResearchSpend(
+        type_id: "material",
+        amount: 150,
+    ),
+    effects: [
+        UnlockMachine("refinery"),
+        UnlockRecipes([
+            "crush_stone",
+            "refine_silicon",
+            "form_silicon_chip",
+            "analyze_silicon_chip",
+            "make_refinery",
+        ]),
+    ],
+    exclusive_group: None,
 )

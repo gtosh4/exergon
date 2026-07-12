@@ -1,0 +1,26 @@
+(
+    id: "make_wire_drawer",
+    inputs: [
+        (
+            item: "stone",
+            quantity: 15.0,
+        ),
+        (
+            item: "copper_ore",
+            quantity: 10.0,
+        ),
+    ],
+    outputs: [
+        (
+            item: "wire_drawer",
+            quantity: 1.0,
+        ),
+    ],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 1,
+    processing_time: 20.0,
+    energy_cost: 0.0,
+    energy_output: 0.0,
+    template_id: None,
+)

@@ -4,7 +4,20 @@
     category: Processing,
     tier: 4,
     rarity: Uncommon,
-    prerequisites: ["ore_washer"],
-    primary_unlock: ProductionMilestone(material: "iron_ingot", quantity: 150.0),
-    effects: [UnlockMachine("plate_roller"), UnlockRecipes(["roll_iron_plate", "roll_aluminum_plate"])],
+    prerequisites: [
+        "ore_washer",
+    ],
+    primary_unlock: ProductionMilestone(
+        material: "iron_ingot",
+        quantity: 150.0,
+    ),
+    effects: [
+        UnlockMachine("plate_roller"),
+        UnlockRecipes([
+            "roll_iron_plate",
+            "roll_aluminum_plate",
+            "make_plate_roller",
+        ]),
+    ],
+    exclusive_group: None,
 )

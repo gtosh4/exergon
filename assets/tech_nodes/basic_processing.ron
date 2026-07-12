@@ -12,11 +12,13 @@
         amount: 150,
     ),
     effects: [
+        UnlockMachine("wire_drawer"),
         UnlockRecipes([
             "draw_metal__copper",
             "make_circuit",
             "make_assembler",
             "analyze_circuit",
+            "make_wire_drawer",
         ]),
     ],
     exclusive_group: None,

@@ -1,0 +1,26 @@
+(
+    id: "make_plate_roller",
+    inputs: [
+        (
+            item: "stone",
+            quantity: 25.0,
+        ),
+        (
+            item: "iron_ore",
+            quantity: 15.0,
+        ),
+    ],
+    outputs: [
+        (
+            item: "plate_roller",
+            quantity: 1.0,
+        ),
+    ],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 1,
+    processing_time: 25.0,
+    energy_cost: 0.0,
+    energy_output: 0.0,
+    template_id: None,
+)

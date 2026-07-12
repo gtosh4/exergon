@@ -6,5 +6,13 @@
     rarity: Uncommon,
     prerequisites: [],
     primary_unlock: PrerequisiteChain,
-    effects: [UnlockMachine("analysis_station"), UnlockRecipes(["basic_analysis", "make_analysis_station"])],
+    effects: [
+        UnlockMachine("analysis_station"),
+        UnlockRecipes([
+            "basic_analysis",
+            "make_analysis_station",
+            "make_storage_crate",
+        ]),
+    ],
+    exclusive_group: None,
 )

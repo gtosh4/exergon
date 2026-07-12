@@ -1,0 +1,26 @@
+(
+    id: "make_storage_crate",
+    inputs: [
+        (
+            item: "stone",
+            quantity: 15.0,
+        ),
+        (
+            item: "iron_ore",
+            quantity: 5.0,
+        ),
+    ],
+    outputs: [
+        (
+            item: "storage_crate",
+            quantity: 1.0,
+        ),
+    ],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 1,
+    processing_time: 15.0,
+    energy_cost: 0.0,
+    energy_output: 0.0,
+    template_id: None,
+)
