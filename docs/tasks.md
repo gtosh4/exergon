@@ -346,7 +346,19 @@ Hand-verify reachability (procedural validator stays Alpha) + extend the e2e pat
 - [x] `tech_path launch_successor` (MCP) — resolves; full chain reachable in tier order, every recipe input has a producer (hand-traced via `item_uses`). `escape_synthesis` gateway chain intact.
 - [x] Extend `tests/standard_full_run.rs` with stages T3 → victory — full landing→launch on earned research (zero injected node/recipe unlocks); measured ~2979s (0.83h) automated-optimal virtual time
 
-> **Dropped: "curated Standard run config."** Difficulty (`DifficultyTier`) is a real design axis — it gates which tiers are available, the victory condition, and (likely) the modifier budget — but it is **orthogonal to seed + world-gen**: world-gen is seed-driven and difficulty-blind. (Only the display-label wiring exists in code today; making difficulty actually gate tier availability / victory condition / modifier budget is unbuilt and not yet tracked as a task.) A "curated seed" is purely a world-gen construct, so "curated *Standard* run config" conflates two independent axes — there's no Standard-specific seed to author. The Standard content is a single fixed asset set; per-run selection from a seeded node pool is the real mechanism and stays deferred to Alpha.
+> **Dropped: "curated Standard run config."** Difficulty (`DifficultyTier`) is a real design axis — it gates which tiers are available, the victory condition, and (likely) the modifier budget — but it is **orthogonal to seed + world-gen**: world-gen is seed-driven and difficulty-blind. (Only the display-label wiring exists in code today; making difficulty actually gate tier availability / victory condition / modifier budget is unbuilt — now tracked as the deferred task below.) A "curated seed" is purely a world-gen construct, so "curated *Standard* run config" conflates two independent axes — there's no Standard-specific seed to author. The Standard content is a single fixed asset set; per-run selection from a seeded node pool is the real mechanism and stays deferred to Alpha.
+
+## Difficulty gating `[deferred — blocked on content]`
+
+Wire `DifficultyTier` into the game loop so it gates **tier availability** and the **victory (terminal escape)** per `tech-tree-design.md §By difficulty` (Initiation 1–3, Standard 1–5, Advanced 1–7, Pinnacle 1–10; a difficulty's terminal tier exits via its escape, §12). Today `DifficultyTier` is selected in the new-run wizard and persisted in the save header, but **no system reads it** — only `src/ui/menus/*` labels + `src/save/`. Tier ceiling and victory are hard-fixed to the Standard (T1–5, `launch_successor`) path.
+
+**Not in vertical-slice scope** — the slice targets the single Standard run, for which cosmetic difficulty selection is acceptable. Recorded here so the design→code gap is visible, not to schedule now.
+
+**Blocked on content.** Only tiers 1–5 exist (`assets/tech_nodes/`: T1×7, T2×11, T3×4, T4×11, T5×11). Meaningful gating needs content that is Alpha-deferred:
+- **Initiation (1–3)** — cheapest real slice. Engine: cap unlockable tiers by difficulty + point the win at the difficulty's terminal escape. Content gap: a **T3-terminal minimal-successor** launch recipe/node (the only escape today is the T5 `launch_successor`).
+- **Advanced / Pinnacle (1–7 / 1–10)** — require the entire tier 6–10 trees, which are unspecced (`tech-tree-design.md §5` marks them TBD).
+
+**When built, the `scenario-runner` harness is the proof surface:** one `scenarios/<difficulty>.ron` per difficulty, each asserting its tier ceiling + terminal-escape victory (add `difficulty` to `ScenarioSpec` at that point — inert until the loop reads it).
 
 ## Carried-forward open flags (§9)
 
