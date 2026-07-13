@@ -28,7 +28,8 @@ use exergon::content::ContentPlugin;
 use exergon::drone::{Drone, FogCellRevealedEvent, deposit_discovery_system};
 use exergon::escape::{EscapeObjective, EscapePlugin, RunState};
 use exergon::logistics::{
-    LogisticsNetworkMember, LogisticsSimPlugin, NetworkCraftQueue, QueuedJob, StorageUnit,
+    InstallConfigModule, LogisticsNetworkMember, LogisticsSimPlugin, NetworkCraftQueue, QueuedJob,
+    StorageUnit,
 };
 use exergon::machine::{
     LogisticsPortOf, Machine, MachinePlugin, MachinePortLayout, MachinePortLayouts, MachineState,
@@ -57,20 +58,29 @@ use crate::spec::ScenarioSpec;
 const PORT_OFFSET: Vec3 = Vec3::new(1.0, 0.0, 0.0);
 const ENERGY_OFFSET: Vec3 = Vec3::new(-1.0, 0.0, 0.0);
 
-/// The four themed ResearchSpend node lists + the mass-balanced successor build list + the two
-/// exotic recon sites — the definition of a "standard escape victory" the grind drives toward.
-/// Node lists self-order by the real tech graph (an `UnlockNodeRequest` is a no-op until prereqs
-/// are met AND the pool can pay), so the caller only supplies the target set, not an ordering.
+/// The physical half of a "standard escape victory": the mass-balanced successor build list + the
+/// two exotic recon sites. The research half — the four themed target-node lists — drives the run
+/// through the armed [`PumpPlan`] ([`Scenario::activate_pump`]), so it is no longer carried here.
 pub struct GrindPlan<'a> {
-    pub material_nodes: &'a [&'a str],
-    pub engineering_nodes: &'a [&'a str],
-    pub discovery_nodes: &'a [&'a str],
-    pub synthesis_nodes: &'a [&'a str],
     pub build_jobs: &'a [(&'a str, usize)],
     pub fluxite_site: Entity,
     pub cryophase_deposit: Entity,
     /// Runaway guard for the grind, in simulated seconds.
     pub max_secs: f32,
+}
+
+/// The four themed research target lists, owned so a run can keep pumping them across every
+/// simulated-time wait (not just the final grind). Set once via [`Scenario::activate_pump`]; while
+/// active, [`Scenario::advance_until`]/[`Scenario::run_until`] request every node and top up each
+/// affordable analysis chain each frame, so a node unlocks the instant it is affordable instead of
+/// waiting for the grind phase. Each list self-orders by the real tech graph (a request is a no-op
+/// until prereqs are met and the pool can pay).
+#[derive(Clone, Default)]
+pub struct PumpPlan {
+    pub material_nodes: Vec<String>,
+    pub engineering_nodes: Vec<String>,
+    pub discovery_nodes: Vec<String>,
+    pub synthesis_nodes: Vec<String>,
 }
 
 /// What the victory grind observed, for the caller's post-run regression assertions.
@@ -95,6 +105,8 @@ pub struct Scenario {
     origin_pos: Vec3,
     origin_ores: Vec<(String, f32)>,
     report: RunReport,
+    /// When set, every simulated-time wait pumps the four-currency economy (see [`PumpPlan`]).
+    active_pump: Option<PumpPlan>,
 }
 
 impl Scenario {
@@ -120,6 +132,7 @@ impl Scenario {
                 seed,
                 ..Default::default()
             },
+            active_pump: None,
         };
         s.land();
         s
@@ -326,6 +339,17 @@ impl Scenario {
         e
     }
 
+    /// Fit a config-module item into a machine (machine dedication): fires `InstallConfigModule`,
+    /// which consumes one module from the network and writes its axis/value onto the machine's
+    /// `MachineConfig`. The module must already be in a network storage (craft it first).
+    pub fn install_config(&mut self, machine: Entity, item_id: &str) {
+        self.app.world_mut().write_message(InstallConfigModule {
+            machine,
+            item_id: item_id.to_string(),
+        });
+        self.app.update();
+    }
+
     /// Own → place a solar panel → wire it onto the power grid. `place_machine_system` inserts its
     /// `GeneratorUnit` with seed-scaled watts (`100·solar_modifier`); it charges via `generator_tick`.
     pub fn deploy_panel(&mut self, pos: Vec3) -> Entity {
@@ -482,6 +506,7 @@ impl Scenario {
             if done(self) {
                 return;
             }
+            self.pump();
             self.app.update();
             self.capture();
             elapsed += dt;
@@ -508,11 +533,103 @@ impl Scenario {
                 return;
             }
             each(self);
+            self.pump();
             self.app.update();
             self.capture();
             elapsed += dt;
         }
         panic!("run_until: condition not met within {max_secs}s of simulated time");
+    }
+
+    /// Arm the four-currency pump for the rest of the run (see [`PumpPlan`]). Idempotent per run —
+    /// call once the material loop exists; every subsequent simulated-time wait then requests the
+    /// target nodes and tops up the affordable analysis chains, so unlocks fire as soon as they are
+    /// affordable rather than waiting for the grind phase.
+    pub fn activate_pump(&mut self, spec: &ScenarioSpec) {
+        self.active_pump = Some(PumpPlan {
+            material_nodes: spec.material_nodes.clone(),
+            engineering_nodes: spec.engineering_nodes.clone(),
+            discovery_nodes: spec.discovery_nodes.clone(),
+            synthesis_nodes: spec.synthesis_nodes.clone(),
+        });
+    }
+
+    /// One pump step, if armed. Take/restore the plan so `pump_frame` can borrow `self` mutably.
+    fn pump(&mut self) {
+        if let Some(plan) = self.active_pump.take() {
+            self.pump_frame(&plan);
+            self.active_pump = Some(plan);
+        }
+    }
+
+    /// One frame of the four-currency economy: request every target node (each self-orders by the
+    /// real tech graph — a no-op until prereqs are met and the pool can pay) and top up each themed
+    /// analysis chain that is unlocked, below the pool ceiling, and still has locked nodes. Shared
+    /// by the setup stages (through the pumped time-drivers) and [`Scenario::drive_to_victory`].
+    fn pump_frame(&mut self, plan: &PumpPlan) {
+        for node in plan
+            .material_nodes
+            .iter()
+            .chain(&plan.engineering_nodes)
+            .chain(&plan.discovery_nodes)
+            .chain(&plan.synthesis_nodes)
+        {
+            self.request_node(node);
+        }
+
+        // Per-theme "all target nodes unlocked?" — once true, stop feeding that theme's chain.
+        let done = |s: &Scenario, nodes: &[String]| nodes.iter().all(|n| s.node_unlocked(n));
+        let mat_done = done(self, &plan.material_nodes);
+        let eng_done = done(self, &plan.engineering_nodes);
+        let disc_done = done(self, &plan.discovery_nodes);
+        let synth_done = done(self, &plan.synthesis_nodes);
+        let circuit_ready = self.recipe_unlocked("analyze_circuit");
+        let field_ready = self.recipe_unlocked("analyze_field_sample");
+        let exotic_ready = self.recipe_unlocked("analyze_exotic_reaction");
+        let crush_ready = self.recipe_unlocked("crush_iron");
+        let cap = 600.0; // pool ceiling — covers the costliest single node (500) with margin.
+
+        // Raw-ore reserves: because this pump now runs during the setup stages too, its raw-ore
+        // consumers must leave enough stone/iron_ore for the machine-body crafts those stages queue
+        // from the SAME hub (e.g. make_smelter = 20 stone + 10 iron_ore). Without the reserves the
+        // easy analysis/smelt chains drain the hub and the smelter/crusher/… bodies never craft.
+        let stone_ok = self.hub_stored("stone") > 80;
+        let iron_ore_ok = self.hub_stored("iron_ore") > 60;
+
+        // material: 4 stone → 10 material.
+        if !mat_done && stone_ok && self.research_points("material") < cap {
+            self.ensure_jobs("basic_analysis", 8);
+        }
+        // Keep iron flowing to reach the ore_crusher(100)/plate_roller(150) PRODUCTION milestones,
+        // but cap the STOCK so raw iron_ore stays free for the machine bodies.
+        if iron_ore_ok && self.hub_stored("iron_ingot") < 200 {
+            self.ensure_jobs("smelt_metal__iron", 8);
+        }
+        // engineering: circuit_board → 20 engineering (copper→wire→circuit chain).
+        if !eng_done && circuit_ready && self.research_points("engineering") < cap {
+            if self.hub_stored("copper_ingot") < 60 {
+                self.ensure_jobs("smelt_metal__copper", 8);
+            }
+            if self.hub_stored("copper_wire") < 60 {
+                self.ensure_jobs("draw_metal__copper", 8);
+            }
+            if self.hub_stored("circuit_board") < 25 {
+                self.ensure_jobs("make_circuit", 8);
+            }
+            self.ensure_jobs("analyze_circuit", 8);
+        }
+        // Crush iron to clear the ore_washer(50 iron_crushed) milestone (needs a crusher).
+        if crush_ready && iron_ore_ok && self.produced("iron_crushed") < 60.0 {
+            self.ensure_jobs("crush_iron", 8);
+        }
+        // discovery: field_sample → 12 discovery.
+        if !disc_done && field_ready && self.research_points("discovery") < cap {
+            self.ensure_jobs("analyze_field_sample", 8);
+        }
+        // synthesis: resonite_shard → 20 synthesis.
+        if !synth_done && exotic_ready && self.research_points("synthesis") < cap {
+            self.ensure_jobs("analyze_exotic_reaction", 8);
+        }
     }
 
     /// Fold this frame's world state into the accumulating [`RunReport`] (node unlocks, tier
@@ -712,6 +829,11 @@ impl Scenario {
             && net == self.net_of(assembler_e)
             && net == self.net_of(station_e);
 
+        // Arm the four-currency pump for the rest of the run: from here every simulated-time wait
+        // requests the target nodes + tops up affordable analysis chains, so a node unlocks the
+        // instant it is affordable instead of waiting for the grind phase (spreads unlocks out).
+        self.activate_pump(spec);
+
         // Stage 1 — earn ore_extraction. Queue basic_analysis and let the mine→analyse loop run.
         let mut station_ran = false;
         self.run_until(
@@ -840,12 +962,8 @@ impl Scenario {
         let fluxite_site = self.craft_and_mine("fluxite_shard", 1, false);
         let cryophase_deposit = self.craft_and_mine("cryophase_shard", 2, false);
 
-        // Build the grind plan from the spec's tunable node lists + build jobs.
-        let material_nodes: Vec<&str> = spec.material_nodes.iter().map(String::as_str).collect();
-        let engineering_nodes: Vec<&str> =
-            spec.engineering_nodes.iter().map(String::as_str).collect();
-        let discovery_nodes: Vec<&str> = spec.discovery_nodes.iter().map(String::as_str).collect();
-        let synthesis_nodes: Vec<&str> = spec.synthesis_nodes.iter().map(String::as_str).collect();
+        // Build the grind plan from the spec's build jobs + recon sites. The four target-node lists
+        // drive the run through the armed pump (see `activate_pump`), not through the plan.
         let build_jobs: Vec<(&str, usize)> = spec
             .build_jobs
             .iter()
@@ -853,10 +971,6 @@ impl Scenario {
             .collect();
 
         let plan = GrindPlan {
-            material_nodes: &material_nodes,
-            engineering_nodes: &engineering_nodes,
-            discovery_nodes: &discovery_nodes,
-            synthesis_nodes: &synthesis_nodes,
             build_jobs: &build_jobs,
             fluxite_site,
             cryophase_deposit,
@@ -1197,15 +1311,6 @@ impl Scenario {
     /// closure is earned AND the terminal machines are placed, swap the queue to the build list.
     /// Loops until `RunState::Completed`. Panics on a `plan.max_secs` runaway guard.
     pub fn drive_to_victory(&mut self, plan: &GrindPlan) -> DriveOutcome {
-        let all_nodes: Vec<&str> = plan
-            .material_nodes
-            .iter()
-            .chain(plan.engineering_nodes)
-            .chain(plan.discovery_nodes)
-            .chain(plan.synthesis_nodes)
-            .copied()
-            .collect();
-
         // Lazy machine buildout slots: each processing machine is crafted + placed only once its
         // `make_*` recipe unlocks. Terminal machines (`body: true`) have their bodies prepped in
         // bulk (see c0), not per-slot, so the shared steel/plate/circuit accounting is robust.
@@ -1216,56 +1321,62 @@ impl Scenario {
             body: bool,
             enqueued: bool,
             placed: bool,
+            /// Set once deployed — the target for config-module install.
+            entity: Option<Entity>,
+            /// `(config-module item, its make_* recipe)` for a machine that must be dedicated
+            /// via an installed config (machine dedication). `None` = config-agnostic machine.
+            bed: Option<(&'static str, &'static str)>,
+            bed_enqueued: bool,
+            installed: bool,
         }
+        impl Slot {
+            fn new(
+                machine: &'static str,
+                gate_recipe: &'static str,
+                pos: Vec3,
+                body: bool,
+            ) -> Self {
+                Slot {
+                    machine,
+                    gate_recipe,
+                    pos,
+                    body,
+                    enqueued: false,
+                    placed: false,
+                    entity: None,
+                    bed: None,
+                    bed_enqueued: false,
+                    installed: false,
+                }
+            }
+            fn with_bed(mut self, item: &'static str, make_recipe: &'static str) -> Self {
+                self.bed = Some((item, make_recipe));
+                self
+            }
+        }
+        // The two refineries are dedicated by config: the `carbothermal` bed runs
+        // refine_xalite/refine_fluxite, the `cryogenic` bed runs reclaim_coolant/refine_exotic_fuel.
+        // One time-shared refinery can no longer cover the run (design-decisions.md 2026-07-12).
         let mut slots = vec![
-            Slot {
-                machine: "crusher",
-                gate_recipe: "make_crusher",
-                pos: self.lane(30.0, 0),
-                body: false,
-                enqueued: false,
-                placed: false,
-            },
-            Slot {
-                machine: "washer",
-                gate_recipe: "make_washer",
-                pos: self.lane(35.0, 0),
-                body: false,
-                enqueued: false,
-                placed: false,
-            },
-            Slot {
-                machine: "plate_roller",
-                gate_recipe: "make_plate_roller",
-                pos: self.lane(45.0, 0),
-                body: false,
-                enqueued: false,
-                placed: false,
-            },
-            Slot {
-                machine: "refinery",
-                gate_recipe: "make_refinery",
-                pos: self.lane(40.0, 0),
-                body: false,
-                enqueued: false,
-                placed: false,
-            },
-            Slot {
-                machine: "advanced_assembler",
-                gate_recipe: "make_advanced_assembler",
-                pos: self.lane(50.0, 0),
-                body: true,
-                enqueued: false,
-                placed: false,
-            },
-            Slot {
-                machine: "launch_site",
-                gate_recipe: "make_launch_site",
-                pos: self.lane(55.0, 0),
-                body: true,
-                enqueued: false,
-                placed: false,
-            },
+            Slot::new("crusher", "make_crusher", self.lane(30.0, 0), false),
+            Slot::new("washer", "make_washer", self.lane(35.0, 0), false),
+            Slot::new(
+                "plate_roller",
+                "make_plate_roller",
+                self.lane(45.0, 0),
+                false,
+            ),
+            Slot::new("refinery", "make_refinery", self.lane(40.0, 0), false)
+                .with_bed("carbothermal_bed", "make_carbothermal_bed"),
+            Slot::new("refinery", "make_refinery", self.lane(40.0, 1), false)
+                .with_bed("cryogenic_bed", "make_cryogenic_bed"),
+            Slot::new(
+                "advanced_assembler",
+                "make_advanced_assembler",
+                self.lane(50.0, 0),
+                true,
+            ),
+            Slot::new("launch_site", "make_launch_site", self.lane(55.0, 0), true),
         ];
 
         let dt = 0.5f32;
@@ -1290,9 +1401,15 @@ impl Scenario {
                  machine buildout)"
             );
 
-            // (a) Spend: request every target node (no-op unless prereqs met + pool can pay).
-            for node in &all_nodes {
-                self.request_node(node);
+            // (a)+(d) Four-currency pump: request every target node (no-op unless prereqs met +
+            // pool can pay) and top up each affordable analysis/milestone chain (capped so the easy
+            // chains don't starve the machine-body crafts). Shared with the setup stages through
+            // `pump_frame`; runs only in the research phase — once the build list is enqueued the
+            // craft queue is dedicated to the successor and analysis top-up must stop.
+            if !build_enqueued {
+                ever_analyzed_circuit |= self.recipe_unlocked("analyze_circuit");
+                ever_analyzed_exotic |= self.recipe_unlocked("analyze_exotic_reaction");
+                self.pump();
             }
 
             // (b) Conditional recon: each site fires its DiscoveryEvent exactly once, honored only
@@ -1332,81 +1449,48 @@ impl Scenario {
 
             // (c) Lazy machine buildout as gates open.
             for i in 0..slots.len() {
-                if slots[i].placed || !self.recipe_unlocked(slots[i].gate_recipe) {
-                    continue;
-                }
-                if !slots[i].enqueued {
-                    if !slots[i].body {
-                        let machine = slots[i].machine;
-                        self.craft(machine, 1);
+                // (c1) place the machine once its gate opens.
+                if !slots[i].placed {
+                    if !self.recipe_unlocked(slots[i].gate_recipe) {
+                        continue;
                     }
-                    slots[i].enqueued = true;
-                }
-                if self.hub_stored(slots[i].machine) >= 1 {
-                    let (machine, pos) = (slots[i].machine, slots[i].pos);
-                    let e = self.deploy(machine, pos, true);
-                    if machine == "launch_site" {
-                        assert!(
-                            self.app.world().get::<EscapeObjective>(e).is_some(),
-                            "a placed launch_site must be tagged EscapeObjective so its recipe wins"
-                        );
-                        launch_e = Some(e);
+                    if !slots[i].enqueued {
+                        if !slots[i].body {
+                            let machine = slots[i].machine;
+                            self.craft(machine, 1);
+                        }
+                        slots[i].enqueued = true;
                     }
-                    slots[i].placed = true;
+                    if self.hub_stored(slots[i].machine) >= 1 {
+                        let (machine, pos) = (slots[i].machine, slots[i].pos);
+                        let e = self.deploy(machine, pos, true);
+                        if machine == "launch_site" {
+                            assert!(
+                                self.app.world().get::<EscapeObjective>(e).is_some(),
+                                "a placed launch_site must be tagged EscapeObjective so its recipe wins"
+                            );
+                            launch_e = Some(e);
+                        }
+                        slots[i].entity = Some(e);
+                        slots[i].placed = true;
+                    }
                 }
-            }
 
-            // (d) Analysis + milestone job top-up (research phase only). CAPPED: each analysis
-            // chain is topped up only while its pool is below `cap` and its theme still has locked
-            // nodes, and smelting/drawing only while stock is below a ceiling. Without caps the
-            // easy chains run away and consume every scrap of raw ore, starving the machine-body
-            // crafts that need it — blocking the ore_crusher→…→titanium_forming milestone chain.
-            if !build_enqueued {
-                let mat_done = self.nodes_unlocked(plan.material_nodes);
-                let eng_done = self.nodes_unlocked(plan.engineering_nodes);
-                let disc_done = self.nodes_unlocked(plan.discovery_nodes);
-                let synth_done = self.nodes_unlocked(plan.synthesis_nodes);
-                let circuit_ready = self.recipe_unlocked("analyze_circuit");
-                let field_ready = self.recipe_unlocked("analyze_field_sample");
-                let exotic_ready = self.recipe_unlocked("analyze_exotic_reaction");
-                let crush_ready = self.recipe_unlocked("crush_iron");
-                ever_analyzed_circuit |= circuit_ready;
-                ever_analyzed_exotic |= exotic_ready;
-                let cap = 600.0; // pool ceiling — covers the costliest single node (200) with margin.
-
-                // material: 4 stone → 10 material (also funds steel_alloying).
-                if !mat_done && self.research_points("material") < cap {
-                    self.ensure_jobs("basic_analysis", 8);
-                }
-                // Keep iron flowing to reach the ore_crusher(100)/plate_roller(150) PRODUCTION
-                // milestones, but cap the STOCK so raw iron_ore stays free for the machine bodies.
-                if self.hub_stored("iron_ingot") < 200 {
-                    self.ensure_jobs("smelt_metal__iron", 8);
-                }
-                // engineering: circuit_board → 20 engineering (copper→wire→circuit chain).
-                if !eng_done && circuit_ready && self.research_points("engineering") < cap {
-                    if self.hub_stored("copper_ingot") < 60 {
-                        self.ensure_jobs("smelt_metal__copper", 8);
+                // (c2) dedicate a placed machine: craft its config module once the make_* recipe
+                // unlocks, then install it so the machine's config-gated recipes can run on it.
+                if slots[i].placed
+                    && !slots[i].installed
+                    && let Some((bed_item, make_recipe)) = slots[i].bed
+                {
+                    if !slots[i].bed_enqueued && self.recipe_unlocked(make_recipe) {
+                        self.craft(bed_item, 1);
+                        slots[i].bed_enqueued = true;
                     }
-                    if self.hub_stored("copper_wire") < 60 {
-                        self.ensure_jobs("draw_metal__copper", 8);
+                    if slots[i].bed_enqueued && self.hub_stored(bed_item) >= 1 {
+                        let e = slots[i].entity.expect("placed slot records its entity");
+                        self.install_config(e, bed_item);
+                        slots[i].installed = true;
                     }
-                    if self.hub_stored("circuit_board") < 25 {
-                        self.ensure_jobs("make_circuit", 8);
-                    }
-                    self.ensure_jobs("analyze_circuit", 8);
-                }
-                // Crush iron to clear the ore_washer(50 iron_crushed) milestone (needs a crusher).
-                if crush_ready && self.produced("iron_crushed") < 60.0 {
-                    self.ensure_jobs("crush_iron", 8);
-                }
-                // discovery: field_sample → 12 discovery.
-                if !disc_done && field_ready && self.research_points("discovery") < cap {
-                    self.ensure_jobs("analyze_field_sample", 8);
-                }
-                // synthesis: resonite_shard → 20 synthesis.
-                if !synth_done && exotic_ready && self.research_points("synthesis") < cap {
-                    self.ensure_jobs("analyze_exotic_reaction", 8);
                 }
             }
 
