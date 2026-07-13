@@ -43,7 +43,7 @@ fn standard_run_lands_mines_and_launches_successor() {
 
     // Drive the entire scripted run: deploy kit → earn early tiers → craft the processing economy
     // → four-currency grind → successor build → launch. Milestones land in the report.
-    let report = s.run_standard(&spec);
+    let report = s.run(&spec);
 
     // ── stage regression flags (real systems, not injected) ──
     assert!(
@@ -83,23 +83,37 @@ fn standard_run_lands_mines_and_launches_successor() {
         "an assembler must run make_circuit under power"
     );
 
-    // ── every target research node EARNED (spent/auto), never injected ──
-    for node in spec
-        .material_nodes
-        .iter()
-        .chain(&spec.engineering_nodes)
-        .chain(&spec.discovery_nodes)
-        .chain(&spec.synthesis_nodes)
-    {
+    // ── the tech closure was EARNED (spent / milestone / recon), never injected ── a representative
+    // node from every currency + gate mechanism, ending at the terminal escape node.
+    for node in [
+        "ore_extraction",   // material spend
+        "basic_processing", // → analyze_circuit (engineering)
+        "silicon_refining",
+        "titanium_forming",
+        "steel_alloying",
+        "ore_crusher",          // production milestone (100 iron)
+        "plate_roller",         // production milestone (150 iron)
+        "exotic_materials",     // exploration discovery (xalite recon)
+        "fluxite_studies",      // exploration discovery (fluxite recon)
+        "cryophase_extraction", // exploration discovery (cryophase recon)
+        "advanced_assembler",   // engineering spend
+        "provisioning_module",
+        "synthesis_lab", // discovery spend → analyze_exotic_reaction (synthesis)
+        "cryophase_prospecting",
+        "vitreite_synthesis",
+        "exotic_fuel_refining",
+        "successor_core",
+        "successor_chassis",
+        "successor_drive",
+        "successor_sensor",
+        "launch_site_assembly",
+        "launch_successor", // terminal synthesis node
+    ] {
         assert!(
             s.node_unlocked(node),
             "target node {node} must have been earned before the build phase"
         );
     }
-    assert!(
-        s.node_unlocked("steel_alloying"),
-        "steel_alloying must have been earned so the advanced_assembler/launch_site use real steel"
-    );
 
     // ── victory-grind outcome ──
     assert!(
@@ -130,9 +144,9 @@ fn standard_run_lands_mines_and_launches_successor() {
         ore("cryophase_shard")
     );
     assert!(
-        ore("iron_copper_vein") >= 18.0,
-        "fresh iron_copper vein must have been mined for real, got {}",
-        ore("iron_copper_vein")
+        ore("copper_ore") >= 18.0,
+        "fresh iron/copper vein must have been mined for real, got {}",
+        ore("copper_ore")
     );
 
     // ── completion + a sane virtual-time bound ──

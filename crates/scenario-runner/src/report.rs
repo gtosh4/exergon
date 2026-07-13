@@ -2,14 +2,20 @@
 //!
 //! [`RunReport`] is filled incrementally as a [`crate::Scenario`] drives a run: the time-advancing
 //! loops call [`RunReport::observe`] each simulated frame to timestamp node unlocks, tier
-//! completions, and periodic research-currency samples; the stage choreography sets the regression
-//! flags directly. The e2e smoke test asserts on the flags; the `scenario` binary prints the whole
-//! thing for tuning.
+//! completions, and research-currency samples, and [`RunReport::observe_flags`] to sticky-observe
+//! the regression milestones from world state (so the data-driven run needn't set them). The e2e
+//! smoke tests assert on the flags; the `scenario` binary prints the whole thing for tuning.
 
 use std::collections::{HashMap, HashSet};
 
-use exergon::research::TechTreeProgress;
+use bevy::prelude::{Entity, IVec2, World};
+use exergon::logistics::LogisticsNetworkMember;
+use exergon::machine::{LogisticsPortOf, Machine, MachineState, MinerMachine};
+use exergon::planet::{PlanetPropertyVisibility, PropertyVisibility};
+use exergon::power::GeneratorUnit;
+use exergon::research::{Discovered, TechTreeProgress};
 use exergon::tech_tree::TechTree;
+use exergon::world::OreDeposit;
 
 /// Sample the four research currencies at most this often (simulated seconds) — keeps the curve
 /// readable for a multi-thousand-second run without recording every frame.
@@ -137,6 +143,85 @@ impl RunReport {
                 synthesis: pool.get("synthesis"),
             });
             self.last_snapshot = secs;
+        }
+    }
+
+    /// Sticky-observe the world-state regression milestones the smoke tests assert: set each flag
+    /// true the first frame the world exhibits it, whatever scripting caused it. This decouples the
+    /// report from the run choreography — a data-driven scenario need not assign these. `launch_ran`
+    /// / `build_enqueued` are NOT here: a queue swap isn't a world state, so they stay verb outcomes.
+    pub fn observe_flags(&mut self, world: &World) {
+        // Once every world-observable flag is set, the long build tail need not re-scan each frame.
+        if self.station_ran
+            && self.smelter_ran
+            && self.assembler_ran
+            && self.generator_charged
+            && self.kit_miner_latched
+            && self.networks_shared
+            && self.oxygen_revealed
+            && self.pressure_revealed
+            && self.geo_revealed_after_scan
+            && self.xalite_discovered
+            && self.ever_analyzed_circuit
+            && self.ever_analyzed_exotic
+        {
+            return;
+        }
+
+        if let Some(prog) = world.get_resource::<TechTreeProgress>() {
+            self.ever_analyzed_circuit |= prog.unlocked_recipes.contains("analyze_circuit");
+            self.ever_analyzed_exotic |= prog.unlocked_recipes.contains("analyze_exotic_reaction");
+        }
+
+        // (machine, network) per logistics port → networks_shared once ≥3 machines share one net.
+        let mut ports: Vec<(Entity, Entity)> = Vec::new();
+
+        for e in world.iter_entities() {
+            if let Some(m) = e.get::<Machine>()
+                && matches!(e.get::<MachineState>(), Some(MachineState::Running))
+            {
+                match m.machine_type.as_str() {
+                    "analysis_station" => self.station_ran = true,
+                    "smelter" => self.smelter_ran = true,
+                    "assembler" => self.assembler_ran = true,
+                    _ => {}
+                }
+            }
+            if let Some(mm) = e.get::<MinerMachine>()
+                && world.get::<OreDeposit>(mm.deposit).map(|d| d.chunk_pos) == Some(IVec2::ZERO)
+            {
+                self.kit_miner_latched = true;
+            }
+            if e.get::<GeneratorUnit>()
+                .is_some_and(|g| g.buffer_joules > 0.0)
+            {
+                self.generator_charged = true;
+            }
+            if let Some(vis) = e.get::<PlanetPropertyVisibility>() {
+                self.oxygen_revealed |= vis.atmospheric_oxygen == PropertyVisibility::Revealed;
+                self.pressure_revealed |= vis.atmospheric_pressure == PropertyVisibility::Revealed;
+                self.geo_revealed_after_scan |=
+                    vis.geological_activity != PropertyVisibility::Hidden;
+            }
+            if e.contains::<Discovered>()
+                && e.get::<OreDeposit>()
+                    .is_some_and(|d| d.ores.iter().any(|(id, _)| id == "xalite"))
+            {
+                self.xalite_discovered = true;
+            }
+            if let (Some(po), Some(nm)) = (
+                e.get::<LogisticsPortOf>(),
+                e.get::<LogisticsNetworkMember>(),
+            ) {
+                ports.push((po.0, nm.0));
+            }
+        }
+
+        if let Some(&(_, net0)) = ports.first().filter(|_| !self.networks_shared) {
+            let machines: HashSet<Entity> = ports.iter().map(|(m, _)| *m).collect();
+            if machines.len() >= 3 && ports.iter().all(|(_, n)| *n == net0) {
+                self.networks_shared = true;
+            }
         }
     }
 

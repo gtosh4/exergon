@@ -23,7 +23,7 @@ fn initiation_run_lands_and_launches_minimal_successor() {
         );
     }
 
-    let report = s.run_initiation(&spec);
+    let report = s.run(&spec);
 
     // Real-systems stage checks (shared with the standard run's early game).
     assert!(

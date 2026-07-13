@@ -356,7 +356,7 @@ Wire `DifficultyTier` into the game loop so it gates **tier availability** and t
 - [x] **Difficulty plumbing** — `NewRunEvent` + `WizardDraft` carry a `DifficultyTier`; the run header stores the chosen value (was hard-coded Initiation). `DifficultyTier::max_tier()` maps Initiation=3/Standard=5/Advanced=7/Pinnacle=10.
 - [x] **Tier cap (engine)** — `research::TierCap` refuses unlocking any node with `tier > cap`, across all four unlock vectors, spending no points on a capped node; `sync_tier_cap` derives it from the run's difficulty. Default uncapped, so non-run contexts are unaffected.
 - [x] **Initiation content** — the T3 terminal escape: `minimal_successor` node (prereqs steel_alloying + silicon_refining) → `make_launch_site__minimal` + `launch_minimal_successor` (steel + circuit + silicon, no tier-4 titanium). Reuses the existing launch_site + escape engine.
-- [x] **Initiation e2e** — `Scenario::run_initiation` + `scenarios/initiation.ron` + `tests/initiation_run.rs`: full earned T1–T3 run to victory (~5500s virtual), asserting the cap holds (no tier-4+ node unlocks; the T4/T5 Standard gates stay shut).
+- [x] **Initiation e2e** — `scenarios/initiation.ron` (a prescriptive `steps` list) + `tests/initiation_run.rs`: full earned T1–T3 run to victory (~5600s virtual), asserting the cap holds (no tier-4+ node unlocks; the T4/T5 Standard gates stay shut).
 
 **Remaining:**
 - [ ] **Meta-progression gate** — lock Standard/Advanced/Pinnacle in the new-run wizard until a `status==Completed` run of the difficulty below exists in save history (the "beat Initiation to unlock Standard" chain, `tech-tree-design.md §72`). Engine + wizard-UI work; the save header already carries `difficulty` + `status`.

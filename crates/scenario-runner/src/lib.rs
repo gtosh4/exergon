@@ -1,12 +1,13 @@
-//! Shared landing→victory **run harness** for Exergon standard runs, plus a data-driven scenario
-//! spec and a milestone/statistics report. Both the `scenario` binary (balancing/tuning) and the
-//! e2e smoke test (`exergon`'s `tests/standard_full_run.rs`) drive runs through this one code path,
-//! so what the smoke test proves is exactly what the balancing tool exercises.
+//! Shared landing→victory **run harness** for Exergon, plus the prescriptive scenario spec (an
+//! ordered [`Step`] list) and a milestone/statistics report. Both the `scenario` binary
+//! (balancing/tuning) and the e2e smoke tests (`exergon`'s `tests/standard_full_run.rs` +
+//! `tests/initiation_run.rs`) drive runs through this one `Scenario::run` code path, so what the
+//! smoke tests prove is exactly what the balancing tool exercises.
 
 mod harness;
 mod report;
 mod spec;
 
-pub use harness::{DriveOutcome, GrindPlan, Scenario};
+pub use harness::Scenario;
 pub use report::{ResearchSnapshot, RunReport};
-pub use spec::{ScenarioSpec, load_spec};
+pub use spec::{MineTarget, ScenarioSpec, Step, load_spec};

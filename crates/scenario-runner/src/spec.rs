@@ -1,43 +1,101 @@
-//! The tunable parameters of a standard run, loaded from a `.ron` file.
-//!
-//! Only the *knobs a balancing pass turns* live here: the world `seed`, the four themed research
-//! target lists the victory grind drives toward, the mass-balanced successor `build_jobs`, and the
-//! runaway-guard `max_secs`. The land→bootstrap→mine choreography ("how you play a standard run")
-//! is fixed Rust in [`crate::Scenario::run_standard`] — it is the same content graph for every seed.
+//! A prescriptive scenario, loaded from a `.ron` file: the world `seed`, the `difficulty` (tier
+//! ceiling), the runaway-guard `max_secs`, and the ordered `steps` list that *is* the run. The
+//! step interpreter ([`crate::Scenario::run_steps`]) executes the list verbatim — re-sequence the
+//! tech tree, machine buildout, and recipes by editing the data, no Rust changes.
 
 use std::path::Path;
 
 use exergon::save::DifficultyTier;
 use serde::Deserialize;
 
-/// A parameterized standard run. See the module docs for what is a knob vs. fixed choreography.
+/// A prescriptive scenario. `steps` is the run; the rest are top-level knobs.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ScenarioSpec {
     pub name: String,
     pub seed: u64,
-    /// Difficulty of the run — sets the tech-tier ceiling (`TierCap`) and selects the driver
-    /// (`Initiation` → the T3 minimal-successor escape; others → the full standard run). Defaults
-    /// to `Standard` so an omitted field keeps the canonical standard scenario unchanged.
+    /// Difficulty of the run — sets the tech-tier ceiling (`TierCap`). Defaults to `Standard`.
     #[serde(default = "default_difficulty")]
     pub difficulty: DifficultyTier,
-    /// ResearchSpend target nodes by theme. Each list self-orders by the real tech graph (a request
-    /// is a no-op until prereqs are met and the pool can pay), so order within a list is free.
-    /// These drive the standard run only; the Initiation driver has a fixed T1–T3 path, so an
-    /// Initiation spec omits them (they default empty).
-    #[serde(default)]
-    pub material_nodes: Vec<String>,
-    #[serde(default)]
-    pub engineering_nodes: Vec<String>,
-    #[serde(default)]
-    pub discovery_nodes: Vec<String>,
-    #[serde(default)]
-    pub synthesis_nodes: Vec<String>,
-    /// The successor build list `(recipe_id, count)`, mass-balanced from the successor tree.
-    #[serde(default)]
-    pub build_jobs: Vec<(String, usize)>,
-    /// Runaway guard for the victory grind, in simulated seconds.
+    /// The run script: an ordered list of [`Step`]s the interpreter executes verbatim (deploy a
+    /// machine, research a node, install a config module, build the successor, …).
+    pub steps: Vec<Step>,
+    /// Runaway guard, in simulated seconds, applied per time-advancing step (a stall in any one
+    /// step trips it).
     #[serde(default = "default_max_secs")]
     pub max_secs: f32,
+}
+
+/// Where a `Deploy`/`Place` of a `miner` goes.
+#[derive(Debug, Clone, Deserialize)]
+pub enum MineTarget {
+    /// The origin-chunk starter deposit (the kit miner's home). No crafting — the miner is owned.
+    Origin,
+    /// The nearest fresh (non-origin) surface vein yielding this ore id. `Deploy` crafts the miners
+    /// first; `count` sets how many to place on it.
+    Vein(String),
+}
+
+/// One prescriptive instruction. Convenience verbs (`Deploy` owns-or-crafts; `Pump` arms an
+/// auto-feed economy) sit alongside primitives (`Place`, `Craft`, `Ensure`) so a scenario can be
+/// as hands-off or as explicit as a tuning pass wants. Positions are auto-assigned (a lane per
+/// machine type) — the runner is about *what/when*, not *where*.
+#[derive(Debug, Clone, Deserialize)]
+pub enum Step {
+    /// Own-or-craft the machine, then place + wire it (logistics, + power if `powered`). For a
+    /// `miner`, `on` picks the deposit. `bind` names the placed machine for a later `Install`.
+    Deploy {
+        machine: String,
+        #[serde(default = "default_true")]
+        powered: bool,
+        #[serde(default = "default_one")]
+        count: usize,
+        #[serde(default)]
+        on: Option<MineTarget>,
+        #[serde(default)]
+        bind: Option<String>,
+    },
+    /// Place + wire an already-owned machine (a kit item), without crafting. Same fields as
+    /// `Deploy`; panics if the machine isn't in storage.
+    Place {
+        machine: String,
+        #[serde(default = "default_true")]
+        powered: bool,
+        #[serde(default = "default_one")]
+        count: usize,
+        #[serde(default)]
+        on: Option<MineTarget>,
+        #[serde(default)]
+        bind: Option<String>,
+    },
+    /// Enqueue the full dependency tree to craft `count × item`, then wait until they're in storage.
+    Craft { item: String, count: u32 },
+    /// Top the craft queue up to `count` jobs of `recipe` (a feed / one-shot bulk prep — no wait).
+    Ensure { recipe: String, count: usize },
+    /// Request the tech node every frame and advance time until it unlocks (paid from the pool the
+    /// economy feeds). Order `Research` after whatever `Recon`/`Deploy` its prereqs need.
+    Research { node: String },
+    /// Pilot the drone to the nearest deposit yielding `ore` so its one-shot discovery fires
+    /// (honored only once the gated node's prereq is researched).
+    Recon { ore: String },
+    /// Enter drone-pilot and reveal the origin fog cell — the geological-activity scan.
+    Scan,
+    /// Own-or-craft the config module, then install it into the machine bound as `machine`
+    /// (dedicates it — see machine dedication).
+    Install { machine: String, module: String },
+    /// Arm (`true`) or disarm (`false`) the auto-feed economy: while armed, every time-advancing
+    /// step tops up the affordable analysis chains so `Research` steps get paid automatically.
+    Pump(bool),
+    /// Terminal: disarm the pump, clear the craft queue, enqueue the successor build list, and run
+    /// to `RunState::Completed`.
+    Build { jobs: Vec<(String, usize)> },
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_one() -> usize {
+    1
 }
 
 fn default_max_secs() -> f32 {

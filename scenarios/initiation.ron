@@ -1,14 +1,76 @@
+#![enable(implicit_some)]
 // The Initiation run — the easiest difficulty (tech tiers 1–3), and the prerequisite that gates
 // Standard. Its terminal escape is the "minimal successor" launch (tech-tree-design.md §By
 // difficulty): earn the T1–T3 path, build a launch site from steel + circuits + silicon (no tier-4
 // titanium), and fire `launch_minimal_successor`.
 //
-// The T1–T3 research path and the minimal-launch build are fixed choreography in
-// `Scenario::run_initiation` (dispatched by `difficulty`), so the standard node/build lists are
-// omitted here — only the seed, difficulty, and runaway guard are knobs.
+// This is a PRESCRIPTIVE scenario: the `steps` list below is the run, executed in order by the
+// step interpreter (crates/scenario-runner, `Scenario::run_steps`). Re-sequence the tech tree /
+// machine buildout / recipe prep by editing the list. Positions are auto-assigned (a lane per
+// machine type) — the runner is about *what/when*, not *where*.
 (
     name: "initiation",
     seed: 0xE7E60007,
     difficulty: Initiation,
     max_secs: 60000.0,
+
+    steps: [
+        // Arm the auto-feed economy: every time-advancing step now tops up the affordable analysis
+        // chains, so the `Research` steps below get paid without hand-queuing basic_analysis etc.
+        Pump(true),
+
+        // Deploy the four kit machines (already owned — `Place`, no crafting). The generator is the
+        // power anchor; the miner works the origin stone deposit that fuels early research.
+        Place(machine: "solar_generator"),
+        Place(machine: "miner", on: Origin),
+        Place(machine: "assembler"),
+        Place(machine: "analysis_station"),
+
+        // T1: ore_extraction (30 material) so miners can be crafted.
+        Research(node: "ore_extraction"),
+
+        // Real mining: a fresh iron/copper vein for throughput + a coal vein (steel needs carbon).
+        // Then scale research throughput (more stations) and power (a small solar farm).
+        Deploy(machine: "miner", on: Vein("copper_ore"), count: 2),
+        Deploy(machine: "miner", on: Vein("coal")),
+        Deploy(machine: "analysis_station", count: 2),
+        Deploy(machine: "solar_generator", count: 4),
+
+        // T1: basic_processing (150 material) — unlocks the copper→wire→circuit chain and, with it,
+        // analyze_circuit (the engineering currency the minimal successor needs).
+        Research(node: "basic_processing"),
+        Deploy(machine: "smelter", count: 2),
+        Deploy(machine: "wire_drawer"),
+        Deploy(machine: "assembler"),
+
+        // T2: ore_crusher unlocks on a PRODUCTION milestone (100 iron_ingot), not a spend — this
+        // step just advances time (pump smelting iron) until it trips, then a crusher is deployed.
+        Research(node: "ore_crusher"),
+        Deploy(machine: "crusher"),
+
+        // T2/T3: the rest of the minimal-successor prerequisite chain.
+        Research(node: "silicon_refining"),
+        Deploy(machine: "refinery"),
+        Research(node: "steel_alloying"),
+        // T3 terminal node: 400 engineering. Unlocks launch_site + the minimal launch recipes.
+        Research(node: "minimal_successor"),
+
+        // Terminal: disarm the pump and craft the launch-site materials explicitly (leaves first),
+        // then the minimal launch site (8 steel + 4 circuit + 2 chip), place it, and fire the
+        // launch (4 steel + 3 circuit + 2 chip + 4 wire). Quantities are generous — surplus is
+        // reused, infeasible jobs wait.
+        Pump(false),
+        Ensure(recipe: "smelt_metal__iron", count: 40),
+        Ensure(recipe: "smelt_metal__copper", count: 30),
+        Ensure(recipe: "draw_metal__copper", count: 40),
+        Ensure(recipe: "crush_stone", count: 20),
+        Ensure(recipe: "refine_silicon", count: 10),
+        Ensure(recipe: "make_circuit", count: 12),
+        Ensure(recipe: "form_silicon_chip", count: 8),
+        Ensure(recipe: "alloy_steel", count: 12),
+        Ensure(recipe: "make_launch_site__minimal", count: 1),
+        Place(machine: "launch_site"),
+
+        Build(jobs: [("launch_minimal_successor", 1)]),
+    ],
 )

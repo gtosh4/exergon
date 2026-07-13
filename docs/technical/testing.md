@@ -27,22 +27,24 @@ The driving mechanics and the run itself live in the **`scenario-runner` workspa
 the test file:
 
 - `crates/scenario-runner/src/harness.rs` — the `Scenario` harness (placement, wiring, crafting,
-  mining, recon, `advance_until`/`run_until`) plus the scripted landing→victory choreographies:
-  `run_standard` (tiers 1–5 → the successor launch) and `run_initiation` (tiers 1–3 → the minimal
-  successor). `Scenario::run` dispatches on `spec.difficulty`.
-- `crates/scenario-runner/src/spec.rs` — `ScenarioSpec`, the **data-driven knobs** of a run (world
-  `seed`, `difficulty` — sets the `TierCap` + picks the driver — the four themed research target
-  lists, the successor `build_jobs`, `max_secs`), loaded from a `.ron` file. The fixed content-graph
-  choreography stays in Rust; only these knobs are data. Standard-only lists default empty, so an
-  Initiation spec is just seed + difficulty + `max_secs`.
+  mining, recon, `advance_until`/`run_until`) plus the **step interpreter**: `Scenario::run` →
+  `run_steps` → `exec_step` executes a scenario's ordered `steps` list, one real mechanic per
+  [`Step`]. There is **no per-difficulty Rust choreography** — the run is data; `difficulty` only
+  sets the `TierCap`.
+- `crates/scenario-runner/src/spec.rs` — `ScenarioSpec` + the `Step`/`MineTarget` enums. A scenario
+  is a world `seed`, a `difficulty` (tier ceiling), a `max_secs` runaway guard, and the **`steps`
+  list that is the run** (`Deploy`/`Place`/`Craft`/`Ensure`/`Research`/`Recon`/`Scan`/`Install`/
+  `Pump`/`Build`), loaded from a `.ron` file. Positions are auto-assigned — a lane per machine type.
 - `crates/scenario-runner/src/report.rs` — `RunReport`, the milestones + statistics a run produces
   (tier climb pace, node-unlock timeline, research-currency curve, ore extracted, stage checks).
+  The stage-check flags are **sticky-observed from world state** in `RunReport::observe_flags`, so
+  the data-driven run needn't set them.
 
-Each e2e test loads its `scenarios/*.ron`, calls the matching driver, and asserts on the returned
+Each e2e test loads its `scenarios/*.ron`, calls `Scenario::run`, and asserts on the returned
 `RunReport`. The **`scenario` binary** replays the same code path for balancing —
 `cargo run -p scenario-runner --bin scenario -- scenarios/standard.ron` (or `initiation.ron`) from
-the repo root prints the report. Copy a scenario, change the seed / difficulty / research-build
-targets, and compare the printed milestones across runs.
+the repo root prints the report. Copy a scenario, change the seed or re-sequence the `steps`, and
+compare the printed milestones across runs.
 
 ---
 
@@ -78,29 +80,29 @@ Do **not** reintroduce the old approach of hand-poking internal state (`accumula
 
 ## 3. Adding a stage to the e2e test
 
-Each stage of the game (research tier, crafting step, exploration unlock, escape) becomes one
-labelled block in `Scenario::run_standard` (`crates/scenario-runner/src/harness.rs`), appended
-after the previous stage; the observation it proves is recorded on `RunReport` and asserted in
-`tests/standard_full_run.rs`. The pattern is always the same:
+A new gameplay stage on the landing→victory path (research tier, crafting step, exploration unlock,
+escape) is added as a **`Step` in the `scenarios/*.ron` list**, not as Rust — nothing gameplay-wide
+is injected, every unlock is earned. The pattern:
 
 1. **Look up the content** the stage needs with the `assets` MCP tools (§4): recipe inputs/outputs,
-   machine type, tech-node cost and prerequisites.
-2. **Set up** whatever the stage consumes — place & wire the machines via `place()` / `connect()`
-   (the real `WorldObjectEvent` / `CableConnectionEvent` contracts), provision storage, and stub
-   the machine's port layout in `MachinePortLayouts`.
-3. **Inject gating you are not testing.** The mechanic under test is the sim loop, not the
-   tech-tree gate — insert prerequisite recipes/nodes directly into `TechTreeProgress`
-   (`.unlocked_recipes` / `.unlocked_nodes`), the same way `basic_analysis` / `basic_smelting`
-   are injected today. Only exercise a gate directly when the gate *is* the thing under test.
-4. **Advance time** with `advance_until(...)` until the stage's milestone holds (research
-   threshold reached, item crafted, node unlocked).
-5. **Assert** the milestone: node in `unlocked_nodes`, item count in a `StorageUnit`, points
-   deducted, etc. Assert the mechanism actually ran (e.g. a machine reached `Running`), not
-   just that an end resource appeared — otherwise a stage can pass without doing any work.
+   machine type, tech-node cost, prerequisites, and the unlock *mechanism* (`ResearchSpend` vs
+   `ProductionMilestone` vs `ExplorationDiscovery`).
+2. **Place the step in dependency order.** A `Research(node)` blocks until the node unlocks, so it
+   must come after whatever earns its prereqs. `ExplorationDiscovery` nodes auto-unlock the frame
+   their `Recon` fires (no `Research` step); `ProductionMilestone` nodes are a `Research`-as-wait;
+   an item with several recipes uses `Ensure(recipe)` + `Place`. Arm `Pump(true)` early so the
+   `Research` steps get paid; the terminal `Build` disarms it.
+3. **Feed the raw inputs.** Add a `Deploy(miner, on: Vein("<ore>"))` for any new raw material the
+   stage (or the auto-feed economy) consumes — the run mines everything for real.
+4. **Assert the milestone** in the test (`tests/standard_full_run.rs` / `initiation_run.rs`): the
+   node in `unlocked_nodes`, an ore mined, completion. If the stage is a *world-observable*
+   milestone the smoke test should pin (a machine type reaching `Running`, a property revealed),
+   add a sticky observation to `RunReport::observe_flags` and assert the flag — that keeps the
+   assertion decoupled from the step ordering.
 
-Keep stages **surgical and self-documenting**: a comment saying what the stage proves and which
+Keep the step list **self-documenting**: a comment on each section saying what it proves and which
 content values (from the `assets` MCP tools) it depends on, so a later content tweak points the
-reader straight at the assertion to update.
+reader straight at the step / assertion to update.
 
 The target arc, in stage order (from `tech_path escape_synthesis`):
 

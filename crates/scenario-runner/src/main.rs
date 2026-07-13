@@ -3,8 +3,8 @@
 //! Usage (run from the repo root so `assets/` is reachable):
 //!   cargo run -p scenario-runner --bin scenario -- scenarios/standard.ron
 //!
-//! The scenario file is a `.ron` [`ScenarioSpec`]: the world seed plus the tunable research +
-//! build targets. Point it at different seeds / node lists / build jobs to compare balance.
+//! The scenario file is a `.ron` [`ScenarioSpec`]: a world seed, difficulty, and the prescriptive
+//! `steps` list that is the run. Edit the steps (or the seed) and re-run to compare balance.
 
 use scenario_runner::{Scenario, load_spec};
 

@@ -1,85 +1,151 @@
-// The canonical Standard run — landing to launching the successor. This is the same scenario the
-// e2e smoke test (`tests/standard_full_run.rs`) drives, and the baseline for balancing sweeps:
-// copy it, change the `seed` or the research/build targets, and compare the printed milestones.
+#![enable(implicit_some)]
+// The canonical Standard run — landing to launching the successor. This is a PRESCRIPTIVE scenario:
+// the `steps` list is the run, executed in order by the step interpreter (crates/scenario-runner,
+// `Scenario::run_steps`). It is the baseline for balancing sweeps: copy it, change the `seed` or
+// re-sequence the tech/machine/recipe steps, and compare the printed milestones.
 //
-// Fixed content-graph choreography (deploy kit → earn early tiers → craft the processing economy)
-// lives in `Scenario::run_standard`; only the knobs below are data. See crates/scenario-runner.
+// Ordering rule: a `Research(node)` blocks until that node unlocks, so nodes must appear in
+// dependency order, with `Recon`/`Scan`/`Deploy`/`Mine` interleaved at the point their gate opens.
+// ExplorationDiscovery nodes (exotic_materials, fluxite_studies, cryophase_extraction) auto-unlock
+// the frame their `Recon` fires (given prereqs), so they need no `Research` step. ProductionMilestone
+// nodes (ore_crusher, ore_washer, plate_roller) auto-unlock when the tally trips — a `Research` step
+// there just advances time until it does. Positions are auto-assigned (a lane per machine type).
 (
     name: "standard",
     seed: 0xE7E60007,
     difficulty: Standard,
-
-    // ResearchSpend target nodes by theme. Each list self-orders by the real tech graph, so order
-    // here is only for readability.
-    material_nodes: [
-        "ore_extraction",
-        "drone_recon",
-        "basic_processing",
-        "silicon_refining",
-        "aluminum_extraction",
-        "titanium_forming",
-        "steel_alloying",
-    ],
-    engineering_nodes: [
-        "advanced_processing",
-        "resonite_engineering",
-        "advanced_assembler",
-        "fluxite_coil",
-        "provisioning_module",
-    ],
-    discovery_nodes: [
-        "exotic_processing",
-        "precursor_survey",
-        "synthesis_lab",
-        "space_scanner",
-        "cryophase_prospecting",
-    ],
-    synthesis_nodes: [
-        "coolant_reclaim",
-        "vitreite_synthesis",
-        "exotic_fuel_refining",
-        "successor_core",
-        "successor_chassis",
-        "successor_drive",
-        "successor_sensor",
-        "launch_site_assembly",
-        "launch_successor",
-    ],
-
-    // The successor build list, mass-balanced from the successor tree. `launch_successor` has no
-    // output item, so it is an explicit job the grind enqueues once the closure is earned.
-    build_jobs: [
-        ("crush_stone", 8),
-        ("crush_aluminum", 6),
-        ("smelt_metal__iron", 10),
-        ("smelt_metal__copper", 18),
-        ("smelt_metal__aluminum", 4),
-        ("smelt_metal__titanium", 2),
-        ("draw_metal__copper", 17),
-        ("wash_aluminum", 2),
-        ("make_circuit", 4),
-        ("refine_silicon", 4),
-        ("refine_fluxite", 4),
-        ("synth_vitreite", 2),
-        ("roll_iron_plate", 2),
-        ("roll_aluminum_plate", 2),
-        ("roll_titanium_plate", 1),
-        ("form_silicon_chip", 4),
-        ("make_resonite_circuit", 2),
-        ("form_resonite_lattice", 1),
-        ("make_fluxite_coil", 2),
-        ("make_power_cell", 1),
-        ("make_miner_kit", 1),
-        ("make_generator_kit", 1),
-        ("make_assembler_kit", 1),
-        ("refine_exotic_fuel__raw", 20),
-        ("make_successor_core", 1),
-        ("make_successor_sensor", 1),
-        ("make_successor_chassis", 1),
-        ("make_successor_drive", 1),
-        ("make_provisioning_module", 1),
-        ("launch_successor", 1),
-    ],
-
     max_secs: 40000.0,
+
+    steps: [
+        // ── bootstrap ──
+        Pump(true),
+        Place(machine: "solar_generator"),
+        Place(machine: "miner", on: Origin),
+        Place(machine: "assembler"),
+        Place(machine: "analysis_station"),
+        Research(node: "ore_extraction"),
+
+        // Real ore first (copper is the scarce body material), then scale research + power. The
+        // sequential Research grind runs longer than the legacy parallel pump, so ore is deployed
+        // generously and machines that need it are placed while veins are still rich.
+        Deploy(machine: "miner", on: Vein("copper_ore"), count: 3),
+        Deploy(machine: "miner", on: Vein("coal")),
+
+        Research(node: "basic_processing"),
+        Deploy(machine: "smelter", count: 2),
+        Deploy(machine: "wire_drawer"),
+        Deploy(machine: "assembler"),
+        Deploy(machine: "analysis_station", count: 2),
+        Deploy(machine: "solar_generator", count: 6),
+        Scan,
+
+        // ── discovery bootstrap + xalite ──
+        Research(node: "drone_recon"),
+        Recon(ore: "xalite"),
+        Research(node: "advanced_processing"),
+        Deploy(machine: "miner", on: Vein("resonite_shard")),
+
+        // ── crusher / silicon / BOTH refineries (placed early, while ore is rich) ──
+        Research(node: "ore_crusher"),
+        Deploy(machine: "crusher"),
+        Research(node: "silicon_refining"),
+        Deploy(machine: "refinery", bind: "carbo"),
+        Install(machine: "carbo", module: "carbothermal_bed"),
+        // The cryogenic refinery's body is crafted now; its bed is installed later (needs
+        // coolant_reclaim). Deploying it here avoids a make_refinery craft once veins have thinned.
+        Deploy(machine: "refinery", bind: "cryo"),
+
+        // ── discovery chain + fluxite recon ──
+        Research(node: "precursor_survey"),
+        Recon(ore: "fluxite_shard"),
+        Research(node: "exotic_processing"),
+        Research(node: "synthesis_lab"),
+        Research(node: "space_scanner"),
+        Research(node: "cryophase_prospecting"),
+        Recon(ore: "cryophase_shard"),
+
+        // Mine the exotic feedstocks now — the cryogenic bed (installed below) needs vitreite, whose
+        // chain runs refine_fluxite (carbothermal bed) on mined fluxite; the successor build also
+        // consumes cryophase for exotic fuel. Mining here keeps those chains fed before the install.
+        Deploy(machine: "miner", on: Vein("fluxite_shard")),
+        Deploy(machine: "miner", on: Vein("cryophase_shard"), count: 2),
+
+        // ── material / processing mid ──
+        Deploy(machine: "miner", on: Vein("aluminum_ore")),
+        Deploy(machine: "miner", on: Vein("titanium_ore")),
+        Research(node: "aluminum_extraction"),
+        Research(node: "ore_washer"),
+        Deploy(machine: "washer"),
+        Research(node: "plate_roller"),
+        Deploy(machine: "plate_roller"),
+        Research(node: "titanium_forming"),
+        Research(node: "steel_alloying"),
+
+        // ── engineering + synthesis mid ──
+        Research(node: "resonite_engineering"),
+        Research(node: "advanced_assembler"),
+        Research(node: "provisioning_module"),
+        Research(node: "vitreite_synthesis"),
+        Research(node: "coolant_reclaim"),
+        Install(machine: "cryo", module: "cryogenic_bed"),
+        Research(node: "fluxite_coil"),
+
+        // ── successor synthesis ──
+        Research(node: "successor_core"),
+        Research(node: "successor_chassis"),
+        Research(node: "successor_drive"),
+        Research(node: "successor_sensor"),
+        Research(node: "exotic_fuel_refining"),
+        Research(node: "launch_site_assembly"),
+        Research(node: "launch_successor"),
+
+        // ── terminal machines (explicit body prep so shared intermediates aren't double-reserved) ──
+        Pump(false),
+        Ensure(recipe: "smelt_metal__iron", count: 44),
+        Ensure(recipe: "smelt_metal__copper", count: 20),
+        Ensure(recipe: "draw_metal__copper", count: 20),
+        Ensure(recipe: "alloy_steel", count: 10),
+        Ensure(recipe: "roll_iron_plate", count: 4),
+        Ensure(recipe: "make_circuit", count: 8),
+        Ensure(recipe: "make_advanced_assembler", count: 1),
+        Place(machine: "advanced_assembler"),
+        Ensure(recipe: "smelt_metal__titanium", count: 8),
+        Ensure(recipe: "roll_titanium_plate", count: 4),
+        Ensure(recipe: "make_launch_site", count: 1),
+        Place(machine: "launch_site"),
+
+        // ── build the successor + launch ──
+        Build(jobs: [
+            ("crush_stone", 8),
+            ("crush_aluminum", 6),
+            ("smelt_metal__iron", 10),
+            ("smelt_metal__copper", 18),
+            ("smelt_metal__aluminum", 4),
+            ("smelt_metal__titanium", 2),
+            ("draw_metal__copper", 17),
+            ("wash_aluminum", 2),
+            ("make_circuit", 4),
+            ("refine_silicon", 4),
+            ("refine_fluxite", 4),
+            ("synth_vitreite", 2),
+            ("roll_iron_plate", 2),
+            ("roll_aluminum_plate", 2),
+            ("roll_titanium_plate", 1),
+            ("form_silicon_chip", 4),
+            ("make_resonite_circuit", 2),
+            ("form_resonite_lattice", 1),
+            ("make_fluxite_coil", 2),
+            ("make_power_cell", 1),
+            ("make_miner_kit", 1),
+            ("make_generator_kit", 1),
+            ("make_assembler_kit", 1),
+            ("refine_exotic_fuel__raw", 20),
+            ("make_successor_core", 1),
+            ("make_successor_sensor", 1),
+            ("make_successor_chassis", 1),
+            ("make_successor_drive", 1),
+            ("make_provisioning_module", 1),
+            ("launch_successor", 1),
+        ]),
+    ],
 )
