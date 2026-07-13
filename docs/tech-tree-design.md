@@ -212,7 +212,7 @@ Eight categories. Each node belongs to exactly one.
 | **Smelting & Forming** | Base material transformation: ore → ingot → plate → wire | 1–3 |
 | **Processing** | Chemical, thermal, pressure reactions; deep chains | 3–7 |
 | **Power** | Generation, storage, distribution — renegotiated each tier | 1–10 |
-| **Logistics** | Network cables, controllers, auto-crafting, storage | 1–5 |
+| **Logistics** | Network cables, sub-network routers, auto-crafting, storage | 1–5 |
 | **Science** | Analyzers, labs, sample processors | 1–5 |
 | **Exploration** | Drone types, scanners, aegis expanders | 1–7 |
 | **Fabrication** | Assembly machines for composite and exotic items | 3–10 |

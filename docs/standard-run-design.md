@@ -286,7 +286,7 @@ graph TD
 | **Resonite Circuit** | Fabrication | `resonite_shard + circuit_board → resonite_circuit` (exists) | Research (Engineering) | Basic Circuit, Xalite Studies |
 | **Advanced Analysis** | Science | **T3 Material pack**: `silicon chip → 25 pts` (yield ladder §3.2) | Research (Material) | Applied Analysis, Resonite Circuit |
 | **Field Lab** | Science | **Discovery pack** generator: field samples → discovery pts | Research (Discovery) | Resonance Scanner |
-| **Logistics Controller** | Logistics | sub-network segmentation (tier-3 network arch) | Research (Engineering) | Channel Upgrade |
+| **Sub-network Router I** | Logistics | sub-network segmentation (tier-3 network arch) | Research (Engineering) | Channel Upgrade |
 | **Power Cell** | Power | `make_power_cell` — energy storage buffer (eases strain) | Research (Engineering) | Basic Circuit |
 | **Precursor Survey** | Exploration | drone finds the precursor gateway/ruin site; surfaces its signature **rumor** | Research (Discovery) | Resonance Scanner |
 | **Gateway Study** | Science (exotic) | studies the precursor remnant → grants exotic-processing insight (Standard: teacher, not escape) | **ExplorationDiscovery: `gateway_ruins`** (hinted by Survey) | Precursor Survey |
@@ -339,7 +339,7 @@ graph TD
   RC["Resonite Circuit<br/>Fabrication · [E]"]:::eng
   AA["Advanced Analysis<br/>Science · [M]"]:::mat
   FL["Field Lab<br/>Science · [D]"]:::dis
-  LC["Logistics Controller<br/>Logistics · [E]"]:::eng
+  LC["Sub-network Router I<br/>Logistics · [E]"]:::eng
   PC["Power Cell<br/>Power · [E]"]:::eng
   PS["Precursor Survey<br/>Exploration · [D]"]:::dis
   GS["Gateway Study<br/>Science/exotic · [X]"]:::prod
@@ -395,7 +395,7 @@ graph TD
 | **Voltage-2 Network** | Power | tier-2 cabling/transformer; two-tier power net | Research (Engineering) | Fluxite Generator |
 | **Fluxite Coil** | Fabrication | drive component precursor (`fluxite lattice + wire`) | Research (Engineering) | Fluxite Refining, Wire Drawer |
 | **Advanced Assembler** | Fabrication | tier-2 fabricator for exotic assemblies | Research (Engineering) | Resonite Circuit |
-| **Sub-network Router** | Logistics | deeper sub-network architecture | Research (Engineering) | Logistics Controller |
+| **Sub-network Router II** | Logistics | deeper sub-network architecture | Research (Engineering) | Sub-network Router I |
 | **Space Scanner** | Exploration | orbital/space + remote-site access (prereq for T5 second-site) | Research (Discovery) | Precursor Survey |
 | **Orbital Lift Component** | Fabrication | the exit-gate artifact (stands in for "first orbital flight") | **Production milestone: build the lift component** | Advanced Assembler, Titanium Forming |
 | **Efficiency Module II** *(opt)* | Fabrication | stronger speed/efficiency module | Research (Engineering) | Advanced Assembler |
@@ -433,7 +433,7 @@ graph TD
   OWx(("Ore Washer · T3")):::ext
   EPx(("Exotic Processing · T3")):::ext
   RCx(("Resonite Circuit · T3")):::ext
-  LCx(("Logistics Ctrl · T3")):::ext
+  LCx(("Subnet Router I · T3")):::ext
   PCx(("Power Cell · T3")):::ext
   PSx(("Precursor Survey · T3")):::ext
 
@@ -450,7 +450,7 @@ graph TD
   V2["Voltage-2 Network<br/>Power · [E]"]:::eng
   FC["Fluxite Coil<br/>Fabrication · [E]"]:::eng
   AAs["Advanced Assembler<br/>Fabrication · [E]"]:::eng
-  SR["Sub-network Router<br/>Logistics · [E]"]:::eng
+  SR["Sub-network Router II<br/>Logistics · [E]"]:::eng
   SC["Space Scanner<br/>Exploration · [D]"]:::dis
   OL["Orbital Lift Component<br/>Fabrication · [P]"]:::prod
 
@@ -506,7 +506,7 @@ graph TD
 | **Launch Site Assembly** | Fabrication | unlocks the `EscapeObjective` launch machine | **Production milestone: all 4 successor systems built** | Successor Core, Chassis, Drive, Sensor |
 | **Launch Sequencing** | Science (exotic) | the launch cascade recipe (systems + provisioning + fuel → launch) | Research (Synthesis) | Launch Site Assembly, Synthesis Lab |
 | **Sustained Power Array** | Power | field-req: holds sustained V2 power through the cascade | Research (Engineering) | Voltage-2 Network |
-| **Fuel Depot** | Logistics | bulk exotic-fuel stockpile + second-site logistics rhythm | Research (Engineering) | Sub-network Router |
+| **Fuel Depot** | Logistics | bulk exotic-fuel stockpile + second-site logistics rhythm | Research (Engineering) | Sub-network Router II |
 | **Redundant Core** *(opt)* | Fabrication | spare core (insurance / faster cascade) | Research (Synthesis) | Successor Core |
 | **Terraform Provisioning** *(opt)* | Processing | terraform-products cheapen provisioning (stretch, §9 #5) | Research (Synthesis) | Terraform Router |
 
