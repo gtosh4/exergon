@@ -19,7 +19,7 @@ mod visuals;
 
 pub use items::{give_items, has_items, take_items};
 pub use job_queue::{NetworkCraftQueue, QueuedJob};
-pub use recipes::ManualCraftTrigger;
+pub use recipes::{InstallConfigModule, ManualCraftTrigger};
 
 pub const LOGISTICS_CABLE_ID: &str = "logistics_cable";
 pub const STORAGE_CRATE_ID: &str = "storage_crate";
@@ -43,6 +43,7 @@ impl Plugin for LogisticsSimPlugin {
             .add_message::<recipes::RecipeToStart>()
             .add_message::<recipes::RecipeCompleted>()
             .add_message::<recipes::ManualCraftTrigger>()
+            .add_message::<recipes::InstallConfigModule>()
             .add_systems(
                 Update,
                 (
@@ -50,6 +51,7 @@ impl Plugin for LogisticsSimPlugin {
                     storage::storage_unit_system,
                     ApplyDeferred,
                     miner::miner_tick_system,
+                    recipes::install_config_module_system,
                     recipes::recipe_check_system,
                     recipes::recipe_execute_system,
                     recipes::recipe_advance_system,
@@ -228,8 +230,8 @@ mod tests {
     use bevy::prelude::*;
 
     use super::recipes::{
-        RecipeCompleted, RecipeToStart, recipe_advance_system, recipe_check_system,
-        recipe_execute_system, recipe_finish_system,
+        InstallConfigModule, RecipeCompleted, RecipeToStart, install_config_module_system,
+        recipe_advance_system, recipe_check_system, recipe_execute_system, recipe_finish_system,
     };
     use super::storage::storage_unit_system;
     use super::*;
@@ -663,6 +665,84 @@ mod tests {
         });
         app.update();
         (app, machine_entity)
+    }
+
+    #[test]
+    fn install_config_module_sets_config_and_consumes_item() {
+        use crate::recipe_graph::{ConfigReq, ConfigValue, ItemDef, ItemKind};
+
+        // A graph whose item "acidic_bed" is a config module (bed_type = acidic).
+        let module = ItemDef {
+            id: "acidic_bed".into(),
+            name: "Acidic Bed".into(),
+            kind: ItemKind::Unique,
+            is_terminal: false,
+            config: Some(ConfigReq {
+                axis: "bed_type".into(),
+                value: ConfigValue::Cat("acidic".into()),
+            }),
+        };
+        let rg = RecipeGraph {
+            materials: HashMap::new(),
+            form_groups: HashMap::new(),
+            templates: HashMap::new(),
+            items: [("acidic_bed".to_string(), module)].into_iter().collect(),
+            recipes: HashMap::new(),
+            terminal: String::new(),
+            producers: HashMap::new(),
+            consumers: HashMap::new(),
+            template_recipes: HashMap::new(),
+        };
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_message::<NetworkStorageChanged>()
+            .add_message::<InstallConfigModule>()
+            .insert_resource(rg)
+            .add_systems(Update, install_config_module_system);
+
+        let net = app.world_mut().spawn(LogisticsNetwork).id();
+        let storage_e = app
+            .world_mut()
+            .spawn(StorageUnit {
+                items: [("acidic_bed".to_owned(), 2u32)].into_iter().collect(),
+            })
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(storage_e),
+            Transform::default(),
+            LogisticsNetworkMember(net),
+        ));
+        let machine = app
+            .world_mut()
+            .spawn((bare_machine("smelter"), MachineState::Idle))
+            .id();
+        app.world_mut().spawn((
+            LogisticsPortOf(machine),
+            Transform::default(),
+            LogisticsNetworkMember(net),
+        ));
+
+        app.world_mut().write_message(InstallConfigModule {
+            machine,
+            item_id: "acidic_bed".into(),
+        });
+        app.update();
+
+        let cfg = app
+            .world()
+            .get::<MachineConfig>(machine)
+            .expect("MachineConfig inserted on install");
+        assert_eq!(
+            cfg.axes.get("bed_type"),
+            Some(&ConfigValue::Cat("acidic".into()))
+        );
+        let storage = app.world().get::<StorageUnit>(storage_e).unwrap();
+        assert_eq!(
+            storage.items.get("acidic_bed").copied().unwrap_or(0),
+            1,
+            "exactly one module consumed on install"
+        );
     }
 
     #[test]

@@ -4,7 +4,15 @@
     category: Science,
     tier: 2,
     rarity: Rare,
-    prerequisites: ["science_basics"],
+    prerequisites: [
+        "science_basics",
+    ],
     primary_unlock: ExplorationDiscovery("xalite_deposit"),
-    effects: [UnlockRecipes(["refine_xalite"])],
+    effects: [
+        UnlockRecipes([
+            "refine_xalite",
+            "make_carbothermal_bed",
+        ]),
+    ],
+    exclusive_group: None,
 )

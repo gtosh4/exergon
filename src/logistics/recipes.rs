@@ -599,3 +599,98 @@ pub(super) fn recipe_finish_system(
         );
     }
 }
+
+/// Player action: fit a config-module item into a machine. Consumes one of the item from the
+/// machine's logistics network and writes its axis/value onto the machine's `MachineConfig`
+/// (machine dedication, `design-decisions.md` 2026-07-10). No-op with a warning if the item is
+/// not a config module or is not available in the machine's network.
+#[derive(Clone, Message)]
+pub struct InstallConfigModule {
+    pub machine: Entity,
+    pub item_id: String,
+}
+
+/// Removes exactly one `item` from the first member `StorageUnit` that holds it. Returns
+/// whether one was taken (mirrors `take_items` but reports success and takes a single unit).
+fn consume_one(
+    members: &LogisticsNetworkMembers,
+    storage_q: &mut Query<&mut StorageUnit>,
+    port_of_q: &Query<&LogisticsPortOf>,
+    item: &str,
+) -> bool {
+    for &e in &members.0 {
+        let Ok(port_of) = port_of_q.get(e) else {
+            continue;
+        };
+        if let Ok(mut block) = storage_q.get_mut(port_of.0)
+            && let Some(v) = block.items.get_mut(item)
+            && *v >= 1
+        {
+            *v -= 1;
+            if *v == 0 {
+                block.items.remove(item);
+            }
+            return true;
+        }
+    }
+    false
+}
+
+pub(super) fn install_config_module_system(
+    mut commands: Commands,
+    mut events: MessageReader<InstallConfigModule>,
+    recipe_graph: Res<RecipeGraph>,
+    ports_q: Query<&MachineLogisticsPorts>,
+    port_net_q: Query<&LogisticsNetworkMember>,
+    net_q: Query<(Entity, &LogisticsNetworkMembers)>,
+    mut storage_q: Query<&mut StorageUnit>,
+    port_of_q: Query<&LogisticsPortOf>,
+    mut config_q: Query<&mut MachineConfig>,
+    mut storage_changed: MessageWriter<NetworkStorageChanged>,
+) {
+    for ev in events.read() {
+        // The item must declare a config axis/value (i.e. be a config module).
+        let Some(req) = recipe_graph
+            .items
+            .get(&ev.item_id)
+            .and_then(|item| item.config.clone())
+        else {
+            warn!("InstallConfigModule: {} is not a config module", ev.item_id);
+            continue;
+        };
+        // Consume one module from a network the machine is connected to.
+        let Ok(ports) = ports_q.get(ev.machine) else {
+            continue;
+        };
+        let nets: Vec<Entity> = ports
+            .ports()
+            .iter()
+            .filter_map(|&p| port_net_q.get(p).ok().map(|m| m.0))
+            .collect();
+        let mut installed = false;
+        for net_e in nets {
+            let Ok((_, members)) = net_q.get(net_e) else {
+                continue;
+            };
+            if consume_one(members, &mut storage_q, &port_of_q, &ev.item_id) {
+                storage_changed.write(NetworkStorageChanged { network: net_e });
+                installed = true;
+                break;
+            }
+        }
+        if !installed {
+            warn!(
+                "InstallConfigModule: {} not available in machine {:?}'s network",
+                ev.item_id, ev.machine
+            );
+            continue;
+        }
+        // Write the axis/value onto the machine's config (insert component if absent).
+        if let Ok(mut cfg) = config_q.get_mut(ev.machine) {
+            cfg.axes.insert(req.axis, req.value);
+        } else {
+            let axes = std::collections::HashMap::from([(req.axis, req.value)]);
+            commands.entity(ev.machine).insert(MachineConfig { axes });
+        }
+    }
+}

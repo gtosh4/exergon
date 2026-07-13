@@ -1,0 +1,27 @@
+(
+    id: "make_carbothermal_bed",
+    inputs: [
+        (
+            item: "iron_ingot",
+            quantity: 2.0,
+        ),
+        (
+            item: "coal",
+            quantity: 2.0,
+        ),
+    ],
+    outputs: [
+        (
+            item: "carbothermal_bed",
+            quantity: 1.0,
+        ),
+    ],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 2,
+    processing_time: 18.0,
+    energy_cost: 50.0,
+    energy_output: 0.0,
+    template_id: None,
+    required_config: [],
+)

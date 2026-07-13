@@ -71,6 +71,7 @@ mod tests {
             name: id.to_string(),
             kind: ItemKind::Unique,
             is_terminal: false,
+            config: None,
         }
     }
 

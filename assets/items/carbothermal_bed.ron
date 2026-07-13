@@ -1,0 +1,12 @@
+(
+    id: "carbothermal_bed",
+    name: "Carbothermal Reactor Bed",
+    kind: Composite(
+        template: None,
+    ),
+    is_terminal: false,
+    config: Some((
+        axis: "refinery_bed",
+        value: Cat("carbothermal"),
+    )),
+)

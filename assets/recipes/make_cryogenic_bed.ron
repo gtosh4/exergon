@@ -1,0 +1,27 @@
+(
+    id: "make_cryogenic_bed",
+    inputs: [
+        (
+            item: "vitreite",
+            quantity: 1.0,
+        ),
+        (
+            item: "copper_wire",
+            quantity: 2.0,
+        ),
+    ],
+    outputs: [
+        (
+            item: "cryogenic_bed",
+            quantity: 1.0,
+        ),
+    ],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 2,
+    processing_time: 22.0,
+    energy_cost: 80.0,
+    energy_output: 0.0,
+    template_id: None,
+    required_config: [],
+)

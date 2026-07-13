@@ -57,6 +57,11 @@ pub struct ItemDef {
     pub kind: ItemKind,
     #[serde(default)]
     pub is_terminal: bool,
+    /// When set, this item is a **config module**: installing it into a machine sets that
+    /// axis/value on the machine's `MachineConfig`, satisfying recipes' `required_config`
+    /// (machine dedication, `design-decisions.md` 2026-07-10). `None` for ordinary items.
+    #[serde(default)]
+    pub config: Option<ConfigReq>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, schemars::JsonSchema)]
@@ -171,6 +176,7 @@ pub(crate) fn derive_items(
                         form: form.clone(),
                     },
                     is_terminal: false,
+                    config: None,
                 });
             }
         }
@@ -330,6 +336,7 @@ pub fn build_recipe_graph() -> RecipeGraph {
                 name: m.name,
                 kind: ItemKind::Unique,
                 is_terminal: false,
+                config: None,
             }),
     );
     RecipeGraph::from_vecs(
@@ -425,6 +432,7 @@ mod tests {
             name: id.to_string(),
             kind: ItemKind::Unique,
             is_terminal: true,
+            config: None,
         }
     }
 

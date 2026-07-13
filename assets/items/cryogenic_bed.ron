@@ -1,0 +1,12 @@
+(
+    id: "cryogenic_bed",
+    name: "Cryogenic Reactor Bed",
+    kind: Composite(
+        template: None,
+    ),
+    is_terminal: false,
+    config: Some((
+        axis: "refinery_bed",
+        value: Cat("cryogenic"),
+    )),
+)

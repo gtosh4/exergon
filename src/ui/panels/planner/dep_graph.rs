@@ -418,18 +418,21 @@ mod tests {
             name: "A".into(),
             kind: ItemKind::Unique,
             is_terminal: false,
+            config: None,
         };
         let b = ItemDef {
             id: "b".into(),
             name: "B".into(),
             kind: ItemKind::Unique,
             is_terminal: false,
+            config: None,
         };
         let c = ItemDef {
             id: "c".into(),
             name: "C".into(),
             kind: ItemKind::Unique,
             is_terminal: true,
+            config: None,
         };
         let recipe_b = ConcreteRecipe {
             id: "recipe_b".into(),
