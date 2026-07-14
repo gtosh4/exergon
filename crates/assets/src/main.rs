@@ -37,8 +37,10 @@ use exergon::planet::PlanetArchetypeDef;
 use exergon::recipe_graph::{
     ConcreteRecipe, FormGroup, ItemDef, MaterialDef, RecipeTemplate, build_recipe_graph,
 };
+use exergon::save::DifficultyTier;
 use exergon::seed::CuratedSeedEntry;
 use exergon::tech_tree::NodeDef;
+use scenario_runner::{Target, run_smoke};
 
 const SEEDS_PATH: &str = "assets/seeds/curated.ron";
 const TEXTURES_PATH: &str = "assets/textures/blocks/manifest.ron";
@@ -95,6 +97,18 @@ struct ItemArg {
 struct StringListArg {
     /// Full replacement list.
     entries: Vec<String>,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+struct SmokeArg {
+    /// What to prove reachable: `item`, `node`, or `recipe`.
+    kind: String,
+    /// The content id (an item id, tech-node id, or recipe id).
+    id: String,
+    /// Force a difficulty (`initiation` | `standard` | `advanced` | `pinnacle`). Omit to auto-pick
+    /// the lowest that covers the target.
+    #[serde(default)]
+    difficulty: Option<String>,
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
@@ -562,6 +576,59 @@ impl AssetServer {
     fn query_assets(&self, Parameters(a): Parameters<QueryArg>) -> Result<String, String> {
         run_query(&a.kind, &a.jq)
     }
+
+    #[tool(
+        description = "Prove one piece of content is reachable + functional in a real (headless) run \
+        without authoring a scenario. kind = item | node | recipe. Auto-picks the lowest difficulty \
+        that covers the target (unless one is forced), derives from the matching e2e baseline, runs \
+        it, and reports whether the target was reached. Returns JSON: on a content/config problem \
+        (unknown id, an input with no producer, a broken prerequisite chain, or no baseline for the \
+        difficulty) `{ok:false, failure_reason}` — fix the content and retry; otherwise \
+        `{ok:true, reached, difficulty, virtual_secs}`. Runs a full simulation, so expect several \
+        seconds per call."
+    )]
+    fn smoke_test(&self, Parameters(a): Parameters<SmokeArg>) -> Result<String, String> {
+        let target = match a.kind.as_str() {
+            "item" => Target::Item(a.id.clone()),
+            "node" => Target::Node(a.id.clone()),
+            "recipe" => Target::Recipe(a.id.clone()),
+            other => {
+                return Err(format!(
+                    "unknown kind `{other}` (expected item | node | recipe)"
+                ));
+            }
+        };
+        let difficulty = match a.difficulty.as_deref() {
+            None => None,
+            Some(d) => Some(parse_difficulty(d)?),
+        };
+
+        match run_smoke(&target, difficulty) {
+            Ok(r) => to_json(&serde_json::json!({
+                "ok": true,
+                "reached": r.reached,
+                "difficulty": format!("{:?}", r.difficulty),
+                "virtual_secs": r.report.virtual_secs,
+            })),
+            // A content/config problem (not a server error): report it so the caller can fix and retry.
+            Err(failure_reason) => to_json(&serde_json::json!({
+                "ok": false,
+                "failure_reason": failure_reason,
+            })),
+        }
+    }
+}
+
+fn parse_difficulty(s: &str) -> Result<DifficultyTier, String> {
+    match s.to_ascii_lowercase().as_str() {
+        "initiation" => Ok(DifficultyTier::Initiation),
+        "standard" => Ok(DifficultyTier::Standard),
+        "advanced" => Ok(DifficultyTier::Advanced),
+        "pinnacle" => Ok(DifficultyTier::Pinnacle),
+        other => Err(format!(
+            "unknown difficulty `{other}` (expected initiation | standard | advanced | pinnacle)"
+        )),
+    }
 }
 
 #[tool_handler]
@@ -574,8 +641,9 @@ impl ServerHandler for AssetServer {
                  kinds and describe_kind for a kind's JSON schema. update_asset takes a JSON \
                  merge-patch. query_assets runs a jq program over all entities of a kind. \
                  Also: get/update_texture_manifest, and resolved-graph queries \
-                 (resolve_recipe, list_all_recipes, tech_path, item_uses). The server must run \
-                 from the repo root so assets/ is reachable."
+                 (resolve_recipe, list_all_recipes, tech_path, item_uses). smoke_test proves a \
+                 piece of content (item/node/recipe) is reachable in a real headless run. The \
+                 server must run from the repo root so assets/ is reachable."
                     .into(),
             ),
             capabilities: ServerCapabilities::builder().enable_tools().build(),

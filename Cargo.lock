@@ -2885,6 +2885,7 @@ dependencies = [
  "jaq-json",
  "jaq-std",
  "rmcp",
+ "scenario-runner",
  "schemars",
  "serde",
  "serde_json",
