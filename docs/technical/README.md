@@ -71,6 +71,9 @@ Canonical action token registry, default bindings, context stack (Local body / D
 ### [`testing.md`](testing.md) — Testing & Dev Tooling
 Test layers (per-system `mod tests`, per-recipe integration tests, the one landing→victory e2e test), how the e2e test fast-forwards simulated time with `TimeUpdateStrategy::ManualDuration` + the `advance_until` primitive, the step-by-step recipe for adding a new stage to the e2e test as each game stage is implemented, and the `assets` RON content **MCP server** (`exergon-assets` crate; `cargo run -q -p exergon-assets --bin assets`) — generic CRUD over a `kind` (`list_assets`/`get_asset`/`create_asset`/`update_asset`/`delete_asset`), a jq query tool (`query_assets`), and resolved-graph reads (`resolve_recipe`/`list_all_recipes`/`tech_path`/`item_uses`). **Read before adding a gameplay stage to the landing→victory path, extending `tests/standard_full_run.rs`, or reaching for a `.ron` file by hand.**
 
+### [`scenarios.md`](scenarios.md) — Authoring Scenarios
+The prescriptive `.ron` scenario format that drives the e2e tests, the balancing tool, and the smoke generator: the full `Step` vocabulary (`Deploy`/`Place`/`Craft`/`Ensure`/`Research`/`Recon`/`Scan`/`Install`/`Pump`/`Build`), unlock mechanisms (`ResearchSpend`/`ProductionMilestone`/`ExplorationDiscovery`), the phase-by-phase authoring approach (bootstrap → research economy → buildout → terminal → build), the ordering rules that bite, and how to iterate with the `scenario` binary. Mirrors the doc-comments in `crates/scenario-runner/src/spec.rs`. **Read before writing or re-sequencing a `scenarios/*.ron` file; `testing.md §3` is the e2e-specific slice.**
+
 ---
 
 ## TODO

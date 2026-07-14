@@ -48,4 +48,4 @@ Claude acts on these for you; you'll see it fix and re-test.
 
 ## Under the hood (for the curious)
 
-`smoke_test` is one tool on the `exergon-assets` server; it calls the scenario runner's `run_smoke`, which picks the lowest difficulty covering your content's tier, splices a target-exercising step onto the matching end-to-end baseline scenario (`scenarios/initiation.ron` / `standard.ron`), and runs it. The same thing is available at the terminal as `cargo run -p scenario-runner --bin scenario -- smoke <item|node|recipe> <id>`. See [`technical/testing.md`](technical/testing.md) for the scenario format.
+`smoke_test` is one tool on the `exergon-assets` server; it calls the scenario runner's `run_smoke`, which picks the lowest difficulty covering your content's tier, splices a target-exercising step onto the matching end-to-end baseline scenario (`scenarios/initiation.ron` / `standard.ron`), and runs it. The same thing is available at the terminal as `cargo run -p scenario-runner --bin scenario -- smoke <item|node|recipe> <id>`. See [`technical/scenarios.md`](technical/scenarios.md) for the scenario format the generator builds on.

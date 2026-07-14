@@ -80,6 +80,10 @@ Do **not** reintroduce the old approach of hand-poking internal state (`accumula
 
 ## 3. Adding a stage to the e2e test
 
+> For the full `Step` vocabulary and how to author a scenario from scratch, see
+> [`scenarios.md`](scenarios.md). This section is the e2e-specific slice: slotting a stage into an
+> existing scenario and asserting it.
+
 A new gameplay stage on the landing→victory path (research tier, crafting step, exploration unlock,
 escape) is added as a **`Step` in the `scenarios/*.ron` list**, not as Rust — nothing gameplay-wide
 is injected, every unlock is earned. The pattern:
