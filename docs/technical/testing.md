@@ -52,6 +52,12 @@ For **seed variance**, `scenario balance <file> [--seeds N]` runs one baseline a
 per-seed flags (`⚠SLOW`/`⚠TIER`/`⚠OUTLIER`, DNF). It exits non-zero if any seed drags past the
 sanity ceilings, so it's CI-usable for catching a content change that wrecks a subset of seeds.
 
+`scenario balance --emit <path> [--seeds N]` instead sweeps every canonical difficulty scenario
+(`scenarios/*.ron`) and writes the results to `<path>` as markdown — this generates the standing
+[`docs/balance-state.md`](../balance-state.md) "current balance state" doc. It's a generated
+artifact: rerun to refresh, never hand-edit. See [`balance.md`](../balance.md) for how the sweep
+fits the tuning loop.
+
 ---
 
 ## 2. How the e2e test drives time

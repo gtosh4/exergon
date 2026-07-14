@@ -129,14 +129,14 @@ impl ResearchPool {
 }
 ```
 
-Research types are **content-defined strings** — no hardcoded enum. The Standard run uses a **4-theme ladder** (`standard-run-design.md §3.2`). A theme's currency is set by **what feeds it** (generation), separate from **what it unlocks** (spend):
+Research types are **content-defined strings** — no hardcoded enum. The Standard run uses a **4-theme ladder** (methodology in `balance.md §4`). A theme's currency is set by **what feeds it** (generation), separate from **what it unlocks** (spend):
 
 | Theme (`type_id`) | Fed with (generation) | Gates (spend) | Online | Status |
 |---|---|---|---|---|
 | `material` | **single-material forms** — ore, dust, ingot, plate, wire, **gear**, alloy, exotic shard | forming ladder, extraction, base fabrication | T1 | **live** |
 | `engineering` | **multi-material assemblies** — circuit, motor, module, controller | logistics, modules, efficiency, automation | T2 | **live** |
 | `discovery` | field samples, site-interaction finds | exotic reveals, exploration-gated nodes | T2–3 (drone) | **content pending Phase D** |
-| `synthesis` | exotic reaction products + routed terraform/void streams (`standard-run-design.md §4`) | exotic chains, successor systems | T4 | **content pending Phase D** |
+| `synthesis` | exotic reaction products + routed terraform/void streams (reactivity byproduct routing, GDD §11) | exotic chains, successor systems | T4 | **content pending Phase D** |
 
 > **Legacy alias.** `material_science` was the VS-era name for the material theme. The current content uses the short id **`material`**; the legacy item `research_points` routes there via `DEFAULT_RESEARCH_THEME` (see §4). VS/e2e tests read the pool as `ResearchPool.get("material")`.
 
@@ -154,7 +154,7 @@ Research types are **content-defined strings** — no hardcoded enum. The Standa
 
 **Engineering generator (live).** `analyze_circuit` (1 `circuit_board` → 20 `research.engineering`), unlocked by `basic_processing` (which also unlocks `make_circuit`). Engineering thus comes online exactly when circuits do — funding `advanced_processing` (300) and `resonite_engineering` (500).
 
-**Lockout mitigation** (multi-currency can strand a player — `standard-run-design.md §3.4`). Themes are complementary, not competitive:
+**Lockout mitigation** (multi-currency can strand a player — `balance.md §5 Q2`). Themes are complementary, not competitive:
 - Every live theme is **always-earnable from its intro tier** — none can be permanently missed. Material feeds from the origin stone loop (turn 0); Engineering from any circuit the player already builds.
 - Theme sources **overlap the main line** — automating circuits *is* the engineering source, so no theme needs a dedicated, neglectable subfactory.
 - **Discovery/Synthesis deferred to Phase D** — their currencies need drone samples / exotic-reaction + void streams that aren't online yet. Re-theming a node to a currency nothing produces would soft-lock the run, so those nodes stay `material` until their generators ship.

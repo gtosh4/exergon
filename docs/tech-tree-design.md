@@ -344,7 +344,7 @@ The origin deposit is guaranteed (always within the Aegis radius and always ston
 
 These are the 7 nodes that appear in *every* Standard run (all Common, Tier 1 only). They form the fixed skeleton; seeded nodes extend this in higher tiers.
 
-> **Ore Crusher moved to Tier 2** (`standard-run-design.md §3.1` staggered forming ladder, §5 T2 note). T1 is now **direct-smelt-only** — the simplest `ore → ingot` chain. The crusher (and the `ore → crushed → ingot` +yield chain with its **gravel** byproduct) is the first *optional* forming deepening, unlocked at T2 by a production milestone (100 refined units). Authored in RON as the `ore_crusher` T2 node (`assets/tech_nodes/ore_crusher.ron`).
+> **Ore Crusher moved to Tier 2** (`balance.md §4` staggered forming ladder). T1 is now **direct-smelt-only** — the simplest `ore → ingot` chain. The crusher (and the `ore → crushed → ingot` +yield chain with its **gravel** byproduct) is the first *optional* forming deepening, unlocked at T2 by a production milestone (100 refined units). Authored in RON as the `ore_crusher` T2 node (`assets/tech_nodes/ore_crusher.ron`).
 
 | Node | Category | Effect | Primary unlock | Prerequisite |
 |---|---|---|---|---|
@@ -381,7 +381,7 @@ If adopted, the broad condition is intentional — the gate should accommodate w
 
 ## 6bis. Tiers 3–5 — RON node set *(Phase D, authored)*
 
-The full T3–T5 design node tables live in [`standard-run-design.md §5`](standard-run-design.md#5-tier-by-tier-progression). This section records the **nodes actually authored in RON** (`assets/tech_nodes/`) for the fixed Standard run — the reachable spine that makes `tech_path launch_successor` resolve. It builds on the existing T1–T2 nodes; T3+ nodes carry `tier: 3/4/5` and take T2 nodes (`exotic_materials`, `resonite_engineering`, `ore_crusher`, `drone_recon`, `advanced_processing`) as prerequisites.
+The holistic tier design (themes, base/exotic ratios, gates) lives in [§3](#3-tier-structure) above. This section records the **nodes actually authored in RON** (`assets/tech_nodes/`) for the fixed Standard run — the reachable spine that makes `tech_path launch_successor` resolve. It builds on the existing T1–T2 nodes; T3+ nodes carry `tier: 3/4/5` and take T2 nodes (`exotic_materials`, `resonite_engineering`, `ore_crusher`, `drone_recon`, `advanced_processing`) as prerequisites.
 
 **Category mapping** (engine `NodeCategory` has no Extraction/Fabrication variants): design *Extraction* → `Exploration`; *Smelting & Forming* and *Fabrication* → `Processing`; *Science (exotic)* → `Science`.
 
@@ -428,8 +428,8 @@ The full T3–T5 design node tables live in [`standard-run-design.md §5`](stand
 | `launch_site_assembly` | Processing | ResearchSpend synthesis 400 | successor_core, chassis, drive, sensor | machine `launch_site`; `make_launch_site` |
 | `launch_successor` | **Escape** | ResearchSpend synthesis 500 | launch_site_assembly, synthesis_lab, provisioning_module, exotic_fuel_refining | `launch_successor` (the escape cascade) |
 
-**Deviations from design §5 (flagged).**
-- **Optional nodes deferred.** The §5 tables list optional yield/insurance nodes (Gravel Sink exists; Digger Drone, Efficiency Module I/II, Reinforced Scaffold, Fluxite Capacitor, Terraform Router/Provisioning, Deep Survey, Redundant Core, Field Lab, Sustained Power Array, Fuel Depot) that are **not** on the launch spine. They are omitted from RON for now (representative fixed run) and remain design-only.
+**Deviations from the tier design (flagged).**
+- **Optional nodes deferred.** The tier design calls for optional yield/insurance nodes (Gravel Sink exists; Digger Drone, Efficiency Module I/II, Reinforced Scaffold, Fluxite Capacitor, Terraform Router/Provisioning, Deep Survey, Redundant Core, Field Lab, Sustained Power Array, Fuel Depot) that are **not** on the launch spine. They are omitted from RON for now (representative fixed run) and remain design-only.
 - **Base-metal extraction folded.** The `smelt_metal` template (unlocked at `basic_smelting`) already yields every metal ingot, so separate Titanium/Aluminum "Extraction" gates have little to unlock; aluminum's crush/wash forms hang off `aluminum_extraction`/`ore_washer`, titanium's plate off `titanium_forming`. Design's Steel Alloying / Ore Washer / Plate Roller also **adopt previously-orphaned Phase B recipes** (`alloy_steel`, `wash_*`, `scrub_slag`, `roll_iron_plate`), wiring them to real gates.
 - **Launch gate.** See [`technical/escape-condition.md §7.1`](technical/escape-condition.md#71-standard-escape-successor-launch) for the ProductionMilestone("all 4 systems") → ResearchSpend+recipe-inputs modeling.
 

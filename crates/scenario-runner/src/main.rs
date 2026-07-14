@@ -119,7 +119,7 @@ fn parse_difficulty(s: &str) -> Result<DifficultyTier, String> {
 
 fn usage_exit() -> ! {
     eprintln!(
-        "usage:\n  scenario run <scenario.ron>\n  scenario smoke <item|node|recipe> <id> [difficulty]\n  scenario balance <scenario.ron> [--seeds N]\n(run from repo root)"
+        "usage:\n  scenario run <scenario.ron>\n  scenario smoke <item|node|recipe> <id> [difficulty]\n  scenario balance <scenario.ron> [--seeds N]\n  scenario balance --emit <path> [--seeds N]\n(run from repo root)"
     );
     std::process::exit(2);
 }

@@ -128,6 +128,8 @@ Two routing strategies, both producing `Vec<IVec3>` paths:
 | `LogisticsPortOf(Entity)` | Port entity | Points to owning machine |
 | `PortPolicy { default_mode: PortMode, item_overrides: HashMap<String, PortMode> }` | Port entity | Controls which items flow in which direction through this port |
 | `StorageUnit { items: HashMap<String, u32> }` | Machine entity | Item inventory for storage crates |
+| `SubnetRouter` | Router machine entity | Marker; the machine is a non-conducting cable boundary. Owns one port per side (`LogisticsPortOf` → this router), each a member of a different `LogisticsNetwork` (see Sub-network Routers below) |
+| `RouterFilter { crossings: Vec<Crossing> }` where `Crossing { item_id: String, from: u8, to: u8 }` | Router machine entity | The explicit item crossings this router relays; `from`/`to` index the router's per-side ports. Items absent from the list do not cross |
 
 `PortMode` — `None`, `Input`, `Output`, or `Both`. `item_overrides` takes precedence over `default_mode` for a specific item id. Ports default to `Both` if no `PortPolicy` is present.
 
@@ -168,11 +170,31 @@ Run after `NetworkSystems::of::<Logistics>()` and after `PowerSimSystems`:
 The item-network's throughput lever is **discrete channel capacity** (AE2-style, GDD §10) — the mirror of amperage on the power network (§3). It is **not** a per-tick flow rate.
 
 - **Unit — per port.** Each connected machine `LogisticsPortOf` member consumes **1 channel**. `channels_in_use()` = the count of connected machine ports on the network. (Cable segments and storage-crate ports themselves are the transport; the count is of machine-serving ports, matching AE2's "one channel per device.")
-- **Capacity — cable tier.** `channel_capacity()` = the **minimum** `channel_capacity` among the network's `LogisticsCableSegment`s (weakest-link, so raising a network's ceiling means upgrading its cable, not just one segment). Higher cable tiers carry more channels; tier ratings are authored content (`standard-run-design.md §5`).
+- **Capacity — cable tier.** `channel_capacity()` = the **minimum** `channel_capacity` among the network's `LogisticsCableSegment`s (weakest-link, so raising a network's ceiling means upgrading its cable, not just one segment). Higher cable tiers carry more channels; tier ratings are authored content (cable-tier tech nodes in `tech-tree-design.md` Logistics category, authored in `assets/tech_nodes/`).
 - **Over-budget behavior — non-destructive.** When `channels_in_use() > channel_capacity()`, the ports past the budget are **inactive**: excluded from `has_items` / `take_items` / `give_items` iteration, so their machines are neither fed nor drained (they block at `recipe_start_system`'s input/output checks like any unconnected machine). No cable or machine damage — the mirror of power's amp-overload pause (§3, and the topology-recompute rule at the amp check). The drop order is deterministic and priority-ordered (least-priority ports shed first), recomputed on `NetworkChanged<Logistics>` when membership changes.
-- **Resolution — upgrade or segment.** A player over budget either lays higher-tier cable (raises the floor) or **segments** the network into sub-networks joined via router/interface boundaries — each sub-net carries its own channel budget. Segmentation is the discovered solution the GDD intends, not a forced constraint; the Sub-network Router I / II nodes (`standard-run-design.md §5`) unlock it.
+- **Resolution — upgrade or segment.** A player over budget either lays higher-tier cable (raises the floor) or **segments** the network into sub-networks joined via router/interface boundaries — each sub-net carries its own channel budget. Segmentation is the discovered solution the GDD intends, not a forced constraint; the Sub-network Router I / II nodes (`tech-tree-design.md` Logistics category) unlock it.
 
 > **Status:** design-locked (design-decisions.md 2026-07-12), not yet implemented. `src/logistics/` today is an uncapped shared pool — `channel_capacity()`/`channels_in_use()` and the over-budget shed are pending engine work, sequenced to Demo scope after the Vertical Slice playtest gate.
+
+### Sub-network Routers
+
+A **Sub-network Router** is the segmentation device that resolves a channel-over-budget network (§Channel Capacity). It is *not* a channel source (channels come from cable tier); it is a semi-permeable boundary that divides one `LogisticsNetwork` into independent sub-nets, each carrying its own channel budget. Unlocked by the **Sub-network Router I / II** tech nodes (`tech-tree-design.md` Logistics category).
+
+**Topology — the router breaks cable connectivity.** A router (`machine_type == "subnet_router"`) *terminates* cable runs instead of conducting them. During the `NetworkPlugin::<Logistics>` build pass it is treated as a non-conducting node, so cables on one face form one connected graph and cables on another face form a separate graph — the single net becomes N distinct `LogisticsNetwork` entities. The router owns one port per side (`LogisticsPortOf` → the router), and each port is a member of that side's network. `NetworkChanged<Logistics>` fires for every affected sub-net when a router is placed or removed (membership and both budgets recompute).
+
+**Channels — a boundary costs one channel per side.** Each router port consumes **1 channel** on its own sub-net (it appears in that sub-net's `channels_in_use()` like any machine port). A 2-sided Router I therefore costs **2 channels total** — one in each sub-net. This is the deliberate price of segmentation: cut along **low-traffic seams** (few item types cross smelting↔processing), not arbitrarily, or the boundary cost eats the budget you freed. Router ports are **priority-pinned** (highest priority) so the over-budget shed severs leaf machine ports before it ever severs a boundary; a sub-net sheds its own least-priority leaf ports first. **Isolation:** a machine port on sub-net B does *not* count against sub-net A's budget, and each sub-net's `channel_capacity()` = the min cable tier of *its own* segments — the budgets are fully independent.
+
+**Transfer — filtered, not free.** The router carries a `RouterFilter`: an explicit list of `Crossing { item_id, from, to }` where `from`/`to` are side indices. `router_transfer_system` runs each tick — for each crossing, if the `from` sub-net `has_items(item)` and the `to` sub-net has a valid sink, it `take_items` from the source and `give_items` to the destination. There is **no per-tick rate cap** — channels are the only throughput lever (GDD §10, no flow-rate model); the router is a membrane, not a throttle. Because crossings are explicit, cross-net dependencies (smelting-net copper feeding processing-net circuits) are a **declared** planning decision — unlisted items stay isolated to their sub-net. This is the Pillar-2 friction: network *architecture*, not the runtime clock.
+
+**Router I vs II (capability ladder — II is a strict superset of I).**
+- **Sub-network Router I:** a 2-sided boundary (splits one net into two); `RouterFilter` capped at N crossings (N = authored content, TBD).
+- **Sub-network Router II:** multi-sided routers (≥3 sub-nets meeting at one hub) and **nested** sub-nets (a sub-net may contain its own router → a tree/mesh of sub-nets), plus a higher crossing cap. Everything Router I does, plus depth. Tier naming is internal convention; display names may re-flavor later.
+
+**Failure modes (non-destructive, mirrors power §3).**
+- *Missing crossing:* an item a downstream machine needs but which no `Crossing` relays simply never arrives — that machine blocks at `recipe_start_system`'s input check, like any starved machine. No damage, no cable/router harm.
+- *Sub-net over budget:* the affected sub-net sheds its own least-priority leaf ports (router ports pinned), so the boundary stays intact and the rest of the mesh keeps flowing.
+
+> **Status:** design-locked (design-decisions.md 2026-07-14), not implemented. Depends on the channel-capacity engine work above; same Demo-scope sequencing after the Vertical Slice playtest gate.
 
 ### Messages
 
