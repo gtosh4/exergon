@@ -18,6 +18,7 @@ that intent in code with minimal manual play.
 | Recipe/content tests | `tests/assembler_recipe.rs`, `tests/smelter_recipe.rs` | fast | One machine + one recipe through the real logistics plugin. |
 | End-to-end run (Standard) | `tests/standard_full_run.rs` (+ `crates/scenario-runner`) | ~seconds | The whole vertical slice from a fixed seed: worldgen → placement → wiring → mining every raw material → analysis → research → power → crafting the successor → launch/escape. |
 | End-to-end run (Initiation) | `tests/initiation_run.rs` | ~seconds | The tier-3 difficulty: earn the T1–T3 path under a `TierCap`, build the `minimal_successor` escape (no tier-4 titanium), launch. Asserts the cap holds (no tier-4+ node unlocks). |
+| Content lint | `tests/content_lint.rs` | fast | Whole-tree integrity over all RON: no dangling or higher-tier prerequisites, no node unlocking an undefined recipe/template/item, and **no recipe left unreachable** by any node. Fails with the offending ids on any structural content gap. |
 
 The e2e test is the regression net for "a real run still completes." It is the one place the
 systems are proven to compose. **Every new gameplay stage on the landing→victory path gets a
@@ -45,6 +46,11 @@ Each e2e test loads its `scenarios/*.ron`, calls `Scenario::run`, and asserts on
 `cargo run -p scenario-runner --bin scenario -- scenarios/standard.ron` (or `initiation.ron`) from
 the repo root prints the report. Copy a scenario, change the seed or re-sequence the `steps`, and
 compare the printed milestones across runs.
+
+For **seed variance**, `scenario balance <file> [--seeds N]` runs one baseline across N seeds
+(worldgen varies, steps identical) and prints a pacing table — victory time, slowest tier, and
+per-seed flags (`⚠SLOW`/`⚠TIER`/`⚠OUTLIER`, DNF). It exits non-zero if any seed drags past the
+sanity ceilings, so it's CI-usable for catching a content change that wrecks a subset of seeds.
 
 ---
 

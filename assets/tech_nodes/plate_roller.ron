@@ -17,6 +17,7 @@
             "roll_iron_plate",
             "roll_aluminum_plate",
             "make_plate_roller",
+            "recycle_scrap",
         ]),
     ],
     exclusive_group: None,

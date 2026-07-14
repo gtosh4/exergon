@@ -1,0 +1,27 @@
+(
+    id: "make_combustion_generator",
+    inputs: [
+        (
+            item: "iron_ingot",
+            quantity: 6.0,
+        ),
+        (
+            item: "copper_wire",
+            quantity: 2.0,
+        ),
+    ],
+    outputs: [
+        (
+            item: "combustion_generator",
+            quantity: 1.0,
+        ),
+    ],
+    byproducts: [],
+    machine_type: "assembler",
+    machine_tier: 1,
+    processing_time: 25.0,
+    energy_cost: 20.0,
+    energy_output: 0.0,
+    template_id: None,
+    required_config: [],
+)

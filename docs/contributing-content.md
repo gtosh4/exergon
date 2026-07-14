@@ -18,10 +18,12 @@ You don't write scenarios, run any commands, or read RON. The smoke test is the 
 Give Claude enough to place the content in the existing web. Useful shapes:
 
 - **New recipe / item:**
-  > Add a recipe `make_resonite_circuit` that makes a `resonite_circuit` from 1 `resonite_lattice` + 1 `circuit_board`, in the advanced assembler. Unlock it from the `resonite_engineering` node.
+  > Add a recipe `make_plasma_coil` that makes a `plasma_coil` from 1 `resonite_lattice` + 1 `circuit_board`, in the advanced assembler. Unlock it from a new `plasma_forming` node.
 
 - **New tech node:**
-  > Add a tier-4 tech node `resonite_engineering`, prerequisite `advanced_assembler`, that unlocks `make_resonite_circuit`. It should cost engineering currency.
+  > Add a tier-4 tech node `plasma_forming`, prerequisite `advanced_assembler`, that unlocks `make_plasma_coil`. It should cost engineering currency.
+
+  (A node's prerequisites must be the same tier or lower — a higher-tier prereq is a content bug the [lint](#validation) rejects.)
 
 - **Tuning:**
   > `make_circuit` feels too cheap — bump its energy cost and time so it paces with tier 2.
@@ -45,6 +47,17 @@ Claude acts on these for you; you'll see it fix and re-test.
 - **Balance/pacing** — it proves *reachable*, not *fun* or *well-tuned*. Currency curves and pacing are a separate judgement (the content-designer flags concerns).
 - **World-law interactions** — it validates content in a forced context, so it won't tell you whether a world's physics naturally surface your node. That's a playtest question.
 - **Deep new chains** — a brand-new node whose prerequisites aren't already on a tested baseline path may need its prereq chain smoke-tested first. Claude will sequence this.
+
+## Validation
+
+Two layers catch content problems:
+
+- **`smoke_test` (per item)** — proves *your one thing* is reachable and craftable in a real run. Use it while authoring, as above.
+- **The content lint (whole tree)** — `cargo test --test content_lint` sweeps *all* content at once and fails on structural gaps `smoke_test` can't see across the graph: a prerequisite that doesn't exist, a prerequisite from a higher tier, a node unlocking a recipe/template/item that isn't defined, or a recipe **no node ever unlocks** (unreachable dead content). It runs in the normal `cargo test` suite, so a bad edit trips it before commit. Any failure prints the exact offending ids — fix the RON, not the test.
+
+### Research currency is a naming convention
+
+A recipe that outputs an item id `research.<theme>` (e.g. `research.engineering`) — or the legacy `research_points` (→ theme `material`) — has that output **credited to the research pool** under `<theme>` instead of being stored as a physical item (`research_theme_of`, `src/research/mod.rs`). To add a new research point type, just output `research.<newtheme>` from an analysis recipe and add a matching `assets/items/research.<newtheme>.ron` item def — no Rust change. Tech nodes spend it via `primary_unlock: ResearchSpend(type_id: "<theme>", amount)`.
 
 ## Under the hood (for the curious)
 

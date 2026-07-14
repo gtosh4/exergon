@@ -1,0 +1,7 @@
+(
+    id: "research.material",
+    name: "Material Research",
+    kind: Unique,
+    is_terminal: false,
+    config: None,
+)

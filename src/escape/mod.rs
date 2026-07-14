@@ -5,7 +5,6 @@ use crate::GameState;
 use crate::logistics::JobComplete;
 use crate::machine::Machine;
 use crate::planet::PlanetProperties;
-use crate::research::{DiscoveryEvent, TechTreeProgress};
 use crate::save::{Run, RunEndEvent, RunSaveHeader, RunStatus};
 
 /// Marker: recipe completion on this machine triggers run escape.
@@ -65,7 +64,6 @@ impl Plugin for EscapePlugin {
                     on_escape_system,
                     spawn_escape_vfx.run_if(resource_added::<EscapeSequence>),
                     escape_sequence_system,
-                    unlock_gateway_on_discovery,
                 )
                     .run_if(in_state(GameState::Playing)),
             );
@@ -194,20 +192,6 @@ fn escape_sequence_system(
     if seq.timer.is_finished() {
         next_state.set(GameState::Escaped);
         commands.remove_resource::<EscapeSequence>();
-    }
-}
-
-/// Unlock `activate_gateway` recipe when gateway ruins are discovered.
-fn unlock_gateway_on_discovery(
-    mut discovery_events: MessageReader<DiscoveryEvent>,
-    mut progress: ResMut<TechTreeProgress>,
-) {
-    for event in discovery_events.read() {
-        if event.0 == "gateway_ruins" {
-            progress
-                .unlocked_recipes
-                .insert("activate_gateway".to_string());
-        }
     }
 }
 

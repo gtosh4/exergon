@@ -910,24 +910,24 @@ fn rebuild_detail(
             }
         }
 
-        // Research source
-        if let UnlockVector::ResearchSpend { .. } = &node.primary_unlock
+        // Research source: the machines producing this node's research-currency theme. A node
+        // spends one theme (`type_id`); surface every recipe whose output credits that theme
+        // (`research.<theme>`, or legacy `research_points` → material), not just the legacy id.
+        if let UnlockVector::ResearchSpend { type_id, .. } = &node.primary_unlock
             && let Some(rg) = &recipe_graph
         {
-            let sources: Vec<String> = rg
+            let mut sources: Vec<String> = rg
                 .producers
-                .get("research_points")
-                .map(|ids| {
-                    let mut machine_types: Vec<String> = ids
-                        .iter()
-                        .filter_map(|id| rg.recipes.get(id))
-                        .map(|r| humanize_id(&r.machine_type))
-                        .collect();
-                    machine_types.sort();
-                    machine_types.dedup();
-                    machine_types
+                .iter()
+                .filter(|(item, _)| {
+                    crate::research::research_theme_of(item) == Some(type_id.as_str())
                 })
-                .unwrap_or_default();
+                .flat_map(|(_, ids)| ids)
+                .filter_map(|id| rg.recipes.get(id))
+                .map(|r| humanize_id(&r.machine_type))
+                .collect();
+            sources.sort();
+            sources.dedup();
 
             if !sources.is_empty() {
                 c.spawn(divider());

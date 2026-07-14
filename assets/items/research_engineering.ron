@@ -1,0 +1,7 @@
+(
+    id: "research.engineering",
+    name: "Engineering Research",
+    kind: Unique,
+    is_terminal: false,
+    config: None,
+)

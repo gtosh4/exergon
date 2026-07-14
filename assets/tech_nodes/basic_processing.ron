@@ -14,12 +14,12 @@
     effects: [
         UnlockMachine("wire_drawer"),
         UnlockRecipes([
-            "draw_metal__copper",
             "make_circuit",
             "make_assembler",
             "analyze_circuit",
             "make_wire_drawer",
         ]),
+        UnlockRecipeTemplate("draw_metal"),
     ],
     exclusive_group: None,
 )

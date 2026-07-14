@@ -1,0 +1,7 @@
+(
+    id: "research.synthesis",
+    name: "Synthesis Research",
+    kind: Unique,
+    is_terminal: false,
+    config: None,
+)

@@ -16,11 +16,14 @@
 use exergon::save::DifficultyTier;
 use scenario_runner::{Scenario, Target, load_spec, run_smoke};
 
+mod balance;
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("smoke") => smoke(args.get(1..).unwrap_or_default()),
         Some("run") => run_file(args.get(1).map(String::as_str)),
+        Some("balance") => balance::balance(args.get(1..).unwrap_or_default()),
         // Back-compat: `scenario <path.ron>` with no subcommand runs the file.
         Some(path) => run_file(Some(path)),
         None => usage_exit(),
@@ -116,7 +119,7 @@ fn parse_difficulty(s: &str) -> Result<DifficultyTier, String> {
 
 fn usage_exit() -> ! {
     eprintln!(
-        "usage:\n  scenario run <scenario.ron>\n  scenario smoke <item|node|recipe> <id> [difficulty]\n(run from repo root)"
+        "usage:\n  scenario run <scenario.ron>\n  scenario smoke <item|node|recipe> <id> [difficulty]\n  scenario balance <scenario.ron> [--seeds N]\n(run from repo root)"
     );
     std::process::exit(2);
 }

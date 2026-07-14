@@ -4,7 +4,18 @@
     category: Exploration,
     tier: 2,
     rarity: Uncommon,
-    prerequisites: ["ore_extraction"],
-    primary_unlock: ResearchSpend(type_id: "material", amount: 80),
-    effects: [UnlockMachine("scout_drone"), UnlockRecipes(["drone_scan", "analyze_field_sample"])],
+    prerequisites: [
+        "ore_extraction",
+    ],
+    primary_unlock: ResearchSpend(
+        type_id: "material",
+        amount: 80,
+    ),
+    effects: [
+        UnlockMachine("scout_drone"),
+        UnlockRecipes([
+            "analyze_field_sample",
+        ]),
+    ],
+    exclusive_group: None,
 )

@@ -1,0 +1,22 @@
+(
+    id: "combustion_power",
+    name: "Combustion Power",
+    category: Power,
+    tier: 2,
+    rarity: Uncommon,
+    prerequisites: [
+        "power_basics",
+    ],
+    primary_unlock: ResearchSpend(
+        type_id: "material",
+        amount: 120,
+    ),
+    effects: [
+        UnlockMachine("combustion_generator"),
+        UnlockRecipes([
+            "make_combustion_generator",
+            "combust_coal",
+        ]),
+    ],
+    exclusive_group: None,
+)
