@@ -6,8 +6,10 @@
 
 mod harness;
 mod report;
+mod smoke;
 mod spec;
 
-pub use harness::Scenario;
+pub use harness::{Scenario, load_registries};
 pub use report::{ResearchSnapshot, RunReport};
-pub use spec::{MineTarget, ScenarioSpec, Step, load_spec};
+pub use smoke::{SmokePlan, SmokeReport, Target, baseline_path, build_spec, plan_smoke, run_smoke};
+pub use spec::{MineTarget, ScenarioSpec, Select, Step, load_spec};

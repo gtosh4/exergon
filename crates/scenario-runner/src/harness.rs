@@ -980,3 +980,17 @@ fn build_app() -> App {
         );
     app
 }
+
+/// Build the headless app just far enough to load the content registries — the tech tree and the
+/// recipe graph — without running worldgen or landing. Both are seed-independent (loaded at
+/// `Startup` from `assets/`), so smoke planning reads them off a throwaway app. Call from the repo
+/// root so `assets/` is reachable.
+pub fn load_registries() -> (exergon::tech_tree::TechTree, RecipeGraph) {
+    let mut app = build_app();
+    app.update(); // Startup: load_tech_tree + build_recipe_graph
+    let world = app.world();
+    (
+        world.resource::<exergon::tech_tree::TechTree>().clone(),
+        world.resource::<RecipeGraph>().clone(),
+    )
+}

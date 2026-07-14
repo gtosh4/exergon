@@ -23,6 +23,26 @@ pub struct ScenarioSpec {
     /// step trips it).
     #[serde(default = "default_max_secs")]
     pub max_secs: f32,
+    /// **Reserved seam** for dynamic node selection: content ids (node/recipe/item) that must be
+    /// present in this run's selection. Ignored today — the full tree is always available. The
+    /// smoke generator fills it with a target's prerequisite closure; see [`crate::smoke`].
+    #[serde(default)]
+    pub require: Vec<String>,
+    /// **Reserved seam**: how to satisfy `require` once selection becomes dynamic. Ignored today.
+    #[serde(default)]
+    pub select: Select,
+}
+
+/// How a scenario guarantees its `require`d content is present in a run's selection. **Reserved
+/// seam** — the interpreter ignores it today (the full tree is always available); it will matter
+/// once runs surface a dynamic subset of nodes/recipes.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+pub enum Select {
+    /// Force the required ids (and their prerequisite closure) into the selection, whatever the seed.
+    #[default]
+    Force,
+    /// Search seeds for one whose natural selection already contains the required ids.
+    Seed,
 }
 
 /// Where a `Deploy`/`Place` of a `miner` goes.
