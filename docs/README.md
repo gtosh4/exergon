@@ -21,6 +21,9 @@ Defines what the vertical slice must prove: the five core signals (first-hour in
 ### [`milestones.md`](milestones.md) — Milestones
 Milestone ladder: Vertical Slice → Alpha → Demo (MVP) → Release → Post-release. Each milestone states its purpose, gate conditions, and what it explicitly does not require. **Check before asking whether a feature is in scope.**
 
+### [`contributing-content.md`](contributing-content.md) — Contributing Content
+How anyone — no Rust, no file editing — adds tech nodes, items, and recipes by describing them to Claude, which authors the RON and proves it works with a `smoke_test`. **Read this to contribute content, or to understand the author → validate → smoke loop.**
+
 ### [`ui.md`](ui.md) — UI Design
 Palette, screens and modes (In-World HUD, Terminal, Index, Planner, Tech Tree, Machine panel, Landing), hotbar/research-pool/alerts widgets, mockup image references, and links to `ui_mock/` prototypes. **Read before implementing or restyling any UI surface.**
 

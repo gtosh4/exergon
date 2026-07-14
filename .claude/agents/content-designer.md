@@ -31,12 +31,14 @@ Never trust hand-read RON. The `exergon-assets` MCP tools go through the real (d
 | `resolve_recipe {id}` / `list_all_recipes` | recipes from the *resolved* graph, incl. template-expanded ones with no backing file |
 | `tech_path {node}` | full prerequisite chain in unlock order — the tool for sequencing gates |
 | `item_uses {item}` | recipes that produce / consume an item |
+| `smoke_test {kind, id, difficulty?}` | **prove new content actually works in a real run** — auto-derives a scenario from the e2e baseline, runs it headless, reports whether the target is reached. `kind` = item \| node \| recipe |
 
 After every content edit:
 1. `get_asset` (or `resolve_recipe`) the thing you touched — confirm it deserializes and shows what you intended.
 2. `tech_path escape_synthesis` — confirm the victory chain is still reachable if you touched tech nodes.
 3. `item_uses <item>` for any new item — an item with producers but no consumers (or vice versa) is dangling; either wire it into a chain or flag it.
-4. `cargo test` — content tests and the e2e run (`tests/standard_full_run.rs`) must still pass. If a grind stage's `max_secs` guard trips after a balance change, the change made a stage slower — reconsider the values before raising the guard.
+4. `smoke_test {kind, id}` for the new/changed content — proves it is actually reachable and craftable in a real headless run, not just well-formed. A `{ok:false, failure_reason}` names the gap (input with no producer, broken prereq chain, unreachable node) in plain language; fix the content and retry. `{ok:true, reached:true}` is the pass. This catches integration failures the static `item_uses`/`tech_path` checks can't — e.g. an input that resolves on paper but nothing on the run's path actually produces.
+5. `cargo test` — content tests and the e2e run (`tests/standard_full_run.rs`) must still pass. If a grind stage's `max_secs` guard trips after a balance change, the change made a stage slower — reconsider the values before raising the guard.
 
 ## Reporting
 
