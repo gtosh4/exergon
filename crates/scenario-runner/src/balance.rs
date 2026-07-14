@@ -29,13 +29,15 @@ const MAX_TIER_DURATION_SECS: f32 = 5400.0; // 90m
 /// outlier (warning only — variance is expected, this just surfaces the worst seeds).
 const OUTLIER_FRAC: f32 = 0.35;
 
-/// One row's derived metrics.
+/// One row's derived metrics, plus the full run report (kept so the best/worst seed can render
+/// its whole timeline in the emitted doc).
 struct Row {
     seed: u64,
     completed: bool,
     victory_secs: f32,
     slowest_tier: Option<(u8, f32)>, // (tier, duration_secs)
     idle_themes: Vec<&'static str>,
+    report: RunReport,
 }
 
 pub fn balance(args: &[String]) {
@@ -80,7 +82,7 @@ fn sweep(spec: &ScenarioSpec, seeds: u64) -> Vec<Row> {
         eprint!("  seed {seed:#x} ({}/{seeds})… ", i + 1);
         let report = Scenario::new(seed).run(spec);
         eprintln!("{}", if report.completed { "ok" } else { "DNF" });
-        rows.push(derive_row(seed, &report));
+        rows.push(derive_row(seed, report));
     }
     rows
 }
@@ -169,7 +171,40 @@ fn render_difficulty(label: &str, path: &str, base_seed: u64, rows: &[Row]) -> S
         ));
     }
     s.push('\n');
+
+    // Fastest and slowest finished seeds get a default-collapsed dump of their whole run — the
+    // extremes of the spread, on hand for a deep dive without cluttering the summary. DNFs never
+    // qualify (no timeline to show).
+    let completed: Vec<&Row> = rows.iter().filter(|r| r.completed).collect();
+    if let Some(best) = completed
+        .iter()
+        .copied()
+        .min_by(|a, b| a.victory_secs.total_cmp(&b.victory_secs))
+    {
+        s.push_str(&render_report_details("Fastest", best));
+    }
+    if completed.len() > 1
+        && let Some(worst) = completed
+            .iter()
+            .copied()
+            .max_by(|a, b| a.victory_secs.total_cmp(&b.victory_secs))
+    {
+        s.push_str(&render_report_details("Slowest", worst));
+    }
     s
+}
+
+/// A default-collapsed `<details>` block holding one seed's full timeline + stats (the same dump
+/// `RunReport::print` writes to stdout), wrapped in a fenced code block so its column alignment
+/// survives markdown rendering.
+fn render_report_details(kind: &str, r: &Row) -> String {
+    format!(
+        "<details>\n<summary><strong>{kind} seed</strong> <code>{:#018x}</code> — {:.2}h \
+         (full timeline &amp; stats)</summary>\n\n```text\n{}```\n\n</details>\n\n",
+        r.seed,
+        r.victory_secs / 3600.0,
+        r.report.stats_dump(),
+    )
 }
 
 struct Args {
@@ -223,7 +258,7 @@ fn load_or_exit(path: &str) -> ScenarioSpec {
     }
 }
 
-fn derive_row(seed: u64, report: &RunReport) -> Row {
+fn derive_row(seed: u64, report: RunReport) -> Row {
     let slowest_tier = report
         .tier_progress
         .iter()
@@ -233,7 +268,7 @@ fn derive_row(seed: u64, report: &RunReport) -> Row {
     // A theme that never rose above zero across the whole curve was never produced — either
     // genuinely starved, or simply not needed by this scenario. Surfaced, not failed.
     let mut idle = Vec::new();
-    idle_themes_into(report, &mut idle);
+    idle_themes_into(&report, &mut idle);
 
     Row {
         seed,
@@ -241,6 +276,7 @@ fn derive_row(seed: u64, report: &RunReport) -> Row {
         victory_secs: report.virtual_secs,
         slowest_tier,
         idle_themes: idle,
+        report,
     }
 }
 
@@ -353,6 +389,7 @@ mod tests {
             victory_secs,
             slowest_tier: tier,
             idle_themes: Vec::new(),
+            report: RunReport::default(),
         }
     }
 
@@ -372,6 +409,16 @@ mod tests {
         assert!(md.contains("`0x0000000000000010`"));
         assert!(md.contains("`0x0000000000000011`"));
         assert!(md.contains("t3 40m"));
+
+        // best (fastest, 2.50h → 0x10) and worst (slowest, 3.00h → 0x11) each get a collapsed
+        // <details> dump; both should be present and distinct.
+        assert!(md.contains("<details>"));
+        assert!(md.contains(
+            "<summary><strong>Fastest seed</strong> <code>0x0000000000000010</code> — 2.50h"
+        ));
+        assert!(md.contains(
+            "<summary><strong>Slowest seed</strong> <code>0x0000000000000011</code> — 3.00h"
+        ));
     }
 
     #[test]
@@ -382,5 +429,7 @@ mod tests {
         assert!(md.contains("NO RUN FINISHED"));
         assert!(md.contains("DNF"));
         assert!(md.contains("⚠SLOW"));
+        // No finished run → no timeline to expand.
+        assert!(!md.contains("<details>"));
     }
 }

@@ -227,11 +227,22 @@ impl RunReport {
 
     /// Human-readable milestone + statistics dump for the `scenario` binary.
     pub fn print(&self) {
-        let h = |s: f32| s / 3600.0;
         println!("\n══════════════════════════════════════════════════════════════");
         println!("  scenario: {}   seed: {:#x}", self.name, self.seed);
         println!("══════════════════════════════════════════════════════════════");
-        println!(
+        print!("{}", self.stats_dump());
+        println!("══════════════════════════════════════════════════════════════\n");
+    }
+
+    /// The milestone + statistics body (no box borders, no scenario/seed header): outcome line,
+    /// tier progression, research curve, ore extracted, node unlocks, stage checks. Shared by
+    /// [`Self::print`] (stdout) and the balance-state doc's per-seed `<details>` blocks.
+    pub fn stats_dump(&self) -> String {
+        use std::fmt::Write;
+        let h = |s: f32| s / 3600.0;
+        let mut o = String::new();
+        let _ = writeln!(
+            o,
             "  outcome: {}   virtual time: {:.0}s ({:.2}h)",
             if self.completed {
                 "VICTORY"
@@ -242,12 +253,13 @@ impl RunReport {
             h(self.virtual_secs),
         );
 
-        println!("\n  ── tier progression ──");
+        let _ = writeln!(o, "\n  ── tier progression ──");
         if self.tier_progress.is_empty() {
-            println!("    (none)");
+            let _ = writeln!(o, "    (none)");
         }
         for t in &self.tier_progress {
-            println!(
+            let _ = writeln!(
+                o,
                 "    tier {}  {}/{} nodes   {:8.0}s → {:8.0}s  ({:.2}h → {:.2}h)",
                 t.tier,
                 t.unlocked,
@@ -259,26 +271,27 @@ impl RunReport {
             );
         }
 
-        println!("\n  ── research currency curve ──");
-        println!("      secs    material  engineer  discover  synthesis");
+        let _ = writeln!(o, "\n  ── research currency curve ──");
+        let _ = writeln!(o, "      secs    material  engineer  discover  synthesis");
         for s in &self.research_curve {
-            println!(
+            let _ = writeln!(
+                o,
                 "    {:7.0}  {:9.0} {:9.0} {:9.0} {:9.0}",
                 s.secs, s.material, s.engineering, s.discovery, s.synthesis
             );
         }
 
-        println!("\n  ── raw ore extracted ──");
+        let _ = writeln!(o, "\n  ── raw ore extracted ──");
         for (ore, amt) in &self.ore_extracted {
-            println!("    {ore:20} {amt:8.0}");
+            let _ = writeln!(o, "    {ore:20} {amt:8.0}");
         }
 
-        println!("\n  ── node unlocks ({}) ──", self.node_unlocks.len());
+        let _ = writeln!(o, "\n  ── node unlocks ({}) ──", self.node_unlocks.len());
         for (id, secs) in &self.node_unlocks {
-            println!("    {secs:8.0}s  {id}");
+            let _ = writeln!(o, "    {secs:8.0}s  {id}");
         }
 
-        println!("\n  ── stage checks ──");
+        let _ = writeln!(o, "\n  ── stage checks ──");
         for (label, ok) in [
             ("kit miner latched deposit", self.kit_miner_latched),
             ("kit machines share network", self.networks_shared),
@@ -293,8 +306,8 @@ impl RunReport {
             ("build list enqueued", self.build_enqueued),
             ("launch_site ran launch", self.launch_ran),
         ] {
-            println!("    [{}] {label}", if ok { "x" } else { " " });
+            let _ = writeln!(o, "    [{}] {label}", if ok { "x" } else { " " });
         }
-        println!("══════════════════════════════════════════════════════════════\n");
+        o
     }
 }
