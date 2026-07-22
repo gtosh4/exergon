@@ -1,3 +1,11 @@
+---
+type: market
+title: "Opus Magnum Market Note"
+summary: "Zachtronics open-ended alchemy-machine puzzler with optimization histograms; validates that the player-authored solution itself can be the reward."
+tags: ["competitor", "puzzle", "ui"]
+aliases: ["Opus Magnum"]
+---
+
 # Opus Magnum Market Note
 
 > Date reviewed: 2026-05-20  

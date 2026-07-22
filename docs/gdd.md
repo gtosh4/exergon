@@ -1,3 +1,11 @@
+---
+type: design
+title: "Game Design Document"
+summary: "Full game design document: vision, five pillars, seeded procedural worlds, science-discovery loop, tech tree, recipe graph, power, factory, escape, and von Neumann probe fiction."
+tags: ["roguelite", "factory-automation", "world-gen", "narrative"]
+aliases: ["GDD", "Game Design Document", "von Neumann probe"]
+---
+
 # Game Design Document
 
 > **Document status:** This is a living first-draft GDD derived from initial design exploration. Sections marked `> ⚠️ OPEN QUESTION` contain unresolved decisions to be revisited. Nothing here is final.
@@ -778,7 +786,7 @@ Mods are loaded as additional content packs that extend or override the base poo
 The dominant cost of a deep content pack is not authoring content — it is making content **cohere**. In GTNH's dev channels, recipe/integration work is the single largest ongoing topic (see `market/gtnh.md`), far ahead of new-content creation. The lesson: a smaller set of tightly interlocked sciences beats a large pool of shallow, disconnected additions. Exergon's edge is that coherence is **machine-checkable** — the run validator (below) enforces reachability, recipe bounds, and balance envelopes automatically, replacing the perpetual manual balance debate that an open-ended fixed pack accumulates. Budget for the validator and the content schema as first-class engineering, not afterthoughts.
 
 ### Community maintenance as a supported direction
-GTNH demonstrates that a legendary-depth pack can be sustained by an organized volunteer community — but at a real, visible cost: a dedicated wiki/curriculum team, continuous balance testing via an experimental release train, and a standing recipe-integration effort, carried by a couple dozen sustained contributors. This is a viable long-term direction for Exergon (post-Release; see [milestones](milestones.md)), and the platform design should *lower* that cost rather than assume free labor:
+GTNH demonstrates that a legendary-depth pack can be sustained by an organized volunteer community — but at a real, visible cost: a dedicated wiki/curriculum team, continuous balance testing via an experimental release train, and a standing recipe-integration effort, carried by a couple dozen sustained contributors. This is a viable long-term direction for Exergon (post-Release; see [[milestones]]), and the platform design should *lower* that cost rather than assume free labor:
 - **Content is data + a stable, versioned schema** (above) let contributors add and revise packs without touching engine code.
 - **The run validator is the community's safety net** — it lets a contributor prove a pack is still solvable and in-bounds without a human playthrough, shrinking the QA burden that a volunteer org would otherwise carry.
 - **The codex is the curriculum layer**, filled automatically from content data, reducing the standing wiki-authoring load that GTNH shoulders manually. The in-game curriculum should never depend on a human wiki team to be complete.

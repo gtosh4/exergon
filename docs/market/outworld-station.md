@@ -1,3 +1,11 @@
+---
+type: market
+title: "Outworld Station Market Note"
+summary: "Space-station factory-automation game with co-op and starship goals; warns shallow logistics, idle-wait gates, and weak tooling get punished by automation veterans."
+tags: ["competitor", "factory-automation", "ui", "balance"]
+aliases: ["Outworld Station"]
+---
+
 # Outworld Station Market Note
 
 > Date reviewed: 2026-05-20  

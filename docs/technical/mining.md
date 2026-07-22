@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Mining & Deposit System"
+summary: "Surface ore extraction: OreDeposit/MinerMachine components, miner placement linking, exponential depletion curve, weighted ore sampling, manual drone mining, deposit discovery."
+tags: ["mining", "machines", "drone", "logistics"]
+aliases: ["OreDeposit", "MinerMachine", "depletion curve", "yield_factor", "deposit"]
+---
+
 # Mining & Deposit System
 
 Ore extraction from surface deposits. Two extraction modes: manual (drone-piloted, early-game) and automatic (miner machine, primary method). Both write to the same depletion counter on the deposit entity.

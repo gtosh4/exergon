@@ -1,3 +1,11 @@
+---
+type: market
+title: "Factorio Market Note"
+summary: "Genre-defining 2D automation benchmark; lesson: aggressively automate rote work, legibility enables depth, don't out-Factorio belts, compete on seeded science."
+tags: ["competitor", "factory-automation", "ui"]
+aliases: ["Factorio", "Space Age"]
+---
+
 # Factorio Market Note
 
 > Date reviewed: 2026-05-20  

@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Machine System Design"
+summary: "Machine entity model: MachineDef asset schema, placement/removal flow, tier upgrade with state transfer, IO port spawning, orientation, save tagging."
+tags: ["machines", "building", "save"]
+aliases: ["MachineDef", "tier upgrade", "IO ports", "machine placement"]
+---
+
 # Machine System Design
 
 Core machine entity model and data format. Covers `MachineDef` asset schema, placement flow, tier upgrade (state transfer), IO port spawning, orientation, and persistence tagging. Read `gdd.md §10` for design intent.

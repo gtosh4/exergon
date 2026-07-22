@@ -1,3 +1,12 @@
+---
+type: design
+title: "Tech Tree Design"
+summary: "Content-design layer for the 10-tier tech tree: unlock-rate targets, tier themes, node/category/rarity pools, Tier 1 skeleton, authored RON spine for tiers 3-5."
+tags: ["tech-tree", "research", "progression", "recipe-graph"]
+aliases: ["Tech Tree Design", "tier structure", "unlock rate targets", "node pool"]
+status: draft
+---
+
 # Tech Tree Design
 
 > **Status:** First draft. Pacing targets unvalidated — requires playtesting. Node definitions are representative, not final. See `gdd.md §7` for design intent; this document is the content design layer.
@@ -431,7 +440,7 @@ The holistic tier design (themes, base/exotic ratios, gates) lives in [§3](#3-t
 **Deviations from the tier design (flagged).**
 - **Optional nodes deferred.** The tier design calls for optional yield/insurance nodes (Gravel Sink exists; Digger Drone, Efficiency Module I/II, Reinforced Scaffold, Fluxite Capacitor, Terraform Router/Provisioning, Deep Survey, Redundant Core, Field Lab, Sustained Power Array, Fuel Depot) that are **not** on the launch spine. They are omitted from RON for now (representative fixed run) and remain design-only.
 - **Base-metal extraction folded.** The `smelt_metal` template (unlocked at `basic_smelting`) already yields every metal ingot, so separate Titanium/Aluminum "Extraction" gates have little to unlock; aluminum's crush/wash forms hang off `aluminum_extraction`/`ore_washer`, titanium's plate off `titanium_forming`. Design's Steel Alloying / Ore Washer / Plate Roller also **adopt previously-orphaned Phase B recipes** (`alloy_steel`, `wash_*`, `scrub_slag`, `roll_iron_plate`), wiring them to real gates.
-- **Launch gate.** See [`technical/escape-condition.md §7.1`](technical/escape-condition.md#71-standard-escape-successor-launch) for the ProductionMilestone("all 4 systems") → ResearchSpend+recipe-inputs modeling.
+- **Launch gate.** See [[escape-condition#7.1 Standard escape: successor launch (specced — content shipped Phase D)|technical/escape-condition.md §7.1]] for the ProductionMilestone("all 4 systems") → ResearchSpend+recipe-inputs modeling.
 
 ---
 

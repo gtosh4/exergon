@@ -1,7 +1,15 @@
+---
+type: design
+title: "Milestones"
+summary: "Development roadmap gates from Vertical Slice through Alpha, Demo/MVP, Release, and Post-release, each with questions, gate conditions, marketing, and asset/narrative scope."
+tags: ["progression", "roguelite", "telemetry", "save"]
+aliases: ["Milestones", "Alpha", "Demo MVP", "roadmap"]
+---
+
 # Milestones
 Current status: pre-Vertical Slice
 
-## [Vertical Slice](./vertical_slice.md)
+## [[vertical_slice|Vertical Slice]]
 The vertical slice should not try to prove the full MVP. It should prove whether the core premise works before scope expands.
 
 Marketing and outreach:
@@ -91,7 +99,7 @@ The Demo exists to answer four questions:
 3. **Run-stakes positioning:** Is non-punishing failure an acceptable commercial model, or does the Demo require a stakes hook before public exposure?
 4. **Meta-progression hook:** Does first-pass meta-progression (codex, biome unlocks) give players reason to start a second run immediately after completion?
 
-> Scope note: the Full-Standard content push (fixed hand-authored tier 1–5 run, ~71 nodes, successor-launch escape) is tracked in [`tasks.md`](tasks.md) "Standard Run Content — Full Standard" and serves the first gate below. The seeded ~215-node pool + procedural graph validator remain Alpha scope, not this push.
+> Scope note: the Full-Standard content push (fixed hand-authored tier 1–5 run, ~71 nodes, successor-launch escape) is tracked in [[tasks]] "Standard Run Content — Full Standard" and serves the first gate below. The seeded ~215-node pool + procedural graph validator remain Alpha scope, not this push.
 
 Gate conditions:
 - Standard difficulty playable end-to-end

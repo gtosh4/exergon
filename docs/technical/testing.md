@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Testing & Dev Tooling"
+summary: "Test layers (per-system, per-recipe, landing to victory e2e), fast-forwarding sim time via TimeUpdateStrategy/advance_until, adding e2e stages, and the exergon-assets RON MCP server."
+tags: ["testing", "content-pipeline", "scenarios"]
+aliases: ["e2e test", "advance_until", "assets MCP", "exergon-assets", "standard_full_run"]
+---
+
 # Testing & Dev Tooling
 
 Two things live here: how the end-to-end integration test is built and extended, and the
@@ -54,8 +62,8 @@ sanity ceilings, so it's CI-usable for catching a content change that wrecks a s
 
 `scenario balance --emit <path> [--seeds N]` instead sweeps every canonical difficulty scenario
 (`scenarios/*.ron`) and writes the results to `<path>` as markdown — this generates the standing
-[`docs/balance-state.md`](../balance-state.md) "current balance state" doc. It's a generated
-artifact: rerun to refresh, never hand-edit. See [`balance.md`](../balance.md) for how the sweep
+[[balance-state|docs/balance-state]] "current balance state" doc. It's a generated
+artifact: rerun to refresh, never hand-edit. See [[balance]] for how the sweep
 fits the tuning loop.
 
 ---
@@ -93,7 +101,7 @@ Do **not** reintroduce the old approach of hand-poking internal state (`accumula
 ## 3. Adding a stage to the e2e test
 
 > For the full `Step` vocabulary and how to author a scenario from scratch, see
-> [`scenarios.md`](scenarios.md). This section is the e2e-specific slice: slotting a stage into an
+> [[scenarios]]. This section is the e2e-specific slice: slotting a stage into an
 > existing scenario and asserting it.
 
 A new gameplay stage on the landing→victory path (research tier, crafting step, exploration unlock,

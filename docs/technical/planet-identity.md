@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Planet Identity & Seed System"
+summary: "Per-run planet properties from seed: archetype generation, property-to-gameplay modifiers, visibility/reveal model, landing panel UI, insight-beat feedback."
+tags: ["planet-identity", "seed", "world-gen", "ui"]
+aliases: ["PlanetProperties", "landing panel", "planet archetype", "insight beat"]
+---
+
 # Planet Identity & Seed System
 
 ECS components, generation algorithm, property-to-gameplay bindings, visibility model, landing panel UI, and insight beat feedback for planet properties. Read `gdd.md §5` for design intent. Seed derivation and RNG will be documented in `seed.md` and not repeated here.
@@ -46,7 +54,7 @@ Planet entity
 └── PlanetPropertyVisibility  ← per-property reveal state; save-game state
 ```
 
-`Planet` is a marker component that uses `#[require(Save)]` per `moonshine-save`'s pattern for grouping save-game entities — any entity carrying `Planet` is automatically tagged for serialization. See [`save.md §3`](save.md#3-ecs-save-tags) for the full list of marker components that follow this convention. Data components (`PlanetProperties`, `PlanetPropertyVisibility`) do not need the require.
+`Planet` is a marker component that uses `#[require(Save)]` per `moonshine-save`'s pattern for grouping save-game entities — any entity carrying `Planet` is automatically tagged for serialization. See [[save#3. ECS Save Tags|save.md §3]] for the full list of marker components that follow this convention. Data components (`PlanetProperties`, `PlanetPropertyVisibility`) do not need the require.
 
 ```rust
 #[derive(Component, Reflect)]

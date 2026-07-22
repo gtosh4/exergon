@@ -1,3 +1,11 @@
+---
+type: design
+title: "User Interface"
+summary: "UI design: screens and modes (HUD, Terminal, Index, Autocraft monitor, Planner, Tech Tree, Machine panel) plus meta/menu screens, widgets, mock references."
+tags: ["ui", "tech-tree", "inventory", "save"]
+aliases: ["User Interface", "Factory Planner", "Terminal", "Craft Modal", "In-World HUD"]
+---
+
 # User Interface
 
 ## Palette
@@ -175,7 +183,7 @@ See: `ui_mock/machine.jsx`
 
 ## Meta Screens
 
-The menu surfaces wrap the run lifecycle: entry, run start, restore, configuration, and pause-time control. Save-related screens follow [`technical/save.md`](technical/save.md) (one continuous primary save + sparse milestone checkpoints + single overwritable manual slot).
+The menu surfaces wrap the run lifecycle: entry, run start, restore, configuration, and pause-time control. Save-related screens follow [[save|technical/save]] (one continuous primary save + sparse milestone checkpoints + single overwritable manual slot).
 
 ### Main Menu
 Entry screen. When an in-progress run exists, **RESUME RUN** is promoted and the right-rail shows the run-at-a-glance card (seed, planet, tier, objective, last checkpoint). Otherwise the rail shows a design-pillar quote.

@@ -1,3 +1,11 @@
+---
+type: market
+title: "Against the Storm Market Note"
+summary: "Roguelite city-builder praised for run resets and legible variance; lesson: each Exergon run needs a clean, complete arc, not truncation."
+tags: ["competitor", "roguelite", "progression"]
+aliases: ["Against the Storm", "AtS", "ATS"]
+---
+
 # Against the Storm Market Note
 
 > Date reviewed: 2026-05-20  

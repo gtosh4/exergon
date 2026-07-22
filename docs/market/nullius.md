@@ -1,3 +1,11 @@
+---
+type: market
+title: "Nullius Market Note"
+summary: "Factorio total-conversion overhaul where a lone android bootstraps dead worlds via consistent real chemistry; proves consistency-as-depth and waste-coupled win conditions."
+tags: ["competitor", "factory-automation", "crafting", "balance"]
+aliases: ["Nullius"]
+---
+
 # Nullius Market Note
 
 > Date reviewed: 2026-07-07

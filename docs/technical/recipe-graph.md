@@ -1,8 +1,16 @@
+---
+type: technical
+title: "Recipe Graph"
+summary: "Recipe-graph data model: materials, form groups, items, machines-as-items, wildcard expansion, ConcreteRecipe, RecipeGraph resource, reachability queries, validity invariants."
+tags: ["recipe-graph", "crafting", "machines", "content-pipeline"]
+aliases: ["RecipeGraph", "ConcreteRecipe", "WildcardRecipe", "MaterialDef"]
+---
+
 # Recipe Graph
 
 Definition and data model of the recipe graph: materials, form groups, items, machines, wildcard recipes, concrete recipes, and the runtime `RecipeGraph` resource. Read `gdd.md §8` for design intent.
 
-**Scope.** This document covers the graph's **definition and data model** only. Runtime execution (recipe start, progress, completion, dispatch, catalyst reservation) is specified in [`crafting.md`](crafting.md). Tech-tree gating of recipe availability is in [`tech-tree-design.md`](../tech-tree-design.md). Procedural generation of the graph from the `recipes` domain seed is deferred to **post-VS** (see [`README.md`](README.md) Post-VS section).
+**Scope.** This document covers the graph's **definition and data model** only. Runtime execution (recipe start, progress, completion, dispatch, catalyst reservation) is specified in [[crafting]]. Tech-tree gating of recipe availability is in [[tech-tree-design]]. Procedural generation of the graph from the `recipes` domain seed is deferred to **post-VS** (see [[technical/README]] Post-VS section).
 
 **VS scope.** Data model and runtime types only. Recipe content is curated assets (`assets/materials/`, `assets/form_groups/`, `assets/recipes/`, `assets/items/`). Procedural variance, parameter bounds, and a graph generator are **post-VS**.
 
@@ -479,7 +487,7 @@ Query methods (`reachable_items`, `can_reach`, …) implement traversal on `grap
 
 `RecipeGraph` is derived from content assets (VS) or from `DomainSeeds.recipes` + asset pools (post-VS). Save files must be validated against the loaded asset state to ensure the graph the save was authored against still exists. Concretely: a save records the content hash (or asset manifest digest) of the graph; on load, the rebuilt graph must hash to the same value. Mismatches are a load error (game cannot safely resume against a divergent graph).
 
-This consistency check is owned by the save system. See [`save.md`](save.md) — *to be written* — for the schema and load-time validation. The recipe graph itself only commits to being deterministically reproducible from `(content assets, DomainSeeds.recipes)`.
+This consistency check is owned by the save system. See [[save]] — *to be written* — for the schema and load-time validation. The recipe graph itself only commits to being deterministically reproducible from `(content assets, DomainSeeds.recipes)`.
 
 ---
 
@@ -577,7 +585,7 @@ Recipe content is loaded from `assets/` at startup. `DomainSeeds.recipes` is **u
 
 ### Post-VS
 
-The recipe graph is generated from `DomainSeeds.recipes` (see [`seed.md §4`](seed.md#4-domain-seed-derivation)). Generator inputs:
+The recipe graph is generated from `DomainSeeds.recipes` (see [[seed#4. Domain Seed Derivation|seed.md §4]]). Generator inputs:
 
 - Curated base materials (always present)
 - Pool of exotic materials, selected by seed

@@ -1,3 +1,11 @@
+---
+type: design
+title: "Contributing Content"
+summary: "Guide for adding tech nodes, items, recipes, and machines via the content-designer agent and exergon-assets tool, using smoke_test and the whole-tree content lint to validate."
+tags: ["content-pipeline", "recipe-graph", "testing", "tech-tree"]
+aliases: ["Contributing Content", "smoke_test", "content lint", "exergon-assets"]
+---
+
 # Contributing Content
 
 **For anyone who wants to add game content — tech-tree nodes, items, recipes, machines — without touching Rust or editing files by hand.**
@@ -61,4 +69,4 @@ A recipe that outputs an item id `research.<theme>` (e.g. `research.engineering`
 
 ## Under the hood (for the curious)
 
-`smoke_test` is one tool on the `exergon-assets` server; it calls the scenario runner's `run_smoke`, which picks the lowest difficulty covering your content's tier, splices a target-exercising step onto the matching end-to-end baseline scenario (`scenarios/initiation.ron` / `standard.ron`), and runs it. The same thing is available at the terminal as `cargo run -p scenario-runner --bin scenario -- smoke <item|node|recipe> <id>`. See [`technical/scenarios.md`](technical/scenarios.md) for the scenario format the generator builds on.
+`smoke_test` is one tool on the `exergon-assets` server; it calls the scenario runner's `run_smoke`, which picks the lowest difficulty covering your content's tier, splices a target-exercising step onto the matching end-to-end baseline scenario (`scenarios/initiation.ron` / `standard.ron`), and runs it. The same thing is available at the terminal as `cargo run -p scenario-runner --bin scenario -- smoke <item|node|recipe> <id>`. See [[scenarios|technical/scenarios]] for the scenario format the generator builds on.

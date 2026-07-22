@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Planning UI Technical Design"
+summary: "Production planner UI: Sankey dependency graph, Inspector rail, recipe picker, ratio-math bottlenecks, and 3D network topology gizmo overlay; plans hypothetical, not live."
+tags: ["ui", "crafting", "recipe-graph", "logistics"]
+aliases: ["Sankey graph", "production planner", "PlanState", "topology overlay", "recipe picker"]
+---
+
 # Planning UI Technical Design
 
 Cross-factory production *planner*: design hypothetical production additions using a Sankey graph, per-node Inspector rail, Recipe Picker overlay, and 3D network topology overlay. The planner works on **planned** production — it does not read currently-placed machines or show live factory state. For live machine state and runtime alerts, see `machine-ui.md`.

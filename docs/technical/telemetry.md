@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Telemetry System"
+summary: "Debug-build passive telemetry: TelemetryLog resource, JSONL event schema, production-stall/remote-mode derived metrics, observer systems, execution order, MVP online-reporting options."
+tags: ["telemetry", "testing"]
+aliases: ["TelemetryLog", "JSONL", "production stall", "run_id", "instrumentation"]
+---
+
 # Telemetry System
 
 ECS components, resource structure, event schema, derived metrics, system logic, and log format for development-build telemetry. Supports VS §6 (Instrumentation) and playtest protocol §7. **VS: JSONL log file per run, debug builds only, no network. MVP: opt-in online reporting (§9).**

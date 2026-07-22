@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Building System Design"
+summary: "Placement/removal system for all placeables: PlaceableDef schema, ghost preview, footprint validation, orientation, multi-stage cable/platform placement, WorldObjectEvent contracts."
+tags: ["building", "ui", "logistics"]
+aliases: ["PlaceableDef", "WorldObjectEvent", "PlacementGhost", "BuildOrientation"]
+---
+
 # Building System Design
 
 Generic placement and removal flow for every placeable: machines, platforms, cables, decorations (post-VS), modules (post-VS). Owns the ghost preview, footprint validation, surface support, rotation input, hotbar→placement dispatch, and emits the `WorldObjectEvent { Placed | Removed }` + `CableConnectionEvent` contracts that downstream plugins react to.

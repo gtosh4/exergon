@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Seed System"
+summary: "Master seed to xxh64 domain sub-seeds to per-site deterministic RNG; chunk-streaming determinism, Pcg64 vs SmallRng choice, tech-tree validity, no-versioning policy."
+tags: ["seed", "world-gen", "testing"]
+aliases: ["RunSeed", "DomainSeeds", "seed derivation", "determinism", "xxh64"]
+---
+
 # Seed System
 
 Master seed → domain sub-seeds → per-site deterministic values. Covers: RunSeed (text → u64), domain derivation, per-site RNG pattern, determinism guarantee for chunk streaming, random-seed generation, RNG algorithm choice, tech tree validity concept, and versioning policy.

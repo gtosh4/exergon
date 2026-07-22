@@ -1,3 +1,11 @@
+---
+type: market
+title: "Pacific Drive Market Note"
+summary: "First-person driving survival with anomalous-zone excursions and a companion car; models safe-base/hostile-field rhythm for Exergon's drone scouting loop."
+tags: ["competitor", "survival", "exploration"]
+aliases: ["Pacific Drive"]
+---
+
 # Pacific Drive Market Note
 
 > Date reviewed: 2026-05-20  

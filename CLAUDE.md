@@ -10,13 +10,19 @@ Built using `bevy` game engine and `clap` for CLI argument parsing.
 1. Read relevant section of [gdd](docs/gdd.md) for design intent
 2. Read relevant section of [tech-design](docs/technical/technical-design.md) for architecture
 3. Check [milestones](docs/milestones.md) — is this feature in scope for current milestone?
-4. Did we make a design decision? Record in [log](docs/design-decisions.md)
+4. Did we make a design decision? Record it as an atomic note in `docs/decisions/` (see vault workflow below)
 
 ## Keeping Docs Current
 **Docs = source of truth. Keep in sync with decisions and code.**
 See [docs](docs/README.md) for full doc index.
 
 Docs and code diverge → reconcile explicitly. Never leave silent.
+
+### `docs/` is an Obsidian vault
+- **Query docs via the `obsidian-docs` MCP server** (`mcpvault`, in `.mcp.json`) — `search_notes` (BM25, `searchFrontmatter`), `get_frontmatter`, `list_all_tags` — instead of grepping. Every note has frontmatter (`type`, `title`, `summary`, `tags`, optional `aliases`/`status`); read `summary`/`tags` to triage before opening a file.
+- **Internal links are `[[wikilinks]]`** (not markdown links); images stay markdown.
+- **Design decisions = atomic notes** in `docs/decisions/` (`YYYY-MM-DD-slug.md`, frontmatter `type: decision`, `date`, `title`, `summary`, `tags`). NOT a single log file.
+- **Index/catalog blocks are generated** (`docs/README.md`, `docs/technical/README.md`, `docs/market/README.md`, `docs/design-decisions.md`) — do not hand-edit them. After adding, removing, or re-describing a doc, or adding a decision note, run `python3 scripts/gen_docs_index.py`.
 
 ## Instructions
 - Use TDD: write tests first based on requirements. Minimal tests to cover requirements, not comprehensive

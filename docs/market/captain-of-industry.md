@@ -1,3 +1,11 @@
+---
+type: market
+title: "Captain of Industry Market Note"
+summary: "Industrial colony sim with deep interlocked systems that can death-spiral; lesson: Exergon needs root-cause diagnostics, recovery paths, no hidden collapse."
+tags: ["competitor", "factory-automation", "survival"]
+aliases: ["Captain of Industry", "CoI"]
+---
+
 # Captain of Industry Market Note
 
 > Date reviewed: 2026-05-20  

@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Inventory System Design"
+summary: "Network-linked hotbar, drone item buffers, storage-unit mass capacity, Terminal runtime queries, flow ledger, and goal tracker; player has no personal inventory."
+tags: ["inventory", "logistics", "drone", "ui"]
+aliases: ["hotbar", "StorageUnit", "DroneInventory", "NetworkFlowLedger", "goal tracker"]
+---
+
 # Inventory System Design
 
 ECS components, system step-by-step logic, events/messages, and edge cases for the inventory layer. Read `gdd.md §10` (factory layer, unified storage), `technical-design.md §6` (logistics network), `networks.md §2` (StorageUnit), and `ui.md §Terminal` for context. Covers the hotbar, drone inventory, storage units, Terminal screen runtime data, and the goal tracker.

@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Machine UI Technical Design"
+summary: "Machine side-rail overlay: per-recipe job policy (C/P flags, priority), port binding, power/slot status, block reasons; defines canonical MachineJobPolicy."
+tags: ["ui", "machines", "crafting", "power"]
+aliases: ["MachineJobPolicy", "RecipePolicy", "port binding", "passive recipes", "SlotBlockReason"]
+---
+
 # Machine UI Technical Design
 
 Side-rail overlay for machine configuration and status monitoring. Primary surface for job policy, port binding, and passive recipe management. Read `ui.md §Machine UI` for layout and mockups, `crafting.md §4–5` for recipe execution, `networks.md §2–3` for port and power structure.

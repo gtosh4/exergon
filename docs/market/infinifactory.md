@@ -1,3 +1,11 @@
+---
+type: market
+title: "Infinifactory Market Note"
+summary: "First-person 3D Zachtronics assembly-puzzle game; lesson: Exergon's 3D factory needs excellent placement, cheap test runs, without becoming pure spatial puzzling."
+tags: ["competitor", "puzzle", "factory-automation"]
+aliases: ["Infinifactory"]
+---
+
 # Infinifactory Market Note
 
 > Date reviewed: 2026-05-20  

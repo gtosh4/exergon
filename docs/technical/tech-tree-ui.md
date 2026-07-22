@@ -1,7 +1,15 @@
+---
+type: technical
+title: "Tech Tree UI Technical Design"
+summary: "Tier-paged tech-tree questbook UI: five node fog states, reveal interaction flow, exclusive-group choice modal, inspector, and cross-tier edge layout."
+tags: ["tech-tree", "ui", "research", "progression"]
+aliases: ["tech tree overlay", "NodeKnowledge", "reveal overlay", "exclusive group", "fog of research", "wishlist"]
+---
+
 # Tech Tree UI Technical Design
 
-> Content design (tier themes, node pool, unlock rates, rarity): [`tech-tree-design.md`](../tech-tree-design.md).
-> Data model and runtime architecture (node fields, unlock vectors, tier gates, validity invariants): [`technical-design.md §3`](technical-design.md#3-tech-tree).
+> Content design (tier themes, node pool, unlock rates, rarity): [[tech-tree-design]].
+> Data model and runtime architecture (node fields, unlock vectors, tier gates, validity invariants): [[technical-design#3-tech-tree|technical-design.md §3]].
 > This document covers the UI implementation surface only.
 
 Wireframe: `ui_mock/tech-tree-wireframes.html`
@@ -41,7 +49,7 @@ pub enum RevealOverlayState {
 
 The panel reads `TechTreeNode`, `NodeKnowledge`, `NodeUnlockState`, and `ExclusiveGroup` components from entities in the run's tech tree. It writes nothing to those components directly — it emits `RevealRequested` and `ChoiceCommitted` events which the research system processes.
 
-### `TechTreeNode` (Component — canonical definition: [`tech-tree-design.md §5`](../tech-tree-design.md#5-node-pool-design))
+### `TechTreeNode` (Component — canonical definition: [[tech-tree-design#5. Node Pool Design|tech-tree-design.md §5]])
 
 Carries: `id`, `category`, `tier`, `rarity`, `effects`, `primary_vector`, `alt_vectors`, `primary_prereq`, `alt_prereqs`, `optional`, `exclusive_group`.
 

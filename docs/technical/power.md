@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Power System Design"
+summary: "Generator kinds (active/passive/burst), energy-as-recipe-output, environmental ports, virtual items, batteries, throttle, weather/day-night coupling, lightning rods."
+tags: ["power", "machines", "recipe-graph"]
+aliases: ["generators", "batteries", "solar panels", "lightning rods"]
+---
+
 # Power System Design
 
 Generator kinds, energy production, batteries, and environmental coupling. Sits on top of the cable graph defined in `networks.md §3`.

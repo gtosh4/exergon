@@ -1,3 +1,12 @@
+---
+type: design
+title: "Balance State"
+summary: "Generated baseline from scenario balance --emit: Initiation and Standard swept across 8 seeds with victory times, tier pacing, research curves, node unlocks."
+tags: ["balance", "telemetry", "scenarios", "progression"]
+aliases: ["Balance State", "scenario balance --emit", "victory time baseline"]
+status: generated
+---
+
 # Balance State
 
 > **Generated** by `scenario balance --emit`. Do not hand-edit — rerun to refresh.

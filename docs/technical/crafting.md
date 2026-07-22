@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Crafting System Design"
+summary: "Crafting execution layer: ECS components, recipe start/progress/completion systems, catalyst reservations, module effects, craft-job dispatch, plans, config-dedication gating."
+tags: ["crafting", "machines", "logistics", "power"]
+aliases: ["RecipeProcessor", "CraftingJob", "CraftingPlan", "MachineJobPolicy"]
+---
+
 # Crafting System Design
 
 ECS components, system step-by-step logic, events/messages, and edge cases for the crafting system. Read `gdd.md §8` and `technical-design.md §5–6` for design intent. Covers recipe execution, catalyst inputs, module effects on recipes, craft job dispatch, and recipe graph runtime integration.
@@ -263,7 +271,7 @@ Filtering happens once, here — dispatch (§8) and passive selection (§4) both
 
 Each machine entity carries a `MachineJobPolicy` component. Configured through the machine UI panel (see `machine-ui.md`). The dispatcher reads this component when selecting machines for job assignment.
 
-> **Canonical definition in `machine-ui.md §3`.** This section summarizes the model. For the full struct definition and slot assignment rules, see [`machine-ui.md §3`](machine-ui.md#3-ecs-structure).
+> **Canonical definition in `machine-ui.md §3`.** This section summarizes the model. For the full struct definition and slot assignment rules, see [[machine-ui#3. ECS Structure|machine-ui.md §3]].
 
 `MachineJobPolicy` uses a per-recipe model:
 

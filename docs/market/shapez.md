@@ -1,3 +1,11 @@
+---
+type: market
+title: "shapez / shapez 2 Market Note"
+summary: "Minimalist pure-factory optimization games stripping away survival and story; prove the design phase can carry a game if tooling and legibility are excellent."
+tags: ["competitor", "factory-automation", "puzzle", "ui"]
+aliases: ["shapez", "shapez 2"]
+---
+
 # shapez / shapez 2 Market Note
 
 > Date reviewed: 2026-05-20  

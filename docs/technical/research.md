@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Science & Research System Design"
+summary: "Research stations feed items to accrue typed research points; player-spent tech unlocks, research themes, knowledge visibility, unlock-vector flow, edge cases."
+tags: ["research", "tech-tree", "crafting", "progression"]
+aliases: ["ResearchPool", "TechTreeProgress", "research points", "tech unlock"]
+---
+
 # Science & Research System Design
 
 ECS components, system step-by-step logic, events/messages, and edge cases for the Science & Research system. Read `gdd.md §6` for design intent and `technical-design.md §9` for the prose overview. Vertical Slice and MVP differences are noted inline.

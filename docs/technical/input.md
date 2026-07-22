@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Input & Keybindings"
+summary: "Canonical action-token registry and bevy_enhanced_input context stack (Local/Drone/Modal/HUD/Global); default bindings, rebinding persistence, cross-doc token conventions."
+tags: ["ui", "content-pipeline"]
+aliases: ["keybindings", "action token", "bevy_enhanced_input", "InputContext"]
+---
+
 # Input & Keybindings
 
 Canonical action token registry plus the input plugin design. Every player-facing input in the rest of the technical docs refers to an action token from §3 — never to a raw key or mouse button. The default binding for each token lives in this doc and is mutable from an in-game keybinding settings screen.

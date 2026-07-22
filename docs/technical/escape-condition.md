@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Escape Condition Design"
+summary: "Escape objective as a machine running a recipe to completion firing EscapeEvent; precursor gateway/derelict discounts, successor launch cascade, MVP escape tiers, tech gating."
+tags: ["escape", "crafting", "progression", "narrative"]
+aliases: ["EscapeObjective", "EscapeEvent", "gateway", "launch_site", "successor launch"]
+---
+
 # Escape Condition Design
 
 Specifies ECS structure, system logic, events, and edge cases for the escape condition. Vertical Slice covers Initiation (precursor gateway); MVP adds Standard/Advanced/Pinnacle. Design these only in terms of other docs; do not reference current code state.

@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Aegis System Design"
+summary: "Aegis protective fields enabling Local-mode body control; boundary check, movement clamp, atmospheric exposure damage, outpost beacon power gating, body switching and quick-switch."
+tags: ["aegis", "survival", "power", "building"]
+aliases: ["Aegis Emitter", "Outpost Beacon", "atmospheric exposure", "body switching", "InAegis"]
+---
+
 # Aegis System Design
 
 ECS components, system step-by-step logic, events/messages, and edge cases for the Aegis system. Read `gdd.md §10` for design intent.

@@ -1,6 +1,14 @@
+---
+type: design
+title: "Vertical Slice Task Breakdown"
+summary: "Phased code work plan for the vertical slice (save, telemetry, planet, escape, power, research, drone, tech tree) plus the fixed Standard-run content build."
+tags: ["progression", "content-pipeline", "testing", "tech-tree"]
+aliases: ["Vertical Slice", "VS", "Task Breakdown"]
+---
+
 # Vertical Slice Task Breakdown
 
-> Work plan derived from [`vertical_slice.md`](vertical_slice.md) and [`milestones.md`](milestones.md). Designs in [`technical/`](technical/) are complete; this file lists code work only. Order roughly top-down: foundation before features, blockers before polish.
+> Work plan derived from [[vertical_slice]] and [[milestones]]. Designs in [`technical/`](technical/) are complete; this file lists code work only. Order roughly top-down: foundation before features, blockers before polish.
 
 Legend: `[ ]` not started · `[~]` in progress / partial · `[x]` done
 
@@ -15,7 +23,7 @@ Legend: `[ ]` not started · `[~]` in progress / partial · `[x]` done
 Required before most VS features land. Other phases may proceed in parallel where independent.
 
 ### 0.1 Save / Load — `src/save/`
-Design: [`save.md`](technical/save.md). Do-not-stub (blocks Standard Probe gate).
+Design: [[save]]. Do-not-stub (blocks Standard Probe gate).
 
 - [x] Add `moonshine_save` crate
 - [x] `Run` marker component + `RunSaveHeader` (seed, profile, elapsed, timestamp)
@@ -32,7 +40,7 @@ Deviations from design:
 - Checkpoints, rolling backups, and HardcoreMode remain post-VS.
 
 ### 0.2 Telemetry — `src/telemetry/`
-Design: [`telemetry.md`](technical/telemetry.md). VS §6 gate requirement.
+Design: [[telemetry]]. VS §6 gate requirement.
 
 - [x] `TelemetryLog` resource, JSONL writer (`#[cfg(debug_assertions)]` gated)
 - [x] `RunStarted` event (seed, profile, timestamp)
@@ -42,7 +50,7 @@ Design: [`telemetry.md`](technical/telemetry.md). VS §6 gate requirement.
 - [~] Event integration points wired across systems — wired for existing emitters; gated behind future event additions for the rest
 
 ### 0.3 Seed System — `planet` domain
-Design: [`seed.md`](technical/seed.md), [`planet-identity.md`](technical/planet-identity.md).
+Design: [[seed]], [[planet-identity]].
 
 - [x] Add `planet` field to `DomainSeeds`
 - [x] Pcg64 RNG factory for planet domain (`DomainSeeds::planet_rng`)
@@ -55,7 +63,7 @@ Design: [`seed.md`](technical/seed.md), [`planet-identity.md`](technical/planet-
 Foundation for first-hour insight signal and planet-dependent power choice.
 
 ### 1.1 Data model — `src/planet/`
-Design: [`planet-identity.md`](technical/planet-identity.md).
+Design: [[planet-identity]].
 
 - [x] `PlanetProperties` component: 6 float axes (solar, thermal, wind, geological, atmospheric, pressure) + hazard type enum
 - [x] `PlanetPropertyVisibility` component: per-axis `Hidden`/`Qualitative`/`Revealed`
@@ -92,7 +100,7 @@ Design: [`planet-identity.md`](technical/planet-identity.md).
 Completes the loop. Gateway entity + key recipe already exist.
 
 ### 2.1 Escape activation
-Design: [`escape-condition.md`](technical/escape-condition.md).
+Design: [[escape-condition]].
 
 - [x] `RunState` resource: `InProgress` / `Completed`
 - [x] Gateway interact: prompt when key in hand, charge progress over power input — player cables gateway machine to network; `activate_gateway` recipe starts when `gateway_key` present
@@ -115,7 +123,7 @@ Design: [`escape-condition.md`](technical/escape-condition.md).
 ## Phase 3 — Planning UI (VS §3.5)
 
 ### 3.1 Recipe browser
-Design: [`planning-ui.md`](technical/planning-ui.md).
+Design: [[planning-ui]].
 
 - [x] `RecipePicker` overlay panel
 - [x] List known/revealed recipes with filter (unlocked-only toggle, search)
@@ -141,7 +149,7 @@ Design: [`planning-ui.md`](technical/planning-ui.md).
 Currently 1 generator type. Need 2 with planet-dependent viability + diagnostics.
 
 ### 4.1 Second generator
-Design: [`power.md`](technical/power.md).
+Design: [[power]].
 
 - [x] Define solar + combustion generators (assets/machines/)
 - [x] `GeneratorDef` per type with env-port hookup
@@ -160,7 +168,7 @@ Design: [`power.md`](technical/power.md).
 
 Logic exists; surface missing.
 
-Design: [`research.md`](technical/research.md).
+Design: [[research]].
 
 - [x] Research balance HUD widget (current points) — `src/ui/hud/research.rs`, stacked above power HUD
 - [x] Reveal cost surface on tech-tree node hover — cost shown on node card (`{cost} RP`), green if affordable
@@ -175,7 +183,7 @@ Design: [`research.md`](technical/research.md).
 Drone partial. Aegis absent.
 
 ### 6.1 Aegis — `src/aegis/`
-Design: [`aegis.md`](technical/aegis.md).
+Design: [[aegis]].
 
 - [x] `AegisEmitter` + `AegisRadius` + `AegisActive` components (`src/aegis/mod.rs`)
 - [x] Boundary check system — `aegis_boundary_check_system`, `InAegis` marker on player
@@ -184,7 +192,7 @@ Design: [`aegis.md`](technical/aegis.md).
 - [~] Outpost beacon: power-gated aegis extender — deferred to MVP per design doc §11
 
 ### 6.2 Drone improvements
-Design: [`drone.md`](technical/drone.md).
+Design: [[drone]].
 
 - [x] Fog-of-war map data (per-chunk reveal state) — `FogOfWar` resource, 4m cells, u16 bitmask per chunk
 - [x] Drone scan action: reveals fog in radius — `fog_reveal_system` + `character_fog_reveal_system`
@@ -201,7 +209,7 @@ Design: [`drone.md`](technical/drone.md).
 
 Do-not-stub: 3D topology must be legible.
 
-Design: [`planning-ui.md`](technical/planning-ui.md) §topology.
+Design: [[planning-ui]] §topology.
 
 - [x] Network topology overlay (toggle key — `N`)
 - [x] Per-network filter (logistics / power)
@@ -279,7 +287,7 @@ Phases 3–10 mostly independent once Phase 0 ships. Pick by team capacity. Phas
 
 > **Milestone placement: NOT Vertical Slice.** This block builds toward the **Demo (MVP)** gate "Standard difficulty playable end-to-end" (`milestones.md`). It is a **single fixed, hand-authored Standard run** (tiers 1–5, ~71 nodes, ~13h design target, successor-launch escape) — the Standard analog of the VS curated seed. The **seeded ~215-node pool + per-run selection and the procedural graph validator stay deferred to Alpha** (`milestones.md` Alpha gate); they are *not* in this push. Do not fold these phases into VS phases 0–11.
 >
-> Source of truth: [`tech-tree-design.md`](tech-tree-design.md) (§3 tiers, §6bis authored RON nodes). Escape ECS in [`technical/escape-condition.md §7.1`](technical/escape-condition.md); research themes in [`technical/research.md`](technical/research.md); balance methodology + flags in [`balance.md`](balance.md). Numbers throughout are representative and **unvalidated** — playtest-tuned after e2e completability (`balance.md §5 Q1`). *(The former `standard-run-design.md` was dissolved 2026-07-14; the "§N / §9 #N" shorthand in the phases below refers to its old sections — see the migration record in `design-decisions.md`.)*
+> Source of truth: [[tech-tree-design]] (§3 tiers, §6bis authored RON nodes). Escape ECS in [[escape-condition|technical/escape-condition.md §7.1]]; research themes in [[research|technical/research]]; balance methodology + flags in [[balance]]. Numbers throughout are representative and **unvalidated** — playtest-tuned after e2e completability (`balance.md §5 Q1`). *(The former `standard-run-design.md` was dissolved 2026-07-14; the "§N / §9 #N" shorthand in the phases below refers to its old sections — see the migration record in `design-decisions.md`.)*
 
 Phases are dependency-ordered (§10). Owner tags: `engine` · `content-designer` · `docs-curator` · `playtest-verifier`.
 

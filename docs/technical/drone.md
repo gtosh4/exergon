@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Drone System Design"
+summary: "Player-piloted drones: Local/Remote mode transition, fog-of-war reveal, ore sample collection, range scanning, multi-drone switching, hotbar swap, ECS structure and edge cases."
+tags: ["drone", "exploration", "inventory", "ui"]
+aliases: ["DroneInventory", "Remote mode", "fog of war", "ActiveDrone", "drone pilot"]
+---
+
 # Drone System Design
 
 ECS components, system step-by-step logic, events/messages, and edge cases for the Drone system. Read `gdd.md §8` for design intent and `technical-design.md §8` for the prose overview.

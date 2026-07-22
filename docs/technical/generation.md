@@ -1,3 +1,11 @@
+---
+type: technical
+title: "World & Chunk Generation"
+summary: "Procedural surface heightmap chunk streaming plus seeded underground vein and surface deposit placement, discovery sites, and seed-to-geography derivation."
+tags: ["world-gen", "seed", "mining", "exploration"]
+aliases: ["chunk streaming", "heightmap", "veins", "ore deposits", "TerrainSampler", "gateway ruins"]
+---
+
 # World & Chunk Generation
 
 Procedural surface world generation plus scoped underground resource-domain queries. Covers: coordinate system, chunk streaming (spawn/despawn), heightmap generation, underground vein lookup, surface deposit placement, discovery site placement, world extent, seed-to-geography mapping, and chunk boundary conditions. Sufficient detail to write integration tests without guessing.

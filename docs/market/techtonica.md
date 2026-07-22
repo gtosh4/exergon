@@ -1,3 +1,11 @@
+---
+type: market
+title: "Techtonica Market Note"
+summary: "First-person underground factory game with voiced mystery campaign; mixed reception warns exploration and narrative must feed the factory or pacing suffers."
+tags: ["competitor", "factory-automation", "exploration", "narrative"]
+aliases: ["Techtonica"]
+---
+
 # Techtonica Market Note
 
 > Date reviewed: 2026-05-20  

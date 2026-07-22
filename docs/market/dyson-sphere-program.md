@@ -1,3 +1,11 @@
+---
+type: market
+title: "Dyson Sphere Program Market Note"
+summary: "Cosmic-scale factory game whose visible megastructure payoff rewards production; lesson: Exergon's escape artifact must be physical, dramatic, and visibly assembled."
+tags: ["competitor", "factory-automation", "world-gen"]
+aliases: ["Dyson Sphere Program", "DSP"]
+---
+
 # Dyson Sphere Program Market Note
 
 > Date reviewed: 2026-05-20  

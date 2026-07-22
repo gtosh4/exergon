@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Save Architecture"
+summary: "Hybrid continuous-save plus milestone-checkpoint architecture: Run entity, moonshine-save ECS tagging, run/meta RON files, backups, load flow, hardcore mode."
+tags: ["save", "meta-progression"]
+aliases: ["moonshine-save", "checkpoints", "Run entity", "RunSaveHeader", "hardcore mode"]
+---
+
 # Save Architecture
 
 Single canonical run save (continuous, atomic-write), sparse milestone checkpoints, opt-in hardcore mode. RON format via `moonshine-save`. Covers: save model rationale, Run entity (marker requires `Save`, lifetime, components), saveable entity inventory (machines, cables, networks, tech tree), run save (file path, header, checkpoints), meta save (file path, triggers, contents), save/load flow, cloud saves placeholder, VS scope.
@@ -29,9 +37,9 @@ Single canonical run save (continuous, atomic-write), sparse milestone checkpoin
 ### Why hybrid
 
 - **Roguelite tension preserved.** Checkpoints occur at tier boundaries only, never inside the science discovery loop. Players cannot reload to re-roll research reveals, recipe parameters, or scouting finds. The seed and its derived state are committed once and stick.
-- **Factory-game safety expected.** Standard runs are 10–15h and Pinnacle runs 30–50h+ ([`gdd.md §4`](../gdd.md)). Players require a recovery path from crash, corruption, or catastrophic in-factory mistake. A single-timeline model with no escape hatch is hostile at these run lengths.
-- **Matches permadeath stance.** [`gdd.md §16`](../gdd.md) makes permadeath opt-in and post-MVP. The default model must support recovery; hardcore mode strips it.
-- **Aligns with point-buy meta-progression.** Hardcore mode becomes a [`gdd.md §14`](../gdd.md) challenge modifier — disables checkpoints, awards challenge points.
+- **Factory-game safety expected.** Standard runs are 10–15h and Pinnacle runs 30–50h+ ([[gdd|gdd.md §4]]). Players require a recovery path from crash, corruption, or catastrophic in-factory mistake. A single-timeline model with no escape hatch is hostile at these run lengths.
+- **Matches permadeath stance.** [[gdd|gdd.md §16]] makes permadeath opt-in and post-MVP. The default model must support recovery; hardcore mode strips it.
+- **Aligns with point-buy meta-progression.** Hardcore mode becomes a [[gdd|gdd.md §14]] challenge modifier — disables checkpoints, awards challenge points.
 
 ### What the model offers
 
@@ -51,7 +59,7 @@ Single canonical run save (continuous, atomic-write), sparse milestone checkpoin
 
 ### Why not full Factorio-style
 
-- Arbitrary save slots enable save-scumming research RNG and unlock-vector reveals — undermines [`gdd.md §6`](../gdd.md) discovery loop and [`gdd.md §5`](../gdd.md) seed integrity
+- Arbitrary save slots enable save-scumming research RNG and unlock-vector reveals — undermines [[gdd|gdd.md §6]] discovery loop and [[gdd|gdd.md §5]] seed integrity
 - Slot management UI is wasted surface for a single-run-at-a-time game
 - Cloud sync N-way conflict resolution adds disproportionate complexity
 
@@ -281,12 +289,12 @@ Runs with `RunStatus::Completed` remain on disk. Loading a completed run is read
 
 ### Player wants out of a run
 
-Per [`gdd.md §16`](../gdd.md), there is no forced failure and every run is completable. Players who decide they are done with an `InProgress` run have two paths:
+Per [[gdd|gdd.md §16]], there is no forced failure and every run is completable. Players who decide they are done with an `InProgress` run have two paths:
 
 - **Quit to menu.** Run stays `InProgress`; appears under "Resume run" next launch. Player may come back later.
 - **Delete run.** Run-select UI offers per-run delete, which removes the run directory (primary save, checkpoints, backups). Player must confirm. There is no soft-archive: the run is gone.
 
-There is no `Abandoned` status. Difficulty-ladder unlock, narrative, and challenge points are gated on `Completed` per [`gdd.md §14`](../gdd.md); a deleted or abandoned-in-the-colloquial-sense run grants none of these. Codex entries earned mid-run remain in `meta.ron` (they were written when earned), and player-saved blueprints persist independently of run state.
+There is no `Abandoned` status. Difficulty-ladder unlock, narrative, and challenge points are gated on `Completed` per [[gdd|gdd.md §14]]; a deleted or abandoned-in-the-colloquial-sense run grants none of these. Codex entries earned mid-run remain in `meta.ron` (they were written when earned), and player-saved blueprints persist independently of run state.
 
 ---
 
@@ -494,7 +502,7 @@ Checkpoint systems run before `trigger_save_system` so the appended `CheckpointH
 
 ### Post-VS
 
-- Hardcore mode (`HardcoreMode` component, point-buy challenge integration per [`gdd.md §14`](../gdd.md))
+- Hardcore mode (`HardcoreMode` component, point-buy challenge integration per [[gdd|gdd.md §14]])
 - Cloud saves (Steam Remote Storage sync)
 - Save schema versioning (warn on mismatch, migrate case-by-case)
 - Additional difficulty tiers

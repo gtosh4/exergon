@@ -1,3 +1,11 @@
+---
+type: technical
+title: "Authoring Scenarios"
+summary: "Prescriptive .ron scenario format driving e2e tests, balancing, smoke generation; full Step vocabulary, unlock mechanisms, phase-by-phase authoring arc and ordering rules."
+tags: ["scenarios", "testing", "content-pipeline", "balance"]
+aliases: ["Step vocabulary", "scenario-runner", "Deploy step", "MineTarget", "landing-to-victory"]
+---
+
 # Authoring Scenarios
 
 A **scenario** is a prescriptive, data-driven run: a `.ron` file whose ordered `steps` list *is* the
@@ -13,8 +21,8 @@ machine buildout, and recipes by editing data, no Rust. This doc is the referenc
 the approach (how to write one). It is the source the Rust doc-comments in `spec.rs` mirror; when
 they disagree, `spec.rs` wins (it's what runs) — fix this doc.
 
-Related: [`testing.md` §3](testing.md#3-adding-a-stage-to-the-e2e-test) (adding a stage to an
-existing e2e scenario + asserting it), [`contributing-content.md`](../contributing-content.md)
+Related: [[testing#3. Adding a stage to the e2e test|testing.md §3]] (adding a stage to an
+existing e2e scenario + asserting it), [[contributing-content]]
 (validating one item without authoring a whole scenario).
 
 ## File shape
@@ -119,4 +127,4 @@ before `max_secs`; usually a missing feed or an out-of-order `Research`. Tune va
 and re-run — no rebuild of game logic needed, it's all data.
 
 To prove a *single* new item/node/recipe is reachable without hand-authoring, use `smoke_test`
-instead — see [`contributing-content.md`](../contributing-content.md).
+instead — see [[contributing-content]].

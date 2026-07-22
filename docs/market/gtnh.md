@@ -1,3 +1,11 @@
+---
+type: market
+title: "GregTech: New Horizons Market Note"
+summary: "Hardcore Minecraft expert modpack of earned deep progression; lesson: match its depth via codex-as-curriculum and machine-checked balance, minus grind and wiki dependency."
+tags: ["competitor", "progression", "tech-tree", "crafting"]
+aliases: ["GTNH", "GregTech: New Horizons", "GregTech New Horizons"]
+---
+
 # GregTech: New Horizons Market Note
 
 > Date reviewed: 2026-05-20  

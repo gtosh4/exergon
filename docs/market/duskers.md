@@ -1,3 +1,11 @@
+---
+type: market
+title: "Duskers Market Note"
+summary: "Drone-command survival roguelite driven by imperfect information; lesson: Exergon's Remote scouting must be risky, information-rich, and never run-ending."
+tags: ["competitor", "exploration", "roguelite", "survival"]
+aliases: ["Duskers"]
+---
+
 # Duskers Market Note
 
 > Date reviewed: 2026-05-20  

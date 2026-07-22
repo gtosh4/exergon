@@ -1,3 +1,12 @@
+---
+type: technical
+title: "Network System Design"
+summary: "Generic cable-network ECS parameterized over NetworkKind; concrete logistics (channel capacity, routers) and power (voltage/amp gating) graphs, topology split/merge, cable routing."
+tags: ["logistics", "power", "machines", "building"]
+aliases: ["Network System", "channel capacity", "sub-network router", "cable network", "PowerNetwork"]
+status: design-locked
+---
+
 # Network System Design
 
 Cable-based infrastructure for logistics and power. Two independent network kinds share one generic ECS implementation.
@@ -159,7 +168,7 @@ Run after `NetworkSystems::of::<Logistics>()` and after `PowerSimSystems`:
 6. **Output check** — for each recipe output/byproduct item, verifies at least one of the machine's logistics ports allows output for that item and has a connected network; if any output has no valid destination, recipe does not start
 7. If all checks pass: calls `take_items` on each input-port network accordingly; reserves catalyst inputs in `CatalystReservationBook`; sets `RecipeSlot.state = Running` and `progress = 0.0` (see `crafting.md §2` for `RecipeProcessor` definition)
 
-**`recipe_progress_system`**, **`recipe_completion_system`** — see [`crafting.md §5`](crafting.md#5-recipe-execution). The only network-layer interactions are `PowerNetworkMembers.take_energy` per tick and `give_items` on output ports at completion; all progress tracking, catalyst release, and output production are crafting-layer concerns.
+**`recipe_progress_system`**, **`recipe_completion_system`** — see [[crafting#5. Recipe Execution|crafting.md §5]]. The only network-layer interactions are `PowerNetworkMembers.take_energy` per tick and `give_items` on output ports at completion; all progress tracking, catalyst release, and output production are crafting-layer concerns.
 
 ### Unified Storage
 
@@ -206,7 +215,7 @@ A **Sub-network Router** is the segmentation device that resolves a channel-over
 
 *Implementation: `src/power/mod.rs`*
 
-> **Scope:** this section owns the **cable-graph mechanics** for power — `GeneratorUnit` buffer pooling, `PowerNetworkMembers` surface (`has_energy`/`take_energy`/`give_energy`, `voltage_tier`, `amp_capacity`, `amps_in_use`), voltage/amp gating at recipe start, and non-destructive failure modes. The **production model** — how generators actually fill those buffers (recipe-driven, env ports, virtual items, batteries, weather, throttle, burst generators) — is in [`power.md`](power.md). The `generator_tick_system` constant-watts fill described below is **superseded** by the recipe-completion fill in `power.md §7`; the description here is retained for context but implementations follow `power.md`.
+> **Scope:** this section owns the **cable-graph mechanics** for power — `GeneratorUnit` buffer pooling, `PowerNetworkMembers` surface (`has_energy`/`take_energy`/`give_energy`, `voltage_tier`, `amp_capacity`, `amps_in_use`), voltage/amp gating at recipe start, and non-destructive failure modes. The **production model** — how generators actually fill those buffers (recipe-driven, env ports, virtual items, batteries, weather, throttle, burst generators) — is in [[power]]. The `generator_tick_system` constant-watts fill described below is **superseded** by the recipe-completion fill in `power.md §7`; the description here is retained for context but implementations follow `power.md`.
 
 ### Components
 

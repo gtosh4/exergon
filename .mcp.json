@@ -3,6 +3,10 @@
     "exergon-assets": {
       "command": "cargo",
       "args": ["run", "-q", "-p", "exergon-assets", "--bin", "assets"]
+    },
+    "obsidian-docs": {
+      "command": "npx",
+      "args": ["-y", "@bitbonsai/mcpvault@latest", "./docs"]
     }
   }
 }

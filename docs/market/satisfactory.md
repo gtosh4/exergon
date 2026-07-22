@@ -1,3 +1,11 @@
+---
+type: market
+title: "Satisfactory Market Note"
+summary: "First-person 3D factory builder on a handcrafted alien planet; proves embodiment and visual scale matter, but warns of late-game placement tedium and fixed-map spoilability."
+tags: ["competitor", "factory-automation", "exploration"]
+aliases: ["Satisfactory"]
+---
+
 # Satisfactory Market Note
 
 > Date reviewed: 2026-05-20  

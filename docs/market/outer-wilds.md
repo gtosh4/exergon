@@ -1,3 +1,11 @@
+---
+type: market
+title: "Outer Wilds Market Note"
+summary: "Time-loop mystery about understanding a hand-authored solar system; validates knowledge-gated progression, but warns seeded specifics are needed to avoid spoiler collapse."
+tags: ["competitor", "exploration", "narrative", "progression"]
+aliases: ["Outer Wilds"]
+---
+
 # Outer Wilds Market Note
 
 > Date reviewed: 2026-05-20  

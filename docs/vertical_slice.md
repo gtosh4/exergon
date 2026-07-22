@@ -1,3 +1,12 @@
+---
+type: design
+title: "Vertical Slice Signal Spec"
+summary: "Vertical slice signal spec: Insight and Standard Probe run shapes, required features/interfaces per system, playtest protocol, instrumentation, success criteria."
+tags: ["scenarios", "planet-identity", "exploration", "testing"]
+aliases: ["Vertical Slice Signal Spec", "Insight Run", "Standard Probe", "repeat-run discovery"]
+status: spec
+---
+
 # Vertical Slice Signal Spec
 
 > **Status:** Medium-level design specification. This document defines what the vertical slice must prove and which features, systems, and interfaces must exist to get a useful signal. It is not an implementation plan. Deeper technical designs and sprint plans should be derived from this before code is written.
