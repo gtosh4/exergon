@@ -285,9 +285,9 @@ Phases 3–10 mostly independent once Phase 0 ships. Pick by team capacity. Phas
 
 # Standard Run Content — Full Standard
 
-> **Milestone placement: NOT Vertical Slice.** This block builds toward the **Demo (MVP)** gate "Standard difficulty playable end-to-end" (`milestones.md`). It is a **single fixed, hand-authored Standard run** (tiers 1–5, ~71 nodes, ~13h design target, successor-launch escape) — the Standard analog of the VS curated seed. The **seeded ~215-node pool + per-run selection and the procedural graph validator stay deferred to Alpha** (`milestones.md` Alpha gate); they are *not* in this push. Do not fold these phases into VS phases 0–11.
+> **Milestone placement: NOT Vertical Slice.** This block builds toward the **Demo (MVP)** gate "Standard difficulty playable end-to-end" ([[milestones]]). It is a **single fixed, hand-authored Standard run** (tiers 1–5, ~71 nodes, ~13h design target, successor-launch escape) — the Standard analog of the VS curated seed. The **seeded ~215-node pool + per-run selection and the procedural graph validator stay deferred to Alpha** ([[milestones]] Alpha gate); they are *not* in this push. Do not fold these phases into VS phases 0–11.
 >
-> Source of truth: [[tech-tree-design]] (§3 tiers, §6bis authored RON nodes). Escape ECS in [[escape-condition|technical/escape-condition.md §7.1]]; research themes in [[research|technical/research]]; balance methodology + flags in [[balance]]. Numbers throughout are representative and **unvalidated** — playtest-tuned after e2e completability (`balance.md §5 Q1`). *(The former `standard-run-design.md` was dissolved 2026-07-14; the "§N / §9 #N" shorthand in the phases below refers to its old sections — see the migration record in `design-decisions.md`.)*
+> Source of truth: [[tech-tree-design]] (§3 tiers, §6bis authored RON nodes). Escape ECS in [[escape-condition|technical/escape-condition.md §7.1]]; research themes in [[research|technical/research]]; balance methodology + flags in [[balance]]. Numbers throughout are representative and **unvalidated** — playtest-tuned after e2e completability ([[balance|balance.md §5 Q1]]). *(The former `standard-run-design.md` was dissolved 2026-07-14; the "§N / §9 #N" shorthand in the phases below refers to its old sections — see the migration record in [[design-decisions]].)*
 
 Phases are dependency-ordered (§10). Owner tags: `engine` · `content-designer` · `docs-curator` · `playtest-verifier`.
 
@@ -307,7 +307,7 @@ The base material spine (§2.1) and the staggered forming ladder (§3.1). Interl
 - [x] 10 base materials incl. bronze (Cu+Sn) and steel (Fe+C) alloys, with form groups (`metal`: ore/crushed/dust/ingot/plate/wire; `alloy`: ingot/plate/wire). Silicon = Unique item (refined from crushed stone); gears = per-alloy Composite (bronze_gear) rather than a universal form — see Phase B notes below
 - [x] Forming machines: crusher, washer, plate_roller, wire_drawer (alloy-smelt reuses `smelter`) + ladder recipes `crush_*`+gravel, `smelt_*_crushed` (2→3 yield), `wash_*`+slag, `wash_iron` (+trace copper), `smelt_*_dust`, `roll_iron_plate`+scrap, `draw_metal` (retargeted to wire_drawer), `alloy_bronze`, `alloy_steel`, `form_gear_bronze`
 - [x] Byproducts + sinks: gravel (→ `gravel_filler` → construction_filler), slag (→ `scrub_slag` → recovered iron_dust), metal scrap (→ `recycle_scrap` → iron_dust); trace-copper cross-feed on `wash_iron`
-- [x] T1 reconciliation: Ore Crusher authored as T2 node (`ore_crusher`, ProductionMilestone 100 iron_ingot); T1 skeleton in `tech-tree-design.md §6` reconciled to 7 fixed direct-smelt nodes. T2 forming/material nodes added: `tin_extraction`, `ore_crusher`, `bronze_alloying`, `silicon_refining`, `gravel_sink`
+- [x] T1 reconciliation: Ore Crusher authored as T2 node (`ore_crusher`, ProductionMilestone 100 iron_ingot); T1 skeleton in [[tech-tree-design#6. Tier 1 — Foundation|tech-tree-design.md §6]] reconciled to 7 fixed direct-smelt nodes. T2 forming/material nodes added: `tin_extraction`, `ore_crusher`, `bronze_alloying`, `silicon_refining`, `gravel_sink`
 
 > **Phase B notes / flags** (`content-designer`): (1) The RON `RecipeTemplate` engine hardcodes `output qty 1.0` + `byproducts: []` — it cannot express the ladder's byproducts, non-unit yields, or cross-feed. The byproduct/yield ladder steps are therefore hand-authored **concrete** recipes (iron/copper/tin exemplars) rather than templates; a template-engine extension would DRY this to all metals (engine follow-up). (2) `draw_metal` kept at 1 ingot→1 wire (design §5 wanted 1→2 — blocked by the template output-qty limit; changed, flagged). (3) `ProductionMilestone` gating applied only to the new `ore_crusher` node; the design's Basic Miner←50 stone / Land Drone←20 iron would require switching `ore_extraction`/`drone_recon` to milestones, but the e2e test hard-codes `ore_extraction` as a player-requested ResearchSpend unlock — that conversion is an engine+test task, not RON-only. (4) Wash/plate/steel recipes are graph-coherent but their unlock nodes (Ore Washer, Slag Scrubber, Steel Alloying T3; Plate Roller T4) land in later phases. Known future-consumer danglers: `bronze_gear`, `silicon` (Phase C), `iron_plate`, `steel_ingot`, `*_wire` (T3–T5).
 
@@ -315,9 +315,9 @@ The base material spine (§2.1) and the staggered forming ladder (§3.1). Interl
 
 The 4-theme research ladder (§3.2). **Reverses the VS single-currency stance** (VS §3.4 / Phase 5) — validate lockout mitigations hold (no theme strandable) in the Phase F sweep. (§9 #9)
 
-- [x] Extend `research.md` with the 4-theme ladder (Material / Engineering / Discovery / Synthesis): generation source, spend gates, online tier, per-theme yield-recipe ladder, Synthesis↔void coupling — **§3/§4 rewritten** (Discovery/Synthesis documented but marked "content pending Phase D")
+- [x] Extend [[technical/research]] with the 4-theme ladder (Material / Engineering / Discovery / Synthesis): generation source, spend gates, online tier, per-theme yield-recipe ladder, Synthesis↔void coupling — **§3/§4 rewritten** (Discovery/Synthesis documented but marked "content pending Phase D")
 - [x] RON research recipes per theme per tier — **Material ladder**: T1 `basic_analysis` (4 stone→10, existing, `research_points` alias) / T2 `analyze_bronze_gear` (1 gear→15 `research.material`) / T3 `form_silicon_chip` + `analyze_silicon_chip` (1 chip→25). **Engineering generator**: `analyze_circuit` (1 circuit_board→20 `research.engineering`). New item `silicon_chip`
-- [x] Encode the Material-vs-Engineering classification rule in `research.md §3` (single-material-form = Material, multi-material-assembly = Engineering; no item is both). Applied: bronze_gear/silicon_chip → Material generators; circuit_board → Engineering generator
+- [x] Encode the Material-vs-Engineering classification rule in [[technical/research#3. Research Pool|research.md §3]] (single-material-form = Material, multi-material-assembly = Engineering; no item is both). Applied: bronze_gear/silicon_chip → Material generators; circuit_board → Engineering generator
 
 > **Phase C notes / flags** (`content-designer`): (1) **Re-themed to `engineering`**: `advanced_processing` (300) + `resonite_engineering` (500) — both are T2 Processing nodes whose prereq chain passes through `basic_processing` (unlocks `make_circuit`→`analyze_circuit`), so engineering is earnable before either is reachable. Both sit on the escape path; reachability confirmed. (2) **Left `material`, flagged**: `logistics_basics` (T1, no prereqs — bootstrap node; engineering isn't online at T1, per §3.2 note) and `gravel_sink` (T2 optional; reachable via `ore_crusher` *without* `basic_processing`, so engineering isn't guaranteed earnable — re-theming would risk stranding the optional node). (3) **Deferred to Phase D**: `drone_recon` (Discovery theme) and `escape_synthesis` (Synthesis theme) stay `material` — their currencies need drone/exotic sources not yet online (re-theming now would soft-lock). (4) `research.material`/`research.engineering` outputs show as producer-only in `item_uses` — expected; they are currency routed by `research_theme_of`, not logistics items.
 
@@ -328,9 +328,9 @@ The ~63 tier-2–5 nodes (T2 12 / T3 16 / T4 20 / T5 15), exotic lines, and the 
 - [x] Exotic materials + deposits: Fluxite (`fluxite_relic_cache`), Vitreite (synthesized composite item), Cryophase (`cryophase_deposit`, remote second-site); `derelict_ship` for the discount; Resonite/Xalite chain folded in (xalite deposit now emits minable `_shard` forms)
 - [x] Exotic processing recipes + `coolant_runoff` byproduct + `reclaim_coolant` sink (loop closes to `exotic_solvent` → fuel; soft two-recipe fuel path keeps venting non-blocking — §4/§11)
 - [x] Successor systems (core/chassis/drive/sensor) + provisioning module (kit chain) + `launch_successor` cascade recipe
-- [~] Tech nodes T3–T5: **launch spine authored** (26 new nodes) with unlock vectors + §7 hints; **optional/yield nodes deferred** (design-only, see `tech-tree-design.md §6bis`). T2 nodes already shipped Phase B/C.
+- [~] Tech nodes T3–T5: **launch spine authored** (26 new nodes) with unlock vectors + §7 hints; **optional/yield nodes deferred** (design-only, see [[tech-tree-design#6bis. Tiers 3–5 — RON node set (Phase D, authored)|tech-tree-design.md §6bis]]). T2 nodes already shipped Phase B/C.
 - [~] **Fluxite generator** (higher-output V2 stand-in) + **advanced assembler** authored. **No engine voltage tier** exists (`min_voltage_tier`/`RecipeBlockedVoltage` absent) — power transition modeled *softly* via high exotic `energy_cost` + the Fluxite generator's higher output, **not** a hard block. Voltage-2 network N/A. **Flagged.**
-- [x] Port the T3–T5 node definitions to `tech-tree-design.md` (§6bis)
+- [x] Port the T3–T5 node definitions to [[tech-tree-design]] (§6bis)
 
 > **Phase D notes / flags** (`content-designer`): The chain **loads and resolves** (`tech_path launch_successor`) and `cargo test` stays green. Of the three engine gaps originally surfaced here, **#1 and #2 have since landed** (see below); only the voltage-tier gap (#3) remains, and design accepts the soft model:
 > 1. ~~**Deposit discovery is hardcoded to xalite.**~~ **RESOLVED** — `drone::discovery_key_for_ores` maps each deposit's signature ore to its `ExplorationDiscovery` key (`xalite`→`xalite_deposit`, `cryophase_shard`→`cryophase_deposit`, `fluxite_shard`→`fluxite_relic_cache`, `salvaged_hull`→`derelict_ship`); `deposit_discovery_system` fires whichever key the found deposit carries. Covers every key the tech tree listens for.
@@ -341,9 +341,9 @@ The ~63 tier-2–5 nodes (T2 12 / T3 16 / T4 20 / T5 15), exotic lines, and the 
 
 ## Phase E — Escape spec + wiring `[content-designer + docs-curator]` (dep: D)
 
-Write the Standard escape that `escape-condition.md §7` currently defers. No new engine — launch site is an `EscapeObjective` running one recipe (§8). (§9 #3)
+Write the Standard escape that [[technical/escape-condition#7. MVP Escape Types|escape-condition.md §7]] currently defers. No new engine — launch site is an `EscapeObjective` running one recipe (§8). (§9 #3)
 
-- [x] Write §7 successor-launch spec into `technical/escape-condition.md` (§7.1)
+- [x] Write §7 successor-launch spec into [[technical/escape-condition]] (§7.1)
 - [x] RON: launch-site machine + `launch_successor` recipe authored; engine hook landed — `escape::tag_escape_machines_system` attaches `EscapeObjective` on placement of `machine_type == "launch_site"`, so the win fires for a player-built launch site (was §7.1 flag, now resolved).
 - [x] RON: `make_successor_chassis__salvaged` derelict-discount variant consuming `salvaged_hull` (fixed run = derelict present, §8.3)
 
@@ -358,7 +358,7 @@ Hand-verify reachability (procedural validator stays Alpha) + extend the e2e pat
 
 ## Difficulty gating `[Initiation done — Advanced/Pinnacle + meta-gate remain]`
 
-Wire `DifficultyTier` into the game loop so it gates **tier availability** and the **victory (terminal escape)** per `tech-tree-design.md §By difficulty` (Initiation 1–3, Standard 1–5, Advanced 1–7, Pinnacle 1–10; a difficulty's terminal tier exits via its escape, §12).
+Wire `DifficultyTier` into the game loop so it gates **tier availability** and the **victory (terminal escape)** per [[tech-tree-design#By difficulty|tech-tree-design.md §By difficulty]] (Initiation 1–3, Standard 1–5, Advanced 1–7, Pinnacle 1–10; a difficulty's terminal tier exits via its escape, §12).
 
 **Done (2026-07-12):**
 - [x] **Difficulty plumbing** — `NewRunEvent` + `WizardDraft` carry a `DifficultyTier`; the run header stores the chosen value (was hard-coded Initiation). `DifficultyTier::max_tier()` maps Initiation=3/Standard=5/Advanced=7/Pinnacle=10.
@@ -367,8 +367,8 @@ Wire `DifficultyTier` into the game loop so it gates **tier availability** and t
 - [x] **Initiation e2e** — `scenarios/initiation.ron` (a prescriptive `steps` list) + `tests/initiation_run.rs`: full earned T1–T3 run to victory (~5600s virtual), asserting the cap holds (no tier-4+ node unlocks; the T4/T5 Standard gates stay shut).
 
 **Remaining:**
-- [ ] **Meta-progression gate** — lock Standard/Advanced/Pinnacle in the new-run wizard until a `status==Completed` run of the difficulty below exists in save history (the "beat Initiation to unlock Standard" chain, `tech-tree-design.md §72`). Engine + wizard-UI work; the save header already carries `difficulty` + `status`.
-- [ ] **Advanced / Pinnacle content** — the entire tier 6–10 trees + their T7/T10 terminal escapes, all unspecced (`tech-tree-design.md §5` marks them TBD). Alpha-scope.
+- [ ] **Meta-progression gate** — lock Standard/Advanced/Pinnacle in the new-run wizard until a `status==Completed` run of the difficulty below exists in save history (the "beat Initiation to unlock Standard" chain, [[tech-tree-design|tech-tree-design.md §72]]). Engine + wizard-UI work; the save header already carries `difficulty` + `status`.
+- [ ] **Advanced / Pinnacle content** — the entire tier 6–10 trees + their T7/T10 terminal escapes, all unspecced ([[tech-tree-design#5. Node Pool Design|tech-tree-design.md §5]] marks them TBD). Alpha-scope.
 - [ ] **Modifier budget by difficulty** — the third design axis (§By difficulty), still unbuilt/untracked in code.
 
 ## Carried-forward open flags (§9)

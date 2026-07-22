@@ -34,10 +34,10 @@ All design and technical documentation lives here. Read this file first to find 
 
 ## How to keep docs current
 
-- **Design decision made** → update `gdd.md` (the what) + add an atomic note to `decisions/` (the why)
+- **Design decision made** → update [[gdd]] (the what) + add an atomic note to `decisions/` (the why)
 - **Architecture decision made** → update `technical/*.md`
-- **Open question resolved** → mark resolved in `gdd.md` §18 open questions register
-- **New open question** → add to `gdd.md` §18 and the relevant section
+- **Open question resolved** → mark resolved in [[gdd]] §18 open questions register
+- **New open question** → add to [[gdd]] §18 and the relevant section
 
 Docs are the source of truth. Code is the implementation of docs. When they diverge, update the docs to reflect the current decision, or update the code to match the docs — but never leave them silently out of sync.
 
@@ -47,4 +47,4 @@ This folder is an **Obsidian vault**, served to agents by the `obsidian-docs` MC
 
 - Every note carries **YAML frontmatter**: `type` (design/technical/market/decision/index), `title`, `summary`, `tags` (controlled domain vocab), optional `aliases`/`status`. `summary`/`tags` are how the agent triages without reading the whole file.
 - Internal links are **`[[wikilinks]]`**; images stay markdown.
-- The catalog blocks in this file, `technical/README.md`, `market/README.md`, and `design-decisions.md` are **generated from frontmatter** — do not hand-edit them. After adding, removing, or re-describing a doc, run `python3 scripts/gen_docs_index.py`.
+- The catalog blocks in this file, `technical/README.md`, `market/README.md`, and [[design-decisions]] are **generated from frontmatter** — do not hand-edit them. After adding, removing, or re-describing a doc, run `python3 scripts/gen_docs_index.py`.

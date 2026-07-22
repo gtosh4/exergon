@@ -19,8 +19,8 @@ tags: [narrative]
 
 **Implications:**
 - GDD §3 (Core Fantasy) rewritten; §12 (Escape Condition) intro, design-intent line, and Initiation row reframed. §2 vision statement left intact (neutral).
-- `milestones.md`: "alien civilization arc/trail/lore" → "probe-lineage arc"; Release-tier lore now = origin + earlier generations + drift.
+- [[milestones]]: "alien civilization arc/trail/lore" → "probe-lineage arc"; Release-tier lore now = origin + earlier generations + drift.
 - Escape climaxes unchanged mechanically but now read as *launching a copy* rather than *the player escaping*.
-- **Content naming resolved:** intermediary artifact class renamed "probe" → **"relic"** across `gdd.md` (§7) and `tech-tree-design.md` to avoid collision with the player being a probe. Market comparison docs (`techtonica`, `outer-wilds`, `shapez`) refreshed to the lineage framing.
+- **Content naming resolved:** intermediary artifact class renamed "probe" → **"relic"** across [[gdd]] (§7) and [[tech-tree-design]] to avoid collision with the player being a probe. Market comparison docs (`techtonica`, `outer-wilds`, `shapez`) refreshed to the lineage framing.
 - **Open — codebase:** no player-facing narrative strings shipped yet, so no code strings changed. Any future completion-screen / field-computer copy should use the lineage framing.
 

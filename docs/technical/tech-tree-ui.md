@@ -24,7 +24,7 @@ Three concerns this doc decides:
 
 1. The five node visual states and what each renders
 2. The reveal interaction flow (T1→T2→T3)
-3. The exclusive-group choice surface (**resolves `tech-tree-design.md` issue #9**)
+3. The exclusive-group choice surface (**resolves [[tech-tree-design]] issue #9**)
 
 ---
 
@@ -145,7 +145,7 @@ Edges:
 
 ### `tech_tree_open`
 
-Trigger: `{kbd:menu_tech_tree}` action (default `Y`; see `input.md §3.1`) or click on Tech Tree button in HUD.
+Trigger: `{kbd:menu_tech_tree}` action (default `Y`; see [[technical/input#3.1 Global / Menu|input.md §3.1]]) or click on Tech Tree button in HUD.
 
 ```
 1. Set TechTreePanelState.open = true

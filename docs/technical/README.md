@@ -50,7 +50,7 @@ Ask questions if there is any ambiguity or decisions to be made in the design.
 
 ## Post-VS Designs
 
-Systems explicitly deferred from the vertical slice (`vertical_slice.md §8`). Write specs before implementing, but not before VS is complete.
+Systems explicitly deferred from the vertical slice ([[vertical_slice#8. What To Stub Or Defer|vertical_slice.md §8]]). Write specs before implementing, but not before VS is complete.
 
 ### World Reactivity
 
@@ -66,4 +66,4 @@ Systems explicitly deferred from the vertical slice (`vertical_slice.md §8`). W
 
 ### Recipe Graph Generation Algorithm
 
-Once curated seeds are replaced by procedural generation: backwards-from-terminal generation ordering, template expansion, parameter variance bounds (inputs 50–200%, yield 60–150%, time 50–300%, energy 50–250%), byproduct routing, validity invariants, and the standalone generator validator required before shipping procedural seeds (`vertical_slice.md §10.6`).
+Once curated seeds are replaced by procedural generation: backwards-from-terminal generation ordering, template expansion, parameter variance bounds (inputs 50–200%, yield 60–150%, time 50–300%, energy 50–250%), byproduct routing, validity invariants, and the standalone generator validator required before shipping procedural seeds ([[vertical_slice|vertical_slice.md §10.6]]).

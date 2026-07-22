@@ -8,7 +8,7 @@ aliases: ["ResearchPool", "TechTreeProgress", "research points", "tech unlock"]
 
 # Science & Research System Design
 
-ECS components, system step-by-step logic, events/messages, and edge cases for the Science & Research system. Read `gdd.md §6` for design intent. Vertical Slice and MVP differences are noted inline.
+ECS components, system step-by-step logic, events/messages, and edge cases for the Science & Research system. Read [[gdd#6. The Science Discovery Loop|gdd.md §6]] for design intent. Vertical Slice and MVP differences are noted inline.
 
 ---
 
@@ -61,7 +61,7 @@ Items flow in and out via the logistics network the same way as any other machin
 
 ### Run entity (research components)
 
-`TechTreeProgress` and `ResearchPool` are **components on the Run entity** — the singleton ECS anchor for all run-scoped globals (see `save.md §1`). They are run-scoped state, not player-physical state.
+`TechTreeProgress` and `ResearchPool` are **components on the Run entity** — the singleton ECS anchor for all run-scoped globals (see [[technical/save#1. Save Model|save.md §1]]). They are run-scoped state, not player-physical state.
 
 ```
 Run entity
@@ -137,7 +137,7 @@ impl ResearchPool {
 }
 ```
 
-Research types are **content-defined strings** — no hardcoded enum. The Standard run uses a **4-theme ladder** (methodology in `balance.md §4`). A theme's currency is set by **what feeds it** (generation), separate from **what it unlocks** (spend):
+Research types are **content-defined strings** — no hardcoded enum. The Standard run uses a **4-theme ladder** (methodology in [[balance#4. Methodology — how content is shaped for balance|balance.md §4]]). A theme's currency is set by **what feeds it** (generation), separate from **what it unlocks** (spend):
 
 | Theme (`type_id`) | Fed with (generation) | Gates (spend) | Online | Status |
 |---|---|---|---|---|
@@ -162,7 +162,7 @@ Research types are **content-defined strings** — no hardcoded enum. The Standa
 
 **Engineering generator (live).** `analyze_circuit` (1 `circuit_board` → 20 `research.engineering`), unlocked by `basic_processing` (which also unlocks `make_circuit`). Engineering thus comes online exactly when circuits do — funding `advanced_processing` (300) and `resonite_engineering` (500).
 
-**Lockout mitigation** (multi-currency can strand a player — `balance.md §5 Q2`). Themes are complementary, not competitive:
+**Lockout mitigation** (multi-currency can strand a player — [[balance|balance.md §5 Q2]]). Themes are complementary, not competitive:
 - Every live theme is **always-earnable from its intro tier** — none can be permanently missed. Material feeds from the origin stone loop (turn 0); Engineering from any circuit the player already builds.
 - Theme sources **overlap the main line** — automating circuits *is* the engineering source, so no theme needs a dedicated, neglectable subfactory.
 - **Discovery/Synthesis deferred to Phase D** — their currencies need drone samples / exotic-reaction + void streams that aren't online yet. Re-theming a node to a currency nothing produces would soft-lock the run, so those nodes stay `material` until their generators ship.

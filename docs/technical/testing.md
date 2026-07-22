@@ -13,7 +13,7 @@ Two things live here: how the end-to-end integration test is built and extended,
 together — you use the `assets` tools to look up the recipes / tech nodes a new test stage must
 exercise.
 
-Read `gdd.md` / the relevant `technical/*.md` for design intent; this doc is about *verifying*
+Read [[gdd]] / the relevant `technical/*.md` for design intent; this doc is about *verifying*
 that intent in code with minimal manual play.
 
 ---

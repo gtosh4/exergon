@@ -50,7 +50,7 @@ No shared RNG stream is consumed. Each site derives its value independently, so 
 
 ## 2. ECS Components
 
-Both are components attached to the `Run` entity on run start (main menu submit). Both persist in save state. The `Run` entity is defined in `save.md` (TODO) — it is the ECS anchor for all run-scoped globals.
+Both are components attached to the `Run` entity on run start (main menu submit). Both persist in save state. The `Run` entity is defined in [[technical/save]] (TODO) — it is the ECS anchor for all run-scoped globals.
 
 ### `RunSeed`
 
@@ -158,7 +158,7 @@ Chunks spawn and despawn as the player explores. Each spawned chunk regenerates 
 This guarantees: returning to a previously unloaded chunk produces identical terrain and deposit placement. The "lazy" generation model — deriving each site independently — is what makes this safe.
 
 **Exceptions — world-state entities that require save:**
-- Deposits that have been mined or have an attached miner (see `generation.md §6`)
+- Deposits that have been mined or have an attached miner (see [[technical/generation#6. Surface Deposit Placement|generation.md §6]])
 - Machines placed by the player
 - Main factory layout and contents
 - Outpost structures
@@ -202,7 +202,7 @@ The tech tree seed must produce a valid run: all items on the critical escape pa
 
 What this means in practice:
 - No version prefix in seed strings
-- No schema-version field in save headers (for generation purposes; save format versioning is a separate concern in `save.md`)
+- No schema-version field in save headers (for generation purposes; save format versioning is a separate concern in [[technical/save]])
 - If a save file's generation schema becomes incompatible with a code update, the run may behave incorrectly — handle by patching the generation code or migrating the save, case by case
 
 When the game approaches a stable release, revisit this decision. At that point, a generation schema version in the save header (not the seed string) is the preferred approach: warn the player on load if the save was created with an older schema, allow them to continue at their own risk.

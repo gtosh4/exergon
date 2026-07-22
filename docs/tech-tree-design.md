@@ -9,7 +9,7 @@ status: draft
 
 # Tech Tree Design
 
-> **Status:** First draft. Pacing targets unvalidated — requires playtesting. Node definitions are representative, not final. See `gdd.md §7` for design intent; this document is the content design layer.
+> **Status:** First draft. Pacing targets unvalidated — requires playtesting. Node definitions are representative, not final. See [[gdd#7. The Tech Tree|gdd.md §7]] for design intent; this document is the content design layer.
 
 ---
 
@@ -353,7 +353,7 @@ The origin deposit is guaranteed (always within the Aegis radius and always ston
 
 These are the 7 nodes that appear in *every* Standard run (all Common, Tier 1 only). They form the fixed skeleton; seeded nodes extend this in higher tiers.
 
-> **Ore Crusher moved to Tier 2** (`balance.md §4` staggered forming ladder). T1 is now **direct-smelt-only** — the simplest `ore → ingot` chain. The crusher (and the `ore → crushed → ingot` +yield chain with its **gravel** byproduct) is the first *optional* forming deepening, unlocked at T2 by a production milestone (100 refined units). Authored in RON as the `ore_crusher` T2 node (`assets/tech_nodes/ore_crusher.ron`).
+> **Ore Crusher moved to Tier 2** ([[balance#4. Methodology — how content is shaped for balance|balance.md §4]] staggered forming ladder). T1 is now **direct-smelt-only** — the simplest `ore → ingot` chain. The crusher (and the `ore → crushed → ingot` +yield chain with its **gravel** byproduct) is the first *optional* forming deepening, unlocked at T2 by a production milestone (100 refined units). Authored in RON as the `ore_crusher` T2 node (`assets/tech_nodes/ore_crusher.ron`).
 
 | Node | Category | Effect | Primary unlock | Prerequisite |
 |---|---|---|---|---|
@@ -460,4 +460,4 @@ The holistic tier design (themes, base/exotic ratios, gates) lives in [§3](#3-t
 
 ---
 
-*Tech Tree Design v0.2 — T1 (Landfall) designed. T2–T5 pending. T6–T10 deferred. See `gdd.md §7` for design constraints and `research.md §5` for the node data model.*
+*Tech Tree Design v0.2 — T1 (Landfall) designed. T2–T5 pending. T6–T10 deferred. See [[gdd#7. The Tech Tree|gdd.md §7]] for design constraints and [[technical/research#5. Unlock Flow|research.md §5]] for the node data model.*

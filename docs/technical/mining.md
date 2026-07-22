@@ -83,7 +83,7 @@ Higher-tier miners increase `output_count`. `cycle_time` may be tuned per tier t
 
 ## 2. Deposit Placement and Lifecycle
 
-Deposit spawn and despawn are managed by the world generation system. Full spec in `generation.md §6`. Key rule for mining: a deposit that has been mined (`total_extracted > 0.0`) or has a miner attached (`miner.is_some()`) persists indefinitely regardless of chunk state. Pristine unoccupied deposits are cleaned up on chunk unload.
+Deposit spawn and despawn are managed by the world generation system. Full spec in [[technical/generation#6. Surface Deposit Placement|generation.md §6]]. Key rule for mining: a deposit that has been mined (`total_extracted > 0.0`) or has a miner attached (`miner.is_some()`) persists indefinitely regardless of chunk state. Pristine unoccupied deposits are cleaned up on chunk unload.
 
 ---
 
@@ -209,7 +209,7 @@ Weights are normalised at `DepositDef` load time (sum to 1.0). A copper-dominant
 
 ## 7. Manual Mining — `drone_mine_system`
 
-Trigger: `{kbd:secondary_action}` Started in `DronePilotContext` (default `MouseButton::Right`; see `input.md §3.3`).
+Trigger: `{kbd:secondary_action}` Started in `DronePilotContext` (default `MouseButton::Right`; see [[technical/input#3.3 Drone Remote (in PlayMode::DronePilot)|input.md §3.3]]).
 
 ```
 1. Raycast from camera forward, max MINE_REACH = 4.0 m

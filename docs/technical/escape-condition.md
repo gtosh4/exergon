@@ -40,7 +40,7 @@ When the recipe on an escape machine completes, `EscapeEvent` fires.
 
 The player finds the **precursor** gateway ruins via drone — a transit structure an earlier probe generation left (seeded near the lineage trunk; a frontier run has none and scratch-builds the launch instead, GDD §12). They craft the Gateway Key — the minimal **successor** payload — in an assembler (Construction — standard recipe). They enable the gateway machine (Activation). The gateway draws power and runs a timed recipe; if power drops, the job stalls until power is restored and the machine is re-enabled. When the job completes, the copy is sent through and the run ends.
 
-The gateway recipe uses the Gateway Key as a **catalyst input** — present for the job duration, not consumed on completion. Catalyst inputs are a recipe system feature; see `technical/crafting.md §catalyst-inputs`.
+The gateway recipe uses the Gateway Key as a **catalyst input** — present for the job duration, not consumed on completion. Catalyst inputs are a recipe system feature; see [[technical/crafting|technical/crafting.md §catalyst-inputs]].
 
 ---
 
@@ -106,7 +106,7 @@ Handled by power and machine systems: insufficient power stalls the job. Player 
 `gateway_status_ui_system` shows nothing. Machine interaction shows "Undiscovered" diagnostic. Entity exists with physics collision but gives no feedback until discovery.
 
 **Logistics network splits during charge (cable destroyed).**  
-Power and item delivery both break; machine job stalls. Catalyst key reservation behavior is specified in `technical/crafting.md §catalyst-inputs`.
+Power and item delivery both break; machine job stalls. Catalyst key reservation behavior is specified in [[technical/crafting|technical/crafting.md §catalyst-inputs]].
 
 **`EscapeEvent` fires while game is paused.**  
 `EscapeEvent` is processed on resume. Recipe execution systems do not run while paused (`GameState::Paused`), so jobs cannot complete while paused.
@@ -144,7 +144,7 @@ Each MVP escape type will be specced separately before implementation, covering 
 
 ### 7.1 Standard escape: successor launch *(specced — content shipped Phase D)*
 
-The Standard escape is the successor-launch cascade (the Standard terminal, `tech-tree-design.md §3` Tier 5). **No new engine** — it reuses the Initiation mechanism: an `EscapeObjective` machine running one recipe; `JobComplete → EscapeEvent → win`. Scale lives entirely in the recipe inputs (four successor systems + provisioning + exotic fuel), not in new machinery.
+The Standard escape is the successor-launch cascade (the Standard terminal, [[tech-tree-design#3. Tier Structure|tech-tree-design.md §3]] Tier 5). **No new engine** — it reuses the Initiation mechanism: an `EscapeObjective` machine running one recipe; `JobComplete → EscapeEvent → win`. Scale lives entirely in the recipe inputs (four successor systems + provisioning + exotic fuel), not in new machinery.
 
 **Machine — `launch_site`** (`assets/machines/launch_site.ron`): a tier-2, single-interaction ground machine. It is the Standard analog of the gateway. Like the gateway, it must carry the `EscapeObjective` marker for `escape_objective_system` to fire the win on its `JobComplete`.
 
@@ -160,7 +160,7 @@ The Standard escape is the successor-launch cascade (the Standard terminal, `tec
 | processing_time | 180 s (sustained-power field requirement) |
 | energy_cost | 8000 |
 
-Each system pulls a **different exotic line** so the launch needs the whole graph: core ← Resonite (`resonite_circuit`) + silicon; chassis ← Vitreite + aluminum plate; drive ← Fluxite (`fluxite_coil`) + titanium plate; sensor ← Resonite lattice + silicon; fuel ← Cryophase (second-site — the drone-gated remote deposit; `tech-tree-design.md §6bis` `cryophase_extraction`). Numbers are representative/unvalidated (`balance.md §5 Q1`).
+Each system pulls a **different exotic line** so the launch needs the whole graph: core ← Resonite (`resonite_circuit`) + silicon; chassis ← Vitreite + aluminum plate; drive ← Fluxite (`fluxite_coil`) + titanium plate; sensor ← Resonite lattice + silicon; fuel ← Cryophase (second-site — the drone-gated remote deposit; [[tech-tree-design#6bis. Tiers 3–5 — RON node set (Phase D, authored)|tech-tree-design.md §6bis]] `cryophase_extraction`). Numbers are representative/unvalidated ([[balance|balance.md §5 Q1]]).
 
 **The derelict discount** (fixed run = derelict present): the `derelict_ship` site (drone-discovered) yields `salvaged_hull`. `derelict_salvage` (ExplorationDiscovery: `derelict_ship`) unlocks `make_successor_chassis__salvaged` — `2 aluminum_plate + 1 vitreite + 1 salvaged_hull → 1 successor_chassis`, roughly half the aluminum+Vitreite of the scratch `make_successor_chassis` (`4 aluminum_plate + 2 vitreite`). Both produce the same `successor_chassis`, so a run with the derelict has a lighter chassis burden; a frontier run (no derelict) scratch-builds. The frontier variant (no precursor, full scratch chassis) is a deferred second Standard config (scope backlog).
 

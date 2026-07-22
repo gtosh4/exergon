@@ -8,7 +8,7 @@ aliases: ["Aegis Emitter", "Outpost Beacon", "atmospheric exposure", "body switc
 
 # Aegis System Design
 
-ECS components, system step-by-step logic, events/messages, and edge cases for the Aegis system. Read `gdd.md §10` for design intent.
+ECS components, system step-by-step logic, events/messages, and edge cases for the Aegis system. Read [[gdd#10. The Factory Layer|gdd.md §10]] for design intent.
 
 ---
 
@@ -190,7 +190,7 @@ Outpost Beacon is a buildable item (asset id: `outpost_beacon`). Placed by drone
 
 ### Power requirement
 
-`OutpostBeacon` carries a `PowerConsumer` component. The power network system (defined in `networks.md §3`) delivers power to consumers each tick. When delivered watts ≥ required watts:
+`OutpostBeacon` carries a `PowerConsumer` component. The power network system (defined in [[technical/networks#3. Power Network|networks.md §3]]) delivers power to consumers each tick. When delivered watts ≥ required watts:
 
 - **System:** `outpost_power_check_system` (runs after power network tick)
   1. Query all `OutpostBeacon` entities.
@@ -235,11 +235,11 @@ The camera and input system bind to `ActiveBody` — no additional wiring needed
 
 A panel (toggled by a dedicated key) lists all living `PlayerBody` entities and all active drones. Each can be bound to a slot numbered 1–9 and 0 (ten slots total).
 
-**Input:** `{kbd:body_quick_switch_N}` (default `Alt+digit`; see `input.md §3.4`) — switches `ActiveBody` if the slot holds a body; activates drone focus if the slot holds a drone.
+**Input:** `{kbd:body_quick_switch_N}` (default `Alt+digit`; see [[technical/input#3.4 Body / Drone Quick-Switch (MVP+; see aegis.md §7)|input.md §3.4]]) — switches `ActiveBody` if the slot holds a body; activates drone focus if the slot holds a drone.
 
 Slot bindings persist for the run. Bodies and drones may be rebound freely. Unbound entities appear in the panel list but have no quick-switch key until assigned.
 
-The `BodySlot(u8)` component on `PlayerBody` entities stores the bound slot index. Drones use the equivalent `DroneSlot(u8)` component (defined in `drone.md`).
+The `BodySlot(u8)` component on `PlayerBody` entities stores the bound slot index. Drones use the equivalent `DroneSlot(u8)` component (defined in [[technical/drone]]).
 
 ### Power interruption collapse
 

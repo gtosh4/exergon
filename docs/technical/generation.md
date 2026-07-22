@@ -59,7 +59,7 @@ Underground cells use a separate coordinate system — see §5.
 
 ### Planet entity additions
 
-World seed is stored on the Planet entity (see `planet-identity.md §2`) as a component inserted by `setup_world_config` on `OnEnter(GameState::Loading)`:
+World seed is stored on the Planet entity (see [[technical/planet-identity#2. ECS Structure|planet-identity.md §2]]) as a component inserted by `setup_world_config` on `OnEnter(GameState::Loading)`:
 
 | Component | Fields | Notes |
 |---|---|---|
@@ -296,7 +296,7 @@ This prevents depletion reset via chunk reload. When the player returns, step 2 
 
 > **Code gap:** current `despawn_deposit_markers` polls `SpawnedChunks` and despawns unconditionally — it does not implement the persist-if-mined rule. The event-driven `despawn_deposit_system` with survival logic must be implemented to match this spec.
 
-**Content format:** see `mining.md §10` (`DepositDef`).
+**Content format:** see [[technical/mining#10. Content Data Format|mining.md §10]] (`DepositDef`).
 
 ---
 
@@ -338,7 +338,7 @@ Position range: XZ within 141m of origin (diagonal max). The site is guaranteed 
 **VS:** No hard world boundary enforced. Terrain generates in all directions without limit. The de facto play area is constrained by:
 - Ruins within 141m of origin (§7)
 - Surface deposits within visited chunks only (~256m active radius)
-- Drone range limits (see `drone.md`)
+- Drone range limits (see [[technical/drone]])
 
 **MVP:** A bounded world radius derived from `world_seed` and difficulty tier. Terrain beyond the radius uses a flat placeholder and blocks further generation. World radius is a seeded parameter within difficulty-tier bounds (exact ranges TBD in balance pass). A `WorldBounds` resource holds the run's computed radius.
 

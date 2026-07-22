@@ -103,17 +103,17 @@ pub struct Run;
 |---|---|---|
 | `Run` | this doc | Marker for `With<Run>` queries; `#[require(Save)]` |
 | `RunSaveHeader` | this doc | run_id, seed string, difficulty, status, timestamps |
-| `RunSeed` | `seed.md` | Master seed (text + u64 hash) |
-| `DomainSeeds` | `seed.md` | Per-domain sub-seeds |
-| `TechTreeProgress` | `research.md` | Unlocked nodes, recipes, machines |
-| `ResearchPool` | `research.md` | Accumulated research points by type |
+| `RunSeed` | [[technical/seed]] | Master seed (text + u64 hash) |
+| `DomainSeeds` | [[technical/seed]] | Per-domain sub-seeds |
+| `TechTreeProgress` | [[technical/research]] | Unlocked nodes, recipes, machines |
+| `ResearchPool` | [[technical/research]] | Accumulated research points by type |
 | `HardcoreMode` | this doc (post-VS) | Marker; disables checkpoint systems when present |
 
 All components are `Reflect`-registered and derive serde traits for RON serialization. All persist in the run save.
 
 > **TechTreeProgress and ResearchPool placement note:** these are run-scoped globals, not player-physical state. Stay on the Run entity. If multiplayer is added post-VS, they can migrate to per-Player or per-Team entities with the same component-based pattern — no resource-to-component refactor required.
 
-> **Supersedes `research.md §2`:** that section places `TechTreeProgress` and `ResearchPool` on the player entity. They belong on the Run entity. `research.md §2` should be updated to match.
+> **Supersedes [[technical/research#2. ECS Structure|research.md §2]]:** that section places `TechTreeProgress` and `ResearchPool` on the player entity. They belong on the Run entity. [[technical/research#2. ECS Structure|research.md §2]] should be updated to match.
 
 ### RunSaveHeader
 
@@ -186,7 +186,7 @@ VS: `base58(blake3(start_time_secs).truncate(8 bytes))`. Opaque, readable, uniqu
 | Entity type | Marker(s) using `#[require(Save)]` | What's saved |
 |---|---|---|
 | **Run entity** | `Run` | All components (§2) |
-| **Planet entity** | `Planet` | `PlanetProperties`, `PlanetPropertyVisibility` (see `planet-identity.md`) |
+| **Planet entity** | `Planet` | `PlanetProperties`, `PlanetPropertyVisibility` (see [[technical/planet-identity]]) |
 | **TechTree entity** | `TechTree` | The run's realized tech tree: node set, per-node unlock vectors, tier shadows. Saved because node selection and unlock vectors are seeded per run; protects against content-pool drift between game versions. Separate from `TechTreeProgress` (player progress, on Run entity). |
 | **Logistics Network entities** | `LogisticsNetwork` | `LogisticsNetworkMembers` (member entity list) |
 | **Power Network entities** | `PowerNetwork` | `PowerNetworkMembers` (member entity list, voltage tier, amp capacity) |

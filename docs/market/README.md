@@ -9,7 +9,7 @@ aliases: ["Market Research Summary"]
 # Market Research Summary
 
 > Date compiled: 2026-05-20  
-> Scope: market and player-reception lessons from the closest references in `docs/gdd.md`, plus Outworld Station as a close market neighbor.
+> Scope: market and player-reception lessons from the closest references in [[gdd]], plus Outworld Station as a close market neighbor.
 
 ## Reference Notes
 

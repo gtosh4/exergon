@@ -8,7 +8,7 @@ aliases: ["hotbar", "StorageUnit", "DroneInventory", "NetworkFlowLedger", "goal 
 
 # Inventory System Design
 
-ECS components, system step-by-step logic, events/messages, and edge cases for the inventory layer. Read `gdd.md §10` (factory layer, unified storage), `networks.md` (logistics network + StorageUnit), and `ui.md §Terminal` for context. Covers the hotbar, drone inventory, storage units, Terminal screen runtime data, and the goal tracker.
+ECS components, system step-by-step logic, events/messages, and edge cases for the inventory layer. Read [[gdd#10. The Factory Layer|gdd.md §10]] (factory layer, unified storage), [[technical/networks]] (logistics network + StorageUnit), and [[ui#Terminal (Inventory / Item Network)|ui.md §Terminal]] for context. Covers the hotbar, drone inventory, storage units, Terminal screen runtime data, and the goal tracker.
 
 ---
 
@@ -31,13 +31,13 @@ ECS components, system step-by-step logic, events/messages, and edge cases for t
 
 The player AI has **no personal inventory**. Items exist either in a logistics network's unified storage or in a drone's local buffer — never "in the player's pockets." The hotbar is a **network-linked shortcut panel**: each slot is a configured reference to an item type whose quantity is read live from the active logistics network. Using a hotbar slot either consumes an item from that network (placeables) or equips a tool that remains in storage.
 
-This model flows directly from `gdd.md §10` ("storage is a necessary system but not a primary design constraint") and Pillar 2 — the player's attention is on the production graph, not on inventory management.
+This model flows directly from [[gdd#10. The Factory Layer|gdd.md §10]] ("storage is a necessary system but not a primary design constraint") and Pillar 2 — the player's attention is on the production graph, not on inventory management.
 
 Three subsystems form the inventory layer:
 
 - **Hotbar** — 9 visible slots across 3 banks; each slot is a configured item reference pointing into the active logistics network. Holds tools and placeables only.
 - **Drone inventory** — per-drone item buffer filled during Remote mode (manual mining, sample collection). Deposited into a logistics network by interacting with a logistics port.
-- **Terminal screen** — full read/write view of a logistics network's unified storage; see `ui.md §Terminal`. This document covers the runtime data it queries, not the UI layout.
+- **Terminal screen** — full read/write view of a logistics network's unified storage; see [[ui#Terminal (Inventory / Item Network)|ui.md §Terminal]]. This document covers the runtime data it queries, not the UI layout.
 
 ---
 
@@ -85,7 +85,7 @@ pub struct HotbarSlot {
 
 ### Bank switching
 
-Banks A/B/C map to `banks[0]`, `banks[1]`, `banks[2]`. `active_bank` is updated on `{kbd:hotbar_bank_switch}` (default `Shift+Scroll`; see `input.md §3.2`). The 9 visible slots are always `banks[active_bank].slots`. Bank switching fires `HotbarBankChanged { active_bank }` so the UI layer redraws.
+Banks A/B/C map to `banks[0]`, `banks[1]`, `banks[2]`. `active_bank` is updated on `{kbd:hotbar_bank_switch}` (default `Shift+Scroll`; see [[technical/input#3.2 Local Body (in PlayMode::Exploring)|input.md §3.2]]). The 9 visible slots are always `banks[active_bank].slots`. Bank switching fires `HotbarBankChanged { active_bank }` so the UI layer redraws.
 
 ### Slot configuration
 
@@ -140,9 +140,9 @@ Step by step:
 
 Drones carry a local item buffer filled during Remote mode. Manual mining deposits ore into this buffer; drone sample collection adds samples. The buffer is not connected to any logistics network until the player explicitly flies the drone to a logistics port and triggers a deposit. The player chooses which network receives the items by choosing which port to interact with.
 
-This is intentionally deliberate: the player must pilot back to a logistics port, making exploration range a real cost (see `gdd.md §11`). It preserves the tension between "go further" and "unload what I have."
+This is intentionally deliberate: the player must pilot back to a logistics port, making exploration range a real cost (see [[gdd#11. The World & Environment|gdd.md §11]]). It preserves the tension between "go further" and "unload what I have."
 
-Drone ECS structure (non-inventory components) is in `drone.md`. This section covers only `DroneInventory` and deposit mechanics.
+Drone ECS structure (non-inventory components) is in [[technical/drone]]. This section covers only `DroneInventory` and deposit mechanics.
 
 ### ECS components
 
@@ -167,7 +167,7 @@ Mass in use = `sum of (item_mass_kg(item_id) * qty)` across all entries. This is
 
 Step by step:
 
-1. Determine item type and quantity from the target (deposit distribution sample for ore; sample type for biome samples — see `mining.md` and `drone.md`).
+1. Determine item type and quantity from the target (deposit distribution sample for ore; sample type for biome samples — see [[technical/mining]] and [[technical/drone]]).
 2. Capacity check:
    - If `DroneInventory.items.len() >= max_slots` and `item_id` not already present: block; emit `DroneCollectionBlocked { drone, reason: SlotsFull }`. Player must deposit before collecting more distinct types.
    - If `current_mass + (item_mass_kg(item_id) * quantity) > max_mass_kg`: reduce quantity to what fits; if zero fits, emit `DroneCollectionBlocked { drone, reason: MassFull }`.
@@ -200,7 +200,7 @@ The player selects which network receives items by choosing which port to intera
 
 ### StorageUnit component
 
-`StorageUnit { items: HashMap<String, u32> }` from `networks.md §2`. One per storage machine entity. `LogisticsNetworkMembers` aggregates across all `StorageUnit`s in the network — items are not centralized, the network is the read/write interface.
+`StorageUnit { items: HashMap<String, u32> }` from [[technical/networks#2. Logistics Network|networks.md §2]]. One per storage machine entity. `LogisticsNetworkMembers` aggregates across all `StorageUnit`s in the network — items are not centralized, the network is the read/write interface.
 
 ### Capacity model
 
@@ -224,7 +224,7 @@ These aggregates power the Terminal header bars. They are recomputed on `Network
 
 ### Unique types — display metric
 
-The "unique cells" bar in the Terminal header is a **display metric only** — there is no hard cap on distinct item types stored per unit or per network. The count informs players of storage diversity but does not block item acceptance. This is consistent with `gdd.md §10`: "storage is a necessary system but not a primary design constraint."
+The "unique cells" bar in the Terminal header is a **display metric only** — there is no hard cap on distinct item types stored per unit or per network. The count informs players of storage diversity but does not block item acceptance. This is consistent with [[gdd#10. The Factory Layer|gdd.md §10]]: "storage is a necessary system but not a primary design constraint."
 
 The architecture records the count from day one. If a hard type-slot mechanic is introduced post-MVP, it requires only adding a cap check in `give_items` — no structural changes.
 
@@ -239,7 +239,7 @@ Each item type carries `mass_kg: f32` in its `ItemDef` content asset. The item r
 
 ## 5. Terminal Screen Runtime Data
 
-The Terminal screen (see `ui.md §Terminal`) queries live ECS state. This section covers what data it reads and how — not the UI layout.
+The Terminal screen (see [[ui#Terminal (Inventory / Item Network)|ui.md §Terminal]]) queries live ECS state. This section covers what data it reads and how — not the UI layout.
 
 ### Item table
 
@@ -314,7 +314,7 @@ The power bar reads the power network of the outpost the player is currently inh
 
 ### CRAFT button
 
-The CRAFT button in the Terminal item table opens the craft modal for the selected item. On confirm, emits `RequestCraft { item_id, quantity, network: HotbarNetworkLink.0 }`. This is consumed by `crafting_plan_resolver_system`; see `crafting.md §8` for the full plan resolution flow.
+The CRAFT button in the Terminal item table opens the craft modal for the selected item. On confirm, emits `RequestCraft { item_id, quantity, network: HotbarNetworkLink.0 }`. This is consumed by `crafting_plan_resolver_system`; see [[technical/crafting#8. Craft Job Dispatch|crafting.md §8]] for the full plan resolution flow.
 
 ### Saved filters
 

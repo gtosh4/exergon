@@ -8,7 +8,7 @@ aliases: ["RecipeGraph", "ConcreteRecipe", "WildcardRecipe", "MaterialDef"]
 
 # Recipe Graph
 
-Definition and data model of the recipe graph: materials, form groups, items, machines, wildcard recipes, concrete recipes, and the runtime `RecipeGraph` resource. Read `gdd.md §8` for design intent.
+Definition and data model of the recipe graph: materials, form groups, items, machines, wildcard recipes, concrete recipes, and the runtime `RecipeGraph` resource. Read [[gdd#8. Production & The Recipe Graph|gdd.md §8]] for design intent.
 
 **Scope.** This document covers the graph's **definition and data model** only. Runtime execution (recipe start, progress, completion, dispatch, catalyst reservation) is specified in [[crafting]]. Tech-tree gating of recipe availability is in [[tech-tree-design]]. Procedural generation of the graph from the `recipes` domain seed is deferred to **post-VS** (see [[technical/README]] Post-VS section).
 
@@ -61,7 +61,7 @@ Two layers exist:
 - **Content / definition layer.** Materials, form groups, wildcard recipes, concrete recipes, items. All loaded from `assets/` or generated procedurally.
 - **Runtime layer.** The `RecipeGraph` resource and its lookup indexes (`by_output`, `by_input`, `by_machine`). Built once from the content layer.
 
-The recipe graph does **not** know about machine entities (placed in world), catalyst reservations, plans, jobs, or networks. Those are runtime concerns in `crafting.md`. The graph only knows: *which recipes exist this run, what they require, what they produce, on what machine item, at what tier.*
+The recipe graph does **not** know about machine entities (placed in world), catalyst reservations, plans, jobs, or networks. Those are runtime concerns in [[technical/crafting]]. The graph only knows: *which recipes exist this run, what they require, what they produce, on what machine item, at what tier.*
 
 ---
 
@@ -287,7 +287,7 @@ pub enum RecipeOutput {
     /// Item byproduct or primary item output. Routes through output-eligible logistics ports.
     Item   { item: ItemId, quantity: u32, chance: f32 },
     /// Energy injected into the host machine's `GeneratorUnit.buffer_joules` at completion.
-    /// Only valid on machines that carry `GeneratorUnit` (see `power.md`).
+    /// Only valid on machines that carry `GeneratorUnit` (see [[technical/power]]).
     Energy { joules: f32, chance: f32 },
 }
 
@@ -315,9 +315,9 @@ All item quantities (`RecipeInput.quantity`, `RecipeOutput::Item.quantity`) are 
 
 `chance ∈ [0.0, 1.0]` is the probability that the output is emitted on a given completion (field present on both `RecipeOutput::Item` and `RecipeOutput::Energy`). `chance = 1.0` (the common case, including all primary outputs) means the output is always produced. Lower values express probabilistic byproducts (e.g. ore processing yielding trace amounts of a secondary metal `20%` of runs) or stochastic energy yield (e.g. rare exotic generator doubling output `10%` of completions).
 
-- At runtime, on completion, each output's emission is rolled against `chance` using a recipe-execution RNG seeded from `(plan_id, completion_index)` (see `crafting.md §5`, deterministic save-friendly).
+- At runtime, on completion, each output's emission is rolled against `chance` using a recipe-execution RNG seeded from `(plan_id, completion_index)` (see [[technical/crafting#5. Recipe Execution|crafting.md §5]], deterministic save-friendly).
 - An output that fails its roll is **not produced** — no item flows to logistics, no routing constraint applies to it for that completion.
-- Routing constraints (`crafting.md §5` step 4) still apply pre-roll: if a recipe *could* produce an output, the machine must have an output-eligible port for it (a probabilistic byproduct must be routable, even if the specific completion doesn't roll it).
+- Routing constraints ([[technical/crafting#5. Recipe Execution|crafting.md §5]] step 4) still apply pre-roll: if a recipe *could* produce an output, the machine must have an output-eligible port for it (a probabilistic byproduct must be routable, even if the specific completion doesn't roll it).
 
 ### Chance modifiability
 
@@ -330,12 +330,12 @@ For VS: all outputs have `chance = 1.0` (no probabilistic outputs in the curated
 | Field | Authority | Notes |
 |---|---|---|
 | `id` | Asset author (or `"{wildcard}:{$a=…}:…"` for expansions) | Globally unique across the run's recipe set. Treated as opaque string. |
-| `inputs` | Asset or wildcard expansion | `consumed: false` entries are **catalysts**: reserved on the network, not pulled (see `crafting.md §6`). |
-| `outputs` | Asset or wildcard expansion | A **single unified list** of `RecipeOutput` (`Item` or `Energy` variants). Primary outputs and byproducts share the same shape and runtime path. The first entry is conventionally the primary output (used by planner UI). For recipes whose host machine has a `GeneratorUnit`, `outputs[0]` **must** be `RecipeOutput::Energy` — see §9 and `power.md §7`. |
+| `inputs` | Asset or wildcard expansion | `consumed: false` entries are **catalysts**: reserved on the network, not pulled (see [[technical/crafting#6. Catalyst Inputs|crafting.md §6]]). |
+| `outputs` | Asset or wildcard expansion | A **single unified list** of `RecipeOutput` (`Item` or `Energy` variants). Primary outputs and byproducts share the same shape and runtime path. The first entry is conventionally the primary output (used by planner UI). For recipes whose host machine has a `GeneratorUnit`, `outputs[0]` **must** be `RecipeOutput::Energy` — see §9 and [[technical/power#7. Energy as Recipe Output|power.md §7]]. |
 | `machine` | Asset or wildcard | An `ItemId` that must resolve to an `ItemDef` with `ItemKind::Machine`. |
 | `machine_tier` | Asset; wildcards copy from asset | Minimum machine tier that can run this recipe. A tier-`N` machine of the matching `machine_type` runs recipes with `machine_tier ≤ N`. |
-| `min_voltage_tier` | Asset or recipe-graph builder | **Independent of `machine_tier`.** Authored on the recipe asset; defaults to `machine_tier` if absent. Checked at `recipe_start_system` step 2a (see `crafting.md §5`). |
-| `processing_time` | Asset or wildcard | Seconds at base speed. `effective_processing_time = processing_time * speed_multiplier` (see `crafting.md §7`). |
+| `min_voltage_tier` | Asset or recipe-graph builder | **Independent of `machine_tier`.** Authored on the recipe asset; defaults to `machine_tier` if absent. Checked at `recipe_start_system` step 2a (see [[technical/crafting#5. Recipe Execution|crafting.md §5]]). |
+| `processing_time` | Asset or wildcard | Seconds at base speed. `effective_processing_time = processing_time * speed_multiplier` (see [[technical/crafting#7. Module Effects on Recipe Execution|crafting.md §7]]). |
 | `energy_cost` | Asset or wildcard | Joules per recipe completion. `draw_rate = (energy_cost / processing_time) * efficiency_multiplier`. |
 
 ### Default for min_voltage_tier
@@ -344,7 +344,7 @@ If a concrete-recipe asset omits `min_voltage_tier`, the graph builder sets `min
 
 ### Catalyst variance
 
-`consumed: false` entries are **not subject to parameter variance** (post-VS). They are passed through unchanged from the recipe asset. Variance applies to `consumed: true` input quantities, output quantities (item `quantity` and energy `joules` alike), processing time, and energy cost — bounded per `gdd.md §8` (post-VS). Item quantity variance is integer-rounded (any fractional intermediate is rounded toward the nearest integer with a minimum of 1); energy `joules` variance is continuous (`f32`).
+`consumed: false` entries are **not subject to parameter variance** (post-VS). They are passed through unchanged from the recipe asset. Variance applies to `consumed: true` input quantities, output quantities (item `quantity` and energy `joules` alike), processing time, and energy cost — bounded per [[gdd#8. Production & The Recipe Graph|gdd.md §8]] (post-VS). Item quantity variance is integer-rounded (any fractional intermediate is rounded toward the nearest integer with a minimum of 1); energy `joules` variance is continuous (`f32`).
 
 ---
 
@@ -529,7 +529,7 @@ Validity is **expressed as integration test invariants** (§10, §13), not enfor
 
 ## 9. Outputs Routing
 
-A "byproduct" is **not a distinct data concept**. All recipe outputs live in the single `outputs: Vec<RecipeOutput>` list and follow identical runtime routing rules (see `crafting.md §5` step "produce outputs"): every output rolled-emitted is dispatched by variant — `Item` to the machine's output-eligible logistics ports via `PortPolicy`, `Energy` to the machine's `GeneratorUnit.buffer_joules` (see `power.md §7`).
+A "byproduct" is **not a distinct data concept**. All recipe outputs live in the single `outputs: Vec<RecipeOutput>` list and follow identical runtime routing rules (see [[technical/crafting#5. Recipe Execution|crafting.md §5]] step "produce outputs"): every output rolled-emitted is dispatched by variant — `Item` to the machine's output-eligible logistics ports via `PortPolicy`, `Energy` to the machine's `GeneratorUnit.buffer_joules` (see [[technical/power#7. Energy as Recipe Output|power.md §7]]).
 
 ### Convention
 
@@ -541,13 +541,13 @@ For non-generator recipes this is convention, not invariant. For wildcard expans
 
 ### Output routing constraints
 
-A recipe with multiple outputs requires the host machine to have at least one output-eligible logistics port reachable for **each** output item, or the recipe blocks with `RecipeBlockedOutputs` at start (per `crafting.md §5` step 4). The runtime does not route some outputs and drop others — all or none.
+A recipe with multiple outputs requires the host machine to have at least one output-eligible logistics port reachable for **each** output item, or the recipe blocks with `RecipeBlockedOutputs` at start (per [[technical/crafting#5. Recipe Execution|crafting.md §5]] step 4). The runtime does not route some outputs and drop others — all or none.
 
 This means: a recipe that produces an unwanted byproduct cannot be "filtered" by omitting destination ports; the machine must accept all outputs or not run the recipe. Players solve this by adding a sink (storage, void module — post-VS) for the unwanted output.
 
 ### Parameter variance (post-VS)
 
-Output quantities (both primary and byproduct) are subject to parameter variance per `gdd.md §8` (60%–150% of base), integer-rounded for `RecipeOutput::Item.quantity`; continuous (`f32`) for `RecipeOutput::Energy.joules`. An output's `chance` may also vary across runs (e.g. seeded byproduct yields). Tech-tree "quality" nodes can further apply multiplicative `chance` modifiers at runtime (see §6). This authoring is curated for VS and generator-controlled post-VS.
+Output quantities (both primary and byproduct) are subject to parameter variance per [[gdd#8. Production & The Recipe Graph|gdd.md §8]] (60%–150% of base), integer-rounded for `RecipeOutput::Item.quantity`; continuous (`f32`) for `RecipeOutput::Energy.joules`. An output's `chance` may also vary across runs (e.g. seeded byproduct yields). Tech-tree "quality" nodes can further apply multiplicative `chance` modifiers at runtime (see §6). This authoring is curated for VS and generator-controlled post-VS.
 
 ---
 
@@ -572,7 +572,7 @@ The graph must satisfy these invariants. **VS:** asserted by integration tests o
 | 13 | **Tier sanity.** `machine_tier ≥ 1` and `min_voltage_tier ≥ 1` for every recipe. `ItemKind::Machine.tier ≥ 1` for every machine item. |
 | 14 | **Catalyst items exist in some network source.** Every `RecipeInput { consumed: false }` references an item that is producible somewhere in `by_output` *or* is provided by world placement (declared in a content manifest, curated for VS, e.g. lens items). |
 | 15 | **Auto-derived tags consistent.** Every `ItemDef.tags` superset includes the auto-derived tags implied by its `ItemKind` (see §3 table). The graph builder asserts this after construction. |
-| 16 | **Generator-recipe primary is Energy.** For every recipe `r` whose `r.machine` resolves to a `MachineDef` carrying a `GeneratorDef` (see `power.md §3`), `r.outputs[0]` is a `RecipeOutput::Energy` variant. Subsequent entries may be `Item` (byproducts) or additional `Energy` entries (uncommon — e.g. probabilistic bonus yield). |
+| 16 | **Generator-recipe primary is Energy.** For every recipe `r` whose `r.machine` resolves to a `MachineDef` carrying a `GeneratorDef` (see [[technical/power#3. Asset Schema|power.md §3]]), `r.outputs[0]` is a `RecipeOutput::Energy` variant. Subsequent entries may be `Item` (byproducts) or additional `Energy` entries (uncommon — e.g. probabilistic bonus yield). |
 | 17 | **Energy output target has a generator.** For every recipe `r` containing any `RecipeOutput::Energy`, `r.machine` resolves to a `MachineDef` carrying a `GeneratorDef`. Non-generator machines may not produce energy. |
 
 ---
@@ -591,7 +591,7 @@ The recipe graph is generated from `DomainSeeds.recipes` (see [[seed#4. Domain S
 - Pool of exotic materials, selected by seed
 - Pool of wildcard and concrete recipe templates
 - Machine roster (with tier ladders)
-- Bounded variance parameters (see `gdd.md §8`)
+- Bounded variance parameters (see [[gdd#8. Production & The Recipe Graph|gdd.md §8]])
 
 Generator output: the same `RecipeGraph` shape as VS, just procedurally populated. The goal/victory system (separate doc) consumes the generated graph and derives goal items from it.
 
@@ -620,7 +620,7 @@ Generator output: the same `RecipeGraph` shape as VS, just procedurally populate
 | Procedural graph generation from `DomainSeeds.recipes` | — | — (post-VS) |
 | Parameter variance (input/output qty, time, energy, chance bounds) | — | — (post-VS) |
 | Probabilistic outputs at runtime (chance rolls, tech-tree quality modifiers) | — | — (post-VS) |
-| Save-time graph consistency hash (owned by `save.md`) | — | — (post-VS) |
+| Save-time graph consistency hash (owned by [[technical/save]]) | — | — (post-VS) |
 
 For VS: one machine type (e.g. `assembler`), one tier. The curated recipe set produces a single end-to-end chain to the curated goal item (owned by the victory system). No procedural variance, no tech-tree gating of `unlocked_recipes` (every recipe in `recipes` is implicitly unlocked).
 
@@ -654,7 +654,7 @@ Tests live in `src/recipe_graph/` and run against curated `assets/` (VS) and aga
 
 ## Open issues
 
-- **`producers` / `consumers` → `by_output` / `by_input` rename.** `src/recipe_graph/mod.rs` uses the older names. Either rename to match this doc and `crafting.md`, or add both as aliases on the resource.
+- **`producers` / `consumers` → `by_output` / `by_input` rename.** `src/recipe_graph/mod.rs` uses the older names. Either rename to match this doc and [[technical/crafting]], or add both as aliases on the resource.
 - **`byproducts` field removal in `ConcreteRecipe`.** Current code has `pub byproducts: Vec<ItemStack>`. This spec unifies into `outputs`. Migration: move existing byproduct entries into `outputs`, drop the field, update asset RON files. Producer index already merges both; behavior preserved.
 - **`RecipeInput { consumed }` vs `ItemStack` for inputs.** Current code's `ConcreteRecipe.inputs: Vec<ItemStack>` does not carry the `consumed` flag. Migration: rename `inputs` element type to `RecipeInput`; default `consumed: true` for existing assets.
 - **`machine: ItemId` field migration.** Current code has `machine_type: MachineTypeId` (a string keying into a registry). Migration: replace with `machine: ItemId`; create `ItemKind::Machine` variant; convert existing machine registry entries to machine item assets with proper tier ladders.
@@ -666,5 +666,5 @@ Tests live in `src/recipe_graph/` and run against curated `assets/` (VS) and aga
 - **`RecipeTag` and recipe `tags` field.** New `tags: HashSet<RecipeTag>` on `ConcreteRecipe` and `WildcardRecipe`. Reserved tag: `recycle`. Migration: add field (default empty); update loader; reachability default-ignores `recycle`.
 - **`HashSet<RecipeId>` lookup index migration.** Current code (if `Vec`-backed) changes to `HashSet`-backed `by_output` / `by_input` / `by_machine`. Migration: change types; update consumers that iterate (sort after collect if order needed).
 - **Reachability/query API surface.** Implement `producers`, `consumers`, `recipes_for_machine`, `reachable_items`, `reachable_from_default`, `can_reach` as `impl RecipeGraph` methods. Replace any ad-hoc traversal in other modules with calls into these helpers.
-- **Save consistency hash.** `RecipeGraph` reproducibility hash (over deterministic serialization of materials, form_groups, items, recipes) for save validation. Spec lives in `save.md` (to be written); this doc commits only to determinism.
+- **Save consistency hash.** `RecipeGraph` reproducibility hash (over deterministic serialization of materials, form_groups, items, recipes) for save validation. Spec lives in [[technical/save]] (to be written); this doc commits only to determinism.
 - **Wildcard recipe asset format design.** Concrete RON schema for `WildcardRecipe` with pattern strings (e.g. `"$a:wire"`) needs design pass; loader must parse and validate variable references against `var_groups`.

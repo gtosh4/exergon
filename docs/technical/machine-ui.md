@@ -8,7 +8,7 @@ aliases: ["MachineJobPolicy", "RecipePolicy", "port binding", "passive recipes",
 
 # Machine UI Technical Design
 
-Side-rail overlay for machine configuration and status monitoring. Primary surface for job policy, port binding, and passive recipe management. Read `ui.md §Machine UI` for layout and mockups, `crafting.md §4–5` for recipe execution, `networks.md §2–3` for port and power structure.
+Side-rail overlay for machine configuration and status monitoring. Primary surface for job policy, port binding, and passive recipe management. Read [[ui#Machine UI|ui.md §Machine UI]] for layout and mockups, [[technical/crafting|crafting.md §4–5]] for recipe execution, [[technical/networks|networks.md §2–3]] for port and power structure.
 
 ---
 
@@ -35,7 +35,7 @@ The Machine UI is a side-rail overlay opened when the player interacts with a pl
 
 **Right pane** — recipe table: all recipes in `MachineCapability`, with per-recipe C (craft) and P (passive) flags and priority editing.
 
-This document also defines the **revised `MachineJobPolicy`** structure that replaces the single-enum form in `crafting.md §4`. The per-recipe model (`per_recipe: HashMap<RecipeId, RecipePolicy>`) carries independent C/P flags per recipe, with machine-level `CraftingJobMode` and `passive: bool` as defaults. `crafting.md §4` defers to this document for the canonical `MachineJobPolicy` definition.
+This document also defines the **revised `MachineJobPolicy`** structure that replaces the single-enum form in [[technical/crafting#4. Machine Job Policy|crafting.md §4]]. The per-recipe model (`per_recipe: HashMap<RecipeId, RecipePolicy>`) carries independent C/P flags per recipe, with machine-level `CraftingJobMode` and `passive: bool` as defaults. [[technical/crafting#4. Machine Job Policy|crafting.md §4]] defers to this document for the canonical `MachineJobPolicy` definition.
 
 ---
 
@@ -43,7 +43,7 @@ This document also defines the **revised `MachineJobPolicy`** structure that rep
 
 ### Interaction model
 
-Player triggers `{kbd:interact}` (default `E`; see `input.md §3.2`) while aimed at a machine within reach → `MachineInteractInput { machine: Entity }`.
+Player triggers `{kbd:interact}` (default `E`; see [[technical/input#3.2 Local Body (in PlayMode::Exploring)|input.md §3.2]]) while aimed at a machine within reach → `MachineInteractInput { machine: Entity }`.
 
 Closes when:
 - Player triggers `{kbd:cancel}` or clicks the close button
@@ -101,7 +101,7 @@ The alerts dropdown (HUD top bar) lists machines with active block reasons. Clic
 
 ### MachineJobPolicy — revised structure
 
-This definition supersedes `crafting.md §4`. The single `JobMode` enum is replaced with a per-recipe model.
+This definition supersedes [[technical/crafting#4. Machine Job Policy|crafting.md §4]]. The single `JobMode` enum is replaced with a per-recipe model.
 
 ```rust
 #[derive(Component)]
@@ -234,11 +234,11 @@ One entry per module slot defined in `MachineDef.module_slots` for the current t
 
 Empty slots show a placeholder with the slot kind (speed / efficiency / parallel / **config**).
 
-**Config slot kind.** A config module sets the machine's `MachineConfig` and thereby gates *which* recipes it can run (hard capability gate — see `crafting.md §3, §7`), unlike speed/efficiency modules which only alter execution rate. Editing a config slot follows the module snap system and requires all slots idle; the recipe table (§5) re-populates from the config-narrowed `MachineCapability.capable` when config changes. *(Follow-up: surfacing recipes that are unlocked but config-gated as a distinct "needs config X" row is a UX improvement to spec later.)*
+**Config slot kind.** A config module sets the machine's `MachineConfig` and thereby gates *which* recipes it can run (hard capability gate — see [[technical/crafting|crafting.md §3, §7]]), unlike speed/efficiency modules which only alter execution rate. Editing a config slot follows the module snap system and requires all slots idle; the recipe table (§5) re-populates from the config-narrowed `MachineCapability.capable` when config changes. *(Follow-up: surfacing recipes that are unlocked but config-gated as a distinct "needs config X" row is a UX improvement to spec later.)*
 
 ### 4.5 Port binding section
 
-`PortPolicy` component shape and runtime semantics are defined in `networks.md §2` (canonical source). This section covers the editing UI only.
+`PortPolicy` component shape and runtime semantics are defined in [[technical/networks#2. Logistics Network|networks.md §2]] (canonical source). This section covers the editing UI only.
 
 Lists all logistics ports from `MachineLogisticsPorts`. Energy ports shown separately as a read-only list.
 
