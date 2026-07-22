@@ -9,7 +9,7 @@ aliases: ["tech tree overlay", "NodeKnowledge", "reveal overlay", "exclusive gro
 # Tech Tree UI Technical Design
 
 > Content design (tier themes, node pool, unlock rates, rarity): [[tech-tree-design]].
-> Data model and runtime architecture (node fields, unlock vectors, tier gates, validity invariants): [[technical-design#3-tech-tree|technical-design.md §3]].
+> Data model and runtime architecture (node fields, unlock vectors, tier gates, validity invariants): [[research#5. Unlock Flow|research.md §5]].
 > This document covers the UI implementation surface only.
 
 Wireframe: `ui_mock/tech-tree-wireframes.html`

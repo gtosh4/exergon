@@ -275,7 +275,7 @@ fn build_dep_graph(
 
 **`primary_recipe(item)`:** Check `alt_recipes[item]` first. Fall back to first in `RecipeGraph.by_output[item]` filtered by `TechTreeProgress.unlocked_recipes`. Returns `None` if empty.
 
-**`primary_output_qty(recipe)`:** `recipe.outputs[0].quantity` (primary product per `technical-design.md §2`).
+**`primary_output_qty(recipe)`:** `recipe.outputs[0].quantity` (primary product per `recipe-graph.md`).
 
 **`count_for(item, rate)`:** If `primary_recipe(item).is_none()`: `0`. Else: `(rate / throughput).ceil() as u32` where `throughput = primary_output_qty / recipe.processing_time` (items/s).
 
@@ -574,7 +574,7 @@ All planner render systems early-exit when `!PlannerOpen.open`, except `topology
 - **No recipe produces target item:** Sankey shows single leaf node with "No recipe" badge. Inspector: "No recipe available." Normal during early run.
 - **Multiple unlocked recipes for one item:** `primary_recipe` picks first unless `alt_recipes` overrides. Inspector shows "swap (N-1 alts)".
 - **`target_rate == 0.0`:** All machine counts 0. Summary: "Set a target rate > 0." Guard: skip throughput calc when rate == 0.
-- **Cycle in recipe graph:** `technical-design.md §2` guarantees DAG. Cycle detection via `visited` is defensive. If triggered: stop recursion, mark node "Cycle detected" badge. Do not crash.
+- **Cycle in recipe graph:** `recipe-graph.md` guarantees DAG. Cycle detection via `visited` is defensive. If triggered: stop recursion, mark node "Cycle detected" badge. Do not crash.
 - **Player locks count higher than needed:** Gold lock in Sankey. No error — intentional buffer.
 - **Player locks count lower than needed:** Node is under-planned. Inline alert shows gap; "add ×1 machine" proposes fix.
 - **Recipe Picker open when planner closes (`{kbd:cancel}`):** Close picker first (`RecipePickerState::open = false`), then close planner. `{kbd:cancel}` priority: picker close > planner close.

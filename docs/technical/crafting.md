@@ -8,7 +8,7 @@ aliases: ["RecipeProcessor", "CraftingJob", "CraftingPlan", "MachineJobPolicy"]
 
 # Crafting System Design
 
-ECS components, system step-by-step logic, events/messages, and edge cases for the crafting system. Read `gdd.md §8` and `technical-design.md §5–6` for design intent. Covers recipe execution, catalyst inputs, module effects on recipes, craft job dispatch, and recipe graph runtime integration.
+ECS components, system step-by-step logic, events/messages, and edge cases for the crafting system. Read `gdd.md §8` for design intent and `recipe-graph.md` / `machines.md` for the data model. Covers recipe execution, catalyst inputs, module effects on recipes, craft job dispatch, and recipe graph runtime integration.
 
 ---
 
@@ -40,7 +40,7 @@ Three todos from `design-todos.md` are resolved here: **Recipe Graph Runtime Int
 
 ## 2. ECS Structure
 
-### Machine entity extensions (from `technical-design.md §5`)
+### Machine entity extensions (from `machines.md`)
 
 ```
 Machine entity
@@ -294,7 +294,7 @@ Slot assignment: slots are parallel processors of the single policy. `passive_re
 Step by step:
 
 1. Read `ConcreteRecipe` from `RecipeGraph`.
-2. Check power — voltage and amp checks per `networks.md §2` and `technical-design.md §7`:
+2. Check power — voltage and amp checks per `networks.md §2` and `power.md`:
    a. Network voltage tier ≥ `recipe.min_voltage_tier` — hard block if not met; emit `RecipeBlockedVoltage { machine, slot }`.
    b. Available amp headroom ≥ draw rate — block if at amp capacity; emit `RecipeBlockedAmps { machine, slot }`. Job stays `Dispatched` and retries when `AmpHeadroomRestored` fires.
 3. Check input availability — for each `recipe.inputs` where `consumed == true`, resolve the machine's input-eligible logistics ports (via `PortPolicy`) and call `has_items` on each port's network with this job's plan as context (plan-aware: plan output reservations for this plan are visible as available on that network). If any item is unavailable in sufficient quantity across reachable networks, block: emit `RecipeBlockedInputs { machine, slot, missing }`. Retries on `NetworkStorageChanged`.
@@ -357,7 +357,7 @@ Step by step:
 
 ### Data model
 
-`ConcreteRecipe` uses a unified `RecipeInput` type for all inputs (from `technical-design.md §2`):
+`ConcreteRecipe` uses a unified `RecipeInput` type for all inputs (from `recipe-graph.md`):
 
 ```rust
 pub struct RecipeInput {

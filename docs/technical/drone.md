@@ -8,7 +8,7 @@ aliases: ["DroneInventory", "Remote mode", "fog of war", "ActiveDrone", "drone p
 
 # Drone System Design
 
-ECS components, system step-by-step logic, events/messages, and edge cases for the Drone system. Read `gdd.md §8` for design intent and `technical-design.md §8` for the prose overview.
+ECS components, system step-by-step logic, events/messages, and edge cases for the Drone system. Read `gdd.md §8` for design intent.
 
 ---
 

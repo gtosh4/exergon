@@ -8,7 +8,7 @@ aliases: ["ResearchPool", "TechTreeProgress", "research points", "tech unlock"]
 
 # Science & Research System Design
 
-ECS components, system step-by-step logic, events/messages, and edge cases for the Science & Research system. Read `gdd.md §6` for design intent and `technical-design.md §9` for the prose overview. Vertical Slice and MVP differences are noted inline.
+ECS components, system step-by-step logic, events/messages, and edge cases for the Science & Research system. Read `gdd.md §6` for design intent. Vertical Slice and MVP differences are noted inline.
 
 ---
 

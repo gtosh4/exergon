@@ -8,7 +8,7 @@ aliases: ["hotbar", "StorageUnit", "DroneInventory", "NetworkFlowLedger", "goal 
 
 # Inventory System Design
 
-ECS components, system step-by-step logic, events/messages, and edge cases for the inventory layer. Read `gdd.md §10` (factory layer, unified storage), `technical-design.md §6` (logistics network), `networks.md §2` (StorageUnit), and `ui.md §Terminal` for context. Covers the hotbar, drone inventory, storage units, Terminal screen runtime data, and the goal tracker.
+ECS components, system step-by-step logic, events/messages, and edge cases for the inventory layer. Read `gdd.md §10` (factory layer, unified storage), `networks.md` (logistics network + StorageUnit), and `ui.md §Terminal` for context. Covers the hotbar, drone inventory, storage units, Terminal screen runtime data, and the goal tracker.
 
 ---
 
