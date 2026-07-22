@@ -8,7 +8,7 @@ tags: [logistics, competitor]
 # GTNH Dev-Channel Lessons: Hint Every Gate; Integration & Community-Maintenance Principles
 
 
-**Decision:** Three learnings from analysing GTNH's development Discord (~195k messages across beta-testing, github-discussion, quest-dev, wiki-dev — see [[market/gtnh]]) are encoded into the GDD:
+**Decision:** Three learnings from analysing GTNH's development Discord (~195k messages across beta-testing, github-discussion, quest-dev, wiki-dev — see [[gtnh]]) are encoded into the GDD:
 1. **Discoverability rule (§7):** an unlock vector the player cannot infer the *existence* of is a bug, not a puzzle. Exploration/observation gates must leave a trail (tech-tree shadow, scan rumor, codex breadcrumb, visible sealed site). The challenge is finding/reaching the trigger, never guessing an undocumented action exists.
 2. **Integration over volume (§17):** the dominant cost of a deep pack is making content cohere, not authoring it — reward tightly interlocked sciences over item count, and make coherence machine-checkable via the run validator rather than litigated by hand.
 3. **Community maintenance as a supported direction (§17):** a community-maintained content pack is a viable long-term direction (post-Release), but the platform must *lower* its cost — content-as-data + versioned schema, the validator as the community's QA safety net, and the codex as an auto-filled curriculum layer that never depends on a human wiki team.

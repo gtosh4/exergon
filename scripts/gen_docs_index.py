@@ -46,10 +46,16 @@ def all_notes():
 def noext(rel):
     return os.path.splitext(rel)[0]
 
+def linktarget(rel):
+    # basename wikilinks resolve in markdown-oxide (LSP); keep the full path only for
+    # README (its basename collides 3×). Catalog/decision targets are otherwise unique.
+    b = os.path.basename(noext(rel))
+    return noext(rel) if b == "README" else b
+
 def line(d):
     s = f" _(status: {d['status']})_" if d.get("status") else ""
     tags = "  ·  " + " ".join(f"#{t}" for t in d["tags"]) if d["tags"] else ""
-    return f"- [[{noext(d['rel'])}|{d['title']}]] — {d['summary']}{s}{tags}"
+    return f"- [[{linktarget(d['rel'])}|{d['title']}]] — {d['summary']}{s}{tags}"
 
 def replace_region(src, start_h, end_h, new_block):
     si = src.index(start_h)
@@ -81,7 +87,7 @@ def build_decisions(notes):
     body = [GEN, ""]
     for d in decs:
         tags = " ".join(f"#{t}" for t in d["tags"])
-        body.append(f"- **{d['date']}** — [[{noext(d['rel'])}|{d['title']}]]  ·  {tags}")
+        body.append(f"- **{d['date']}** — [[{linktarget(d['rel'])}|{d['title']}]]  ·  {tags}")
     body.append("")
     return "\n".join(body)
 

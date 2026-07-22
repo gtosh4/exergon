@@ -156,23 +156,23 @@ Run after `NetworkSystems::of::<Logistics>()` and after `PowerSimSystems`:
 
 **`miner_tick_system`** — advances miner timers each tick; when a cycle completes, picks ore from the deposit distribution and calls `give_items` on the networks of the miner's output-eligible ports.
 
-**`recipe_start_system`** — triggered by `NetworkStorageChanged` or `NetworkChanged<Power>` (manual-mode machines; see [[technical/crafting#4. Machine Job Policy|crafting.md §4]]) or by `JobDispatched` (auto-craft machines; see [[technical/crafting#8. Craft Job Dispatch|crafting.md §8]]). The full recipe execution specification — `RecipeProcessor` component, job dispatch path, catalyst reservation, module effects — is in [[technical/crafting#5. Recipe Execution|crafting.md §5]]. The logistics-layer checks this system performs:
-1. Finds matching recipes by `machine_type` and `machine_tier` (using `MachineCapability` from [[technical/crafting#3. Recipe Graph Runtime|crafting.md §3]])
+**`recipe_start_system`** — triggered by `NetworkStorageChanged` or `NetworkChanged<Power>` (manual-mode machines; see [[crafting#4. Machine Job Policy|crafting.md §4]]) or by `JobDispatched` (auto-craft machines; see [[crafting#8. Craft Job Dispatch|crafting.md §8]]). The full recipe execution specification — `RecipeProcessor` component, job dispatch path, catalyst reservation, module effects — is in [[crafting#5. Recipe Execution|crafting.md §5]]. The logistics-layer checks this system performs:
+1. Finds matching recipes by `machine_type` and `machine_tier` (using `MachineCapability` from [[crafting#3. Recipe Graph Runtime|crafting.md §3]])
 2. Checks tech tree lock (`TechTreeProgress.unlocked_recipes`) if progress resource exists
 3. **Power check** — if `recipe.energy_cost > 0`:
    - **Voltage** — `PowerNetworkMembers.voltage_tier()` ≥ `recipe.min_voltage_tier`; cannot start if not met
    - **Amps** — `(energy_cost / processing_time) / network_voltage` ≤ `PowerNetworkMembers.amp_capacity() - amps_in_use()`; cannot start if at amp capacity
    - **Buffer** — calls `PowerNetworkMembers.has_energy(energy_per_tick)` where `energy_per_tick = (energy_cost / processing_time) * dt`; no withdrawal at start
 4. **Input check** — for each recipe input item, resolves the machine's logistics ports that allow input for that item (via `PortPolicy`), then calls `has_items` across the `LogisticsNetworkMembers` of those ports' networks
-5. **Catalyst check** — if `recipe.catalyst_inputs` is non-empty: for each item, `available = has_items(item) - CatalystReservationBook.reserved[item]`; if `available < required`, recipe does not start (see [[technical/crafting#6. Catalyst Inputs|crafting.md §6]])
+5. **Catalyst check** — if `recipe.catalyst_inputs` is non-empty: for each item, `available = has_items(item) - CatalystReservationBook.reserved[item]`; if `available < required`, recipe does not start (see [[crafting#6. Catalyst Inputs|crafting.md §6]])
 6. **Output check** — for each recipe output/byproduct item, verifies at least one of the machine's logistics ports allows output for that item and has a connected network; if any output has no valid destination, recipe does not start
-7. If all checks pass: calls `take_items` on each input-port network accordingly; reserves catalyst inputs in `CatalystReservationBook`; sets `RecipeSlot.state = Running` and `progress = 0.0` (see [[technical/crafting#2. ECS Structure|crafting.md §2]] for `RecipeProcessor` definition)
+7. If all checks pass: calls `take_items` on each input-port network accordingly; reserves catalyst inputs in `CatalystReservationBook`; sets `RecipeSlot.state = Running` and `progress = 0.0` (see [[crafting#2. ECS Structure|crafting.md §2]] for `RecipeProcessor` definition)
 
 **`recipe_progress_system`**, **`recipe_completion_system`** — see [[crafting#5. Recipe Execution|crafting.md §5]]. The only network-layer interactions are `PowerNetworkMembers.take_energy` per tick and `give_items` on output ports at completion; all progress tracking, catalyst release, and output production are crafting-layer concerns.
 
 ### Unified Storage
 
-`LogisticsNetworkMembers` exposes `has_items`, `take_items`, and `give_items` as methods. It owns the iteration order across member `StorageUnit` entities, allowing priority ordering between storage units to be encapsulated here. Items are not centralized — each `StorageUnit` holds its own `HashMap<String, u32>`; `LogisticsNetworkMembers` is the index and the access point. When the `CatalystReservationBook` resource is present, `has_items` subtracts `CatalystReservationBook.reserved[item_id]` from the total available count before returning — items with active catalyst reservations are physically present in storage but treated as unavailable (see [[technical/crafting#6. Catalyst Inputs|crafting.md §6]]).
+`LogisticsNetworkMembers` exposes `has_items`, `take_items`, and `give_items` as methods. It owns the iteration order across member `StorageUnit` entities, allowing priority ordering between storage units to be encapsulated here. Items are not centralized — each `StorageUnit` holds its own `HashMap<String, u32>`; `LogisticsNetworkMembers` is the index and the access point. When the `CatalystReservationBook` resource is present, `has_items` subtracts `CatalystReservationBook.reserved[item_id]` from the total available count before returning — items with active catalyst reservations are physically present in storage but treated as unavailable (see [[crafting#6. Catalyst Inputs|crafting.md §6]]).
 
 ### Channel Capacity
 
@@ -215,7 +215,7 @@ A **Sub-network Router** is the segmentation device that resolves a channel-over
 
 *Implementation: `src/power/mod.rs`*
 
-> **Scope:** this section owns the **cable-graph mechanics** for power — `GeneratorUnit` buffer pooling, `PowerNetworkMembers` surface (`has_energy`/`take_energy`/`give_energy`, `voltage_tier`, `amp_capacity`, `amps_in_use`), voltage/amp gating at recipe start, and non-destructive failure modes. The **production model** — how generators actually fill those buffers (recipe-driven, env ports, virtual items, batteries, weather, throttle, burst generators) — is in [[power]]. The `generator_tick_system` constant-watts fill described below is **superseded** by the recipe-completion fill in [[technical/power#7. Energy as Recipe Output|power.md §7]]; the description here is retained for context but implementations follow [[technical/power]].
+> **Scope:** this section owns the **cable-graph mechanics** for power — `GeneratorUnit` buffer pooling, `PowerNetworkMembers` surface (`has_energy`/`take_energy`/`give_energy`, `voltage_tier`, `amp_capacity`, `amps_in_use`), voltage/amp gating at recipe start, and non-destructive failure modes. The **production model** — how generators actually fill those buffers (recipe-driven, env ports, virtual items, batteries, weather, throttle, burst generators) — is in [[power]]. The `generator_tick_system` constant-watts fill described below is **superseded** by the recipe-completion fill in [[power#7. Energy as Recipe Output|power.md §7]]; the description here is retained for context but implementations follow [[power]].
 
 ### Components
 

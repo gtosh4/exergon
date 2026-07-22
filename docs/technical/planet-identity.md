@@ -8,7 +8,7 @@ aliases: ["PlanetProperties", "landing panel", "planet archetype", "insight beat
 
 # Planet Identity & Seed System
 
-ECS components, generation algorithm, property-to-gameplay bindings, visibility model, landing panel UI, and insight beat feedback for planet properties. Read [[gdd#5. The Run Seed & Procedural Systems|gdd.md §5]] for design intent. Seed derivation and RNG will be documented in [[technical/seed]] and not repeated here.
+ECS components, generation algorithm, property-to-gameplay bindings, visibility model, landing panel UI, and insight beat feedback for planet properties. Read [[gdd#5. The Run Seed & Procedural Systems|gdd.md §5]] for design intent. Seed derivation and RNG will be documented in [[seed]] and not repeated here.
 
 **Requires:** add `planet: u64` to `DomainSeeds` in `src/seed/mod.rs` and add the corresponding `derive(master, "planet")` call in `DomainSeeds::from_master`.
 
@@ -489,7 +489,7 @@ PlanetLandingPanel entity
 
 ## 7. In-Run Property Display
 
-Planet properties are accessible via the Terminal's Planet page (follows the Terminal screen model in [[technical/inventory]]). Accessible from any `PlayMode`.
+Planet properties are accessible via the Terminal's Planet page (follows the Terminal screen model in [[inventory]]). Accessible from any `PlayMode`.
 
 ### Display per property
 

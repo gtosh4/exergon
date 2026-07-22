@@ -8,9 +8,9 @@ aliases: ["Sankey graph", "production planner", "PlanState", "topology overlay",
 
 # Planning UI Technical Design
 
-Cross-factory production *planner*: design hypothetical production additions using a Sankey graph, per-node Inspector rail, Recipe Picker overlay, and 3D network topology overlay. The planner works on **planned** production — it does not read currently-placed machines or show live factory state. For live machine state and runtime alerts, see [[technical/machine-ui]].
+Cross-factory production *planner*: design hypothetical production additions using a Sankey graph, per-node Inspector rail, Recipe Picker overlay, and 3D network topology overlay. The planner works on **planned** production — it does not read currently-placed machines or show live factory state. For live machine state and runtime alerts, see [[machine-ui]].
 
-Read [[technical/crafting#3. Recipe Graph Runtime|crafting.md §3]] for `RecipeGraph` and `§5` for `SlotBlockReason`. Read [[technical/networks|networks.md §2–3]] for network topology data structures.
+Read [[crafting#3. Recipe Graph Runtime|crafting.md §3]] for `RecipeGraph` and `§5` for `SlotBlockReason`. Read [[networks|networks.md §2–3]] for network topology data structures.
 
 **Wireframe:** `ui_mock/planner-wireframes.html`. Screens 01 (Sankey + Inspector) and 05 (Recipe Picker) are the canonical layout references for this document.
 
@@ -70,7 +70,7 @@ The 3D network topology overlay is a separate, independent toggle — it renders
 
 ## 2. Opening the Planner
 
-Opened from the Field Computer terminal (`{kbd:interact}` → open planner) or the `{kbd:menu_planner}` action (default `Tab`; see [[technical/input#3.1 Global / Menu|input.md §3.1]]). Closes on: `{kbd:cancel}`, close button, or `{kbd:interact}` toggle on the Field Computer. Not proximity-gated.
+Opened from the Field Computer terminal (`{kbd:interact}` → open planner) or the `{kbd:menu_planner}` action (default `Tab`; see [[input#3.1 Global / Menu|input.md §3.1]]). Closes on: `{kbd:cancel}`, close button, or `{kbd:interact}` toggle on the Field Computer. Not proximity-gated.
 
 `PlannerOpen` resource tracks open state. Systems that rebuild planner content skip work when `!PlannerOpen.open`.
 
@@ -179,7 +179,7 @@ struct PlannerRoot;
 |--------|-------|
 | `dep_graph_build_system` | `PlanState` (active plan), `RecipeGraph`, `TechTreeProgress` |
 | `inspector_system` | `PlanState` (active plan), `InspectorState`, `RecipeGraph` |
-| `topology_overlay_system` | Network resources ([[technical/networks#2. Logistics Network|networks.md §2]]), `Transform` + `RecipeProcessor` + `SlotBlockReason` of machines |
+| `topology_overlay_system` | Network resources ([[networks#2. Logistics Network|networks.md §2]]), `Transform` + `RecipeProcessor` + `SlotBlockReason` of machines |
 
 ### 3.4 Resources / Components Written
 
@@ -275,7 +275,7 @@ fn build_dep_graph(
 
 **`primary_recipe(item)`:** Check `alt_recipes[item]` first. Fall back to first in `RecipeGraph.by_output[item]` filtered by `TechTreeProgress.unlocked_recipes`. Returns `None` if empty.
 
-**`primary_output_qty(recipe)`:** `recipe.outputs[0].quantity` (primary product per [[technical/recipe-graph]]).
+**`primary_output_qty(recipe)`:** `recipe.outputs[0].quantity` (primary product per [[recipe-graph]]).
 
 **`count_for(item, rate)`:** If `primary_recipe(item).is_none()`: `0`. Else: `(rate / throughput).ceil() as u32` where `throughput = primary_output_qty / recipe.processing_time` (items/s).
 
@@ -400,7 +400,7 @@ Footer: `[apply selected]` | `[cancel]`. Press ↵ to apply selected. Drag from 
 
 ## 8. 3D Network Topology Overlay
 
-Toggled independently of the planner panel via `{kbd:toggle_topology}` (default `N`; see [[technical/input#3.1 Global / Menu|input.md §3.1]]). Draws over the 3D world each frame using Bevy `Gizmos`. `topology_overlay_system` early-exits when `!TopologyOverlay::enabled`.
+Toggled independently of the planner panel via `{kbd:toggle_topology}` (default `N`; see [[input#3.1 Global / Menu|input.md §3.1]]). Draws over the 3D world each frame using Bevy `Gizmos`. `topology_overlay_system` early-exits when `!TopologyOverlay::enabled`.
 
 **Why Gizmos (not entities):** Gizmos are batched single-frame draw calls — no spawn/despawn overhead, no per-frame query cost for overlay elements. Appropriate here because topology lines need no interaction (no picking). Tradeoff: cannot be clicked or hovered.
 
@@ -416,7 +416,7 @@ Default on first toggle: Logistics only. Each enabled network draws in its own c
 
 ### 8.2 Cable Segments
 
-Lines along each cable segment in enabled network types (data source: [[technical/networks#2. Logistics Network|networks.md §2]]):
+Lines along each cable segment in enabled network types (data source: [[networks#2. Logistics Network|networks.md §2]]):
 
 | Network | State | Color |
 |---------|-------|-------|
@@ -574,7 +574,7 @@ All planner render systems early-exit when `!PlannerOpen.open`, except `topology
 - **No recipe produces target item:** Sankey shows single leaf node with "No recipe" badge. Inspector: "No recipe available." Normal during early run.
 - **Multiple unlocked recipes for one item:** `primary_recipe` picks first unless `alt_recipes` overrides. Inspector shows "swap (N-1 alts)".
 - **`target_rate == 0.0`:** All machine counts 0. Summary: "Set a target rate > 0." Guard: skip throughput calc when rate == 0.
-- **Cycle in recipe graph:** [[technical/recipe-graph]] guarantees DAG. Cycle detection via `visited` is defensive. If triggered: stop recursion, mark node "Cycle detected" badge. Do not crash.
+- **Cycle in recipe graph:** [[recipe-graph]] guarantees DAG. Cycle detection via `visited` is defensive. If triggered: stop recursion, mark node "Cycle detected" badge. Do not crash.
 - **Player locks count higher than needed:** Gold lock in Sankey. No error — intentional buffer.
 - **Player locks count lower than needed:** Node is under-planned. Inline alert shows gap; "add ×1 machine" proposes fix.
 - **Recipe Picker open when planner closes (`{kbd:cancel}`):** Close picker first (`RecipePickerState::open = false`), then close planner. `{kbd:cancel}` priority: picker close > planner close.

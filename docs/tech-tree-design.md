@@ -460,4 +460,4 @@ The holistic tier design (themes, base/exotic ratios, gates) lives in [§3](#3-t
 
 ---
 
-*Tech Tree Design v0.2 — T1 (Landfall) designed. T2–T5 pending. T6–T10 deferred. See [[gdd#7. The Tech Tree|gdd.md §7]] for design constraints and [[technical/research#5. Unlock Flow|research.md §5]] for the node data model.*
+*Tech Tree Design v0.2 — T1 (Landfall) designed. T2–T5 pending. T6–T10 deferred. See [[gdd#7. The Tech Tree|gdd.md §7]] for design constraints and [[research#5. Unlock Flow|research.md §5]] for the node data model.*

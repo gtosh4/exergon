@@ -10,12 +10,12 @@ aliases: ["PlaceableDef", "WorldObjectEvent", "PlacementGhost", "BuildOrientatio
 
 Generic placement and removal flow for every placeable: machines, platforms, cables, decorations (post-VS), modules (post-VS). Owns the ghost preview, footprint validation, surface support, rotation input, hotbar→placement dispatch, and emits the `WorldObjectEvent { Placed | Removed }` + `CableConnectionEvent` contracts that downstream plugins react to.
 
-Read [[gdd#10. The Factory Layer|gdd.md §10]] for design intent, [[technical/machines]] for the machine-specific spawn that follows a placed event, [[technical/networks]] for cable network topology that follows a cable placement.
+Read [[gdd#10. The Factory Layer|gdd.md §10]] for design intent, [[machines]] for the machine-specific spawn that follows a placed event, [[networks]] for cable network topology that follows a cable placement.
 
 Scope boundary:
-- [[technical/machines]] — `Machine` spawn + port spawn after a machine `Placed` event.
-- [[technical/networks]] — cable segment + network membership after a `CableConnectionEvent`.
-- [[technical/inventory]] — `Hotbar` resource (selected slot, `active_item_id`).
+- [[machines]] — `Machine` spawn + port spawn after a machine `Placed` event.
+- [[networks]] — cable segment + network membership after a `CableConnectionEvent`.
+- [[inventory]] — `Hotbar` resource (selected slot, `active_item_id`).
 - This doc — `PlaceableDef` asset schema, `PlaceableRegistry`, ghost preview pipeline, validation, orientation input, multi-stage interaction (cable two-click, platform two-corner), removal selection, and the event contracts emitted to downstream systems.
 
 ---
@@ -43,7 +43,7 @@ Scope boundary:
 
 Building system is single entry-point for "player puts something in the world." Every placeable item (anything with `ItemDef.placeable: Some(PlaceableDef)`) routes through here. Player holds item in hotbar → ghost preview tracks look target → click commits → building system validates → emits `WorldObjectEvent { Placed }` (or `CableConnectionEvent` for cables) → downstream plugin (machines, networks, etc.) reacts.
 
-Placement is **always-on while in `PlayMode::Exploring`** with a placeable hotbar item selected and inventory closed. No explicit build-mode toggle. Holding `{kbd:place_extend_modifier}` (default `Shift`; see [[technical/input#3.2 Local Body (in PlayMode::Exploring)|input.md §3.2]]) swaps the ghost to the red removal preview; `{kbd:primary_action}` removes nearest placeable under the cursor.
+Placement is **always-on while in `PlayMode::Exploring`** with a placeable hotbar item selected and inventory closed. No explicit build-mode toggle. Holding `{kbd:place_extend_modifier}` (default `Shift`; see [[input#3.2 Local Body (in PlayMode::Exploring)|input.md §3.2]]) swaps the ghost to the red removal preview; `{kbd:primary_action}` removes nearest placeable under the cursor.
 
 Three interaction shapes are supported, declared per placeable in the RON asset:
 - **Single** — one click → one placed entity (machines, decorations, storage_crate, generator).
@@ -349,7 +349,7 @@ Port-aware variant is not needed: when the raycast hits a port entity, `LookTarg
    - `AxisY` → `BuildOrientation.0` (a Y-axis Quat — continuous, not snapped).
    - `Free` → `BuildOrientation.0` (arbitrary Quat from the rotate gesture).
 5. Validate (see §9): footprint clear, surface supported, within `max_reach`, hotbar has stock. On fail: emit `PlacementRejected { item_id, reason }` and return.
-6. Decrement hotbar stock (`take_from_any_storage` against the network the active hotbar is bound to — see [[technical/inventory]]).
+6. Decrement hotbar stock (`take_from_any_storage` against the network the active hotbar is bound to — see [[inventory]]).
 7. Emit:
    ```rust
    WorldObjectEvent {
@@ -403,7 +403,7 @@ If the first click is not on a port: emit `PlacementRejected { reason: NoPortAtA
 **Cancel paths**: `{kbd:secondary_action}`, `{kbd:cancel}`, hotbar swap, or selecting a different item id resets to `Idle` without consuming inputs.
 
 Cables differ from machines in two respects that justify the dedicated event:
-- Two world positions, not one — `CableConnectionEvent` already exists in [[technical/networks]] for this.
+- Two world positions, not one — `CableConnectionEvent` already exists in [[networks]] for this.
 - Snap target is a port entity, not a free surface — `LookTarget.entity` provides this.
 
 Same building-plugin code path handles both kinds because the kind is in the item id; downstream `cable_placed_system` (in `network/membership.rs`) reads `CableConnectionEvent` directly.
@@ -471,7 +471,7 @@ Two systems split the work: `update_removal_hover` maintains the visual marker e
 4. Downstream plugin consumes the event:
    - `remove_placed_objects_system` (in `machine/`) — handles machine + platform removal, in-flight input return, port despawn.
    - `cable_removed_system` (in `network/membership.rs`) — handles cable segment removal, network split/merge.
-5. Stock return is the downstream plugin's responsibility — [[technical/machines#5. Removal Flow|machines.md §5]] covers machine item return.
+5. Stock return is the downstream plugin's responsibility — [[machines#5. Removal Flow|machines.md §5]] covers machine item return.
 
 The current `world/interaction.rs` `{kbd:place_extend_modifier}` + `{kbd:primary_action}` branch sends a generic `WorldObjectEvent { item_id: "", kind: Removed }`, leaving target identification to the receiver. The building system **resolves the target ahead of the event** and sets `item_id` to the specific kind. This eliminates the generic-string-empty path: every `Removed` event carries the resolved item id. Downstream cable-removal still falls back to nearest-cable-by-distance only when the `item_id` is the cable's own (typed-removal mode).
 
@@ -556,7 +556,7 @@ For `AreaRect`, footprint check runs per tile.
 
 Failure path always emits `PlacementRejected { item_id, reason }` and never decrements stock.
 
-`PlacementRejected` is consumed by the UI plugin to surface a toast/sound and is consumed by [[technical/telemetry]] (post-VS event).
+`PlacementRejected` is consumed by the UI plugin to surface a toast/sound and is consumed by [[telemetry]] (post-VS event).
 
 ---
 

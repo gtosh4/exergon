@@ -40,7 +40,7 @@ When the recipe on an escape machine completes, `EscapeEvent` fires.
 
 The player finds the **precursor** gateway ruins via drone — a transit structure an earlier probe generation left (seeded near the lineage trunk; a frontier run has none and scratch-builds the launch instead, GDD §12). They craft the Gateway Key — the minimal **successor** payload — in an assembler (Construction — standard recipe). They enable the gateway machine (Activation). The gateway draws power and runs a timed recipe; if power drops, the job stalls until power is restored and the machine is re-enabled. When the job completes, the copy is sent through and the run ends.
 
-The gateway recipe uses the Gateway Key as a **catalyst input** — present for the job duration, not consumed on completion. Catalyst inputs are a recipe system feature; see [[technical/crafting|technical/crafting.md §catalyst-inputs]].
+The gateway recipe uses the Gateway Key as a **catalyst input** — present for the job duration, not consumed on completion. Catalyst inputs are a recipe system feature; see [[crafting|technical/crafting.md §catalyst-inputs]].
 
 ---
 
@@ -106,7 +106,7 @@ Handled by power and machine systems: insufficient power stalls the job. Player 
 `gateway_status_ui_system` shows nothing. Machine interaction shows "Undiscovered" diagnostic. Entity exists with physics collision but gives no feedback until discovery.
 
 **Logistics network splits during charge (cable destroyed).**  
-Power and item delivery both break; machine job stalls. Catalyst key reservation behavior is specified in [[technical/crafting|technical/crafting.md §catalyst-inputs]].
+Power and item delivery both break; machine job stalls. Catalyst key reservation behavior is specified in [[crafting|technical/crafting.md §catalyst-inputs]].
 
 **`EscapeEvent` fires while game is paused.**  
 `EscapeEvent` is processed on resume. Recipe execution systems do not run while paused (`GameState::Paused`), so jobs cannot complete while paused.

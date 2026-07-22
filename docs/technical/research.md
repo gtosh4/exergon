@@ -61,7 +61,7 @@ Items flow in and out via the logistics network the same way as any other machin
 
 ### Run entity (research components)
 
-`TechTreeProgress` and `ResearchPool` are **components on the Run entity** — the singleton ECS anchor for all run-scoped globals (see [[technical/save#1. Save Model|save.md §1]]). They are run-scoped state, not player-physical state.
+`TechTreeProgress` and `ResearchPool` are **components on the Run entity** — the singleton ECS anchor for all run-scoped globals (see [[save#1. Save Model|save.md §1]]). They are run-scoped state, not player-physical state.
 
 ```
 Run entity

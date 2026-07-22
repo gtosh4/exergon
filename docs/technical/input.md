@@ -90,15 +90,15 @@ Tokens are the canonical names referenced from every other doc. Default bindings
 | `{kbd:primary_action}` | `MouseButton::Left` | Use selected drone tool (mining drill sample, scanner pulse) | `bool` (Started) |
 | `{kbd:secondary_action}` | `MouseButton::Right` | Manual mine (`drone_mine_system`) | `bool` (Started) |
 | `{kbd:hotbar_slot_N}` | `1`–`9` | Select drone hotbar slot `N` | `bool` (Started) |
-| `{kbd:drone_quick_switch_N}` | `Alt+1`–`Alt+9` | Switch to drone bound to slot `N` (MVP+; see [[technical/drone#7. Multiple Drone Switching|drone.md §7]]) | `bool` (Started) |
+| `{kbd:drone_quick_switch_N}` | `Alt+1`–`Alt+9` | Switch to drone bound to slot `N` (MVP+; see [[drone#7. Multiple Drone Switching|drone.md §7]]) | `bool` (Started) |
 
-### 3.4 Body / Drone Quick-Switch (MVP+; see [[technical/aegis#7. Outpost Beacon (MVP)|aegis.md §7]])
+### 3.4 Body / Drone Quick-Switch (MVP+; see [[aegis#7. Outpost Beacon (MVP)|aegis.md §7]])
 
 | Token | Default | Action |
 |---|---|---|
 | `{kbd:body_quick_switch_N}` | `Alt+1`–`Alt+0` | Switch `ActiveBody` to body bound to slot `N` (1–9, 0) |
 
-`{kbd:body_quick_switch_N}` and `{kbd:drone_quick_switch_N}` share the `Alt+digit` chord. The quick-switch slot can hold either a body or a drone; whichever is bound determines the effective behavior. See [[technical/aegis#7. Outpost Beacon (MVP)|aegis.md §7]] for the unified slot model.
+`{kbd:body_quick_switch_N}` and `{kbd:drone_quick_switch_N}` share the `Alt+digit` chord. The quick-switch slot can hold either a body or a drone; whichever is bound determines the effective behavior. See [[aegis#7. Outpost Beacon (MVP)|aegis.md §7]] for the unified slot model.
 
 ### 3.5 Terminal / Planner / Tech Tree (modal contexts)
 
@@ -175,7 +175,7 @@ Other technical docs follow these rules when referring to an input:
 
 - **Prose:** write `{kbd:interact}`, never "press E". The token resolves to a current display glyph via the input-prompts helper.
 - **System trigger descriptions:** write the action token in the trigger column — e.g. "Trigger: `{kbd:primary_action}` Started, in `LocalBodyContext`." Avoid `just_pressed(MouseButton::Left)` style references; the action layer is the contract, the raw binding is settings.
-- **Code samples in docs:** when illustrating a system, use the action type directly: `fn on_primary(trigger: Trigger<Fired<PrimaryAction>>) { ... }`. Do not include `KeyCode`/`MouseButton` in code samples that describe gameplay — those belong in [[technical/input]] only.
+- **Code samples in docs:** when illustrating a system, use the action type directly: `fn on_primary(trigger: Trigger<Fired<PrimaryAction>>) { ... }`. Do not include `KeyCode`/`MouseButton` in code samples that describe gameplay — those belong in [[input]] only.
 - **New input:** add the token to §3 before referencing it elsewhere. Reviewers reject PRs that introduce inputs without an entry here.
 
 Example rewrite:

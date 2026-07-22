@@ -8,7 +8,7 @@ aliases: ["hotbar", "StorageUnit", "DroneInventory", "NetworkFlowLedger", "goal 
 
 # Inventory System Design
 
-ECS components, system step-by-step logic, events/messages, and edge cases for the inventory layer. Read [[gdd#10. The Factory Layer|gdd.md §10]] (factory layer, unified storage), [[technical/networks]] (logistics network + StorageUnit), and [[ui#Terminal (Inventory / Item Network)|ui.md §Terminal]] for context. Covers the hotbar, drone inventory, storage units, Terminal screen runtime data, and the goal tracker.
+ECS components, system step-by-step logic, events/messages, and edge cases for the inventory layer. Read [[gdd#10. The Factory Layer|gdd.md §10]] (factory layer, unified storage), [[networks]] (logistics network + StorageUnit), and [[ui#Terminal (Inventory / Item Network)|ui.md §Terminal]] for context. Covers the hotbar, drone inventory, storage units, Terminal screen runtime data, and the goal tracker.
 
 ---
 
@@ -85,7 +85,7 @@ pub struct HotbarSlot {
 
 ### Bank switching
 
-Banks A/B/C map to `banks[0]`, `banks[1]`, `banks[2]`. `active_bank` is updated on `{kbd:hotbar_bank_switch}` (default `Shift+Scroll`; see [[technical/input#3.2 Local Body (in PlayMode::Exploring)|input.md §3.2]]). The 9 visible slots are always `banks[active_bank].slots`. Bank switching fires `HotbarBankChanged { active_bank }` so the UI layer redraws.
+Banks A/B/C map to `banks[0]`, `banks[1]`, `banks[2]`. `active_bank` is updated on `{kbd:hotbar_bank_switch}` (default `Shift+Scroll`; see [[input#3.2 Local Body (in PlayMode::Exploring)|input.md §3.2]]). The 9 visible slots are always `banks[active_bank].slots`. Bank switching fires `HotbarBankChanged { active_bank }` so the UI layer redraws.
 
 ### Slot configuration
 
@@ -142,7 +142,7 @@ Drones carry a local item buffer filled during Remote mode. Manual mining deposi
 
 This is intentionally deliberate: the player must pilot back to a logistics port, making exploration range a real cost (see [[gdd#11. The World & Environment|gdd.md §11]]). It preserves the tension between "go further" and "unload what I have."
 
-Drone ECS structure (non-inventory components) is in [[technical/drone]]. This section covers only `DroneInventory` and deposit mechanics.
+Drone ECS structure (non-inventory components) is in [[drone]]. This section covers only `DroneInventory` and deposit mechanics.
 
 ### ECS components
 
@@ -167,7 +167,7 @@ Mass in use = `sum of (item_mass_kg(item_id) * qty)` across all entries. This is
 
 Step by step:
 
-1. Determine item type and quantity from the target (deposit distribution sample for ore; sample type for biome samples — see [[technical/mining]] and [[technical/drone]]).
+1. Determine item type and quantity from the target (deposit distribution sample for ore; sample type for biome samples — see [[mining]] and [[drone]]).
 2. Capacity check:
    - If `DroneInventory.items.len() >= max_slots` and `item_id` not already present: block; emit `DroneCollectionBlocked { drone, reason: SlotsFull }`. Player must deposit before collecting more distinct types.
    - If `current_mass + (item_mass_kg(item_id) * quantity) > max_mass_kg`: reduce quantity to what fits; if zero fits, emit `DroneCollectionBlocked { drone, reason: MassFull }`.
@@ -200,7 +200,7 @@ The player selects which network receives items by choosing which port to intera
 
 ### StorageUnit component
 
-`StorageUnit { items: HashMap<String, u32> }` from [[technical/networks#2. Logistics Network|networks.md §2]]. One per storage machine entity. `LogisticsNetworkMembers` aggregates across all `StorageUnit`s in the network — items are not centralized, the network is the read/write interface.
+`StorageUnit { items: HashMap<String, u32> }` from [[networks#2. Logistics Network|networks.md §2]]. One per storage machine entity. `LogisticsNetworkMembers` aggregates across all `StorageUnit`s in the network — items are not centralized, the network is the read/write interface.
 
 ### Capacity model
 
@@ -314,7 +314,7 @@ The power bar reads the power network of the outpost the player is currently inh
 
 ### CRAFT button
 
-The CRAFT button in the Terminal item table opens the craft modal for the selected item. On confirm, emits `RequestCraft { item_id, quantity, network: HotbarNetworkLink.0 }`. This is consumed by `crafting_plan_resolver_system`; see [[technical/crafting#8. Craft Job Dispatch|crafting.md §8]] for the full plan resolution flow.
+The CRAFT button in the Terminal item table opens the craft modal for the selected item. On confirm, emits `RequestCraft { item_id, quantity, network: HotbarNetworkLink.0 }`. This is consumed by `crafting_plan_resolver_system`; see [[crafting#8. Craft Job Dispatch|crafting.md §8]] for the full plan resolution flow.
 
 ### Saved filters
 

@@ -132,7 +132,7 @@ pub struct ActiveDrone(pub Option<Entity>);
 
 ### Trigger
 
-`{kbd:remote_mode}` (default `F`; see [[technical/input#3.2 Local Body (in PlayMode::Exploring)|input.md §3.2]]) in `PlayMode::Exploring` → enter Remote mode on the nearest deployable drone, or the previously active drone if one is parked.
+`{kbd:remote_mode}` (default `F`; see [[input#3.2 Local Body (in PlayMode::Exploring)|input.md §3.2]]) in `PlayMode::Exploring` → enter Remote mode on the nearest deployable drone, or the previously active drone if one is parked.
 
 `{kbd:remote_mode}` in `PlayMode::DronePilot` → return to Local mode.
 
@@ -217,7 +217,7 @@ Fog reveal runs in Local mode too for the player character, but with a smaller f
 
 ### Trigger
 
-`{kbd:primary_action}` Started in `DronePilotContext` (default `MouseButton::Left`; see [[technical/input#3.3 Drone Remote (in PlayMode::DronePilot)|input.md §3.3]]) **and** the active hotbar slot holds the `mining_drill` tool.
+`{kbd:primary_action}` Started in `DronePilotContext` (default `MouseButton::Left`; see [[input#3.3 Drone Remote (in PlayMode::DronePilot)|input.md §3.3]]) **and** the active hotbar slot holds the `mining_drill` tool.
 
 ### `drone_mine_system` (existing, extend)
 
@@ -245,7 +245,7 @@ The ore ID string from `sample_ore` maps directly to an `ItemId` in the item reg
 
 ### Trigger
 
-`{kbd:primary_action}` Started in `DronePilotContext` (default `MouseButton::Left`; see [[technical/input#3.3 Drone Remote (in PlayMode::DronePilot)|input.md §3.3]]) **and** the active hotbar slot holds the `scanner` tool.
+`{kbd:primary_action}` Started in `DronePilotContext` (default `MouseButton::Left`; see [[input#3.3 Drone Remote (in PlayMode::DronePilot)|input.md §3.3]]) **and** the active hotbar slot holds the `scanner` tool.
 
 ### `drone_scan_system`
 
@@ -308,7 +308,7 @@ Future content: drones are spawned as items and placed in world by the player. F
 
 ### Selection mechanic
 
-With multiple deployed drones (MVP+): player triggers `{kbd:drone_quick_switch_N}` (default `Alt+1`..`Alt+9`; see [[technical/input#3.3 Drone Remote (in PlayMode::DronePilot)|input.md §3.3]]) to select by slot, or opens a drone selection panel. For now: **no UI switching** — only `{kbd:remote_mode}` re-enter activates the last-used drone.
+With multiple deployed drones (MVP+): player triggers `{kbd:drone_quick_switch_N}` (default `Alt+1`..`Alt+9`; see [[input#3.3 Drone Remote (in PlayMode::DronePilot)|input.md §3.3]]) to select by slot, or opens a drone selection panel. For now: **no UI switching** — only `{kbd:remote_mode}` re-enter activates the last-used drone.
 
 ### `switch_active_drone_system` (MVP+)
 

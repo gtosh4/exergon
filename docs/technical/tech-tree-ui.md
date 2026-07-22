@@ -145,7 +145,7 @@ Edges:
 
 ### `tech_tree_open`
 
-Trigger: `{kbd:menu_tech_tree}` action (default `Y`; see [[technical/input#3.1 Global / Menu|input.md §3.1]]) or click on Tech Tree button in HUD.
+Trigger: `{kbd:menu_tech_tree}` action (default `Y`; see [[input#3.1 Global / Menu|input.md §3.1]]) or click on Tech Tree button in HUD.
 
 ```
 1. Set TechTreePanelState.open = true

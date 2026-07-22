@@ -11,9 +11,9 @@ aliases: ["MachineDef", "tier upgrade", "IO ports", "machine placement"]
 Core machine entity model and data format. Covers `MachineDef` asset schema, placement flow, tier upgrade (state transfer), IO port spawning, orientation, and persistence tagging. Read [[gdd#10. The Factory Layer|gdd.md §10]] for design intent.
 
 Scope boundary:
-- [[technical/machine-ui]] — side-rail panel UI and `MachineJobPolicy` editing.
-- [[technical/crafting]] — `RecipeProcessor`, recipe execution, job dispatch, `MachineCapability`.
-- [[technical/networks]] — `LogisticsPortOf` / `EnergyPortOf` port entities, `PortPolicy`, cable membership.
+- [[machine-ui]] — side-rail panel UI and `MachineJobPolicy` editing.
+- [[crafting]] — `RecipeProcessor`, recipe execution, job dispatch, `MachineCapability`.
+- [[networks]] — `LogisticsPortOf` / `EnergyPortOf` port entities, `PortPolicy`, cable membership.
 - This doc — `MachineDef`, `Machine` component, port spawn on placement, tier upgrade, save tagging.
 
 ---
@@ -44,7 +44,7 @@ A machine is a placed entity that hosts recipe execution, IO ports, and (post-VS
 
 Machines, ports, modules, and the machine items themselves are content-driven via RON assets in `assets/machines/` and `assets/items/`. Engine knows only the schema; concrete machine types are data.
 
-Placement and removal flow through [[technical/building]] via `WorldObjectEvent { Placed | Removed, item_id, orientation }`. This doc covers machine-specific ECS bits: `MachineDef` asset schema, per-tier item↔def mapping, port entity spawn on `OnAdd<Machine>`, tier upgrade (kit + replace paths), persistence.
+Placement and removal flow through [[building]] via `WorldObjectEvent { Placed | Removed, item_id, orientation }`. This doc covers machine-specific ECS bits: `MachineDef` asset schema, per-tier item↔def mapping, port entity spawn on `OnAdd<Machine>`, tier upgrade (kit + replace paths), persistence.
 
 Tier upgrades use `MachineUpgradeRequest` triggered either by applying an upgrade-kit item to a placed machine or by deconstruct-and-replace.
 
@@ -82,9 +82,9 @@ pub struct PortOffset {
 }
 ```
 
-`MachineDef.machine_type` is the `MachineTypeId` used by recipes (`ConcreteRecipe.machine` resolves to a machine item whose `ItemKind::Machine.machine_type` matches one of these). Tier items are distinct (`smelter_mk1`, `smelter_mk2`, …); each `MachineTierDef.item_id` names the item that places it. See [[technical/recipe-graph#4. Machines as Items|recipe-graph.md §4]] for the items-as-machines model.
+`MachineDef.machine_type` is the `MachineTypeId` used by recipes (`ConcreteRecipe.machine` resolves to a machine item whose `ItemKind::Machine.machine_type` matches one of these). Tier items are distinct (`smelter_mk1`, `smelter_mk2`, …); each `MachineTierDef.item_id` names the item that places it. See [[recipe-graph#4. Machines as Items|recipe-graph.md §4]] for the items-as-machines model.
 
-No `footprint_radius` field. Placement validation derives the footprint collider from the loaded scene mesh (ghost-preview path in [[technical/building]]).
+No `footprint_radius` field. Placement validation derives the footprint collider from the loaded scene mesh (ghost-preview path in [[building]]).
 
 `ModuleSlotDef` schema is in §10 — VS-era asset authors leave `module_slots: []`.
 
@@ -136,7 +136,7 @@ Loaded at `Startup` from `assets/machines/`. The registry is the single read sou
 
 ### Link to ItemKind::Machine
 
-Each `MachineTierDef.item_id` must correspond to an `ItemDef` with `ItemKind::Machine { machine_type, tier }` where `machine_type` matches the parent `MachineDef.machine_type` and `tier` matches `MachineTierDef.tier` (see [[technical/recipe-graph#3. Item Kinds|recipe-graph.md §3]]).
+Each `MachineTierDef.item_id` must correspond to an `ItemDef` with `ItemKind::Machine { machine_type, tier }` where `machine_type` matches the parent `MachineDef.machine_type` and `tier` matches `MachineTierDef.tier` (see [[recipe-graph#3. Item Kinds|recipe-graph.md §3]]).
 
 Asset-consistency invariant (checked at load): every `ItemKind::Machine { machine_type, tier }` item has a matching `MachineTierDef` in the registry, and vice versa. The recipe-graph builder asserts bidirectional consistency.
 
@@ -155,7 +155,7 @@ pub struct Machine {
 }
 ```
 
-`Save` (from [[technical/save#3. ECS Save Tags|save.md §3]]) is required so machine entities persist by default. `item_id` is the single authoritative key; `machine_type` and `tier` are looked up through `MachineRegistry`, never duplicated on the component.
+`Save` (from [[save#3. ECS Save Tags|save.md §3]]) is required so machine entities persist by default. `item_id` is the single authoritative key; `machine_type` and `tier` are looked up through `MachineRegistry`, never duplicated on the component.
 
 Port positions are derived from `MachineRegistry.tier_def_by_item(machine.item_id).1.{energy_ports, logistics_ports}` and `orientation` at need (placement, upgrade, save load). Source of truth = registry + orientation, not duplicated state.
 
@@ -185,7 +185,7 @@ The hotbar carries machine items by `ItemId`. The build system emits `WorldObjec
 
 ## 4. Placement Flow
 
-> Generic placement (ghost preview, footprint validation via scene collider, surface support, build-mode input) belongs to [[technical/building]]. This section covers only machine-specific spawn after the build system commits a placement.
+> Generic placement (ghost preview, footprint validation via scene collider, surface support, build-mode input) belongs to [[building]]. This section covers only machine-specific spawn after the build system commits a placement.
 
 ### place_machine_system
 
@@ -207,17 +207,17 @@ Step by step:
    b. For each `logistics_ports[i]`, spawn a port entity with `LogisticsPortOf(machine_entity)` and the same transform formula, plus `PortPolicy::default()`.
    c. Insert `RecipeProcessor::default()`, `MachineCapability::default()`, `MachineJobPolicy::default()`, `Name` (default `"{display_name} #{generation}"`).
    d. Emit `MachinePlaced { machine: Entity, item_id }`.
-4. `machine_capability_register_system` (see [[technical/crafting#3. Recipe Graph Runtime|crafting.md §3]]) reacts to `MachinePlaced` and populates `MachineCapability.capable` from `RecipeGraph` ∩ `TechTreeProgress.unlocked_recipes`.
+4. `machine_capability_register_system` (see [[crafting#3. Recipe Graph Runtime|crafting.md §3]]) reacts to `MachinePlaced` and populates `MachineCapability.capable` from `RecipeGraph` ∩ `TechTreeProgress.unlocked_recipes`.
 
 Placement validation (footprint clear, surface support) happens upstream in the building system before `WorldObjectEvent { Placed }` is emitted. Machines.md trusts the event.
 
 ### Special-case machines
 
 Machines whose `machine_type` matches a kind handled by another plugin receive additional components via type-specific observers:
-- `"generator"` → `GeneratorUnit` (see [[technical/networks#3. Power Network|networks.md §3]])
-- `"miner"` → `MinerMachine`, link to nearest `OreDeposit` (see [[technical/mining]])
-- `"storage_crate"` → `StorageUnit` (see [[technical/networks#2. Logistics Network|networks.md §2]])
-- `"outpost_beacon"` → `OutpostBeacon`, `AegisEmitter` (see [[technical/aegis]])
+- `"generator"` → `GeneratorUnit` (see [[networks#3. Power Network|networks.md §3]])
+- `"miner"` → `MinerMachine`, link to nearest `OreDeposit` (see [[mining]])
+- `"storage_crate"` → `StorageUnit` (see [[networks#2. Logistics Network|networks.md §2]])
+- `"outpost_beacon"` → `OutpostBeacon`, `AegisEmitter` (see [[aegis]])
 
 These observers all key on `OnAdd<Machine>`, resolve `machine_type` via `MachineRegistry.tier_def_by_item(machine.item_id).0.machine_type`, and gate on the type string. The base placement system has no knowledge of which machine types are special — special behavior belongs in the owning plugin.
 
@@ -225,7 +225,7 @@ These observers all key on `OnAdd<Machine>`, resolve `machine_type` via `Machine
 
 ## 5. Removal Flow
 
-> Building-system removal selection (raycast against placeables, ghost-highlight) belongs to [[technical/building]]. This section covers only machine-specific cleanup after the build system commits a removal targeting a machine entity.
+> Building-system removal selection (raycast against placeables, ghost-highlight) belongs to [[building]]. This section covers only machine-specific cleanup after the build system commits a removal targeting a machine entity.
 
 Removal is initiated by `WorldObjectEvent { kind: Removed, pos }` and resolved by `remove_placed_objects_system` (the building plugin's umbrella system).
 
@@ -235,7 +235,7 @@ Machine-specific cleanup (when the target is a `Machine` entity):
    a. For each running slot, return consumed inputs to the network: `give_items` of `recipe.inputs[i]` where `consumed == true`, on the slot's logistics port network.
    b. Release reserved catalysts (decrement `NetworkReservations.catalyst[item]`).
    c. Release amp allocation on the power network.
-2. Despawn all cables whose endpoints target any of the machine's ports (each despawn flows through `cable_removed_system` for split/merge — see [[technical/networks#1. Generic Network System|networks.md §1]]).
+2. Despawn all cables whose endpoints target any of the machine's ports (each despawn flows through `cable_removed_system` for split/merge — see [[networks#1. Generic Network System|networks.md §1]]).
 3. Despawn all port entities owned by the machine (found via `MachineLogisticsPorts` and `MachineEnergyPorts`).
 4. Despawn the machine entity. Default Bevy cascade removes `Transform`-attached children.
 5. Emit `MachineRemoved { machine: Entity, item_id: ItemId }` — consumed by type-specific cleanup observers (miner unlinks `OreDeposit`, generator releases buffered joules, etc.).
@@ -253,7 +253,7 @@ Two upgrade paths. Both end at the same state — machine entity bound to the hi
 
 The producer recipe for `{machine_type}_mk{N+1}` lists `{machine_type}_mk{N}` as a `RecipeInput` with `consumed: true`, alongside the other ingredients (alloys, circuits, etc.). This anchors tier progression in the recipe graph: you can't craft a tier-N+1 machine without consuming a tier-N machine. Wildcard expansion authors this once per tier ladder (e.g. `$machine_type_mk$N+1` consumes `$machine_type_mk$N`).
 
-The **upgrade kit** for `{machine_type}` from tier N→N+1 is then the same recipe with the tier-N machine input removed (since the placed tier-N machine satisfies that input in-world). Kit item: `ItemKind::MachineUpgradeKit { machine_type, from_tier, to_tier }`. The graph builder may auto-derive the kit's producer recipe by stripping the machine input from the parent recipe (open question — see [[technical/recipe-graph]] for template/wildcard support).
+The **upgrade kit** for `{machine_type}` from tier N→N+1 is then the same recipe with the tier-N machine input removed (since the placed tier-N machine satisfies that input in-world). Kit item: `ItemKind::MachineUpgradeKit { machine_type, from_tier, to_tier }`. The graph builder may auto-derive the kit's producer recipe by stripping the machine input from the parent recipe (open question — see [[recipe-graph]] for template/wildcard support).
 
 VS: hand-author the upgrade-kit recipes alongside the tier ladder. Auto-derivation is a recipe-graph optimization, not a machines-layer concern.
 
@@ -280,7 +280,7 @@ Step by step:
 8. **Cable reattachment** — for each old port that had a `LogisticsNetworkMember` / `PowerNetworkMember`: find the cable segment whose endpoint was nearest the old port's world position; rebind the cable to the **nearest matching-kind port** on the new tier (`EnergyPortOf` for power cables, `LogisticsPortOf` for logistics cables) within `0.75 m`. Insert the new membership and emit `NetworkChanged<N>`. If no port within tolerance, the cable is orphaned and `cable_removed_system` drops it as an item at its midpoint.
 
    **Authoring guidance:** tier ladders should keep port positions consistent across tiers (same offsets at each face for the common kinds). Players reusing upgrade kits expect cables not to fall off.
-9. Rebuild `MachineCapability` from the new tier ([[technical/crafting#3. Recipe Graph Runtime|crafting.md §3]]).
+9. Rebuild `MachineCapability` from the new tier ([[crafting#3. Recipe Graph Runtime|crafting.md §3]]).
 10. Emit `MachineUpgraded { machine, from_item_id, to_item_id }`.
 
 Modules attached to the old tier: see §10 — module retention is a post-VS concern.
@@ -297,12 +297,12 @@ Not supported. A player wanting tier-N from a tier-N+1 machine must deconstruct 
 
 ## 7. IO Port Routing
 
-Per [[gdd#10. The Factory Layer|gdd.md §10]], port routing is a software policy, not a physical hatch model. `PortPolicy` semantics, edit events (`PortPolicyEdit { SetDefaultMode | SetItemOverride | RemoveItemOverride }`), and UI affordances are defined in **[[technical/machine-ui#4.5 Port binding section|machine-ui.md §4.5]]** (editing surface) and **[[technical/networks#2. Logistics Network|networks.md §2]]** (component shape + runtime semantics). This doc does not redefine them — refer to the canonical sources.
+Per [[gdd#10. The Factory Layer|gdd.md §10]], port routing is a software policy, not a physical hatch model. `PortPolicy` semantics, edit events (`PortPolicyEdit { SetDefaultMode | SetItemOverride | RemoveItemOverride }`), and UI affordances are defined in **[[machine-ui#4.5 Port binding section|machine-ui.md §4.5]]** (editing surface) and **[[networks#2. Logistics Network|networks.md §2]]** (component shape + runtime semantics). This doc does not redefine them — refer to the canonical sources.
 
 Two machine-side rules that the placement observer enforces:
 
 1. **Port → kind binding.** Asset-authored on `MachineTierDef.energy_ports` vs `logistics_ports`. Spawned as `EnergyPortOf` or `LogisticsPortOf` accordingly; the kind cannot change at runtime. No physical conversion ports.
-2. **Default on spawn.** New logistics ports get `PortPolicy::default()` (i.e. `default_mode: Both, item_overrides: {}` per [[technical/networks#2. Logistics Network|networks.md §2]]). Energy ports carry no `PortPolicy`. Recipe-derived defaults are post-VS.
+2. **Default on spawn.** New logistics ports get `PortPolicy::default()` (i.e. `default_mode: Both, item_overrides: {}` per [[networks#2. Logistics Network|networks.md §2]]). Energy ports carry no `PortPolicy`. Recipe-derived defaults are post-VS.
 
 ---
 
@@ -316,13 +316,13 @@ Two machine-side rules that the placement observer enforces:
 | Port world position | `machine.transform.translation + orientation.transform(offset.as_vec3())` |
 | Scene rotation | Quaternion equivalent of `orientation`; applied via `Transform::rotation` on the `SceneRoot`. |
 
-`BuildOrientation` resource holds the player's current pick (owned by the building system per [[technical/building]]). `{kbd:rotate_cw}` / `{kbd:rotate_ccw}` cycle rotation (defaults `R` / `Shift+R`; see [[technical/input#3.2 Local Body (in PlayMode::Exploring)|input.md §3.2]]). Mirror support is post-VS and may not land — re-evaluate when asymmetric machines arrive.
+`BuildOrientation` resource holds the player's current pick (owned by the building system per [[building]]). `{kbd:rotate_cw}` / `{kbd:rotate_ccw}` cycle rotation (defaults `R` / `Shift+R`; see [[input#3.2 Local Body (in PlayMode::Exploring)|input.md §3.2]]). Mirror support is post-VS and may not land — re-evaluate when asymmetric machines arrive.
 
 ---
 
 ## 9. Persistence
 
-Machines are saved by `moonshine_save` (see [[technical/save#3. ECS Save Tags|save.md §3]]) via `#[require(Save)]` on `Machine`. Saved fields:
+Machines are saved by `moonshine_save` (see [[save#3. ECS Save Tags|save.md §3]]) via `#[require(Save)]` on `Machine`. Saved fields:
 
 | Component | Saved | Notes |
 |---|---|---|
@@ -335,7 +335,7 @@ Machines are saved by `moonshine_save` (see [[technical/save#3. ECS Save Tags|sa
 | `MachineCapability` | — | Recomputed on load by `machine_capability_register_system`. |
 | Port entities | ✓ | Each port carries `Save`; restored as standalone entities with their `EnergyPortOf` / `LogisticsPortOf` relationship. `PortPolicy` saved per port. |
 
-`RecipeProcessor` save policy: **slot state persists in full.** A machine that was 47% through a recipe at save is 47% through it on load, with the same catalyst reservations and consumed-input deductions intact. Energy debt and amp allocations are network-side concerns that the network re-derives from the union of `Running`/`PowerPaused` slots after load — see [[technical/save#3. ECS Save Tags|save.md §3]] for the rebuild-on-load resource pattern.
+`RecipeProcessor` save policy: **slot state persists in full.** A machine that was 47% through a recipe at save is 47% through it on load, with the same catalyst reservations and consumed-input deductions intact. Energy debt and amp allocations are network-side concerns that the network re-derives from the union of `Running`/`PowerPaused` slots after load — see [[save#3. ECS Save Tags|save.md §3]] for the rebuild-on-load resource pattern.
 
 On load, `on_machine_placed_observer` does **not** re-spawn ports (ports are saved entities). Instead, `machine_load_finalize_system` runs after `moonshine_save` finishes loading:
 1. Rebuild `MachineColliders` cache entry if missing.
@@ -355,7 +355,7 @@ Design intent captured for the post-VS spec (do not implement until VS ships):
 - **Slot positions sourced from GLTF.** Like ports (§1), real-model module slot positions will be GLTF named child entities (`ModuleSlot_Speed_0`, etc.); the schema's `IVec3` positions are dev placeholders only.
 - **Attachment model:** physical snap. Player places a module item in the world adjacent to a machine; placement validation snaps it to the nearest free `ModuleSlotDef` position within `module_snap_radius`. The module is spawned as its own entity, parented to the machine via `ModuleOf(Entity)` relationship.
 - **Detachment:** module is removed via `WorldObjectEvent { kind: Removed }` targeting the module's world position; returned to the player.
-- **Module kinds:** speed multiplier, efficiency multiplier, parallel-slot (the three already referenced by [[technical/crafting#7. Module Effects on Recipe Execution|crafting.md §7]]). Additional kinds (buffer / cooling / yield) deferred — content axis, not engine axis.
+- **Module kinds:** speed multiplier, efficiency multiplier, parallel-slot (the three already referenced by [[crafting#7. Module Effects on Recipe Execution|crafting.md §7]]). Additional kinds (buffer / cooling / yield) deferred — content axis, not engine axis.
 - **Slot constraints:** `ModuleSlotDef` declares accepted module-kind whitelist per slot. Mixed-kind machines (e.g. "two speed slots and one parallel slot") supported.
 - **Upgrade retention:** when a machine is upgraded via the kit path (§6.1), modules at slots whose `IVec3` position is identical between `from_tier` and `to_tier` are retained; modules at slots whose position changed are detached and returned to the player's inventory. Tier upgrade does not auto-route modules to compatible new slots — that is an explicit player choice.
 - **Save:** modules are independent entities tagged `Save`, restored by `moonshine_save` with their `ModuleOf` relationship intact.
@@ -374,7 +374,7 @@ A full `modules.md` will be written before the module system is implemented.
 | `remove_placed_objects_system` | `WorldObjectEvent { Removed }` | Cable cleanup; in-flight input/catalyst return; despawn machine + ports; emit `MachineRemoved` |
 | `machine_upgrade_system` | `MachineUpgradeRequest` | Validate; respawn ports; swap scene; reattach cables; rebuild `MachineCapability`; emit `MachineUpgraded` |
 | `machine_load_finalize_system` | After `moonshine_save` load | Reattach scenes; rebuild `MachineCapability` and `MachineModifierState` |
-| `build_orientation_input_system` (in [[technical/building]]) | `{kbd:rotate_cw}` / `{kbd:rotate_ccw}` / `{kbd:rotate_fine}` | Update `BuildOrientation` resource |
+| `build_orientation_input_system` (in [[building]]) | `{kbd:rotate_cw}` / `{kbd:rotate_ccw}` / `{kbd:rotate_fine}` | Update `BuildOrientation` resource |
 
 ---
 
@@ -392,9 +392,9 @@ A full `modules.md` will be written before the module system is implemented.
 pub enum UpgradeFailReason  { WrongType, WrongTier, UnknownTier, Obstructed, SlotBusy }
 ```
 
-Placement-fail messages are emitted by the building system ([[technical/building]]), not by machines.md — machines.md trusts a `Placed` event has already passed validation.
+Placement-fail messages are emitted by the building system ([[building]]), not by machines.md — machines.md trusts a `Placed` event has already passed validation.
 
-`MachinePlaced` and `MachineUpgraded` are consumed by `machine_capability_register_system` ([[technical/crafting#3. Recipe Graph Runtime|crafting.md §3]]) and by type-specific observers (generator, miner, storage_crate, outpost_beacon).
+`MachinePlaced` and `MachineUpgraded` are consumed by `machine_capability_register_system` ([[crafting#3. Recipe Graph Runtime|crafting.md §3]]) and by type-specific observers (generator, miner, storage_crate, outpost_beacon).
 
 ---
 

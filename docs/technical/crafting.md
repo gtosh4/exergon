@@ -8,7 +8,7 @@ aliases: ["RecipeProcessor", "CraftingJob", "CraftingPlan", "MachineJobPolicy"]
 
 # Crafting System Design
 
-ECS components, system step-by-step logic, events/messages, and edge cases for the crafting system. Read [[gdd#8. Production & The Recipe Graph|gdd.md §8]] for design intent and [[technical/recipe-graph]] / [[technical/machines]] for the data model. Covers recipe execution, catalyst inputs, module effects on recipes, craft job dispatch, and recipe graph runtime integration.
+ECS components, system step-by-step logic, events/messages, and edge cases for the crafting system. Read [[gdd#8. Production & The Recipe Graph|gdd.md §8]] for design intent and [[recipe-graph]] / [[machines]] for the data model. Covers recipe execution, catalyst inputs, module effects on recipes, craft job dispatch, and recipe graph runtime integration.
 
 ---
 
@@ -40,7 +40,7 @@ Three todos from `design-todos.md` are resolved here: **Recipe Graph Runtime Int
 
 ## 2. ECS Structure
 
-### Machine entity extensions (from [[technical/machines]])
+### Machine entity extensions (from [[machines]])
 
 ```
 Machine entity
@@ -71,7 +71,7 @@ pub enum SlotState {
 }
 ```
 
-`RecipeProcessor` replaces `MachineActivity` and `MachineState` from [[technical/networks#2. Logistics Network|networks.md §2]]. `SlotState::Running` = `MachineState::Running`; `SlotState::Idle` = `MachineState::Idle`. Do not use `MachineActivity` or `MachineState` on machines that carry `RecipeProcessor`.
+`RecipeProcessor` replaces `MachineActivity` and `MachineState` from [[networks#2. Logistics Network|networks.md §2]]. `SlotState::Running` = `MachineState::Running`; `SlotState::Idle` = `MachineState::Idle`. Do not use `MachineActivity` or `MachineState` on machines that carry `RecipeProcessor`.
 
 Slot count is set at machine spawn (1) and updated when a parallel-slot module is attached or detached (see §7). The parallel-slot module can only be added or removed while all slots are idle.
 
@@ -166,7 +166,7 @@ pub struct NetworkReservations {
 }
 ```
 
-`LogisticsNetworkMembers.has_items` (defined in [[technical/networks#2. Logistics Network|networks.md §2]]) is extended to subtract `NetworkReservations` from that network's total storage:
+`LogisticsNetworkMembers.has_items` (defined in [[networks#2. Logistics Network|networks.md §2]]) is extended to subtract `NetworkReservations` from that network's total storage:
 
 - `catalyst[item_id]` subtracted for all callers.
 - `plan_output[(plan, item_id)]` subtracted for callers outside plan P; a query with plan context P skips its own plan's entries — the downstream job sees its reserved items as available and pullable. Passive machines and other plans see plan output reservations as unavailable.
@@ -237,7 +237,7 @@ pub struct MachineConfig {
 }
 
 /// A recipe's requirement on one axis. `ConcreteRecipe.required_config: Vec<ConfigReq>`
-/// (canonical struct in [[technical/recipe-graph#3. Item Kinds|recipe-graph.md §3]]); empty = config-agnostic (the common case).
+/// (canonical struct in [[recipe-graph#3. Item Kinds|recipe-graph.md §3]]); empty = config-agnostic (the common case).
 pub struct ConfigReq {
     pub axis: String,
     pub req:  ConfigReqKind,
@@ -269,9 +269,9 @@ Filtering happens once, here — dispatch (§8) and passive selection (§4) both
 
 ## 4. Machine Job Policy
 
-Each machine entity carries a `MachineJobPolicy` component. Configured through the machine UI panel (see [[technical/machine-ui]]). The dispatcher reads this component when selecting machines for job assignment.
+Each machine entity carries a `MachineJobPolicy` component. Configured through the machine UI panel (see [[machine-ui]]). The dispatcher reads this component when selecting machines for job assignment.
 
-> **Canonical definition in [[technical/machine-ui#3. ECS Structure|machine-ui.md §3]].** This section summarizes the model. For the full struct definition and slot assignment rules, see [[machine-ui#3. ECS Structure|machine-ui.md §3]].
+> **Canonical definition in [[machine-ui#3. ECS Structure|machine-ui.md §3]].** This section summarizes the model. For the full struct definition and slot assignment rules, see [[machine-ui#3. ECS Structure|machine-ui.md §3]].
 
 `MachineJobPolicy` uses a per-recipe model:
 
@@ -294,13 +294,13 @@ Slot assignment: slots are parallel processors of the single policy. `passive_re
 Step by step:
 
 1. Read `ConcreteRecipe` from `RecipeGraph`.
-2. Check power — voltage and amp checks per [[technical/networks#2. Logistics Network|networks.md §2]] and [[technical/power]]:
+2. Check power — voltage and amp checks per [[networks#2. Logistics Network|networks.md §2]] and [[power]]:
    a. Network voltage tier ≥ `recipe.min_voltage_tier` — hard block if not met; emit `RecipeBlockedVoltage { machine, slot }`.
    b. Available amp headroom ≥ draw rate — block if at amp capacity; emit `RecipeBlockedAmps { machine, slot }`. Job stays `Dispatched` and retries when `AmpHeadroomRestored` fires.
 3. Check input availability — for each `recipe.inputs` where `consumed == true`, resolve the machine's input-eligible logistics ports (via `PortPolicy`) and call `has_items` on each port's network with this job's plan as context (plan-aware: plan output reservations for this plan are visible as available on that network). If any item is unavailable in sufficient quantity across reachable networks, block: emit `RecipeBlockedInputs { machine, slot, missing }`. Retries on `NetworkStorageChanged`.
 4. Check output routing — for each entry in `recipe.outputs`:
    - **`RecipeOutput::Item`** — verify at least one of the machine's logistics ports (via `PortPolicy`) allows output for that item and has a connected network. If any item output has no valid destination, block: emit `RecipeBlockedOutputs { machine, slot }`. Retries on `NetworkChanged<Logistics>`.
-   - **`RecipeOutput::Energy`** — verify the machine has a `GeneratorUnit` component (asserted at content-load time by invariant #17, so this is a defensive check) and, if the machine's `Throttle == OnBufferFull`, that `GeneratorUnit.buffer_joules < max_buffer_joules`. If the buffer is full and throttle is on, block: emit `RecipeBlockedOutputs { machine, slot }`. Retries on `NetworkChanged<Power>` (which fires when consumer demand drains the buffer). The `NeverThrottle` mode skips the buffer-headroom check; recipes may complete into a full buffer with the surplus discarded (see [[technical/power#8. Throttle|power.md §8]]).
+   - **`RecipeOutput::Energy`** — verify the machine has a `GeneratorUnit` component (asserted at content-load time by invariant #17, so this is a defensive check) and, if the machine's `Throttle == OnBufferFull`, that `GeneratorUnit.buffer_joules < max_buffer_joules`. If the buffer is full and throttle is on, block: emit `RecipeBlockedOutputs { machine, slot }`. Retries on `NetworkChanged<Power>` (which fires when consumer demand drains the buffer). The `NeverThrottle` mode skips the buffer-headroom check; recipes may complete into a full buffer with the surplus discarded (see [[power#8. Throttle|power.md §8]]).
 5. Check catalyst availability — for each `recipe.inputs` where `consumed == false`, call `has_items` on the item's source network (subtracts `NetworkReservations.catalyst[item]` for that network). If `available < required`, block: emit `RecipeBlockedCatalysts { machine, slot }`. Retries on `NetworkStorageChanged` and on `CatalystReservationReleased`.
 6. All checks pass:
    a. Pull `recipe.inputs` where `consumed == true` from the plan's logistics network.
@@ -339,9 +339,9 @@ Step by step (per slot):
 Step by step:
 
 1. Read the job entity from `RecipeSlot.job`.
-2. For each entry in `recipe.outputs`, roll against `chance` (using the recipe-execution RNG seeded from `(plan_id, completion_index)` per [[technical/recipe-graph#6. ConcreteRecipe Data Model|recipe-graph.md §6]]); on success, dispatch by variant:
+2. For each entry in `recipe.outputs`, roll against `chance` (using the recipe-execution RNG seeded from `(plan_id, completion_index)` per [[recipe-graph#6. ConcreteRecipe Data Model|recipe-graph.md §6]]); on success, dispatch by variant:
    - **`RecipeOutput::Item { item, quantity, .. }`** → `give_items(item, quantity)` on the machine's output-eligible logistics ports (per `PortPolicy`).
-   - **`RecipeOutput::Energy { joules, .. }`** → `GeneratorUnit.give_energy(joules)` on the machine entity. The buffer is clamped to `max_buffer_joules`; overflow is discarded (and emits `GeneratorOverflow { machine, joules_lost }` for telemetry — see [[technical/power#13. Systems & Messages|power.md §13]]).
+   - **`RecipeOutput::Energy { joules, .. }`** → `GeneratorUnit.give_energy(joules)` on the machine entity. The buffer is clamped to `max_buffer_joules`; overflow is discarded (and emits `GeneratorOverflow { machine, joules_lost }` for telemetry — see [[power#13. Systems & Messages|power.md §13]]).
 3. Emit `NetworkStorageChanged { network }` for each logistics network that received an item output — triggers `recipe_start_system` evaluation for idle machines on those networks. If any `RecipeOutput::Energy` was emitted and the machine's `GeneratorUnit.buffer_joules` transitioned 0→positive, emit `NetworkChanged<Power>` for the machine's power network — triggers `recipe_start_system` for paused consumer recipes.
 4. Release amp draw from power network.
 5. Release catalyst reservations: for each entry in `CatalystReservations`, decrement `network.NetworkReservations.catalyst[item]` on the recorded network; remove `CatalystReservations` component from job entity; emit `CatalystReservationReleased { item_id, quantity }` per item.
@@ -357,7 +357,7 @@ Step by step:
 
 ### Data model
 
-`ConcreteRecipe` uses a unified `RecipeInput` type for all inputs (from [[technical/recipe-graph]]):
+`ConcreteRecipe` uses a unified `RecipeInput` type for all inputs (from [[recipe-graph]]):
 
 ```rust
 pub struct RecipeInput {
@@ -624,7 +624,7 @@ Step by step:
 
 ## 11. Execution Order
 
-All crafting systems belong to `LogisticsSimSystems` and run after `PowerSimSystems` per [[technical/networks#4. Interplay|networks.md §4]].
+All crafting systems belong to `LogisticsSimSystems` and run after `PowerSimSystems` per [[networks#4. Interplay|networks.md §4]].
 
 ```
 [PowerSimSystems]                    // generator_tick — fill buffers; may emit NetworkChanged<Power>
@@ -659,7 +659,7 @@ All crafting systems belong to `LogisticsSimSystems` and run after `PowerSimSyst
 
 `recipe_progress_system` runs before `recipe_completion_system`. `job_prerequisite_system` runs before `job_dispatcher_system` — a job unblocked this frame can be dispatched in the same frame. `passive_recipe_system` runs before `recipe_progress_system` so a machine idled by the previous frame's completion can begin its next recipe without a one-frame delay.
 
-Power systems complete before `LogisticsSimSystems` — generator buffers are filled before `recipe_start_system` checks them. For power-blocked retries, `AmpHeadroomRestored` (from [[technical/networks]]) triggers `recipe_start_system` after the power tick that freed headroom.
+Power systems complete before `LogisticsSimSystems` — generator buffers are filled before `recipe_start_system` checks them. For power-blocked retries, `AmpHeadroomRestored` (from [[networks]]) triggers `recipe_start_system` after the power tick that freed headroom.
 
 ---
 

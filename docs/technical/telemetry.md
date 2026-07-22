@@ -10,7 +10,7 @@ aliases: ["TelemetryLog", "JSONL", "production stall", "run_id", "instrumentatio
 
 ECS components, resource structure, event schema, derived metrics, system logic, and log format for development-build telemetry. Supports VS §6 (Instrumentation) and playtest protocol §7. **VS: JSONL log file per run, debug builds only, no network. MVP: opt-in online reporting (§9).**
 
-Read [[vertical_slice#6. Instrumentation|vertical_slice.md §6]] for the full list of required events and metrics. Read [[technical/seed]] and [[technical/save]] for seed and run identity.
+Read [[vertical_slice#6. Instrumentation|vertical_slice.md §6]] for the full list of required events and metrics. Read [[seed]] and [[save]] for seed and run identity.
 
 ---
 

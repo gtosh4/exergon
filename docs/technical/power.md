@@ -8,11 +8,11 @@ aliases: ["generators", "batteries", "solar panels", "lightning rods"]
 
 # Power System Design
 
-Generator kinds, energy production, batteries, and environmental coupling. Sits on top of the cable graph defined in [[technical/networks#3. Power Network|networks.md §3]].
+Generator kinds, energy production, batteries, and environmental coupling. Sits on top of the cable graph defined in [[networks#3. Power Network|networks.md §3]].
 
-[[technical/networks]] owns the cable network mechanics — topology, `GeneratorUnit` buffer pooling via `PowerNetworkMembers`, the `give_energy`/`take_energy`/`has_energy` surface, voltage/amp gating at recipe start, and the non-destructive failure modes. This doc covers **how generators produce the energy** that flows through that network.
+[[networks]] owns the cable network mechanics — topology, `GeneratorUnit` buffer pooling via `PowerNetworkMembers`, the `give_energy`/`take_energy`/`has_energy` surface, voltage/amp gating at recipe start, and the non-destructive failure modes. This doc covers **how generators produce the energy** that flows through that network.
 
-Generators are machines. They go through the same placement flow as any other machine ([[technical/machines#4. Placement Flow|machines.md §4]]), expose IO ports, and run recipes ([[technical/crafting#5. Recipe Execution|crafting.md §5]]). The only thing special about a generator is that its recipe output is **energy** rather than items, and that some generators consume **virtual items** sourced from an environmental port rather than real items routed through a logistics network.
+Generators are machines. They go through the same placement flow as any other machine ([[machines#4. Placement Flow|machines.md §4]]), expose IO ports, and run recipes ([[crafting#5. Recipe Execution|crafting.md §5]]). The only thing special about a generator is that its recipe output is **energy** rather than items, and that some generators consume **virtual items** sourced from an environmental port rather than real items routed through a logistics network.
 
 ---
 
@@ -39,13 +39,13 @@ Generators are machines. They go through the same placement flow as any other ma
 
 ## 1. Overview
 
-A generator is a `Machine` with a `GeneratorUnit` buffer (see [[technical/networks#3. Power Network|networks.md §3]]). It runs one or more recipes that produce **energy** as output. Recipe inputs differ by kind:
+A generator is a `Machine` with a `GeneratorUnit` buffer (see [[networks#3. Power Network|networks.md §3]]). It runs one or more recipes that produce **energy** as output. Recipe inputs differ by kind:
 
 - **Active generator** — recipe consumes real items routed through a logistics port (coal, refined fuel, fuel rods).
 - **Passive generator** — recipe consumes virtual items produced by a built-in environmental port (sunlight, heat, lightning pulses). Virtual items never enter the logistics graph.
 - **Burst generator** — passive generator whose env port emits in stochastic bursts (e.g. lightning strikes).
 
-All three kinds share the same recipe-execution machinery from [[technical/crafting#5. Recipe Execution|crafting.md §5]]. Energy output is written into the machine's `GeneratorUnit` buffer; consumers draw from it via the pooled `PowerNetworkMembers.take_energy` surface defined in [[technical/networks#3. Power Network|networks.md §3]].
+All three kinds share the same recipe-execution machinery from [[crafting#5. Recipe Execution|crafting.md §5]]. Energy output is written into the machine's `GeneratorUnit` buffer; consumers draw from it via the pooled `PowerNetworkMembers.take_energy` surface defined in [[networks#3. Power Network|networks.md §3]].
 
 ```
 Active   :  fuel item ─[logistics port]─► RecipeProcessor ─► joules ─► GeneratorUnit ─► network pool
@@ -69,7 +69,7 @@ Burst    :  storm     ─[env port pulse]─► RecipeProcessor ─► joules �
 
 ## 3. Asset Schema
 
-Generators reuse `MachineDef` / `MachineTierDef` ([[technical/machines#3. ECS Structure|machines.md §3]]). Generator-specific fields live in an optional `generator: Option<GeneratorDef>` block on `MachineTierDef`:
+Generators reuse `MachineDef` / `MachineTierDef` ([[machines#3. ECS Structure|machines.md §3]]). Generator-specific fields live in an optional `generator: Option<GeneratorDef>` block on `MachineTierDef`:
 
 ```rust
 pub struct GeneratorDef {
@@ -110,26 +110,26 @@ pub struct BurstMode {
 }
 ```
 
-Recipes for generators live in the recipe graph ([[technical/recipe-graph]]) with `machine_type == generator_def.id` and outputs that include an `Energy(joules)` entry. See §7.
+Recipes for generators live in the recipe graph ([[recipe-graph]]) with `machine_type == generator_def.id` and outputs that include an `Energy(joules)` entry. See §7.
 
 ---
 
 ## 4. ECS Structure
 
-Generator-specific components attached to the machine entity (in addition to standard `Machine` components from [[technical/machines#3. ECS Structure|machines.md §3]]):
+Generator-specific components attached to the machine entity (in addition to standard `Machine` components from [[machines#3. ECS Structure|machines.md §3]]):
 
 | Component | Entity | Purpose |
 |---|---|---|
-| `GeneratorUnit { pos, voltage_tier, watts, buffer_joules, max_buffer_joules }` | Machine entity | Buffer + voltage; defined in [[technical/networks#3. Power Network|networks.md §3]]. Pooled via `PowerNetworkMembers` |
+| `GeneratorUnit { pos, voltage_tier, watts, buffer_joules, max_buffer_joules }` | Machine entity | Buffer + voltage; defined in [[networks#3. Power Network|networks.md §3]]. Pooled via `PowerNetworkMembers` |
 | `Throttle(ThrottleMode)` | Machine entity | Drives the throttle gate on `recipe_start_system` for this machine |
 | `EnvPort { source, virtual_item, rated_rate, burst_mode }` | Env port entity (child of machine) | Present iff generator is Passive or Burst |
 | `EnvPortOf(Entity)` | Env port entity | Relationship back to the owning machine (parallels `LogisticsPortOf` / `EnergyPortOf`) |
 | `MachineEnvPorts` | Machine entity | Relationship-target listing env port entities |
 | `LocalVirtualStock(HashMap<ItemId, u32>)` | Machine entity | Local-only counter that `recipe_start_system` reads instead of `LogisticsNetworkMembers.has_items` when an input is a virtual item |
 
-Env ports are spawned by the `generator_observer` on `OnAdd<Machine>` when `MachineRegistry.tier_def(item_id).generator.kind != Active`. The observer matches the machine type filter (`"generator"` umbrella, dispatched by `GeneratorDef.kind`) — same pattern as the other special-case observers in [[technical/machines|machines.md §4 — Special-case machines]].
+Env ports are spawned by the `generator_observer` on `OnAdd<Machine>` when `MachineRegistry.tier_def(item_id).generator.kind != Active`. The observer matches the machine type filter (`"generator"` umbrella, dispatched by `GeneratorDef.kind`) — same pattern as the other special-case observers in [[machines|machines.md §4 — Special-case machines]].
 
-`LocalVirtualStock` exists so that recipe input checks (`has_items` / `take_items` in [[technical/crafting#5. Recipe Execution|crafting.md §5]]) have a uniform integer count to consume against. Virtual item emission writes into this stock; recipe start drains from it.
+`LocalVirtualStock` exists so that recipe input checks (`has_items` / `take_items` in [[crafting#5. Recipe Execution|crafting.md §5]]) have a uniform integer count to consume against. Virtual item emission writes into this stock; recipe start drains from it.
 
 ---
 
@@ -184,7 +184,7 @@ Recipe authors size inputs/outputs around these quanta. A solar recipe might be 
 
 ## 7. Energy as Recipe Output
 
-Generator recipes produce energy via `RecipeOutput::Energy { joules, chance }`. The variant is defined in [[technical/recipe-graph#6. ConcreteRecipe Data Model|recipe-graph.md §6]]:
+Generator recipes produce energy via `RecipeOutput::Energy { joules, chance }`. The variant is defined in [[recipe-graph#6. ConcreteRecipe Data Model|recipe-graph.md §6]]:
 
 ```rust
 pub enum RecipeOutput {
@@ -193,21 +193,21 @@ pub enum RecipeOutput {
 }
 ```
 
-Generator-recipe invariants from [[technical/recipe-graph#10. Validity Invariants|recipe-graph.md §10]]:
+Generator-recipe invariants from [[recipe-graph#10. Validity Invariants|recipe-graph.md §10]]:
 - **#16** — `outputs[0]` of any recipe on a generator machine must be `RecipeOutput::Energy` (primary output = energy yield).
 - **#17** — only generator machines may produce energy.
 
 ### Completion routing
 
-`recipe_completion_system` ([[technical/crafting#5. Recipe Execution|crafting.md §5]]) iterates `recipe.outputs`, rolls each entry's `chance`, and dispatches by variant:
+`recipe_completion_system` ([[crafting#5. Recipe Execution|crafting.md §5]]) iterates `recipe.outputs`, rolls each entry's `chance`, and dispatches by variant:
 - `Item` → `give_items` on the machine's output-eligible logistics ports (existing path; ash, depleted_rod, and any other byproducts route here as ordinary items).
 - `Energy` → `GeneratorUnit.give_energy(joules)` on the machine entity. Clamped to `max_buffer_joules`; surplus discarded and `GeneratorOverflow { machine, joules_lost }` fired (§13).
 
-Energy is **not withdrawn per-tick during generator progress**. The full `joules` value lands at completion in a single write. This matters for cancellation: per [[technical/machines#5. Removal Flow|machines.md §5]], an in-progress generator recipe interrupted by removal/cancellation refunds its input items and emits **zero joules**. There is no partial energy production — the recipe either completes (full yield) or is cancelled (no yield).
+Energy is **not withdrawn per-tick during generator progress**. The full `joules` value lands at completion in a single write. This matters for cancellation: per [[machines#5. Removal Flow|machines.md §5]], an in-progress generator recipe interrupted by removal/cancellation refunds its input items and emits **zero joules**. There is no partial energy production — the recipe either completes (full yield) or is cancelled (no yield).
 
 ### Generator recipes that also consume energy
 
-A generator recipe may set `energy_cost > 0` — e.g. a nuclear pre-heater stage that draws network power to initiate the fuel cycle, then produces a larger amount of energy on completion. This is allowed and goes through the standard `recipe_progress_system` per-tick withdrawal ([[technical/crafting#5. Recipe Execution|crafting.md §5]]). The two flows are independent:
+A generator recipe may set `energy_cost > 0` — e.g. a nuclear pre-heater stage that draws network power to initiate the fuel cycle, then produces a larger amount of energy on completion. This is allowed and goes through the standard `recipe_progress_system` per-tick withdrawal ([[crafting#5. Recipe Execution|crafting.md §5]]). The two flows are independent:
 - `energy_cost` (per-tick withdrawal during progress) is unrelated to `RecipeOutput::Energy` (completion-time deposit).
 - A net-positive generator recipe satisfies `output_energy_joules > energy_cost`. The runtime does not enforce net-positivity — it's a recipe-design concern. A net-negative generator recipe is legal but pointless.
 
@@ -215,7 +215,7 @@ This is why `RecipeOutput::Energy` is a distinct variant rather than a negative 
 
 ### Voltage gating
 
-Voltage and amp checks at start use the **recipe's `min_voltage_tier`** for the energy-cost (per-tick) draw, exactly as for any recipe ([[technical/crafting#5. Recipe Execution|crafting.md §5]]). For the **output side**, the generator's `GeneratorUnit.voltage_tier` must match the cable network the generator is joined to: a generator on a network below its emit tier refuses to start with `BlockReason::VoltageMismatch`. You cannot pour T2 energy into a T1 network.
+Voltage and amp checks at start use the **recipe's `min_voltage_tier`** for the energy-cost (per-tick) draw, exactly as for any recipe ([[crafting#5. Recipe Execution|crafting.md §5]]). For the **output side**, the generator's `GeneratorUnit.voltage_tier` must match the cable network the generator is joined to: a generator on a network below its emit tier refuses to start with `BlockReason::VoltageMismatch`. You cannot pour T2 energy into a T1 network.
 
 ### Byproduct items
 
@@ -252,7 +252,7 @@ A battery is a non-generator machine that **stores and re-emits** energy. It par
 
 ### Pool participation
 
-`PowerNetworkMembers` exposes the pooled surface ([[technical/networks#3. Power Network|networks.md §3]]). For `take_energy`:
+`PowerNetworkMembers` exposes the pooled surface ([[networks#3. Power Network|networks.md §3]]). For `take_energy`:
 - Iterates all members with `GeneratorUnit` or `BatteryUnit` and draws from their buffers (priority: generators first, batteries second — favor consuming live production before stored).
 - For batteries, draw is rate-capped to `max_discharge_watts * dt` per tick across all consumers (network-wide, not per-consumer).
 
@@ -286,7 +286,7 @@ Batteries have a voltage tier. They participate in `PowerNetworkMembers.voltage_
 
 ### Save
 
-`BatteryUnit` is fully persisted (`#[require(Save)]` via `Machine` per [[technical/save]]). Buffer state survives save/load.
+`BatteryUnit` is fully persisted (`#[require(Save)]` via `Machine` per [[save]]). Buffer state survives save/load.
 
 ---
 
@@ -356,7 +356,7 @@ Range checks use a flat horizontal distance; vertical doesn't matter for strike 
 
 What varies per run, layered:
 
-**Layer 1 — Param variance (always on).** Common generator recipes vary inputs/yield/time/energy within the bounds declared in [[technical/recipe-graph]] (`§ — variance bounds`). A combustion recipe in run A burns 1 coal/1.0s → 200kJ; in run B burns 1 coal/0.7s → 280kJ. Within the per-recipe envelope, no run logic needed.
+**Layer 1 — Param variance (always on).** Common generator recipes vary inputs/yield/time/energy within the bounds declared in [[recipe-graph]] (`§ — variance bounds`). A combustion recipe in run A burns 1 coal/1.0s → 200kJ; in run B burns 1 coal/0.7s → 280kJ. Within the per-recipe envelope, no run logic needed.
 
 **Layer 2 — Generator availability (seeded).** Whether a given generator's tech-tree node spawns is a per-run roll, owned by [[tech-tree-design|tech-tree-design.md §374]]. Combustion and Solar both always spawn at T1 (every run needs power); higher-tier or unique generators are gated.
 
@@ -364,7 +364,7 @@ What varies per run, layered:
 
 **Fuel identity does not vary.** Coal remains coal across runs. The strategic shift comes from param variance (how much energy per coal) and from which tech nodes exist (do you have nuclear this run?), not from fuel substitution.
 
-**Env factor variance.** `planet.sun_factor`, `planet.geothermal_factor`, `planet.wind_factor` are per-run constants set by [[technical/planet-identity]]. A low-solar world (`sun_factor = 0.3`) forces combustion strategy; a geologically inert world (`geothermal_factor = 0`) eliminates geothermal entirely.
+**Env factor variance.** `planet.sun_factor`, `planet.geothermal_factor`, `planet.wind_factor` are per-run constants set by [[planet-identity]]. A low-solar world (`sun_factor = 0.3`) forces combustion strategy; a geologically inert world (`geothermal_factor = 0`) eliminates geothermal entirely.
 
 ---
 
@@ -376,26 +376,26 @@ What varies per run, layered:
 | `env_port_tick_system` | `PowerSimSystems` | Continuous virtual item emission for Passive sources; respects throttle |
 | `lightning_burst_system` | `PowerSimSystems` (event-driven) | Targets nearest in-range rod and injects pulses |
 | `battery_charge_system` | `PowerSimSystems`, after consumers | Absorbs surplus joules into batteries within rate caps |
-| `generator_recipe_complete_observer` | Observer on `RecipeCompleted` | Routes `RecipeOutput::Energy` to the machine's `GeneratorUnit.give_energy`; routes byproducts via existing item path. Generator recipes are discoverable via `RecipeGraph.energy_producers()` / `by_energy_output` — see [[technical/recipe-graph#7. RecipeGraph Resource|recipe-graph.md §7]]. |
-| (existing) `generator_system` from [[technical/networks#3. Power Network|networks.md §3]] | `PowerSimSystems` | Cable connection/disconnection; fires `NetworkChanged<Power>` |
-| (existing) `generator_tick_system` from [[technical/networks#3. Power Network|networks.md §3]] | `PowerSimSystems` | Currently fills buffer at `watts`; **superseded** by recipe-driven completion (see migration note below) |
+| `generator_recipe_complete_observer` | Observer on `RecipeCompleted` | Routes `RecipeOutput::Energy` to the machine's `GeneratorUnit.give_energy`; routes byproducts via existing item path. Generator recipes are discoverable via `RecipeGraph.energy_producers()` / `by_energy_output` — see [[recipe-graph#7. RecipeGraph Resource|recipe-graph.md §7]]. |
+| (existing) `generator_system` from [[networks#3. Power Network|networks.md §3]] | `PowerSimSystems` | Cable connection/disconnection; fires `NetworkChanged<Power>` |
+| (existing) `generator_tick_system` from [[networks#3. Power Network|networks.md §3]] | `PowerSimSystems` | Currently fills buffer at `watts`; **superseded** by recipe-driven completion (see migration note below) |
 
 ### Migration note: `generator_tick_system`
 
-[[technical/networks#3. Power Network|networks.md §3]] describes a `generator_tick_system` that fills generator buffers at `watts * dt`. That fill model is replaced by the recipe-completion path in this spec — generators fill their buffers via `RecipeOutput::Energy` written at recipe completion, not at constant `watts`. The `watts` field on `GeneratorUnit` is retained for UI display (rated output) and for `EnvFactorRegistry` consumers that key off it, but the per-tick fill behavior moves to `recipe_completion_system`.
+[[networks#3. Power Network|networks.md §3]] describes a `generator_tick_system` that fills generator buffers at `watts * dt`. That fill model is replaced by the recipe-completion path in this spec — generators fill their buffers via `RecipeOutput::Energy` written at recipe completion, not at constant `watts`. The `watts` field on `GeneratorUnit` is retained for UI display (rated output) and for `EnvFactorRegistry` consumers that key off it, but the per-tick fill behavior moves to `recipe_completion_system`.
 
-[[technical/networks]] should be updated to reference this doc for the production model; this doc is the canonical source for **how energy enters the buffer**.
+[[networks]] should be updated to reference this doc for the production model; this doc is the canonical source for **how energy enters the buffer**.
 
 ### Messages
 
 | Event | Fields | Producers | Consumers |
 |---|---|---|---|
 | `LightningStrikeEvent` | `pos: Vec3, energy: f32` | `weather_system` (post-VS) | `lightning_burst_system` |
-| `GeneratorOverflow` | `machine: Entity, joules_lost: f32` | `generator_recipe_complete_observer` (when buffer full and throttle == NeverThrottle) | Telemetry ([[technical/telemetry]]) |
+| `GeneratorOverflow` | `machine: Entity, joules_lost: f32` | `generator_recipe_complete_observer` (when buffer full and throttle == NeverThrottle) | Telemetry ([[telemetry]]) |
 | `BatteryChargeChanged` | `battery: Entity, delta: f32` | `battery_charge_system` | (Optional) UI |
-| `NetworkChanged<Power>` | (from [[technical/networks#3. Power Network|networks.md §3]]) | This doc's systems on buffer 0→positive transition | `recipe_start_system` in logistics |
+| `NetworkChanged<Power>` | (from [[networks#3. Power Network|networks.md §3]]) | This doc's systems on buffer 0→positive transition | `recipe_start_system` in logistics |
 
-`NetworkChanged<Power>` is fired by `generator_recipe_complete_observer` when the generator's buffer transitions 0 → positive, and by `battery_charge_system` when a battery transitions 0 → positive — both to unblock paused consumer recipes per [[technical/networks|networks.md §3 — Power as a Consumable Resource]].
+`NetworkChanged<Power>` is fired by `generator_recipe_complete_observer` when the generator's buffer transitions 0 → positive, and by `battery_charge_system` when a battery transitions 0 → positive — both to unblock paused consumer recipes per [[networks|networks.md §3 — Power as a Consumable Resource]].
 
 ---
 
@@ -415,7 +415,7 @@ NetworkSystems::of::<Power>()           // cable_placed, cable_removed
       → LogisticsSimSystems             // consumers draw via take_energy
 ```
 
-Note: `recipe_start_system` and `recipe_progress_system` are shared with non-generator machines ([[technical/crafting#11. Execution Order|crafting.md §11]]). The generator sub-ordering above shows where generator-specific input gathering and output routing fit; the underlying systems themselves run once and process all machines.
+Note: `recipe_start_system` and `recipe_progress_system` are shared with non-generator machines ([[crafting#11. Execution Order|crafting.md §11]]). The generator sub-ordering above shows where generator-specific input gathering and output routing fit; the underlying systems themselves run once and process all machines.
 
 `battery_charge_system` runs **after** the consumer pass in `LogisticsSimSystems` is logically complete, but since both belong to the same frame's tick the implementation orders `battery_charge_system` last in `PowerSimSystems` and relies on the fact that consumer `take_energy` calls during recipe_progress have already debited the relevant buffers. (Alternative: split into two `PowerSimSystems` stages with the battery charge in a post-stage. Implementation detail; either is correct as long as batteries see the post-consumer buffer state.)
 
@@ -431,7 +431,7 @@ Note: `recipe_start_system` and `recipe_progress_system` are shared with non-gen
 - `ThrottleMode::OnBufferFull` (default for all VS generators)
 - `EnvFactorRegistry` resource with Solar evaluator wired to `planet.sun_factor` and a static `sky_visibility` (no day/night cycle in VS — `time_of_day_factor` returns 1.0)
 - Recipe-driven energy production (`RecipeOutput::Energy`)
-- Per-recipe param variance ([[technical/recipe-graph]])
+- Per-recipe param variance ([[recipe-graph]])
 
 **Out of VS (post-VS):**
 - `GeneratorKind::Burst` and lightning rods
@@ -465,9 +465,9 @@ This means in VS, solar generators run at `planet.sun_factor * sky_visibility` (
 
 8. **`LocalVirtualStock` cap reached during a buffer-full period.** Emission halts at the stock cap. The cap protects against runaway accumulation; it does not punish well-built setups (in normal play, recipes consume the stock faster than the cap matters).
 
-9. **Generator recipe with `energy_cost > 0`.** Allowed but unusual — a generator that draws network power to run (e.g. a nuclear pre-heater stage). The recipe goes through normal voltage/amp/energy checks per [[technical/crafting#5. Recipe Execution|crafting.md §5]]. If the network is too drained for the pre-heater, the generator can't start its production recipe. Power-positive-net rule isn't enforced by the system — it's a recipe-design concern. Recipe authors must ensure `output_energy > input_energy` over the recipe's duration, or the gen is a net consumer (which is allowed but pointless).
+9. **Generator recipe with `energy_cost > 0`.** Allowed but unusual — a generator that draws network power to run (e.g. a nuclear pre-heater stage). The recipe goes through normal voltage/amp/energy checks per [[crafting#5. Recipe Execution|crafting.md §5]]. If the network is too drained for the pre-heater, the generator can't start its production recipe. Power-positive-net rule isn't enforced by the system — it's a recipe-design concern. Recipe authors must ensure `output_energy > input_energy` over the recipe's duration, or the gen is a net consumer (which is allowed but pointless).
 
-10. **Mid-recipe generator removal.** [[technical/machines|machines.md §5 step 5]] already emits `MachineRemoved`; the generator observer in [[technical/power]] releases buffered joules to nothing (joules are lost — buffer doesn't transfer to the network on removal, and partial recipes refund input items per [[technical/machines|machines.md §5 step 1]]). UI message: "Generator dismantled; X kJ buffered energy lost."
+10. **Mid-recipe generator removal.** [[machines|machines.md §5 step 5]] already emits `MachineRemoved`; the generator observer in [[power]] releases buffered joules to nothing (joules are lost — buffer doesn't transfer to the network on removal, and partial recipes refund input items per [[machines|machines.md §5 step 1]]). UI message: "Generator dismantled; X kJ buffered energy lost."
 
 11. **Battery removed while charged.** Buffered joules are lost. No item dropped. Player should drain the battery (by running consumers) before removal if they care. Telemetry event for joules lost is post-VS.
 
@@ -475,8 +475,8 @@ This means in VS, solar generators run at `planet.sun_factor * sky_visibility` (
 
 13. **Generator placed but no cable connected.** `GeneratorUnit` exists; `PowerNetworkMember` not inserted (no network). `env_port_tick_system` still produces virtual items into `LocalVirtualStock`. Recipe runs and writes joules into `GeneratorUnit.buffer_joules`. Buffer fills. Throttle kicks in. **Result: an isolated generator silently accumulates buffer up to cap and then idles.** This is correct — player connects cable, network re-evaluates, downstream consumers draw stored energy.
 
-14. **Catalyst-gated generator recipe.** Per [[technical/crafting#6. Catalyst Inputs|crafting.md §6]], catalyst reservation applies. A combustion generator requiring a rare "ignition coil" item runs only while the coil is in the network. The coil is reserved (not consumed) during the recipe; multiple coil-gated machines share the pool via the reservation book. This works without generator-specific code — it's just a recipe with a catalyst input.
+14. **Catalyst-gated generator recipe.** Per [[crafting#6. Catalyst Inputs|crafting.md §6]], catalyst reservation applies. A combustion generator requiring a rare "ignition coil" item runs only while the coil is in the network. The coil is reserved (not consumed) during the recipe; multiple coil-gated machines share the pool via the reservation book. This works without generator-specific code — it's just a recipe with a catalyst input.
 
-15. **Save/load with mid-recipe generator.** Per [[technical/machines|machines.md §6 — Save tagging]], mid-recipe state is persisted. `RecipeProcessor.progress`, `LocalVirtualStock`, `GeneratorUnit.buffer_joules`, `Throttle`, env port child entities are all saved (`#[require(Save)]` cascades from `Machine`). On load, the recipe resumes from saved progress; env port emission resumes on the next tick.
+15. **Save/load with mid-recipe generator.** Per [[machines|machines.md §6 — Save tagging]], mid-recipe state is persisted. `RecipeProcessor.progress`, `LocalVirtualStock`, `GeneratorUnit.buffer_joules`, `Throttle`, env port child entities are all saved (`#[require(Save)]` cascades from `Machine`). On load, the recipe resumes from saved progress; env port emission resumes on the next tick.
 
 16. **Battery rate cap during burst.** Lightning rod produces a large joule completion in one tick. Generator buffer fills. Network surplus is huge. Battery's `max_charge_watts * dt` is small compared to the burst. Result: most of the strike's energy stays in the rod's `GeneratorUnit.buffer_joules` until consumed; battery sips at its rate cap. This is correct — batteries are not infinite sinks. Burst storage is the rod's own buffer, not the battery's.
