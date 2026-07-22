@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "exergon-lsp": {
+      "source": {
+        "source": "directory",
+        "path": "./.claude/lsp-marketplace"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "markdown-oxide-lsp@exergon-lsp": true
+  }
+}

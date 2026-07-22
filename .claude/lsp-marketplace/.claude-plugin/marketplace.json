@@ -1,0 +1,29 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "exergon-lsp",
+  "description": "Project-local LSP plugins for the Exergon repo",
+  "owner": {
+    "name": "exergon"
+  },
+  "plugins": [
+    {
+      "name": "markdown-oxide-lsp",
+      "description": "Markdown/Obsidian language server for docs/: wikilink go-to-definition, backlinks via findReferences, broken-link diagnostics",
+      "version": "1.0.0",
+      "author": {
+        "name": "exergon"
+      },
+      "source": "./plugins/markdown-oxide-lsp",
+      "category": "development",
+      "strict": false,
+      "lspServers": {
+        "markdown-oxide": {
+          "command": "markdown-oxide",
+          "extensionToLanguage": {
+            ".md": "markdown"
+          }
+        }
+      }
+    }
+  ]
+}

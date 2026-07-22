@@ -23,6 +23,7 @@ Docs and code diverge → reconcile explicitly. Never leave silent.
 - **Internal links are `[[wikilinks]]`** (not markdown links); images stay markdown.
 - **Design decisions = atomic notes** in `docs/decisions/` (`YYYY-MM-DD-slug.md`, frontmatter `type: decision`, `date`, `title`, `summary`, `tags`). NOT a single log file.
 - **Index/catalog blocks are generated** (`docs/README.md`, `docs/technical/README.md`, `docs/market/README.md`, `docs/design-decisions.md`) — do not hand-edit them. After adding, removing, or re-describing a doc, or adding a decision note, run `python3 scripts/gen_docs_index.py`.
+- **Navigate the wikilink graph via the LSP** (`markdown-oxide`, registered for `.md` in `.claude/settings.json`): `findReferences` on a note = its backlinks; `goToDefinition` on a `[[link]]` follows it; broken links surface as diagnostics. Install per [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Instructions
 - Use TDD: write tests first based on requirements. Minimal tests to cover requirements, not comprehensive
